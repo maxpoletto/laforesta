@@ -59,10 +59,11 @@ import {
   satelliteColor, satelliteDiffValue, satelliteMaskRawUrl, satelliteRawUrl, satelliteRgb, satelliteValue,
 } from './bosco-satellite.js';
 import {
-  aggregateDendrometry, dendrometryBarChartData, dendrometryHeightPoints,
+  aggregateDendrometry, dendrometryBarChartData, dendrometryBasalAreaSum,
+  dendrometryDiameterStats, dendrometryHeightPoints,
   dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
-  dendrometrySpeciesColor,
-  dendrometryTreeStatusLabel, parcelNavigation, regionMetadata,
+  dendrometrySpeciesColor, dendrometryTreeSum, dendrometryTreeTotal,
+  dendrometryVolumeSum, parcelNavigation, regionMetadata,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -179,6 +180,11 @@ let dendrometryVolumeCanvas = null;
 let dendrometryBasalAreaCanvas = null;
 let dendrometryHeightCanvas = null;
 let dendrometryIncrementCanvas = null;
+let dendrometryTreeInfo = null;
+let dendrometryVolumeInfo = null;
+let dendrometryBasalAreaInfo = null;
+let dendrometryHeightInfo = null;
+let dendrometryIncrementInfo = null;
 let dendrometryCharts = {};
 let productionHost = null;
 let productionCanvas = null;
@@ -322,6 +328,11 @@ function mountPage(el, params) {
   dendrometryBasalAreaCanvas = el.querySelector('[data-target="dendrometry-basal-area-chart"]');
   dendrometryHeightCanvas = el.querySelector('[data-target="dendrometry-height-chart"]');
   dendrometryIncrementCanvas = el.querySelector('[data-target="dendrometry-increment-chart"]');
+  dendrometryTreeInfo = el.querySelector('[data-target="dendrometry-tree-count-info"]');
+  dendrometryVolumeInfo = el.querySelector('[data-target="dendrometry-volume-info"]');
+  dendrometryBasalAreaInfo = el.querySelector('[data-target="dendrometry-basal-area-info"]');
+  dendrometryHeightInfo = el.querySelector('[data-target="dendrometry-height-info"]');
+  dendrometryIncrementInfo = el.querySelector('[data-target="dendrometry-increment-info"]');
   productionHost = el.querySelector('[data-target="production-chart-host"]');
   productionCanvas = el.querySelector('[data-target="production-chart"]');
   productionSummary = el.querySelector('[data-target="production-summary"]');
@@ -357,6 +368,8 @@ function destroyPage() {
   dendrometryTreeCanvas = dendrometryVolumeCanvas = null;
   dendrometryBasalAreaCanvas = dendrometryHeightCanvas = null;
   dendrometryIncrementCanvas = null;
+  dendrometryTreeInfo = dendrometryVolumeInfo = dendrometryBasalAreaInfo = null;
+  dendrometryHeightInfo = dendrometryIncrementInfo = null;
   destroyDendrometryCharts();
   productionHost = productionCanvas = productionSummary = productionLink = null;
   productionPerHa = productionMonthly = null;
@@ -1775,11 +1788,12 @@ function renderDendrometry() {
   if (!dendrometryData || !dendrometryPointsData) {
     destroyDendrometryCharts();
     if (dendrometryChartGrid) dendrometryChartGrid.hidden = true;
-    if (dendrometryStatus) dendrometryStatus.textContent = S.LOADING;
+    clearDendrometryInfo();
+    setDendrometryStatus(S.LOADING);
     Promise.all([loadDendrometry(), loadDendrometryPoints()])
       .then(renderDendrometry)
       .catch(() => {
-        if (dendrometryStatus) dendrometryStatus.textContent = S.BOSCO_DENDROMETRY_UNAVAILABLE;
+        setDendrometryStatus(S.BOSCO_DENDROMETRY_UNAVAILABLE);
       });
     return;
   }
@@ -1787,15 +1801,13 @@ function renderDendrometry() {
   renderDendrometrySpecies(scope);
   const baseScope = { region: scope.region, parcelId: scope.parcelId };
   const filter = currentState?.detailSpeciesIds;
+  if (Array.isArray(filter) && !filter.length) {
+    showNoDendrometryData();
+    return;
+  }
   const rows = aggregateDendrometry(dendrometryData, baseScope, {
     areaHa: scope.areaHa,
     perHa: dendrometryPerHa?.checked !== false,
-    speciesIds: filter,
-    allSpeciesNames: speciesNames,
-  });
-  const rawRows = aggregateDendrometry(dendrometryData, baseScope, {
-    areaHa: scope.areaHa,
-    perHa: false,
     speciesIds: filter,
     allSpeciesNames: speciesNames,
   });
@@ -1803,7 +1815,7 @@ function renderDendrometry() {
     speciesIds: filter,
     allSpeciesNames: speciesNames,
   });
-  renderDendrometryCharts(rows, rawRows, heightPoints);
+  renderDendrometryCharts(rows, heightPoints);
 }
 
 function renderDendrometrySpecies(scope) {
@@ -1848,22 +1860,17 @@ function setDendrometrySpeciesFilter(selected) {
   navigateWithParams(PAGE_PATH, params, true);
 }
 
-function renderDendrometryCharts(rows, rawRows, heightPoints) {
+function renderDendrometryCharts(rows, heightPoints) {
   if (!dendrometryStatus || !dendrometryChartGrid) return;
   if (!rows.length) {
-    destroyDendrometryCharts();
-    dendrometryChartGrid.hidden = true;
-    dendrometryStatus.textContent = S.BOSCO_NO_DENDROMETRY;
+    showNoDendrometryData();
     return;
   }
 
   dendrometryChartGrid.hidden = false;
   const perHa = dendrometryPerHa?.checked !== false;
-  dendrometryStatus.textContent = dendrometryTreeStatusLabel(rows, rawRows, {
-    perHa,
-    formatTotal: fmtInt,
-    formatPerHa: fmtDecimal1,
-  });
+  setDendrometryStatus('');
+  renderDendrometryInfo(rows, { perHa });
   dendrometryCharts.treeCount = renderStackedBar(
     dendrometryTreeCanvas,
     dendrometryBarChartData(rows, 'treeCount', perHa ? S.BOSCO_TREE_COUNT_PER_HA : S.BOSCO_TREE_COUNT),
@@ -1889,6 +1896,72 @@ function renderDendrometryCharts(rows, rawRows, heightPoints) {
     dendrometryLineChartData(rows, 'incrementPct', S.COL_INCREMENT_PCT),
     dendrometryCharts.increment,
   );
+}
+
+function setDendrometryStatus(message) {
+  if (!dendrometryStatus) return;
+  dendrometryStatus.textContent = message || '';
+  dendrometryStatus.hidden = !message;
+}
+
+function renderDendrometryInfo(rows, { perHa }) {
+  setDendrometryInfo(
+    dendrometryTreeInfo,
+    perHa
+      ? S.BOSCO_TREES_PER_HA(fmtDecimal1(dendrometryTreeSum(rows)))
+      : S.BOSCO_TOTAL_TREES(fmtInt(dendrometryTreeTotal(rows))),
+  );
+  setDendrometryInfo(
+    dendrometryVolumeInfo,
+    perHa
+      ? S.BOSCO_VOLUME_PER_HA_SUMMARY(S.BOSCO_VOLUME_PER_HA_VALUE(
+        fmtDecimal2(dendrometryVolumeSum(rows)),
+      ))
+      : S.BOSCO_TOTAL_VOLUME(fmtVolume(dendrometryVolumeSum(rows))),
+  );
+
+  const basalArea = dendrometryBasalAreaSum(rows);
+  const diameterStats = dendrometryDiameterStats(rows);
+  const basalLines = [
+    perHa
+      ? S.BOSCO_BASAL_AREA_PER_HA_SUMMARY(S.BOSCO_BASAL_AREA_PER_HA_VALUE(
+        fmtDecimal2(basalArea),
+      ))
+      : S.BOSCO_TOTAL_BASAL_AREA(S.BOSCO_BASAL_AREA_VALUE(fmtDecimal2(basalArea))),
+  ];
+  if (diameterStats) {
+    basalLines.push(S.BOSCO_AVG_DIAMETER(
+      fmtDecimal1(diameterStats.meanCm), fmtDecimal1(diameterStats.sigmaCm),
+    ));
+  }
+  setDendrometryInfo(dendrometryBasalAreaInfo, basalLines);
+  setDendrometryInfo(dendrometryHeightInfo, '');
+  setDendrometryInfo(dendrometryIncrementInfo, '');
+}
+
+function setDendrometryInfo(el, content) {
+  if (!el) return;
+  el.replaceChildren();
+  const lines = Array.isArray(content) ? content : [content];
+  for (const line of lines.filter(Boolean)) {
+    const div = document.createElement('div');
+    div.textContent = line;
+    el.appendChild(div);
+  }
+}
+
+function clearDendrometryInfo() {
+  [
+    dendrometryTreeInfo, dendrometryVolumeInfo, dendrometryBasalAreaInfo,
+    dendrometryHeightInfo, dendrometryIncrementInfo,
+  ].forEach(el => setDendrometryInfo(el, ''));
+}
+
+function showNoDendrometryData() {
+  destroyDendrometryCharts();
+  if (dendrometryChartGrid) dendrometryChartGrid.hidden = true;
+  clearDendrometryInfo();
+  setDendrometryStatus(S.BOSCO_NO_DENDROMETRY);
 }
 
 function destroyDendrometryCharts() {

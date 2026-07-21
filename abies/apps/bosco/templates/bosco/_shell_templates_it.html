@@ -50,7 +50,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
           </select>
           <label class="bosco-check"><input type="checkbox" data-role="cadastral-toggle"> Aree catastali</label>
           <label class="bosco-check" data-role="per-ha-row">
-            <input type="checkbox" data-role="per-ha-toggle"> Valori per ettaro
+            <input type="checkbox" data-role="per-ha-toggle"> {{ S.LABEL_VALUES_PER_HA }}
           </label>
           <label class="bosco-check" data-role="characteristic-parcel-average-row">
             <input type="checkbox" data-role="characteristic-parcel-average-toggle"> Media per particella
@@ -74,7 +74,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             <select id="bosco-evolution-date2" data-role="date2"></select>
           </div>
           <label class="bosco-check" data-role="parcel-average-row"><input type="checkbox" data-role="parcel-average-toggle"> Media per particella</label>
-          <label class="bosco-check" data-role="evolution-per-ha-row"><input type="checkbox" data-role="evolution-per-ha-toggle"> Valori per ettaro</label>
+          <label class="bosco-check" data-role="evolution-per-ha-row"><input type="checkbox" data-role="evolution-per-ha-toggle"> {{ S.LABEL_VALUES_PER_HA }}</label>
           <label class="bosco-check"><input type="checkbox" data-role="evolution-cadastral-toggle"> Aree catastali</label>
           <div class="bosco-legend" data-target="diff-legend"></div>
         </section>
@@ -129,7 +129,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
           {% include "base/_partials/_collapsible_header.html" with section="bosco-detail-d" title="Dendrometria" %}
           <div class="collapsible-body" data-section="bosco-detail-d">
             <div class="bosco-detail-toolbar">
-              <label class="bosco-check"><input type="checkbox" data-role="dendrometry-per-ha" checked> Per ettaro</label>
+              <label class="bosco-check"><input type="checkbox" data-role="dendrometry-per-ha" checked> {{ S.LABEL_VALUES_PER_HA }}</label>
             </div>
             <div class="bosco-species-row">
               <span class="bosco-species-label">Specie:</span>
@@ -147,30 +147,35 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
                   <div class="bosco-chart-canvas">
                     <canvas data-target="dendrometry-tree-count-chart"></canvas>
                   </div>
+                  <div class="bosco-chart-info" data-target="dendrometry-tree-count-info"></div>
                 </div>
                 <div class="bosco-chart-panel">
-                  <h3>Volume totale</h3>
+                  <h3>Volume</h3>
                   <div class="bosco-chart-canvas">
                     <canvas data-target="dendrometry-volume-chart"></canvas>
                   </div>
+                  <div class="bosco-chart-info" data-target="dendrometry-volume-info"></div>
                 </div>
                 <div class="bosco-chart-panel">
                   <h3>Area basimetrica</h3>
                   <div class="bosco-chart-canvas">
                     <canvas data-target="dendrometry-basal-area-chart"></canvas>
                   </div>
+                  <div class="bosco-chart-info" data-target="dendrometry-basal-area-info"></div>
                 </div>
                 <div class="bosco-chart-panel">
                   <h3>Altezza media</h3>
                   <div class="bosco-chart-canvas">
                     <canvas data-target="dendrometry-height-chart"></canvas>
                   </div>
+                  <div class="bosco-chart-info" data-target="dendrometry-height-info"></div>
                 </div>
                 <div class="bosco-chart-panel">
                   <h3>Incremento %</h3>
                   <div class="bosco-chart-canvas">
                     <canvas data-target="dendrometry-increment-chart"></canvas>
                   </div>
+                  <div class="bosco-chart-info" data-target="dendrometry-increment-info"></div>
                 </div>
               </div>
             </div>
@@ -181,7 +186,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
           {% include "base/_partials/_collapsible_header.html" with section="bosco-detail-p" title="Produzione storica" %}
           <div class="collapsible-body" data-section="bosco-detail-p">
             <div class="bosco-detail-toolbar">
-              <label class="bosco-check"><input type="checkbox" data-role="production-per-ha" checked> Per ettaro</label>
+              <label class="bosco-check"><input type="checkbox" data-role="production-per-ha" checked> {{ S.LABEL_VALUES_PER_HA }}</label>
               <label class="bosco-check"><input type="checkbox" data-role="production-monthly"> Mesi</label>
               <a class="btn" data-target="production-link" href="/prelievi">Apri in Prelievi</a>
             </div>

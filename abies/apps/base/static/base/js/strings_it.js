@@ -328,6 +328,15 @@ export const BOSCO_TOTAL_TREES = (n) => `Alberi totali: ${n}`;
 export const BOSCO_TREES_PER_HA = (n) => `Alberi per ettaro: ${n}`;
 export const BOSCO_VOLUME_PER_HA = 'Volume (m³/ha)';
 export const BOSCO_BASAL_AREA_PER_HA = 'Area bas. (m²/ha)';
+export const BOSCO_BASAL_AREA_VALUE = value => `${value} m²`;
+export const BOSCO_BASAL_AREA_PER_HA_VALUE = value => `${value} m²/ha`;
+export const BOSCO_TOTAL_VOLUME = value => `Volume totale: ${value}`;
+export const BOSCO_VOLUME_PER_HA_SUMMARY = value => `Volume per ettaro: ${value}`;
+export const BOSCO_TOTAL_BASAL_AREA = value => `Area totale: ${value}`;
+export const BOSCO_BASAL_AREA_PER_HA_SUMMARY = value =>
+  `Area basimetrica per ettaro: ${value}`;
+export const BOSCO_AVG_DIAMETER = (mean, sigma) =>
+  `Diametro medio: ${mean}, σ=${sigma}`;
 export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =
   'Produzione storica non disponibile.';
 export const BOSCO_NO_HISTORICAL_HARVEST = 'Nessun prelievo storico.';

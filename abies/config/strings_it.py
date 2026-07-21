@@ -453,6 +453,7 @@ LABEL_BOSCO_CUTTING_PLAN = 'Piano dei tagli'
 LABEL_BOSCO_ALTITUDE_MIN = 'Altitudine minima'
 LABEL_BOSCO_ALTITUDE_MAX = 'Altitudine massima'
 LABEL_BOSCO_GRADE = 'Pendenza'
+LABEL_VALUES_PER_HA = 'Valori per ettaro'
 
 # ---------------------------------------------------------------------------
 # CSV column headers.  These are simultaneously the wire-format identifiers

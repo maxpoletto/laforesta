@@ -170,12 +170,39 @@ export function dendrometryTreeTotal(rows) {
   return Math.round(dendrometryTreeSum(rows));
 }
 
-export function dendrometryTreeStatusLabel(
-  rows, rawRows, { perHa = true, formatTotal = String, formatPerHa = String } = {},
-) {
-  return perHa
-    ? S.BOSCO_TREES_PER_HA(formatPerHa(dendrometryTreeSum(rows)))
-    : S.BOSCO_TOTAL_TREES(formatTotal(dendrometryTreeTotal(rawRows)));
+export function dendrometryVolumeSum(rows) {
+  return sum(rows.map(row => row.volumeM3));
+}
+
+export function dendrometryBasalAreaSum(rows) {
+  return sum(rows.map(row => row.basalAreaM2));
+}
+
+export function dendrometryDiameterStats(rows) {
+  let weight = 0;
+  let total = 0;
+  for (const row of rows) {
+    const d = toNumber(row.diameterClassCm);
+    const w = toNumber(row.treeCount, 0);
+    if (d == null || w <= 0) continue;
+    weight += w;
+    total += d * w;
+  }
+  if (weight <= 0) return null;
+
+  const mean = total / weight;
+  let varianceTotal = 0;
+  for (const row of rows) {
+    const d = toNumber(row.diameterClassCm);
+    const w = toNumber(row.treeCount, 0);
+    if (d == null || w <= 0) continue;
+    varianceTotal += ((d - mean) ** 2) * w;
+  }
+
+  return {
+    meanCm: round(mean, 4),
+    sigmaCm: round(Math.sqrt(varianceTotal / weight), 4),
+  };
 }
 
 function dendrometryChartAxes(rows) {
