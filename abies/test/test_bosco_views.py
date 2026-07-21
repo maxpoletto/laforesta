@@ -114,14 +114,17 @@ def test_parcel_metadata_export_region(reader_client, parcels):
     assert 'particelle-Capistrano.csv' in resp['Content-Disposition']
     reader = csv_io.read(resp.content.decode('utf-8'))
     assert reader.fieldnames == [
-        S.CSV_COL_REGION, S.CSV_COL_CLASS, S.CSV_COL_PARCEL,
-        S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION,
-        S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
-        S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
-        S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
+        S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_CLASS,
+        S.CSV_COL_GOVERNANCE, S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE,
+        S.CSV_COL_LOCATION, S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX,
+        S.CSV_COL_ASPECT, S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC,
+        S.CSV_COL_VEG_DESC, S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL,
+        S.CSV_COL_STANDARDS,
     ]
     rows = list(reader)
     assert [row[S.CSV_COL_PARCEL] for row in rows] == ['1', '2']
+    assert rows[0][S.CSV_COL_CLASS] == 'A'
+    assert rows[0][S.CSV_COL_GOVERNANCE] == S.TYPE_HIGHFOREST
     assert rows[0][S.CSV_COL_GEO_DESC] == 'Stazione test'
     assert rows[0][S.CSV_COL_VEG_DESC] == 'Soprassuolo test'
     assert rows[0][S.CSV_COL_CUTTING_PLAN] == 'Diradamento test'
@@ -143,6 +146,17 @@ def test_parcel_metadata_export_single_parcel(reader_client, parcels):
     assert rows[0][S.CSV_COL_PARCEL] == '2'
 
 
+def test_parcel_metadata_export_all_regions(reader_client, parcels):
+    resp = reader_client.get('/api/bosco/parcels/export/?all=1')
+
+    assert resp.status_code == 200
+    assert 'particelle.csv' in resp['Content-Disposition']
+    rows = list(csv_io.read(resp.content.decode('utf-8')))
+    assert [
+        (row[S.CSV_COL_REGION], row[S.CSV_COL_PARCEL]) for row in rows
+    ] == [('Capistrano', '1'), ('Capistrano', '2'), ('Fabrizia', '1')]
+
+
 def test_parcel_metadata_form_requires_writer(reader_client, parcels):
     resp = reader_client.get(f'/api/bosco/parcels/metadata/form/{parcels[0].id}/')
     assert resp.status_code == 403
@@ -155,9 +169,15 @@ def test_parcel_metadata_form_writer_access(writer_client, parcels):
     html = resp.json()[HTML]
     assert 'id="bosco-parcel-metadata-form"' in html
     assert f'value="{parcels[0].id}"' in html
+    assert 'name="eclass_id"' in html
+    assert f'value="{parcels[0].eclass_id}"' in html
+    assert 'Comparto' in html
+    assert 'A — Fustaia' in html
     assert 'name="cutting_plan"' in html
-    assert 'name="intervention_interval"' not in html
-    assert 'name="standards_per_ha"' not in html
+    assert 'name="intervention_interval"' in html
+    assert 'name="standards_per_ha"' in html
+    assert 'data-target="coppice-metadata-fields"' in html
+    assert 'hidden' in html
 
 
 def test_parcel_metadata_form_shows_coppice_fields(writer_client, regions, eclasses):
@@ -178,6 +198,7 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     parcel = parcels[0]
     body = {
         ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'eclass_id': str(parcel.eclass_id),
         'area_ha': '12,50', 'ave_age': '44', 'location_name': 'Costa alta',
         'altitude_min_m': '700', 'altitude_max_m': '920',
         'aspect': 'NE', 'grade_pct': '35',
@@ -220,6 +241,7 @@ def test_parcel_metadata_save_updates_coppice_fields(writer_client, regions, ecl
     )
     body = {
         ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'eclass_id': str(parcel.eclass_id),
         'area_ha': '2.00', 'ave_age': '', 'location_name': '',
         'altitude_min_m': '', 'altitude_max_m': '',
         'aspect': '', 'grade_pct': '', 'desc_veg': '', 'desc_geo': '',
@@ -238,6 +260,28 @@ def test_parcel_metadata_save_updates_coppice_fields(writer_client, regions, ecl
     assert parcel.standards_per_ha == 30
 
 
+def test_parcel_metadata_save_updates_governance(writer_client, parcels, eclasses):
+    parcel = parcels[0]
+    body = {
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'eclass_id': str(eclasses[2].id),
+        'area_ha': str(parcel.area_ha), 'ave_age': '', 'location_name': '',
+        'altitude_min_m': '', 'altitude_max_m': '',
+        'aspect': '', 'grade_pct': '', 'desc_veg': '', 'desc_geo': '',
+        'cutting_plan': '', 'intervention_interval': '14',
+        'standards_per_ha': '50', FIELD_NONCE: 'parcel-governance-save',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 200
+    parcel.refresh_from_db()
+    assert parcel.eclass == eclasses[2]
+    assert parcel.intervention_interval == 14
+    assert parcel.standards_per_ha == 50
+
+
 def test_parcel_metadata_save_requires_coppice_fields(writer_client, regions, eclasses):
     parcel = Parcel.objects.create(
         name='C1', region=regions[0], eclass=eclasses[2],
@@ -245,6 +289,7 @@ def test_parcel_metadata_save_requires_coppice_fields(writer_client, regions, ec
     )
     body = {
         ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'eclass_id': str(parcel.eclass_id),
         'area_ha': '2.00', 'ave_age': '', 'location_name': '',
         'altitude_min_m': '', 'altitude_max_m': '',
         'aspect': '', 'grade_pct': '', 'desc_veg': '', 'desc_geo': '',
@@ -265,7 +310,8 @@ def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):
     parcel.version = 3
     parcel.save(update_fields=[VERSION])
     body = {
-        ROW_ID: str(parcel.id), VERSION: '2', 'area_ha': '12.50',
+        ROW_ID: str(parcel.id), VERSION: '2',
+        'eclass_id': str(parcel.eclass_id), 'area_ha': '12.50',
         'ave_age': '', 'location_name': '', 'altitude_min_m': '',
         'altitude_max_m': '', 'aspect': '', 'grade_pct': '',
         'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-conflict',
@@ -284,7 +330,8 @@ def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):
 def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels):
     parcel = parcels[0]
     body = {
-        ROW_ID: str(parcel.id), VERSION: str(parcel.version), 'area_ha': '',
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'eclass_id': str(parcel.eclass_id), 'area_ha': '',
         'ave_age': 'abc', 'location_name': '', 'altitude_min_m': '',
         'altitude_max_m': '', 'aspect': '', 'grade_pct': '',
         'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-invalid',
@@ -304,7 +351,8 @@ def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels)
 def test_parcel_metadata_save_rejects_inverted_altitude(writer_client, parcels):
     parcel = parcels[0]
     body = {
-        ROW_ID: str(parcel.id), VERSION: str(parcel.version), 'area_ha': '12.50',
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'eclass_id': str(parcel.eclass_id), 'area_ha': '12.50',
         'ave_age': '', 'location_name': '', 'altitude_min_m': '900',
         'altitude_max_m': '800', 'aspect': '', 'grade_pct': '',
         'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-altitude-invalid',

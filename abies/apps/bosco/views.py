@@ -26,7 +26,8 @@ from apps.base.http import (
     CACHE_NO_CACHE, apply_cache_control, conditional_file_response, not_modified_response,
 )
 from apps.base.models import (
-    Parcel, Region, Sample, Species, Survey, Tree, TreeSample, parcel_sort_key,
+    Eclass, Parcel, Region, Sample, Species, Survey, Tree, TreeSample,
+    parcel_sort_key,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.preserved_trees import (
@@ -50,6 +51,7 @@ from config.constants import (
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
 ALLOWED_SATELLITE_LAYERS = {'ndvi', 'ndmi', 'evi'}
 SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+FIELD_ECLASS_ID = 'eclass_id'
 FIELD_AREA_HA = 'area_ha'
 FIELD_AVE_AGE = 'ave_age'
 FIELD_LOCATION_NAME = 'location_name'
@@ -72,8 +74,9 @@ PARCEL_METADATA_TEXT_FIELDS = {
 }
 
 PARCEL_EXPORT_COLUMNS = [
-    S.CSV_COL_REGION, S.CSV_COL_CLASS, S.CSV_COL_PARCEL,
-    S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION,
+    S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_CLASS,
+    S.CSV_COL_GOVERNANCE, S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE,
+    S.CSV_COL_LOCATION,
     S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
     S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
     S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
@@ -88,6 +91,17 @@ def parcels_data(request):
 
 @login_required
 def parcel_metadata_export_view(request):
+    if _truthy_query(request, 'all'):
+        parcels = sorted(
+            Parcel.objects.select_related('region', 'eclass'),
+            key=parcel_sort_key,
+        )
+        content = _render_parcel_export_csv(parcels)
+        response = HttpResponse(content, content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="particelle.csv"'
+        response['Cache-Control'] = 'no-store'
+        return response
+
     region_id = _required_query_int(request, FIELD_REGION_ID)
     region = Region.objects.filter(id=region_id).first()
     if region is None:
@@ -136,7 +150,7 @@ def parcel_metadata_save_view(request):
                   .filter(id=row_id).first())
         if parcel is None:
             raise Http404
-        values, errors = _parse_parcel_metadata_body(body, parcel.eclass.coppice)
+        values, errors = _parse_parcel_metadata_body(body)
         if errors:
             return validation_error(
                 errors, html=_render_parcel_metadata_form(request, row_id, body),
@@ -333,8 +347,9 @@ def _render_parcel_export_csv(parcels):
 def _parcel_export_row(parcel, decimal_sep: str):
     return [
         parcel.region.name,
-        parcel.eclass.name,
         parcel.name,
+        parcel.eclass.name,
+        S.TYPE_COPPICE if parcel.eclass.coppice else S.TYPE_HIGHFOREST,
         csv_io.format_decimal(parcel.area_ha, decimal_sep),
         parcel.ave_age,
         parcel.location_name,
@@ -357,6 +372,10 @@ def _required_query_int(request, key: str) -> int:
     return value
 
 
+def _truthy_query(request, key: str) -> bool:
+    return str(request.GET.get(key) or '').strip().lower() in {'1', 'true', 'yes'}
+
+
 def _optional_query_int(request, key: str) -> int | None:
     raw = request.GET.get(key)
     if raw in (None, ''):
@@ -376,11 +395,24 @@ def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = 
     if parcel is None:
         raise Http404
     form_values = _parcel_metadata_form_values(parcel, values)
+    eclasses = list(Eclass.objects.order_by('coppice', 'name'))
+    selected_eclass_id = int_or_none(values.get(FIELD_ECLASS_ID)) if values else None
+    if selected_eclass_id is None:
+        selected_eclass_id = parcel.eclass_id
+    selected_eclass = next(
+        (eclass for eclass in eclasses if eclass.id == selected_eclass_id),
+        None,
+    )
     return render_to_string('bosco/_parcel_metadata_form.html', {
         'parcel': parcel,
         'version': parcel.version,
         'values': form_values,
-        'is_coppice': parcel.eclass.coppice,
+        'eclasses': eclasses,
+        'selected_eclass_id': selected_eclass_id,
+        'is_coppice': (
+            selected_eclass.coppice if selected_eclass is not None
+            else parcel.eclass.coppice
+        ),
     }, request=request)
 
 
@@ -402,13 +434,23 @@ def _parcel_metadata_form_values(parcel, values: dict | None = None):
     return {key: _form_value(values, key, default, blank=True) for key, default in fields}
 
 
-def _parse_parcel_metadata_body(body: dict, is_coppice: bool):
+def _parse_parcel_metadata_body(body: dict):
     errors = []
+    eclass_id = int_or_none(body.get(FIELD_ECLASS_ID))
+    if eclass_id is None:
+        eclass = None
+        errors.append(S.ERR_BOSCO_GOVERNANCE_REQUIRED)
+    else:
+        eclass = Eclass.objects.filter(id=eclass_id).first()
+        if eclass is None:
+            errors.append(S.ERR_BOSCO_GOVERNANCE_INVALID)
+
     area_ha = parse_decimal(body.get(FIELD_AREA_HA))
     if area_ha is None or area_ha <= 0:
         errors.append(S.ERR_BOSCO_AREA_REQUIRED)
 
     values = {
+        'eclass': eclass,
         FIELD_AREA_HA: area_ha,
         FIELD_AVE_AGE: _optional_int(body, FIELD_AVE_AGE, S.LABEL_BOSCO_AVE_AGE, errors),
         FIELD_LOCATION_NAME: _text_value(body, FIELD_LOCATION_NAME, errors),
@@ -430,7 +472,7 @@ def _parse_parcel_metadata_body(body: dict, is_coppice: bool):
             body, FIELD_STANDARDS_PER_HA, S.COL_STANDARDS_PER_HA, errors,
         ),
     }
-    if is_coppice:
+    if eclass is not None and eclass.coppice:
         for field, label in (
             (FIELD_INTERVENTION_INTERVAL, S.COL_INTERVENTION_INTERVAL),
             (FIELD_STANDARDS_PER_HA, S.COL_STANDARDS_PER_HA),

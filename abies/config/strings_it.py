@@ -15,6 +15,7 @@ DISMISS = 'Chiudi'
 ACTION_EDIT = 'Modifica'
 ACTION_DELETE = 'Elimina'
 EXPORT = 'Esporta'
+EXPORT_ALL = 'Esporta tutto'
 IMPORT_CSV = 'Importa CSV'
 IMPORT_LABEL = 'Importa'
 FILTER_LABEL = 'Filtra'
@@ -435,6 +436,8 @@ ERR_MARK_ROW_TARGET_MISMATCH = (
     'Riga {}: particella fuori dalla destinazione selezionata.'
 )
 ERR_BOSCO_AREA_REQUIRED = 'Superficie obbligatoria.'
+ERR_BOSCO_GOVERNANCE_REQUIRED = 'Governo obbligatorio.'
+ERR_BOSCO_GOVERNANCE_INVALID = 'Governo non valido.'
 ERR_BOSCO_INTEGER_REQUIRED = '{} deve essere un numero intero.'
 ERR_BOSCO_TEXT_TOO_LONG = '{} troppo lunga.'
 ERR_BOSCO_ALTITUDE_RANGE = 'Altitudine minima maggiore della massima.'
@@ -506,6 +509,7 @@ CSV_COL_YEAR_END     = 'Anno fine'     # HarvestPlan.year_end; paired with COL_Y
 # contexts) or differ (e.g. `Altitudine min` in the CSV vs
 # `Alt. min. (m)` in the digest column).
 CSV_COL_CLASS          = 'Comparto'
+CSV_COL_GOVERNANCE     = 'Governo'
 CSV_COL_CREW           = 'Squadra'           # paired with COL_CREW
 CSV_COL_PRODUCT        = 'Tipo'              # paired with COL_PRODUCT
 CSV_COL_NOTE           = 'Note'              # paired with COL_NOTE
@@ -598,6 +602,7 @@ COL_NAME            = 'Nome'           # paired with LABEL_NAME (HTML form)
 COL_LATIN_NAME      = 'Nome latino'
 COL_DENSITY         = 'Densità (q/m³)'
 COL_CLASS           = 'Classe'           # parcel eclass
+COL_GOVERNANCE      = 'Governo'
 COL_AREA_HA         = 'Area (ha)'
 COL_AREA_CAD_HA     = 'Area cat. (ha)'
 COL_AVE_AGE         = 'Età media (a)'

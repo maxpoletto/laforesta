@@ -153,16 +153,18 @@ following the standard Abies idiom:
 1. **Caratteristiche** (open by default)
    - Location, altitude min/max, esposizione, pendenza.
    - Surface area: cadastral and computed.
-   - Classe economica, tipo (alto fusto / ceduo).
+   - Comparto, Governo (Fustaia / Ceduo).
    - For parcels only: età media (a).
-   - Export button: downloads canonical `particelle.csv` rows for the current
-     parcel or region.
+   - `Esporta`: downloads canonical `particelle.csv` rows for the current
+     parcel or region. `Esporta tutto`: downloads all parcels in all regions.
+     Exported CSV rows begin with `Compresa`, `Particella`, `Comparto`,
+     `Governo`.
    - Descrizione vegetazione ("soprassuolo") (free text, multi-paragraph).
    - Descrizione geologia ("stazione") (free text, multi-paragraph).
-   
-   Writers see a pencil icon next to each editable field that flips it into an
-   inline editor with the standard annulla/salva buttons (see UI Design
-   Patterns). Hitting Escape is equivalent to annulla.
+
+   Writers see `Modifica` only for parcel detail, where it opens the standard
+   metadata form. `Comparto` is editable there; `Governo` is derived from the
+   selected comparto. Region detail is aggregate-only and has no edit action.
 
 2. **Dendrometria** (closed by default)
    - Species filter: a not very tall checkbox list of species to be displayed in

@@ -17,6 +17,7 @@ export const CONFIRM = 'Conferma';
 export const FILTER_LABEL = 'Filtra';
 export const SEARCH_PLACEHOLDER = 'Cerca...';
 export const EXPORT = 'Esporta';
+export const EXPORT_ALL = 'Esporta tutto';
 export const IMPORT_CSV = 'Importa CSV';
 export const NO_RESULTS = 'Nessun risultato.';
 export const ACTION_EDIT = 'Modifica';
@@ -347,6 +348,7 @@ export const BOSCO_PAI_TREE_META = (parcel, number) => `${parcel} · n. ${number
 export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';
 export const BOSCO_METRIC_AGE = 'Età';
 export const BOSCO_METRIC_TYPE = 'Governo';
+export const COL_GOVERNANCE = 'Governo';
 export const BOSCO_METRIC_ALTITUDE = 'Altitudine';
 export const BOSCO_METRIC_HISTORICAL_HARVEST = 'Prelievo storico';
 export const BOSCO_METRIC_FUTURE_HARVEST = 'Prelievo previsto';

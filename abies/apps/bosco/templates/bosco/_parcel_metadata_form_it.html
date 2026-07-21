@@ -11,6 +11,18 @@
 
     <div class="form-row narrow">
       <div class="form-group">
+        <label for="id_parcel_eclass">{{ S.CSV_COL_CLASS }}</label>
+        <select id="id_parcel_eclass" name="eclass_id" required>
+          {% for eclass in eclasses %}
+            <option value="{{ eclass.id }}"
+                    data-coppice="{% if eclass.coppice %}1{% else %}0{% endif %}"
+                    {% if eclass.id == selected_eclass_id %}selected{% endif %}>
+              {{ eclass.name }} — {% if eclass.coppice %}{{ S.TYPE_COPPICE }}{% else %}{{ S.TYPE_HIGHFOREST }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
         <label for="id_parcel_area">Area (ha)</label>
         <input type="text" inputmode="decimal" id="id_parcel_area"
                name="area_ha" required value="{{ values.area_ha }}">
@@ -41,9 +53,6 @@
         <input type="number" id="id_parcel_alt_max" name="altitude_max_m"
                value="{{ values.altitude_max_m }}">
       </div>
-    </div>
-
-    <div class="form-row narrow">
       <div class="form-group">
         <label for="id_parcel_aspect">Esposizione</label>
         <input type="text" id="id_parcel_aspect" name="aspect"
@@ -77,22 +86,21 @@
       </div>
     </div>
 
-    {% if is_coppice %}
-      <div class="form-row narrow">
-        <div class="form-group">
-          <label for="id_parcel_interval">{{ S.COL_INTERVENTION_INTERVAL }}</label>
-          <input type="number" id="id_parcel_interval"
-                 name="intervention_interval" required
-                 value="{{ values.intervention_interval }}">
-        </div>
-        <div class="form-group">
-          <label for="id_parcel_standards">{{ S.COL_STANDARDS_PER_HA }}</label>
-          <input type="number" id="id_parcel_standards"
-                 name="standards_per_ha" required
-                 value="{{ values.standards_per_ha }}">
-        </div>
+    <div class="form-row narrow" data-target="coppice-metadata-fields"
+         {% if not is_coppice %}hidden{% endif %}>
+      <div class="form-group">
+        <label for="id_parcel_interval">{{ S.COL_INTERVENTION_INTERVAL }}</label>
+        <input type="number" id="id_parcel_interval"
+               name="intervention_interval" {% if is_coppice %}required{% endif %}
+               value="{{ values.intervention_interval }}">
       </div>
-    {% endif %}
+      <div class="form-group">
+        <label for="id_parcel_standards">{{ S.COL_STANDARDS_PER_HA }}</label>
+        <input type="number" id="id_parcel_standards"
+               name="standards_per_ha" {% if is_coppice %}required{% endif %}
+               value="{{ values.standards_per_ha }}">
+      </div>
+    </div>
 
     {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
   </form>

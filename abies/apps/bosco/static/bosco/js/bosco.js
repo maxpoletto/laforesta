@@ -170,6 +170,7 @@ let metadataHost = null;
 let metadataActions = null;
 let metadataEditButton = null;
 let metadataExportButton = null;
+let metadataExportAllButton = null;
 let dendrometryHost = null;
 let dendrometrySpeciesHost = null;
 let dendrometryPerHa = null;
@@ -318,6 +319,7 @@ function mountPage(el, params) {
   metadataActions = el.querySelector('[data-target="metadata-actions"]');
   metadataEditButton = el.querySelector('[data-action="edit-parcel-metadata"]');
   metadataExportButton = el.querySelector('[data-action="export-parcel-metadata"]');
+  metadataExportAllButton = el.querySelector('[data-action="export-all-parcel-metadata"]');
   dendrometryHost = el.querySelector('[data-target="dendrometry"]');
   dendrometrySpeciesHost = el.querySelector('[data-target="dendrometry-species"]');
   dendrometryPerHa = el.querySelector('[data-role="dendrometry-per-ha"]');
@@ -363,6 +365,7 @@ function destroyPage() {
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   detailPrevButton = detailNextButton = null;
   metadataActions = metadataEditButton = metadataExportButton = null;
+  metadataExportAllButton = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
   dendrometryStatus = dendrometryChartGrid = null;
   dendrometryTreeCanvas = dendrometryVolumeCanvas = null;
@@ -1686,10 +1689,14 @@ function renderMetadata(scope) {
   if (metadataActions) metadataActions.hidden = false;
   if (metadataEditButton) {
     metadataEditButton.hidden = !editable;
+    metadataEditButton.style.display = editable ? '' : 'none';
     metadataEditButton.onclick = editable ? () => showParcelMetadataForm(scope.entry.id) : null;
   }
   if (metadataExportButton) {
     metadataExportButton.onclick = () => downloadMetadataExport(scope);
+  }
+  if (metadataExportAllButton) {
+    metadataExportAllButton.onclick = downloadAllMetadataExport;
   }
   if (scope.type === 'parcel') renderParcelMetadata(scope.entry);
   else renderRegionMetadata(scope.entries);
@@ -1701,7 +1708,7 @@ function renderParcelMetadata(entry) {
   appendMetadataField(S.COL_AREA_CAD_HA, entry.cadastralAreaHa ? fmtArea(entry.cadastralAreaHa) : '');
   appendMetadataField(S.COL_AVE_AGE, fmtRoundedInt(entry.aveAge));
   if (entry.className) appendMetadataField(S.COL_CLASS, entry.className);
-  appendMetadataField(S.COL_TYPE, entry.type);
+  appendMetadataField(S.COL_GOVERNANCE, entry.type);
   appendMetadataField(S.COL_ALT_MIN, fmtRoundedInt(entry.altMin));
   appendMetadataField(S.COL_ALT_MAX, fmtRoundedInt(entry.altMax));
   appendMetadataField(S.COL_ASPECT, entry.aspect);
@@ -1723,6 +1730,12 @@ function downloadMetadataExport(scope) {
   downloadFromURL(`${PARCEL_EXPORT_URL}?${params.toString()}`);
 }
 
+function downloadAllMetadataExport() {
+  const params = new URLSearchParams();
+  params.set('all', '1');
+  downloadFromURL(`${PARCEL_EXPORT_URL}?${params.toString()}`);
+}
+
 
 async function showParcelMetadataForm(parcelId) {
   const form = await fetchModalForm(`${PARCEL_METADATA_FORM_URL}${parcelId}/`);
@@ -1731,6 +1744,7 @@ async function showParcelMetadataForm(parcelId) {
 }
 
 function wireParcelMetadataForm(form) {
+  wireParcelMetadataGovernance(form);
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, PARCEL_METADATA_SAVE_URL, {
     onSuccess: (data) => {
@@ -1746,6 +1760,21 @@ function wireParcelMetadataForm(form) {
       }
     },
   });
+}
+
+function wireParcelMetadataGovernance(form) {
+  const select = form.querySelector('[name="eclass_id"]');
+  const coppiceFields = form.querySelector('[data-target="coppice-metadata-fields"]');
+  if (!select || !coppiceFields) return;
+  const requiredFields = coppiceFields.querySelectorAll('input, select, textarea');
+  const sync = () => {
+    const selected = select.selectedOptions[0];
+    const isCoppice = selected?.dataset.coppice === '1';
+    coppiceFields.hidden = !isCoppice;
+    requiredFields.forEach(field => { field.required = isCoppice; });
+  };
+  select.addEventListener('change', sync);
+  sync();
 }
 
 function applyParcelMetadataResponse(data) {
@@ -1767,7 +1796,7 @@ function renderRegionMetadata(entries) {
   appendMetadataField(S.COL_ALT_MIN, fmtRoundedInt(meta.altMin));
   appendMetadataField(S.COL_ALT_MAX, fmtRoundedInt(meta.altMax));
   const types = [...meta.typeCounts.entries()].map(([name, count]) => `${name}: ${count}`).join(' · ');
-  appendMetadataField(S.COL_TYPE, types);
+  appendMetadataField(S.COL_GOVERNANCE, types);
 }
 
 function appendMetadataField(label, value, wide = false) {
