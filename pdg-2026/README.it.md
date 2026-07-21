@@ -139,8 +139,6 @@ Opzioni di visualizzazione:
 
 | Parametro | Valori | Descrizione |
 |-----------|--------|-------------|
-| `col_comparto` | `si`, `no` | Mostra colonna comparto (default: `si`) |
-| `col_eta` | `si`, `no` | Mostra colonna età media (default: `si`) |
 | `col_area_ha` | `si`, `no` | Mostra area in ettari (default: `si`) |
 | `col_prelievo_ha` | `si`, `no` | Mostra prelievo per ettaro (default: `si`) |
 | `col_prelievo` | `si`, `no` | Mostra prelievo totale (default: `si`) |

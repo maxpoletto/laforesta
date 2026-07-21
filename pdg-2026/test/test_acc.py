@@ -650,6 +650,14 @@ class TestTotalHarvests:
         assert np.isclose(sum(t.n_trees for t in parcel_harvests.values()),
                           df['n_trees'].sum(), rtol=1e-9)
 
+    def test_no_parcel_metadata_columns(self, data_all, harvest_rules):
+        """The harvest table carries only area and plan values per group."""
+        df = calculate_harvest_table(
+            data_all, plan_totals(data_all, harvest_rules),
+            group_cols=[COL_PARTICELLA])
+        assert list(df.columns) == [COL_PARTICELLA, 'area_ha', 'n_trees',
+                                    'harvest']
+
     def test_per_genere_counts_sum_to_parcel(self, data_all, harvest_rules):
         """Pro-rata per-genere tree counts must sum to the parcel counts."""
         parcel_harvests = plan_totals(data_all, harvest_rules)

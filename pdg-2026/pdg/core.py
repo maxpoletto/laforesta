@@ -1045,28 +1045,6 @@ def _apply_riduzione(df: pd.DataFrame, options: dict) -> None:
 # RIPRESA (HARVEST TABLE: PLAN TOTALS PER PARCEL/GROUP)
 # =============================================================================
 
-def _row_parcel_keys(df: pd.DataFrame, parcel_keys: set[tuple[str, str]],
-                     group_cols: list[str]) -> list[tuple[str, str]]:
-    """Resolve each table row to its (compresa, particella) key.
-
-    Used to attach per-parcel metadata (sector, age).  Valid when rows map
-    1:1 to parcels: either COL_PARTICELLA is a group column, or the table
-    covers a single parcel.
-    """
-    if COL_PARTICELLA not in group_cols:
-        (key,) = parcel_keys
-        return [key] * len(df)
-    if COL_COMPRESA in df.columns:
-        return list(zip(df[COL_COMPRESA], df[COL_PARTICELLA]))
-    region_by_parcel: dict[str, str] = {}
-    for region, parcel in parcel_keys:
-        if region_by_parcel.setdefault(parcel, region) != region:
-            raise ValueError(
-                f"Particella '{parcel}' presente in più comprese: "
-                "usare per_compresa=si o filtrare per compresa")
-    return [(region_by_parcel[p], p) for p in df[COL_PARTICELLA]]
-
-
 def calculate_harvest_table(data: ParcelData,
                             parcel_harvests: dict[tuple[str, str], ParcelHarvest],
                             group_cols: list[str]) -> pd.DataFrame:
@@ -1080,10 +1058,20 @@ def calculate_harvest_table(data: ParcelData,
 
     Species are summed unless Genere is a group column; harvested tree counts
     are allocated to species pro-rata by harvest volume.  Each group also
-    gets its area and, for per-parcel rows, sector and age metadata.
+    gets its area.
     """
     if not parcel_harvests:
         return pd.DataFrame()
+
+    # Guard against colliding parcel names across comprese: grouping by
+    # Particella alone would silently merge them.
+    if COL_PARTICELLA in group_cols and COL_COMPRESA not in group_cols:
+        region_by_parcel: dict[str, str] = {}
+        for region, parcel in parcel_harvests:
+            if region_by_parcel.setdefault(parcel, region) != region:
+                raise ValueError(
+                    f"Particella '{parcel}' presente in più comprese: "
+                    "usare per_compresa=si o filtrare per compresa")
 
     # Aggregate (harvest, n_trees) by group_cols
     harvest_rows: dict[tuple, ParcelHarvest] = {}
@@ -1107,19 +1095,8 @@ def calculate_harvest_table(data: ParcelData,
 
     _assign_area(df, set(parcel_harvests.keys()), data.parcels, group_cols)
 
-    # Add per-parcel metadata (sector, age)
-    per_parcel = COL_PARTICELLA in group_cols or len(parcel_harvests) == 1
-    if per_parcel:
-        row_keys = _row_parcel_keys(df, set(parcel_harvests.keys()), group_cols)
-        df[COL_SECTOR] = [data.parcels[k].sector for k in row_keys]
-        df[COL_AGE] = [data.parcels[k].age for k in row_keys]
-
     # Ensure column order matches golden file expectations (for tests)
-    # Order: group_cols, [sector, age], area_ha, n_trees, harvest
-    ordered_cols = list(group_cols)
-    if per_parcel:
-        ordered_cols += [COL_SECTOR, COL_AGE]
-    ordered_cols += [COL_AREA_HA, COL_N_TREES, COL_HARVEST]
+    ordered_cols = group_cols + [COL_AREA_HA, COL_N_TREES, COL_HARVEST]
     df = df[[c for c in ordered_cols if c in df.columns]]
 
     if not group_cols or df.empty:
@@ -1168,18 +1145,12 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
         return RenderResult(snippet='')
     _apply_riduzione(df, options)
 
-    per_parcel = COL_PARTICELLA in group_cols or len(parcel_harvests) == 1
-
     # When grouping only by species, area cannot be meaningfully assigned to
     # individual species in a mixed forest, so hide area and per-hectare columns.
     genere_only = group_cols == [COL_GENERE]
 
     total_area = sum(data.parcels[k].area_ha for k in parcel_harvests)
     col_specs = [
-        ColSpec('Classe', 'l', lambda r: str(r[COL_SECTOR]), None,
-                options[OPT_COL_COMPARTO] and per_parcel),
-        ColSpec('Età', 'r', lambda r: fmt_num(r[COL_AGE], 0), None,
-                options[OPT_COL_ETA] and per_parcel),
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
          options[OPT_COL_AREA_HA] and not genere_only),
         ColSpec('N. Alberi', 'r',

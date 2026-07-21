@@ -137,8 +137,6 @@ Display options:
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
-| `col_comparto` | `si`, `no` | Show comparto column (default: `si`) |
-| `col_eta` | `si`, `no` | Show mean age column (default: `si`) |
 | `col_area_ha` | `si`, `no` | Show area in hectares (default: `si`) |
 | `col_prelievo_ha` | `si`, `no` | Show harvest per hectare (default: `si`) |
 | `col_prelievo` | `si`, `no` | Show total harvest (default: `si`) |
