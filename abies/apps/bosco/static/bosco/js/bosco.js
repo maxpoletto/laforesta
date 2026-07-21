@@ -10,6 +10,7 @@ import {
   FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES, M2_PER_HA, ROWS,
 } from '../../base/js/constants.js';
 import { fetchJSON } from '../../base/js/api.js';
+import { downloadFromURL } from '../../base/js/csv-export.js';
 import {
   renderLineChart, renderScatterChart, renderStackedBar, speciesNamesFromDigest,
 } from '../../base/js/charts.js';
@@ -87,6 +88,7 @@ const DENDROMETRY_POINTS_ID = DIGEST_PARCEL_DENDROMETRY_POINTS;
 const DENDROMETRY_POINTS_URL = '/api/bosco/parcel-dendrometry-points/data/';
 const PARCEL_METADATA_FORM_URL = '/api/bosco/parcels/metadata/form/';
 const PARCEL_METADATA_SAVE_URL = '/api/bosco/parcels/metadata/save/';
+const PARCEL_EXPORT_URL = '/api/bosco/parcels/export/';
 const PRESERVED_ID = DIGEST_PRESERVED_TREES;
 const PRESERVED_URL = '/api/bosco/preserved-trees/data/';
 const PAI_FORM_URL = '/api/bosco/pai/form/';
@@ -166,6 +168,7 @@ let detailNextButton = null;
 let metadataHost = null;
 let metadataActions = null;
 let metadataEditButton = null;
+let metadataExportButton = null;
 let dendrometryHost = null;
 let dendrometrySpeciesHost = null;
 let dendrometryPerHa = null;
@@ -308,6 +311,7 @@ function mountPage(el, params) {
   metadataHost = el.querySelector('[data-target="metadata"]');
   metadataActions = el.querySelector('[data-target="metadata-actions"]');
   metadataEditButton = el.querySelector('[data-action="edit-parcel-metadata"]');
+  metadataExportButton = el.querySelector('[data-action="export-parcel-metadata"]');
   dendrometryHost = el.querySelector('[data-target="dendrometry"]');
   dendrometrySpeciesHost = el.querySelector('[data-target="dendrometry-species"]');
   dendrometryPerHa = el.querySelector('[data-role="dendrometry-per-ha"]');
@@ -347,7 +351,7 @@ function destroyPage() {
   evolutionCadastralToggle = diffLegendEl = legendEl = null;
   detailOverlay = detailTitle = detailScopeLabel = metadataHost = null;
   detailPrevButton = detailNextButton = null;
-  metadataActions = metadataEditButton = null;
+  metadataActions = metadataEditButton = metadataExportButton = null;
   dendrometryHost = dendrometrySpeciesHost = dendrometryPerHa = null;
   dendrometryStatus = dendrometryChartGrid = null;
   dendrometryTreeCanvas = dendrometryVolumeCanvas = null;
@@ -1666,10 +1670,14 @@ function renderMetadata(scope) {
   if (!metadataHost) return;
   metadataHost.replaceChildren();
   const editable = scope.type === 'parcel' && canModify();
-  if (metadataActions) metadataActions.hidden = !editable;
-  if (metadataEditButton) metadataEditButton.onclick = editable
-    ? () => showParcelMetadataForm(scope.entry.id)
-    : null;
+  if (metadataActions) metadataActions.hidden = false;
+  if (metadataEditButton) {
+    metadataEditButton.hidden = !editable;
+    metadataEditButton.onclick = editable ? () => showParcelMetadataForm(scope.entry.id) : null;
+  }
+  if (metadataExportButton) {
+    metadataExportButton.onclick = () => downloadMetadataExport(scope);
+  }
   if (scope.type === 'parcel') renderParcelMetadata(scope.entry);
   else renderRegionMetadata(scope.entries);
 }
@@ -1692,6 +1700,14 @@ function renderParcelMetadata(entry) {
   appendMetadataField(S.COL_DESC_VEG, entry.descVeg, true);
   appendMetadataField(S.COL_DESC_GEO, entry.descGeo, true);
   appendMetadataField(S.COL_CUTTING_PLAN, entry.cuttingPlan, true);
+}
+
+
+function downloadMetadataExport(scope) {
+  const params = new URLSearchParams();
+  params.set(FIELD_REGION_ID, scope.regionId);
+  if (scope.type === 'parcel') params.set(FIELD_PARCEL_ID, scope.parcelId);
+  downloadFromURL(`${PARCEL_EXPORT_URL}?${params.toString()}`);
 }
 
 

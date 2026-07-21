@@ -155,6 +155,8 @@ following the standard Abies idiom:
    - Surface area: cadastral and computed.
    - Classe economica, tipo (alto fusto / ceduo).
    - For parcels only: età media (a).
+   - Export button: downloads canonical `particelle.csv` rows for the current
+     parcel or region.
    - Descrizione vegetazione ("soprassuolo") (free text, multi-paragraph).
    - Descrizione geologia ("stazione") (free text, multi-paragraph).
    

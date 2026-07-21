@@ -11,6 +11,7 @@ import rasterio
 from django.test import Client
 from rasterio.transform import from_origin
 
+from apps.base import csv_io
 from apps.base.digests import (
     PRESERVED_TREE_COLUMNS, build_parcel_record, build_preserved_tree_record,
 )
@@ -89,6 +90,57 @@ def test_bosco_digest_endpoints_require_login(client, path):
     resp = client.get(path)
     assert resp.status_code == 302
     assert '/login/' in resp.url
+
+
+def test_parcel_metadata_export_requires_login(client, regions):
+    resp = client.get(f'/api/bosco/parcels/export/?region_id={regions[0].id}')
+
+    assert resp.status_code == 302
+    assert '/login/' in resp.url
+
+
+def test_parcel_metadata_export_region(reader_client, parcels):
+    parcels[0].desc_geo = 'Stazione test'
+    parcels[0].desc_veg = 'Soprassuolo test'
+    parcels[0].cutting_plan = 'Diradamento test'
+    parcels[0].save(update_fields=['desc_geo', 'desc_veg', 'cutting_plan'])
+
+    resp = reader_client.get(
+        f'/api/bosco/parcels/export/?region_id={parcels[0].region_id}',
+    )
+
+    assert resp.status_code == 200
+    assert resp['Cache-Control'] == 'no-store'
+    assert 'particelle-Capistrano.csv' in resp['Content-Disposition']
+    reader = csv_io.read(resp.content.decode('utf-8'))
+    assert reader.fieldnames == [
+        S.CSV_COL_REGION, S.CSV_COL_CLASS, S.CSV_COL_PARCEL,
+        S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION,
+        S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
+        S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
+        S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
+    ]
+    rows = list(reader)
+    assert [row[S.CSV_COL_PARCEL] for row in rows] == ['1', '2']
+    assert rows[0][S.CSV_COL_GEO_DESC] == 'Stazione test'
+    assert rows[0][S.CSV_COL_VEG_DESC] == 'Soprassuolo test'
+    assert rows[0][S.CSV_COL_CUTTING_PLAN] == 'Diradamento test'
+    assert rows[0][S.CSV_COL_INTERVAL] == ''
+    assert rows[0][S.CSV_COL_STANDARDS] == ''
+
+
+def test_parcel_metadata_export_single_parcel(reader_client, parcels):
+    resp = reader_client.get(
+        f'/api/bosco/parcels/export/?region_id={parcels[0].region_id}'
+        f'&parcel_id={parcels[1].id}',
+    )
+
+    assert resp.status_code == 200
+    assert 'particella-Capistrano-2.csv' in resp['Content-Disposition']
+    rows = list(csv_io.read(resp.content.decode('utf-8')))
+    assert len(rows) == 1
+    assert rows[0][S.CSV_COL_REGION] == 'Capistrano'
+    assert rows[0][S.CSV_COL_PARCEL] == '2'
 
 
 def test_parcel_metadata_form_requires_writer(reader_client, parcels):

@@ -12,11 +12,12 @@ import rasterio
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.http import http_date
 from django.views.decorators.http import require_POST
 
+from apps.base import csv_io
 from apps.base.auth import require_writer
 from apps.base.digests import (
     build_parcel_record, build_preserved_tree_record, mark_stale, serve_digest,
@@ -70,10 +71,47 @@ PARCEL_METADATA_TEXT_FIELDS = {
     FIELD_CUTTING_PLAN: (S.LABEL_BOSCO_CUTTING_PLAN, None),
 }
 
+PARCEL_EXPORT_COLUMNS = [
+    S.CSV_COL_REGION, S.CSV_COL_CLASS, S.CSV_COL_PARCEL,
+    S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION,
+    S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
+    S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
+    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
+]
+_SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
+
 
 @login_required
 def parcels_data(request):
     return serve_digest(request, DIGEST_PARCELS)
+
+
+@login_required
+def parcel_metadata_export_view(request):
+    region_id = _required_query_int(request, FIELD_REGION_ID)
+    region = Region.objects.filter(id=region_id).first()
+    if region is None:
+        raise Http404
+    parcel_id = _optional_query_int(request, FIELD_PARCEL_ID)
+    parcels = Parcel.objects.select_related('region', 'eclass').filter(region=region)
+    filename = f'particelle-{_safe_filename(region.name)}.csv'
+    if parcel_id is not None:
+        parcels = parcels.filter(id=parcel_id)
+        parcel = parcels.first()
+        if parcel is None:
+            raise Http404
+        filename = (
+            f'particella-{_safe_filename(region.name)}-'
+            f'{_safe_filename(parcel.name)}.csv'
+        )
+        parcels = [parcel]
+    else:
+        parcels = sorted(parcels, key=parcel_sort_key)
+    content = _render_parcel_export_csv(parcels)
+    response = HttpResponse(content, content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 @login_required
@@ -298,6 +336,56 @@ def satellite_raw(request, region_id, layer, date):
 def satellite_mask_raw(request, region_id):
     path = _satellite_file_path(region_id, 'parcel-mask.tif')
     return _satellite_raw_response(request, path)
+
+
+def _render_parcel_export_csv(parcels):
+    delimiter, decimal_sep = csv_io.export_format()
+    buf, writer = csv_io.csv_buffer(delimiter)
+    writer.writerow(PARCEL_EXPORT_COLUMNS)
+    for parcel in parcels:
+        writer.writerow(_parcel_export_row(parcel, decimal_sep))
+    return buf.getvalue()
+
+
+def _parcel_export_row(parcel, decimal_sep: str):
+    return [
+        parcel.region.name,
+        parcel.eclass.name,
+        parcel.name,
+        csv_io.format_decimal(parcel.area_ha, decimal_sep),
+        parcel.ave_age,
+        parcel.location_name,
+        parcel.altitude_min_m,
+        parcel.altitude_max_m,
+        parcel.aspect,
+        parcel.grade_pct,
+        parcel.desc_geo,
+        parcel.desc_veg,
+        parcel.cutting_plan,
+        parcel.intervention_interval,
+        parcel.standards_per_ha,
+    ]
+
+
+def _required_query_int(request, key: str) -> int:
+    value = _optional_query_int(request, key)
+    if value is None:
+        raise Http404
+    return value
+
+
+def _optional_query_int(request, key: str) -> int | None:
+    raw = request.GET.get(key)
+    if raw in (None, ''):
+        return None
+    value = int_or_none(raw)
+    if value is None:
+        raise Http404
+    return value
+
+
+def _safe_filename(value: str) -> str:
+    return _SAFE_FILENAME_RE.sub('_', value).strip('_') or 'export'
 
 
 def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = None):

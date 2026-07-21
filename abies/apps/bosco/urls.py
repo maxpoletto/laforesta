@@ -11,6 +11,8 @@ urlpatterns = [
          name='bosco-parcel-metadata-form'),
     path('parcels/metadata/save/', views.parcel_metadata_save_view,
          name='bosco-parcel-metadata-save'),
+    path('parcels/export/', views.parcel_metadata_export_view,
+         name='bosco-parcel-export'),
     path('preserved-trees/data/', views.preserved_trees_data,
          name='bosco-preserved-trees-data'),
     path('pai/form/', views.pai_form_view, name='bosco-pai-form-add'),
