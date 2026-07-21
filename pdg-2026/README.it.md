@@ -111,15 +111,15 @@ Metriche `@@grafico_incremento_percentuale`: `ip`, `ic` (default: `ip`). `per_co
 ### Parametri `@@provvigione`
 
 Riporta numero di piante, volumi e volumi per ettaro della provvigione: sono
-considerate solo le piante con D superiore a `diametro_min` (default 20 cm,
-la soglia di maturità), così i valori corrispondono ai volumi usati per le
+considerate solo le piante con D superiore a `diametro_min` (default 17,5 cm,
+ossia classe diametrica 20 e superiori), così i valori corrispondono ai volumi usati per le
 regole di prelievo. Gli intervalli di fiducia sono calcolati sulla stessa
 popolazione.
 
 | Parametro | Valori | Descrizione |
 |-----------|--------|-------------|
 | `intervallo_fiduciario` | `si`, `no` | Mostra intervalli di fiducia (default: `no`) |
-| `diametro_min` | cm | Diametro minimo; contano solo le piante con D superiore (default: 20) |
+| `diametro_min` | cm | Diametro minimo; contano solo le piante con D superiore (default: 17,5) |
 
 ### Parametri `@@prelievi`
 

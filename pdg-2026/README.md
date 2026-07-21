@@ -111,14 +111,14 @@ Multiple `alberi`/`equazioni` files are concatenated; multiple filters are combi
 ### `@@provvigione` Parameters
 
 Reports tree counts, volumes and volumes per hectare for the standing stock:
-only trees with D above `diametro_min` (default 20 cm, the maturity
-threshold) are considered, so the values match the volumes used for harvest
+only trees with D above `diametro_min` (default 17.5 cm, i.e. diameter
+class >= 20) are considered, so the values match the volumes used for harvest
 rules. Confidence intervals are computed on the same population.
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
 | `intervallo_fiduciario` | `si`, `no` | Show confidence intervals (default: `no`) |
-| `diametro_min` | cm | Minimum diameter; only trees with D above it count (default: 20) |
+| `diametro_min` | cm | Minimum diameter; only trees with D above it count (default: 17.5) |
 
 ### `@@prelievi` Parameters
 

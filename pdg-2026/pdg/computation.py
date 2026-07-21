@@ -15,7 +15,10 @@ from pdg.formatters import fmt_num
 # =============================================================================
 
 SAMPLE_AREA_HA = 0.125
-MATURE_THRESHOLD = 20  # Diameter (cm) threshold for "mature" trees (smaller are not harvested)
+# Trees of diameter class >= 20 are "mature" (harvestable); smaller ones are
+# sottomisura.  Class 20 covers D in (17.5, 22.5], so the threshold is the
+# lower edge of that class (see diameter_class).
+MATURE_THRESHOLD = 17.5
 MIN_TREES_PER_HA = 0.5  # Ignore buckets less than this in classi diametriche graphs.
 
 # =============================================================================

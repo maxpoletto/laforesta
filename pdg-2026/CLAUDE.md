@@ -32,7 +32,7 @@ make test           # pytest --cov=acc
 # Domain Constants
 
 - `SAMPLE_AREA_HA = 0.125` — fixed sample plot size
-- `MATURE_THRESHOLD = 20` — diameter (cm) below which trees are excluded from harvest calculations
+- `MATURE_THRESHOLD = 17.5` — trees with D above it (diameter class ≥ 20) are mature; smaller ones are excluded from harvest calculations
 - `MIN_TREES_PER_HA = 0.5` — minimum density for diameter class graphs
 - Diameter classes: 5-cm buckets
 - Pressler coefficient: 200

@@ -41,6 +41,7 @@ from pdg.computation import (
     COL_GENERE, COL_H_M, COL_L10_MM, COL_PARTICELLA, COL_V_M3,
     COL_AREA_SAGGIO, COL_SCALE, COL_FUSTAIA,
     COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, COL_ETA_MEDIA, GOV_CEDUO,
+    MATURE_FILTER,
     COL_LOCALITA, COL_ALT_MIN, COL_ALT_MAX,
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
     ParcelData, ParcelStats,
@@ -558,16 +559,20 @@ class TestMature:
         assert stock_vol < total_vol, \
             f"Stock ({stock_vol}) should be less than total ({total_vol})"
 
+    def test_mature_filter_matches_class_20(self):
+        """Mature means diameter class >= 20, i.e. D > 17.5 cm exactly."""
+        d = pd.Series([15.0, 17.4, 17.5, 17.6, 18.0, 20.0, 22.5, 40.0])
+        trees = pd.DataFrame({COL_D_CM: d})
+        assert (MATURE_FILTER(trees) == (diameter_class(d) >= 20)).all()
+
     def test_small_trees_count(self, data_all):
         """Verify the number of small trees in test data."""
         trees = data_all.trees
         n_small = (trees[COL_D_CM] <= MATURE_THRESHOLD).sum()
         n_mature = (trees[COL_D_CM] > MATURE_THRESHOLD).sum()
 
-        # Each parcel (A,B,C,D,E) has 2 small trees: 10 total
-        # A: 4 mature, B: 6 mature, C: 10 mature, D: 4 mature, E: 4 mature = 28 total
-        assert n_small == 10, f"Expected 10 small trees, got {n_small}"
-        assert n_mature == 28, f"Expected 28 mature trees, got {n_mature}"
+        assert n_small == 5, f"Expected 5 small trees, got {n_small}"
+        assert n_mature == 33, f"Expected 33 mature trees, got {n_mature}"
 
     def test_volume_mature_consistency(self, data_all):
         """Manual calculation of the provvigione should match."""
@@ -934,8 +939,8 @@ class TestHarvestCalculation:
         small_trees = trees[trees[COL_D_CM] <= MATURE_THRESHOLD]
         mature_trees = trees[trees[COL_D_CM] > MATURE_THRESHOLD]
 
-        assert len(small_trees) == 2, "Should have 2 small trees"
-        assert len(mature_trees) == 4, "Should have 4 mature trees"
+        assert len(small_trees) == 1, "Should have 1 small tree"
+        assert len(mature_trees) == 5, "Should have 5 mature trees"
 
         sf = data_parcel_d.parcels[('Test', 'D')].sampled_frac
         expected_vol_mature = mature_trees[COL_V_M3].sum() / sf
@@ -1282,7 +1287,7 @@ class TestHarvestParcel:
                             n_sample_areas=1, sampled_frac=0.0125)
         sim = _make_sim([
             ('R', 'P1', 1, 15.0, 0.1, 'Faggio'),
-            ('R', 'P1', 1, 18.0, 0.15, 'Cerro'),
+            ('R', 'P1', 1, 17.0, 0.15, 'Cerro'),
         ])
         result = harvest_parcel(sim, stats, _simple_rules, select_from_bottom)
         assert result is None
