@@ -58,12 +58,16 @@ FIELD_ASPECT = 'aspect'
 FIELD_GRADE_PCT = 'grade_pct'
 FIELD_DESC_VEG = 'desc_veg'
 FIELD_DESC_GEO = 'desc_geo'
+FIELD_CUTTING_PLAN = 'cutting_plan'
+FIELD_INTERVENTION_INTERVAL = 'intervention_interval'
+FIELD_STANDARDS_PER_HA = 'standards_per_ha'
 
 PARCEL_METADATA_TEXT_FIELDS = {
     FIELD_LOCATION_NAME: (S.COL_LOCATION, 200),
     FIELD_ASPECT: (S.COL_ASPECT, 20),
     FIELD_DESC_VEG: (S.LABEL_BOSCO_VEG_DESC, None),
     FIELD_DESC_GEO: (S.LABEL_BOSCO_GEO_DESC, None),
+    FIELD_CUTTING_PLAN: (S.LABEL_BOSCO_CUTTING_PLAN, None),
 }
 
 
@@ -88,16 +92,17 @@ def parcel_metadata_save_view(request):
     row_id = int_or_none(body.get(ROW_ID))
     if row_id is None:
         raise Http404
-    values, errors = _parse_parcel_metadata_body(body)
-    if errors:
-        return validation_error(errors, html=_render_parcel_metadata_form(request, row_id, body))
-
     with transaction.atomic():
         parcel = (Parcel.objects.select_for_update()
                   .select_related('region', 'eclass')
                   .filter(id=row_id).first())
         if parcel is None:
             raise Http404
+        values, errors = _parse_parcel_metadata_body(body, parcel.eclass.coppice)
+        if errors:
+            return validation_error(
+                errors, html=_render_parcel_metadata_form(request, row_id, body),
+            )
         if parcel.version != submitted_version(body):
             return conflict_response(
                 data_id=DIGEST_PARCELS, row_id=parcel.id,
@@ -304,6 +309,7 @@ def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = 
         'parcel': parcel,
         'version': parcel.version,
         'values': form_values,
+        'is_coppice': parcel.eclass.coppice,
     }, request=request)
 
 
@@ -318,11 +324,14 @@ def _parcel_metadata_form_values(parcel, values: dict | None = None):
         (FIELD_GRADE_PCT, parcel.grade_pct),
         (FIELD_DESC_VEG, parcel.desc_veg),
         (FIELD_DESC_GEO, parcel.desc_geo),
+        (FIELD_CUTTING_PLAN, parcel.cutting_plan),
+        (FIELD_INTERVENTION_INTERVAL, parcel.intervention_interval),
+        (FIELD_STANDARDS_PER_HA, parcel.standards_per_ha),
     )
     return {key: _form_value(values, key, default, blank=True) for key, default in fields}
 
 
-def _parse_parcel_metadata_body(body: dict):
+def _parse_parcel_metadata_body(body: dict, is_coppice: bool):
     errors = []
     area_ha = parse_decimal(body.get(FIELD_AREA_HA))
     if area_ha is None or area_ha <= 0:
@@ -342,7 +351,24 @@ def _parse_parcel_metadata_body(body: dict):
         FIELD_GRADE_PCT: _optional_int(body, FIELD_GRADE_PCT, S.LABEL_BOSCO_GRADE, errors),
         FIELD_DESC_VEG: _text_value(body, FIELD_DESC_VEG, errors),
         FIELD_DESC_GEO: _text_value(body, FIELD_DESC_GEO, errors),
+        FIELD_CUTTING_PLAN: _text_value(body, FIELD_CUTTING_PLAN, errors),
+        FIELD_INTERVENTION_INTERVAL: _optional_int(
+            body, FIELD_INTERVENTION_INTERVAL, S.COL_INTERVENTION_INTERVAL, errors,
+        ),
+        FIELD_STANDARDS_PER_HA: _optional_int(
+            body, FIELD_STANDARDS_PER_HA, S.COL_STANDARDS_PER_HA, errors,
+        ),
     }
+    if is_coppice:
+        for field, label in (
+            (FIELD_INTERVENTION_INTERVAL, S.COL_INTERVENTION_INTERVAL),
+            (FIELD_STANDARDS_PER_HA, S.COL_STANDARDS_PER_HA),
+        ):
+            if values[field] is None:
+                errors.append(S.ERR_BOSCO_COPPICE_METADATA_REQUIRED.format(label))
+    else:
+        values[FIELD_INTERVENTION_INTERVAL] = None
+        values[FIELD_STANDARDS_PER_HA] = None
     alt_min = values[FIELD_ALTITUDE_MIN_M]
     alt_max = values[FIELD_ALTITUDE_MAX_M]
     if alt_min is not None and alt_max is not None and alt_min > alt_max:

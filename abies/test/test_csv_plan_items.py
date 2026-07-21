@@ -62,7 +62,8 @@ def test_load_items_highforest(parcels, species):
 def test_load_items_coppice(regions, eclasses, species):
     """A coppice row (coppice eclass) creates a ceduo HarvestPlanItem with area+turno."""
     coppice_parcel = Parcel.objects.create(
-        name='9', region=regions[0], eclass=eclasses[2], area_ha=Decimal('5.0')
+        name='9', region=regions[0], eclass=eclasses[2],
+        area_ha=Decimal('5.0'), intervention_interval=18, standards_per_ha=75,
     )
     plans = _make_plans(['Piano A'])
     csv_text = '\n'.join([
@@ -209,7 +210,8 @@ def test_load_items_region_wide_invalid_volume_rejected(parcels, species):
 @pytest.mark.django_db
 def test_load_items_coppice_invalid_surface_rejected(regions, eclasses, species):
     Parcel.objects.create(
-        name='9', region=regions[0], eclass=eclasses[2], area_ha=Decimal('5.0')
+        name='9', region=regions[0], eclass=eclasses[2],
+        area_ha=Decimal('5.0'), intervention_interval=18, standards_per_ha=75,
     )
     plans = _make_plans(['Piano A'])
     csv_text = '\n'.join([

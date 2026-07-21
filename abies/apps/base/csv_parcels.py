@@ -29,6 +29,7 @@ PARCEL_CSV_REQUIRED = [
 PARCEL_CSV_OPTIONAL = [
     S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION, S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX,
     S.CSV_COL_ASPECT, S.CSV_COL_GRADE_PCT, S.CSV_COL_VEG_DESC, S.CSV_COL_GEO_DESC,
+    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
 ]
 
 
@@ -85,6 +86,8 @@ def validate_rows(reader, idx: ParcelIndexes):
             ('altitude_min_m', S.CSV_COL_ALT_MIN),
             ('altitude_max_m', S.CSV_COL_ALT_MAX),
             ('grade_pct', S.CSV_COL_GRADE_PCT),
+            ('intervention_interval', S.CSV_COL_INTERVAL),
+            ('standards_per_ha', S.CSV_COL_STANDARDS),
         ):
             value, ok = reader.opt_int(row.get(col))
             if not ok:
@@ -95,6 +98,20 @@ def validate_rows(reader, idx: ParcelIndexes):
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
                 i, bad_col, (row.get(bad_col) or '').strip()))
             continue
+        coppice_error = False
+        for field_name, col in (
+            ('intervention_interval', S.CSV_COL_INTERVAL),
+            ('standards_per_ha', S.CSV_COL_STANDARDS),
+        ):
+            value = optional_ints[field_name]
+            if eclass.coppice and value is None:
+                errors.append(S.ERR_CSV_COPPICE_FIELD_REQUIRED.format(i, col))
+                coppice_error = True
+            elif not eclass.coppice and value is not None:
+                errors.append(S.ERR_CSV_HIGHFOREST_COPPICE_FIELD.format(i, col))
+                coppice_error = True
+        if coppice_error:
+            continue
         seen.add(key)
         parsed.append({
             'name': name, 'region': region, 'eclass': eclass, 'area_ha': area_ha,
@@ -102,6 +119,7 @@ def validate_rows(reader, idx: ParcelIndexes):
             'aspect': (row.get(S.CSV_COL_ASPECT) or '').strip(),
             'desc_veg': (row.get(S.CSV_COL_VEG_DESC) or '').strip(),
             'desc_geo': (row.get(S.CSV_COL_GEO_DESC) or '').strip(),
+            'cutting_plan': (row.get(S.CSV_COL_CUTTING_PLAN) or '').strip(),
             **optional_ints,
         })
     return parsed, errors

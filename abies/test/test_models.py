@@ -110,6 +110,63 @@ class TestConstraints:
                 area_ha=Decimal('1'),
             )
 
+    def test_coppice_parcel_requires_interval_and_standards(self, regions, eclasses):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Parcel.objects.create(
+                name='C1', region=regions[0], eclass=eclasses[2],
+                area_ha=Decimal('1.00'),
+            )
+
+    def test_highforest_parcel_rejects_coppice_metadata(self, regions, eclasses):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Parcel.objects.create(
+                name='H1', region=regions[0], eclass=eclasses[0],
+                area_ha=Decimal('1.00'), intervention_interval=18,
+                standards_per_ha=75,
+            )
+
+    def test_coppice_parcel_accepts_interval_and_standards(self, regions, eclasses):
+        parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('1.00'), intervention_interval=18,
+            standards_per_ha=75,
+        )
+
+        assert parcel.intervention_interval == 18
+        assert parcel.standards_per_ha == 75
+
+    def test_coppice_parcel_update_requires_interval_and_standards(
+            self, regions, eclasses):
+        parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('1.00'), intervention_interval=18,
+            standards_per_ha=75,
+        )
+        parcel.intervention_interval = None
+        with pytest.raises(IntegrityError), transaction.atomic():
+            parcel.save(update_fields=['intervention_interval'])
+
+    def test_eclass_change_to_coppice_requires_parcel_metadata(
+            self, regions, eclasses):
+        Parcel.objects.create(
+            name='H1', region=regions[0], eclass=eclasses[0],
+            area_ha=Decimal('1.00'),
+        )
+        eclasses[0].coppice = True
+        with pytest.raises(IntegrityError), transaction.atomic():
+            eclasses[0].save(update_fields=['coppice'])
+
+    def test_eclass_change_to_highforest_rejects_coppice_metadata(
+            self, regions, eclasses):
+        Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('1.00'), intervention_interval=18,
+            standards_per_ha=75,
+        )
+        eclasses[2].coppice = False
+        with pytest.raises(IntegrityError), transaction.atomic():
+            eclasses[2].save(update_fields=['coppice'])
+
     def test_tree_mark_number_unique_within_item(self, species, parcels):
         planned_item = self._plan_item(parcels[0])
         tree1 = Tree.objects.create(species=species[0], parcel=parcels[0])

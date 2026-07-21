@@ -70,6 +70,30 @@
       </div>
     </div>
 
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_parcel_cutting_plan">{{ S.COL_CUTTING_PLAN }}</label>
+        <textarea id="id_parcel_cutting_plan" name="cutting_plan" rows="5">{{ values.cutting_plan }}</textarea>
+      </div>
+    </div>
+
+    {% if is_coppice %}
+      <div class="form-row narrow">
+        <div class="form-group">
+          <label for="id_parcel_interval">{{ S.COL_INTERVENTION_INTERVAL }}</label>
+          <input type="number" id="id_parcel_interval"
+                 name="intervention_interval" required
+                 value="{{ values.intervention_interval }}">
+        </div>
+        <div class="form-group">
+          <label for="id_parcel_standards">{{ S.COL_STANDARDS_PER_HA }}</label>
+          <input type="number" id="id_parcel_standards"
+                 name="standards_per_ha" required
+                 value="{{ values.standards_per_ha }}">
+        </div>
+      </div>
+    {% endif %}
+
     {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
   </form>
 </div>

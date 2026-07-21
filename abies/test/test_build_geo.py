@@ -32,6 +32,7 @@ def test_build_geo_enriches_terreni_from_imported_parcels(
     )
     Parcel.objects.create(
         name='2', region=regions[0], eclass=eclasses[2], area_ha=Decimal('1.0'),
+        intervention_interval=18, standards_per_ha=75,
     )
     Parcel.objects.create(
         name='3', region=regions[0], eclass=eclasses[0], area_ha=Decimal('1.0'),

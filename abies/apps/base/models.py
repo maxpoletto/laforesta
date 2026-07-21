@@ -291,6 +291,9 @@ class Parcel(TimestampedModel):
     grade_pct = models.IntegerField(null=True, blank=True)
     desc_veg = models.TextField(blank=True)
     desc_geo = models.TextField(blank=True)
+    cutting_plan = models.TextField(blank=True)
+    intervention_interval = models.IntegerField(null=True, blank=True)
+    standards_per_ha = models.IntegerField(null=True, blank=True)
     history = HistoricalRecords()
 
     class Meta:

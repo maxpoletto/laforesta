@@ -50,10 +50,13 @@ const parcels = {
     S.COL_CLASS, COL_COPPICE, S.COL_AREA_HA, S.COL_AREA_CAD_HA,
     S.COL_AVE_AGE, S.COL_LOCATION, S.COL_ALT_MIN, S.COL_ALT_MAX,
     S.COL_ASPECT, S.COL_GRADE_PCT, S.COL_TYPE,
-    S.COL_DESC_VEG, S.COL_DESC_GEO],
+    S.COL_DESC_VEG, S.COL_DESC_GEO, S.COL_CUTTING_PLAN,
+    S.COL_INTERVENTION_INTERVAL, S.COL_STANDARDS_PER_HA],
   [ROWS]: [
-    [10, 0, 1, 'Capistrano', '1', 'A', false, 11, 10, 70, '', 800, 900, '', 0, S.TYPE_HIGHFOREST, '', ''],
-    [11, 0, 1, 'Capistrano', '2', 'F', true, 6, 5, null, '', null, null, '', 0, S.TYPE_COPPICE, '', ''],
+    [10, 0, 1, 'Capistrano', '1', 'A', false, 11, 10, 70, '', 800, 900, '', 0,
+      S.TYPE_HIGHFOREST, '', '', 'Piano alto fusto', null, null],
+    [11, 0, 1, 'Capistrano', '2', 'F', true, 6, 5, null, '', null, null, '', 0,
+      S.TYPE_COPPICE, '', '', 'Piano ceduo', 18, 75],
   ],
 };
 const entries = B.buildParcelEntries(parcels);
@@ -63,6 +66,9 @@ assertEqual(entries[0].coppice, false, 'buildParcelEntries: highforest flag');
 assertEqual(entries[1].coppice, true, 'buildParcelEntries: coppice flag');
 assertEqual(entries[0].altMin, 800, 'buildParcelEntries: altitude min');
 assertEqual(entries[0].altMax, 900, 'buildParcelEntries: altitude max');
+assertEqual(entries[0].cuttingPlan, 'Piano alto fusto', 'buildParcelEntries: cutting plan');
+assertEqual(entries[1].interventionInterval, 18, 'buildParcelEntries: intervention interval');
+assertEqual(entries[1].standardsPerHa, 75, 'buildParcelEntries: standards per ha');
 assertEqual(entries[1].altitudeMean, null, 'buildParcelEntries: missing altitude');
 
 const unorderedParcels = {

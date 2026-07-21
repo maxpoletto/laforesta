@@ -330,7 +330,8 @@ PARCEL_COLUMNS = [
     COL_COPPICE, S.COL_AREA_HA, S.COL_AREA_CAD_HA, S.COL_AVE_AGE,
     S.COL_LOCATION,
     S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT,
-    S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO,
+    S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO, S.COL_CUTTING_PLAN,
+    S.COL_INTERVENTION_INTERVAL, S.COL_STANDARDS_PER_HA,
 ]
 
 
@@ -348,7 +349,8 @@ def build_parcel_record(p) -> list:
         p.location_name,
         p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
         S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,
-        p.desc_veg, p.desc_geo,
+        p.desc_veg, p.desc_geo, p.cutting_plan,
+        p.intervention_interval, p.standards_per_ha,
     ]
 
 
@@ -482,6 +484,9 @@ def _audit_configs() -> list:
             'altitude_max_m': S.COL_ALT_MAX, 'aspect': S.COL_ASPECT,
             'grade_pct': S.COL_GRADE_PCT, 'desc_veg': S.COL_DESC_VEG,
             'desc_geo': S.COL_DESC_GEO,
+            'cutting_plan': S.COL_CUTTING_PLAN,
+            'intervention_interval': S.COL_INTERVENTION_INTERVAL,
+            'standards_per_ha': S.COL_STANDARDS_PER_HA,
         }),
         (SampleGrid, S.TABLE_SAMPLE_GRID, {
             'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,

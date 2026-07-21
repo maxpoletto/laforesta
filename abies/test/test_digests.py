@@ -317,6 +317,7 @@ class TestGenerateBoscoDigests:
         p.grade_pct = 7
         p.desc_veg = 'Descrizione vegetazione'
         p.desc_geo = 'Descrizione geologia'
+        p.cutting_plan = 'Piano selettivo'
         p.save()
 
         generate_parcels()
@@ -325,7 +326,9 @@ class TestGenerateBoscoDigests:
         row = next(r for r in data[ROWS] if r[0] == p.id)
 
         for col in (VERSION, COL_REGION_ID, COL_COPPICE, S.COL_AREA_CAD_HA,
-                    S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO):
+                    S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO,
+                    S.COL_CUTTING_PLAN, S.COL_INTERVENTION_INTERVAL,
+                    S.COL_STANDARDS_PER_HA):
             assert col in cols
         assert row[cols.index(VERSION)] == 1
         assert row[cols.index(COL_REGION_ID)] == p.region_id
@@ -333,6 +336,9 @@ class TestGenerateBoscoDigests:
         assert row[cols.index(S.COL_TYPE)] == S.TYPE_HIGHFOREST
         assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'
         assert row[cols.index(S.COL_DESC_GEO)] == 'Descrizione geologia'
+        assert row[cols.index(S.COL_CUTTING_PLAN)] == 'Piano selettivo'
+        assert row[cols.index(S.COL_INTERVENTION_INTERVAL)] is None
+        assert row[cols.index(S.COL_STANDARDS_PER_HA)] is None
 
     def test_preserved_trees_digest(self, parcels, species, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
@@ -402,7 +408,8 @@ class TestGenerateBoscoDigests:
         )
         coppice_parcel = Parcel.objects.create(
             name='C1', region=regions[0], eclass=eclasses[2],
-            area_ha=Decimal('3.00'),
+            area_ha=Decimal('3.00'), intervention_interval=18,
+            standards_per_ha=75,
         )
         HarvestPlanItem.objects.create(
             harvest_plan=plan, parcel=coppice_parcel, year_planned=2029,

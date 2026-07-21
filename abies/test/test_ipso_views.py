@@ -1606,6 +1606,7 @@ def test_martellate_import_rejects_coppice_target(
         name='C-target', region=regions[0],
         eclass=next(e for e in eclasses if e.coppice),
         area_ha=Decimal('1.0'),
+        intervention_interval=18, standards_per_ha=75,
     )
     item = _harvest_item([coppice_parcel])
     payload = _upload_payload(parcels, species)
@@ -1664,6 +1665,7 @@ def test_martellate_import_region_wide_target_accepts_coppice_parcel(
         name='C-damaged', region=regions[0],
         eclass=next(e for e in eclasses if e.coppice),
         area_ha=Decimal('1.0'),
+        intervention_interval=18, standards_per_ha=75,
     )
     plan = HarvestPlan.objects.create(
         name='Piano Ipso danni', year_start=2026, year_end=2026,
@@ -2249,6 +2251,7 @@ def test_samples_import_supports_coppice_parcels(
     coppice_parcel = Parcel.objects.create(
         name='C1', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
         area_ha=Decimal('1.0'),
+        intervention_interval=18, standards_per_ha=75,
     )
     survey, area = _sample_survey(coppice_parcel, name='Ceduo survey')
     payload = _upload_payload(
@@ -2279,6 +2282,7 @@ def test_samples_import_supports_coppice_shoots_with_same_number(
     coppice_parcel = Parcel.objects.create(
         name='C2', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
         area_ha=Decimal('1.0'),
+        intervention_interval=18, standards_per_ha=75,
     )
     survey, area = _sample_survey(coppice_parcel, name='Ceduo shoots survey')
     payload = _upload_payload(
@@ -2520,6 +2524,7 @@ def test_pai_import_supports_coppice_parcels(
     coppice_parcel = Parcel.objects.create(
         name='P1', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
         area_ha=Decimal('1.0'),
+        intervention_interval=18, standards_per_ha=75,
     )
     payload = _upload_payload(
         [coppice_parcel], species, mode='pai',

@@ -287,6 +287,7 @@ class TestTreeForm:
         ceduo_parcel = Parcel.objects.create(
             name='C1', region=regions[0], eclass=ceduo_eclass,
             area_ha=Decimal('2.0'),
+            intervention_interval=18, standards_per_ha=75,
         )
         grid = sample_setup['grid']
         ceduo_area = SampleArea.objects.create(
@@ -770,7 +771,8 @@ class TestTreeFormPriorTrees:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         coppice_parcel = Parcel.objects.create(
             name='99', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('1.0'),
+            area_ha=Decimal('1.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         coppice_area = SampleArea.objects.create(
             sample_grid=sample_setup['grid'], parcel=coppice_parcel,
@@ -875,7 +877,8 @@ class TestTreeSaveCoppice:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         parcel = Parcel.objects.create(
             name='c', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('1.0'),
+            area_ha=Decimal('1.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         area = SampleArea.objects.create(
             sample_grid=sample_setup['grid'], parcel=parcel,
@@ -927,7 +930,8 @@ class TestTreeSaveCoppice:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         parcel = Parcel.objects.create(
             name='cc', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('1.0'),
+            area_ha=Decimal('1.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         area = SampleArea.objects.create(
             sample_grid=sample_setup['grid'], parcel=parcel,
@@ -965,7 +969,8 @@ class TestTreeSaveCoppice:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         parcel = Parcel.objects.create(
             name='c2', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('1.0'),
+            area_ha=Decimal('1.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         area = SampleArea.objects.create(
             sample_grid=sample_setup['grid'], parcel=parcel, number='1',
@@ -1472,6 +1477,7 @@ class TestAreaFormNextNumber:
         parcel = Parcel.objects.create(          # regions[2], isolated
             name='88', region=regions[2], eclass=coppice,
             area_ha=Decimal('1.0'),
+            intervention_interval=18, standards_per_ha=75,
         )
         SampleArea.objects.create(
             sample_grid=s['grid'], parcel=parcel, number='C1',
@@ -1603,7 +1609,8 @@ class TestRecordShape:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         parcel = Parcel.objects.create(
             name='cs', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('1.0'),
+            area_ha=Decimal('1.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         area = SampleArea.objects.create(
             sample_grid=sample_setup['grid'], parcel=parcel, number='1',

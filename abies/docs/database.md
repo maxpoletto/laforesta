@@ -60,7 +60,9 @@ audited and the contract that keeps that coverage complete.
 - parcel: (id:int, name:string, region_id:int, eclass_id:int,
   area_ha:decimal, ave_age:int nullable, location_name:string,
   altitude_min_m:int nullable, altitude_max_m:int nullable, aspect:string,
-  grade_pct:int nullable, desc_veg:string, desc_geo:string)
+  grade_pct:int nullable, desc_veg:string, desc_geo:string,
+  cutting_plan:string, intervention_interval:int nullable,
+  standards_per_ha:int nullable)
   - Represents a forest parcel. `name` is typically an alphanumeric string like
     "11" or "2a".
   - `area_ha` is surface area in hectares.
@@ -68,7 +70,11 @@ audited and the contract that keeps that coverage complete.
     may differ from the computed average of the age of sampled trees.
   - altitudes are in meters.
   - `desc_veg` and `desc_geo` are strings that describe the vegetative and
-    geologic state of the parcel, respectively.
+    geologic state of the parcel, respectively. `cutting_plan` describes the
+    applicable cutting prescription.
+  - `intervention_interval` and `standards_per_ha` apply only to coppice
+    parcels. SQLite triggers enforce that both are NULL for high-forest
+    parcels and both are non-NULL for coppice parcel writes.
 
 - sample_grid: (id:int, name:string, description:string)
   - Denotes a set of sample areas (below). We use `grid` in the name because the

@@ -14,7 +14,7 @@ from rasterio.transform import from_origin
 from apps.base.digests import (
     PRESERVED_TREE_COLUMNS, build_parcel_record, build_preserved_tree_record,
 )
-from apps.base.models import DigestStatus, Region, Sample, Survey, Tree, TreeSample
+from apps.base.models import DigestStatus, Parcel, Region, Sample, Survey, Tree, TreeSample
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_DATE,
@@ -103,6 +103,23 @@ def test_parcel_metadata_form_writer_access(writer_client, parcels):
     html = resp.json()[HTML]
     assert 'id="bosco-parcel-metadata-form"' in html
     assert f'value="{parcels[0].id}"' in html
+    assert 'name="cutting_plan"' in html
+    assert 'name="intervention_interval"' not in html
+    assert 'name="standards_per_ha"' not in html
+
+
+def test_parcel_metadata_form_shows_coppice_fields(writer_client, regions, eclasses):
+    parcel = Parcel.objects.create(
+        name='C1', region=regions[0], eclass=eclasses[2],
+        area_ha=Decimal('1.00'), intervention_interval=18, standards_per_ha=75,
+    )
+
+    resp = writer_client.get(f'/api/bosco/parcels/metadata/form/{parcel.id}/')
+
+    assert resp.status_code == 200
+    html = resp.json()[HTML]
+    assert 'name="intervention_interval"' in html
+    assert 'name="standards_per_ha"' in html
 
 
 def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, parcels):
@@ -113,6 +130,7 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
         'altitude_min_m': '700', 'altitude_max_m': '920',
         'aspect': 'NE', 'grade_pct': '35',
         'desc_veg': 'Abete e faggio.', 'desc_geo': 'Calcare.',
+        'cutting_plan': 'Diradamento selettivo.',
         FIELD_NONCE: 'parcel-metadata-save',
     }
 
@@ -130,6 +148,9 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     assert parcel.grade_pct == 35
     assert parcel.desc_veg == 'Abete e faggio.'
     assert parcel.desc_geo == 'Calcare.'
+    assert parcel.cutting_plan == 'Diradamento selettivo.'
+    assert parcel.intervention_interval is None
+    assert parcel.standards_per_ha is None
     assert parcel.version == 2
     data = resp.json()
     patch = data[PATCHES][0]
@@ -138,6 +159,53 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     assert patch[RECORD] == build_parcel_record(parcel)
     assert DigestStatus.objects.get(name=DIGEST_PARCELS).stale is True
     assert DigestStatus.objects.get(name='audit').stale is True
+
+
+def test_parcel_metadata_save_updates_coppice_fields(writer_client, regions, eclasses):
+    parcel = Parcel.objects.create(
+        name='C1', region=regions[0], eclass=eclasses[2],
+        area_ha=Decimal('1.00'), intervention_interval=18, standards_per_ha=75,
+    )
+    body = {
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'area_ha': '2.00', 'ave_age': '', 'location_name': '',
+        'altitude_min_m': '', 'altitude_max_m': '',
+        'aspect': '', 'grade_pct': '', 'desc_veg': '', 'desc_geo': '',
+        'cutting_plan': 'Taglio di ceduo.',
+        'intervention_interval': '12', 'standards_per_ha': '30',
+        FIELD_NONCE: 'parcel-coppice-save',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 200
+    parcel.refresh_from_db()
+    assert parcel.cutting_plan == 'Taglio di ceduo.'
+    assert parcel.intervention_interval == 12
+    assert parcel.standards_per_ha == 30
+
+
+def test_parcel_metadata_save_requires_coppice_fields(writer_client, regions, eclasses):
+    parcel = Parcel.objects.create(
+        name='C1', region=regions[0], eclass=eclasses[2],
+        area_ha=Decimal('1.00'), intervention_interval=18, standards_per_ha=75,
+    )
+    body = {
+        ROW_ID: str(parcel.id), VERSION: str(parcel.version),
+        'area_ha': '2.00', 'ave_age': '', 'location_name': '',
+        'altitude_min_m': '', 'altitude_max_m': '',
+        'aspect': '', 'grade_pct': '', 'desc_veg': '', 'desc_geo': '',
+        'cutting_plan': '', 'intervention_interval': '', 'standards_per_ha': '',
+        FIELD_NONCE: 'parcel-coppice-invalid',
+    }
+
+    resp = writer_client.post('/api/bosco/parcels/metadata/save/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 400
+    assert S.COL_INTERVENTION_INTERVAL in resp.json()[MESSAGE]
+    assert S.COL_STANDARDS_PER_HA in resp.json()[MESSAGE]
 
 
 def test_parcel_metadata_save_stale_conflicts(writer_client, parcels):

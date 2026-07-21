@@ -58,7 +58,8 @@ def coppice_eclass(db):
 def coppice_parcel(regions, coppice_eclass):
     return Parcel.objects.create(
         name='42', region=regions[0], eclass=coppice_eclass,
-        area_ha=Decimal('3.5'),
+        area_ha=Decimal('3.5'), intervention_interval=18,
+        standards_per_ha=75,
     )
 
 

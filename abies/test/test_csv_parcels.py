@@ -141,3 +141,45 @@ def test_apply_does_not_update_existing(regions, eclasses):
     p = Parcel.objects.get(name='7', region=regions[0])
     assert p.area_ha == Decimal('12.50')   # original retained, not 99.00
     assert p.ave_age == 40
+
+
+@pytest.mark.django_db
+def test_coppice_metadata_imported(regions, eclasses):
+    reader = _reader(
+        f'{HEADER},{S.CSV_COL_CUTTING_PLAN},{S.CSV_COL_INTERVAL},'
+        f'{S.CSV_COL_STANDARDS}\n'
+        f'{regions[0].name},F,7,12.5,40,Taglio ceduo,18,75\n'
+    )
+
+    parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
+    assert errors == []
+    csv_parcels.apply(parsed)
+    p = Parcel.objects.get(name='7', region=regions[0])
+    assert p.cutting_plan == 'Taglio ceduo'
+    assert p.intervention_interval == 18
+    assert p.standards_per_ha == 75
+
+
+@pytest.mark.django_db
+def test_coppice_metadata_required_for_coppice(regions, eclasses):
+    reader = _reader(f'{HEADER}\n{regions[0].name},F,7,12.5,40\n')
+
+    parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
+
+    assert parsed == []
+    assert S.CSV_COL_INTERVAL in errors[0]
+    assert S.CSV_COL_STANDARDS in errors[1]
+
+
+@pytest.mark.django_db
+def test_coppice_metadata_rejected_for_highforest(regions, eclasses):
+    reader = _reader(
+        f'{HEADER},{S.CSV_COL_INTERVAL},{S.CSV_COL_STANDARDS}\n'
+        f'{regions[0].name},A,7,12.5,40,18,75\n'
+    )
+
+    parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
+
+    assert parsed == []
+    assert S.CSV_COL_INTERVAL in errors[0]
+    assert S.CSV_COL_STANDARDS in errors[1]

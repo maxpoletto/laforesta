@@ -310,7 +310,8 @@ mode-switch.
   Columns: `row_id`, `version`, `Region id`, `Compresa`, `Particella`, `Classe`,
   `Coppice`, `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`,
   `Alt. min. (m)`, `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo`
-  (alto fusto / ceduo), `Soprassuolo`, `Stazione`.  `row_id` = `parcel.id`;
+  (alto fusto / ceduo), `Soprassuolo`, `Stazione`, `Piano dei tagli`,
+  `Intervallo interventi`, `Matricine / ha`. `row_id` = `parcel.id`;
   `Coppice` is the stable boolean from `parcel.eclass.coppice`; `Tipo` is
   its localized display label.  `version` participates in optimistic locking
   for parcel metadata edits.

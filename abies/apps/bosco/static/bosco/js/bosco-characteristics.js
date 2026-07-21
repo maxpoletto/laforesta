@@ -78,6 +78,9 @@ export function buildParcelEntries(digest) {
       gradePct: toNumber(row[c[S.COL_GRADE_PCT]]),
       descVeg: row[c[S.COL_DESC_VEG]] || '',
       descGeo: row[c[S.COL_DESC_GEO]] || '',
+      cuttingPlan: row[c[S.COL_CUTTING_PLAN]] || '',
+      interventionInterval: toNumber(row[c[S.COL_INTERVENTION_INTERVAL]]),
+      standardsPerHa: toNumber(row[c[S.COL_STANDARDS_PER_HA]]),
       altitudeMean: altMin !== null && altMax !== null ? (altMin + altMax) / 2 : null,
     };
   }).sort(compareParcelEntries);

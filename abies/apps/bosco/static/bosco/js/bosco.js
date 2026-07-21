@@ -1685,8 +1685,13 @@ function renderParcelMetadata(entry) {
   appendMetadataField(S.COL_ALT_MAX, fmtRoundedInt(entry.altMax));
   appendMetadataField(S.COL_ASPECT, entry.aspect);
   appendMetadataField(S.COL_GRADE_PCT, fmtRoundedInt(entry.gradePct));
+  if (entry.coppice === true) {
+    appendMetadataField(S.COL_INTERVENTION_INTERVAL, fmtRoundedInt(entry.interventionInterval));
+    appendMetadataField(S.COL_STANDARDS_PER_HA, fmtRoundedInt(entry.standardsPerHa));
+  }
   appendMetadataField(S.COL_DESC_VEG, entry.descVeg, true);
   appendMetadataField(S.COL_DESC_GEO, entry.descGeo, true);
+  appendMetadataField(S.COL_CUTTING_PLAN, entry.cuttingPlan, true);
 }
 
 

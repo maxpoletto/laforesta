@@ -426,7 +426,8 @@ class TestPlanCSVImport:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         coppice_parcel = Parcel.objects.create(
             name='cop-1', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('3.0'),
+            area_ha=Decimal('3.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         csv_in = (
             f'Anno;Compresa;Particella;Superficie intervento (ha);'
@@ -453,7 +454,8 @@ class TestPlanCSVImport:
         coppice_eclass = next(e for e in eclasses if e.coppice)
         coppice_parcel = Parcel.objects.create(
             name='cop-2', region=regions[0], eclass=coppice_eclass,
-            area_ha=Decimal('3.0'),
+            area_ha=Decimal('3.0'), intervention_interval=18,
+            standards_per_ha=75,
         )
         csv_in = (
             f'Anno,Compresa,Particella,Superficie intervento (ha),'
@@ -615,7 +617,8 @@ class TestPlanExport:
     ):
         parcel = Parcel.objects.create(
             name='C1', region=regions[0], eclass=eclasses[2],
-            area_ha=Decimal('4.25'),
+            area_ha=Decimal('4.25'), intervention_interval=20,
+            standards_per_ha=50,
         )
         detail = HarvestDetail.objects.create(
             description='Turno 20a', interval=20,
