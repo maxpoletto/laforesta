@@ -24,7 +24,7 @@
 \usepackage[style=alphabetic,backend=biber]{biblatex}
 \addbibresource{ref.bib}
 
-\newif\ifincludesections \includesectionstrue
+\newif\ifincludesections \includesectionsfalse
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
 
 \begin{document}
@@ -302,18 +302,20 @@ Il risultato della simulazione è un programma dei tagli che indica, per ogni an
 \label{sec:volumi}
 \input{sec-volumi}
 
-\section{Ripresa attuale}
-\label{sec:ripresa}
-\input{sec-ripresa}
-
 \section{Criteri di intervento selvicolturale}
 \label{sec:metodo}
 \input{sec-metodo}
 
+\section{Ripresa attuale}
+\label{sec:ripresa}
+\input{sec-ripresa}
+
+\clearpage
 \section{Piano dei tagli}
 \label{sec:piano}
 \input{sec-piano}
 
+\clearpage
 \section{Piano dei cedui}
 \label{sec:ceduo}
 \input{sec-ceduo}
