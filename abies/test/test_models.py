@@ -95,6 +95,22 @@ class TestConstraints:
             harvest_plan=plan, parcel=parcel, year_planned=2026,
         )
 
+    @staticmethod
+    def _structured_sample(parcel):
+        grid = SampleGrid.objects.create(
+            name=f'Constraint grid {parcel.id}',
+        )
+        area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcel, number='1',
+            lat=38.5, lon=16.3,
+        )
+        survey = Survey.objects.create(
+            name=f'Constraint survey {parcel.id}', sample_grid=grid,
+        )
+        return Sample.objects.create(
+            sample_area=area, survey=survey, date='2026-07-05',
+        )
+
     def test_region_name_unique(self, regions):
         with pytest.raises(IntegrityError):
             Region.objects.create(name='Capistrano')
@@ -305,6 +321,84 @@ class TestConstraints:
             TreeSample.objects.create(
                 sample=sample, tree=tree, parcel=parcels[0], number=1,
                 preserved_number=7, d_cm=30, h_m=None, h_measured=True,
+            )
+
+    def test_tree_sample_rejects_structured_parcel_mismatch(
+            self, parcels, species,
+    ):
+        sample = self._structured_sample(parcels[0])
+        tree = Tree.objects.create(species=species[0])
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[1],
+                number=5, d_cm=30, h_m=Decimal('20.0'),
+            )
+
+    def test_tree_sample_preserved_identity_requires_same_tree(
+            self, parcels, species,
+    ):
+        survey = Survey.objects.create(name='PAI identity survey')
+        sample1 = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-05',
+        )
+        sample2 = Sample.objects.create(
+            sample_area=None, survey=survey, date='2026-07-06',
+        )
+        tree1 = Tree.objects.create(species=species[0])
+        tree2 = Tree.objects.create(species=species[0])
+        TreeSample.objects.create(
+            sample=sample1, tree=tree1, parcel=parcels[0],
+            number=1, preserved_number=9, d_cm=30, h_m=Decimal('20.0'),
+        )
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample2, tree=tree2, parcel=parcels[0],
+                number=2, preserved_number=9, d_cm=31, h_m=Decimal('21.0'),
+            )
+
+    def test_tree_sample_coordinate_pair_and_range_checked(
+            self, parcels, species,
+    ):
+        sample = self._structured_sample(parcels[0])
+        tree = Tree.objects.create(species=species[0])
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[0],
+                number=5, d_cm=30, h_m=Decimal('20.0'), lat=38.5,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[0],
+                number=6, d_cm=30, h_m=Decimal('20.0'),
+                lat=91, lon=16.3,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeSample.objects.create(
+                sample=sample, tree=tree, parcel=parcels[0],
+                number=7, d_cm=30, h_m=Decimal('20.0'),
+                lat=38.5, lon=16.3, acc_m=-1,
+            )
+
+    def test_tree_mark_coordinate_pair_and_range_checked(
+            self, parcels, species,
+    ):
+        planned_item = self._plan_item(parcels[0])
+        tree = Tree.objects.create(species=species[0])
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeMark.objects.create(
+                harvest_plan_item=planned_item, tree=tree, parcel=parcels[0],
+                date='2026-07-05', d_cm=30, h_m=Decimal('20.0'),
+                operator='Mario', lat=38.5,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeMark.objects.create(
+                harvest_plan_item=planned_item, tree=tree, parcel=parcels[0],
+                date='2026-07-05', d_cm=30, h_m=Decimal('20.0'),
+                operator='Mario', lat=38.5, lon=181,
             )
 
 

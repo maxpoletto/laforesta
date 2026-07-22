@@ -60,6 +60,37 @@ def tree_mass_q(volume_m3: Decimal, density: Decimal) -> Decimal:
     return (volume_m3 * density).quantize(MASS_QUANTUM_Q, rounding=ROUND_HALF_UP)
 
 
+def _coordinate_constraints(prefix: str) -> list[models.CheckConstraint]:
+    """Common coordinate invariants for persisted tree observations."""
+    return [
+        models.CheckConstraint(
+            condition=(
+                models.Q(lat__isnull=True, lon__isnull=True) |
+                models.Q(lat__isnull=False, lon__isnull=False)
+            ),
+            name=f'{prefix}_lat_lon_pair',
+        ),
+        models.CheckConstraint(
+            condition=(
+                models.Q(lat__isnull=True) |
+                (models.Q(lat__gte=-90) & models.Q(lat__lte=90))
+            ),
+            name=f'{prefix}_lat_range',
+        ),
+        models.CheckConstraint(
+            condition=(
+                models.Q(lon__isnull=True) |
+                (models.Q(lon__gte=-180) & models.Q(lon__lte=180))
+            ),
+            name=f'{prefix}_lon_range',
+        ),
+        models.CheckConstraint(
+            condition=(models.Q(acc_m__isnull=True) | models.Q(acc_m__gte=0)),
+            name=f'{prefix}_acc_m_nonnegative',
+        ),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Abstract base
 # ---------------------------------------------------------------------------
@@ -595,6 +626,7 @@ class TreeMark(TimestampedModel):
                 fields=['harvest_plan_item', 'number'],
                 name='uniq_tree_mark_item_number',
             ),
+            *_coordinate_constraints('tree_mark'),
         ]
 
 
@@ -673,6 +705,7 @@ class TreeSample(TimestampedModel):
                 ),
                 name='tree_sample_h_measured_false_without_h_m',
             ),
+            *_coordinate_constraints('tree_sample'),
         ]
 
 
