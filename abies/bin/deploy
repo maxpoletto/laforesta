@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/deploy <dev|prod> [git-ref] [--reset-user] [--release1-tree-checks]
+# bin/deploy <dev|prod> [git-ref] [--reset-user]
 #
 # Drives a deploy on vm-abies via docker context.
 #
@@ -15,12 +15,6 @@
 #                compose/.env.<instance>, this resets the admin to those
 #                creds on the next run -- useful if the password was lost.
 #
-# --release1-tree-checks:
-#                run the one-time Release 1 tree-observation preflight
-#                before stopping the current app, then run the matching
-#                postflight immediately after migrations. Use for the
-#                Release 1 deploy only; future deploys should omit it.
-#
 # The docker context name defaults to vm-abies; override with the
 # ABIES_DOCKER_CONTEXT env var. Create the context once with:
 #
@@ -29,18 +23,16 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $(basename "$0") <dev|prod> [git-ref] [--reset-user] [--release1-tree-checks]" >&2
+  echo "usage: $(basename "$0") <dev|prod> [git-ref] [--reset-user]" >&2
   exit 1
 }
 
 instance=""
 ref=""
 reset_user=false
-release1_tree_checks=false
 for arg in "$@"; do
   case "$arg" in
     --reset-user) reset_user=true ;;
-    --release1-tree-checks) release1_tree_checks=true ;;
     -h|--help)    usage ;;
     --*)          echo "unknown flag: $arg" >&2; usage ;;
     dev|prod)
@@ -127,10 +119,6 @@ if [[ "$instance" == "prod" ]]; then
   dc_run abies python manage.py check --deploy --fail-level WARNING
 fi
 
-if [[ "$release1_tree_checks" == "true" ]]; then
-  echo "==> Release 1 tree-observation preflight"
-  dc_run abies python manage.py check_release1_tree_observations --phase pre
-fi
 
 echo "==> stop"
 dc down --remove-orphans
@@ -138,10 +126,6 @@ dc down --remove-orphans
 echo "==> migrate"
 dc_run abies python manage.py migrate --noinput
 
-if [[ "$release1_tree_checks" == "true" ]]; then
-  echo "==> Release 1 tree-observation postflight"
-  dc_run abies python manage.py check_release1_tree_observations --phase post
-fi
 
 if [[ "$reset_user" == "true" ]]; then
   echo "==> reset superuser(s)"
