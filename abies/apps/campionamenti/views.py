@@ -27,6 +27,7 @@ from apps.base.digests import (
     mark_stale, serve_digest,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.preserved_trees import latest_preserved_tree_sample
 from apps.base.responses import (
     conflict_response, csv_error_list, parse_json_body, row_delete,
     row_patch, row_patches, save_model_response, submitted_version,
@@ -200,6 +201,14 @@ def tree_save_view(request):
         return _validation_error(
             [S.ERR_BOSCO_SPECIES_REQUIRED], ts_id, request, body,
         )
+    preserved_tree, preserved_error = _resolve_preserved_identity_tree(
+        parcel_id=parcel_id,
+        preserved_number=parsed[FIELD_NUMBER] if parsed[FIELD_PRESERVED] else None,
+        species=species,
+        requested_tree=existing_tree if not ts_id else None,
+    )
+    if preserved_error:
+        return _validation_error([preserved_error], ts_id, request, body)
 
     if parsed[FIELD_COPPICE] and not ts_id and existing_tree is not None:
         existing_shoots = set(TreeSample.objects.filter(
@@ -215,12 +224,14 @@ def tree_save_view(request):
 
     with transaction.atomic():
         if ts_id:
-            ts = _update_tree_sample(ts_id, sample, parsed, body, request, species)
+            ts = _update_tree_sample(
+                ts_id, sample, parsed, body, request, species, preserved_tree,
+            )
             if isinstance(ts, JsonResponse):
                 return ts
             created_or_updated_ids = [ts.id]
         elif parsed[FIELD_COPPICE]:
-            tree = existing_tree or Tree.objects.create(
+            tree = preserved_tree or existing_tree or Tree.objects.create(
                 species=species,
                 coppice=True,
             )
@@ -242,11 +253,12 @@ def tree_save_view(request):
                 created_or_updated_ids.append(ts.id)
         elif existing_tree is not None:
             # Reuse the existing Tree row.  Do not create a new Tree.
+            tree = preserved_tree or existing_tree
             volume_m3, mass_q = csv_trees.tree_volume_and_mass(
                 False, parsed[FIELD_D_CM], parsed[FIELD_H_M], species,
             )
             ts = TreeSample.objects.create(
-                sample=sample, tree=existing_tree, parcel_id=parcel_id,
+                sample=sample, tree=tree, parcel_id=parcel_id,
                 shoot=0, standard=False,
                 number=parsed[FIELD_NUMBER],
                 preserved_number=(
@@ -261,7 +273,7 @@ def tree_save_view(request):
             )
             created_or_updated_ids = [ts.id]
         else:
-            tree = Tree.objects.create(
+            tree = preserved_tree or Tree.objects.create(
                 species=species,
                 coppice=False,
             )
@@ -1016,6 +1028,31 @@ def _resolve_existing_tree(tree_id, sample_area_id):
     return Tree.objects.filter(id=tree_id).first()
 
 
+def _resolve_preserved_identity_tree(
+        *, parcel_id, preserved_number, species, requested_tree=None,
+):
+    """Return the existing Tree for a parcel-scoped PAI number.
+
+    CSV and Ipso imports preserve the invariant that repeated
+    ``(parcel_id, preserved_number)`` observations refer to the same physical
+    Tree. Manual sample entry follows the same rule here.
+    """
+    if preserved_number is None:
+        return None, None
+    latest = latest_preserved_tree_sample(parcel_id, preserved_number)
+    if latest is None:
+        return None, None
+    tree = latest.tree
+    if requested_tree is not None and requested_tree.id != tree.id:
+        return None, S.ERR_PAI_TREE_IDENTITY_CONFLICT
+    if tree.species_id != species.id:
+        return None, S.ERR_PAI_SPECIES_CONFLICT.format(
+            latest.parcel.region.name, latest.parcel.name, preserved_number,
+            tree.species.common_name,
+        )
+    return tree, None
+
+
 def _find_or_create_sample(parsed):
     """Return the Sample row for the parsed survey scope, creating it if needed.
 
@@ -1059,7 +1096,9 @@ def _sample_date_conflict_error(sample):
     )
 
 
-def _update_tree_sample(ts_id, sample, parsed, body, request, species):
+def _update_tree_sample(
+        ts_id, sample, parsed, body, request, species, preserved_tree,
+):
     ts = (TreeSample.objects
           .select_for_update()
           .select_related(
@@ -1074,6 +1113,8 @@ def _update_tree_sample(ts_id, sample, parsed, body, request, species):
             html=_render_tree_form(request, ts.id, None, None),
         )
     ts.sample = sample
+    if preserved_tree is not None:
+        ts.tree = preserved_tree
     ts.number = parsed[FIELD_NUMBER]
     ts.parcel_id = (
         sample.sample_area.parcel_id

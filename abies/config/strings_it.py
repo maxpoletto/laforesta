@@ -405,6 +405,11 @@ ERR_CSV_ROW_PAI_SPECIES_CONFLICT = (
     'Riga {}: specie diversa per albero PAI già presente '
     '({} / {} / {}; specie già registrata: {}).'
 )
+ERR_PAI_SPECIES_CONFLICT = (
+    'Specie diversa per albero PAI già presente '
+    '({} / {} / {}; specie già registrata: {}).'
+)
+ERR_PAI_TREE_IDENTITY_CONFLICT = 'Numero PAI già associato a un altro albero.'
 ERR_CSV_ROW_TREE_NUMBER_DUPLICATE = (
     'Riga {}: numero albero {} / pollone {} già presente nel campione.'
 )

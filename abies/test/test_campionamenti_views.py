@@ -372,6 +372,71 @@ class TestTreeSave:
         assert ts.volume_m3 == expected_volume
         assert ts.mass_q == expected_mass
 
+    def test_create_preserved_tree_reuses_existing_pai_identity(
+            self, writer_client, sample_setup, species,
+    ):
+        s = sample_setup
+        parcel = s['area'].parcel
+        pai_survey = Survey.objects.create(name='PAI history')
+        pai_sample = Sample.objects.create(
+            sample_area=None, survey=pai_survey, date=date(2024, 1, 1),
+        )
+        preserved_tree = Tree.objects.create(species=species[0], coppice=False)
+        TreeSample.objects.create(
+            sample=pai_sample, tree=preserved_tree, parcel=parcel,
+            shoot=0, standard=False, number=7, preserved_number=7,
+            d_cm=30, h_m=Decimal('20.00'), l10_mm=0,
+        )
+        n_trees_before = Tree.objects.count()
+
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(species[0].id),
+            FIELD_NUMBER: '7',
+            FIELD_D_CM: '35', FIELD_H_M: '21', FIELD_H_MEASURED: 'true',
+            'l10_mm': '0', FIELD_HIGHFOREST: 'true',
+            FIELD_PRESERVED: 'true',
+        })
+
+        assert resp.status_code == 200, resp.content
+        ts = TreeSample.objects.get(id=resp.json()[ROW_ID])
+        assert ts.tree_id == preserved_tree.id
+        assert ts.preserved_number == 7
+        assert Tree.objects.count() == n_trees_before
+
+    def test_create_preserved_tree_rejects_species_conflict(
+            self, writer_client, sample_setup, species,
+    ):
+        s = sample_setup
+        parcel = s['area'].parcel
+        pai_survey = Survey.objects.create(name='PAI history')
+        pai_sample = Sample.objects.create(
+            sample_area=None, survey=pai_survey, date=date(2024, 1, 1),
+        )
+        preserved_tree = Tree.objects.create(species=species[1], coppice=False)
+        TreeSample.objects.create(
+            sample=pai_sample, tree=preserved_tree, parcel=parcel,
+            shoot=0, standard=False, number=8, preserved_number=8,
+            d_cm=30, h_m=Decimal('20.00'), l10_mm=0,
+        )
+
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(species[0].id),
+            FIELD_NUMBER: '8',
+            FIELD_D_CM: '35', FIELD_H_M: '21', FIELD_H_MEASURED: 'true',
+            'l10_mm': '0', FIELD_HIGHFOREST: 'true',
+            FIELD_PRESERVED: 'true',
+        })
+
+        expected = S.ERR_PAI_SPECIES_CONFLICT.format(
+            parcel.region.name, parcel.name, 8, species[1].common_name,
+        )
+        assert resp.status_code == 400
+        assert expected in resp.json()[MESSAGE]
+
     def test_create_unstructured_tree_creates_null_area_sample(
             self, writer_client, parcels, species,
     ):
