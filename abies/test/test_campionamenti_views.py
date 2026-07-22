@@ -2539,7 +2539,7 @@ class TestTreeCsvImport:
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,PAI\n'
-            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,2,Abete,true,'
+            f'{compresa},{particella},{adc},10,,false,30,20.5,10,2,Abete,true,'
             '2024-09-15,true\n'
             f'{compresa},{particella},{adc},11,0,false,32,22.5,11,2,Abete,true,'
             '2024-09-15,false\n'

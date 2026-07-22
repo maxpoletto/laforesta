@@ -227,7 +227,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
                 ))
                 continue
             csv_date_by_area.setdefault(None, row_date)
-            number_shoot_key = (None, number, shoot)
+            number_shoot_key = (None, values.number, values.shoot)
         else:
             existing_sample = idx.existing_sample_by_area.get(area.id)
             if existing_sample and existing_sample.date != row_date:
@@ -242,10 +242,10 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
                 ))
                 continue
             csv_date_by_area.setdefault(area.id, row_date)
-            number_shoot_key = (area.id, number, shoot)
+            number_shoot_key = (area.id, values.number, values.shoot)
         if number_shoot_key in seen_number_shoots:
             errors.append(S.ERR_CSV_ROW_TREE_NUMBER_DUPLICATE.format(
-                i, number, shoot,
+                i, values.number, values.shoot,
             ))
             continue
         seen_number_shoots.add(number_shoot_key)
