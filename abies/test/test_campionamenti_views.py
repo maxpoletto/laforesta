@@ -8,6 +8,7 @@ from decimal import Decimal
 import pytest
 from django.test import Client
 
+from apps.campionamenti import csv_trees
 from apps.base.models import (
     DigestStatus, Parcel, Sample, SampleArea, SampleGrid, Survey, Tree,
     TreeSample, UsedNonce,
@@ -352,7 +353,7 @@ class TestTreeSave:
             FIELD_SPECIES_ID: str(s['tree'].species_id),
             FIELD_NUMBER: '42',
             FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
-            'l10_mm': '12', 'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            'l10_mm': '12', 'volume_m3': '999', FIELD_MASS_Q: '999',
             FIELD_HIGHFOREST: 'true',
             FIELD_LAT: '0.001', FIELD_LON: '0.001',
             FIELD_PRESERVED: '',
@@ -365,7 +366,11 @@ class TestTreeSave:
         assert ts.tree.coppice is False
         assert ts.preserved_number is None
         assert ts.h_measured is True
-        assert ts.volume_m3 is not None and ts.mass_q is not None
+        expected_volume, expected_mass = csv_trees.tree_volume_and_mass(
+            False, 30, Decimal('20.50'), s['tree'].species,
+        )
+        assert ts.volume_m3 == expected_volume
+        assert ts.mass_q == expected_mass
 
     def test_create_unstructured_tree_creates_null_area_sample(
             self, writer_client, parcels, species,

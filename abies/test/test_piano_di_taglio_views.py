@@ -28,7 +28,7 @@ from apps.base.models import (
     TreeMark, UsedNonce,
 )
 from apps.piano_di_taglio.mark_import import (
-    csv_mark_fingerprint, legacy_csv_mark_fingerprint,
+    csv_mark_fingerprint, legacy_csv_mark_fingerprint, mark_volume_and_mass,
 )
 from apps.prelievi.models import Harvest, HarvestTractor
 from config import strings as S
@@ -1336,7 +1336,7 @@ class TestMarkSave:
         planned_item.refresh_from_db()
         assert planned_item.state == HarvestPlanItemState.MARKED
 
-    def test_create_with_null_volume(
+    def test_create_recomputes_missing_client_volume(
         self, writer_client, planned_item, species,
     ):
         resp = writer_client.post(
@@ -1350,10 +1350,13 @@ class TestMarkSave:
         )
         assert resp.status_code == 200
         tm = TreeMark.objects.first()
-        assert tm.volume_m3 is None
-        assert tm.mass_q is None
+        expected_volume, expected_mass = mark_volume_and_mass(
+            30, Decimal('20.0'), species[0],
+        )
+        assert tm.volume_m3 == expected_volume
+        assert tm.mass_q == expected_mass
 
-    def test_create_rejects_negative_volume_and_mass(
+    def test_create_ignores_negative_client_volume_and_mass(
         self, writer_client, planned_item, species,
     ):
         resp = writer_client.post(
@@ -1365,23 +1368,32 @@ class TestMarkSave:
             content_type='application/json',
         )
 
-        assert resp.status_code == 400
-        assert S.ERR_MARK_VOLUME_NEGATIVE in resp.json()[MESSAGE]
-        assert S.ERR_MARK_MASS_NEGATIVE in resp.json()[MESSAGE]
+        assert resp.status_code == 200
+        tm = TreeMark.objects.first()
+        expected_volume, expected_mass = mark_volume_and_mass(
+            30, Decimal('20.0'), species[0],
+        )
+        assert tm.volume_m3 == expected_volume
+        assert tm.mass_q == expected_mass
 
-    def test_create_materializes_volume(
+    def test_create_materializes_server_volume(
         self, writer_client, planned_item, species,
     ):
         writer_client.post(
             self.SAVE_URL,
             data=json.dumps(self._mark_body(
                 planned_item, species[0],
-                **{FIELD_VOLUME_M3: '1.500'},
+                **{FIELD_VOLUME_M3: '999.000'},
             )),
             content_type='application/json',
         )
         planned_item.refresh_from_db()
-        assert planned_item.volume_marked_m3 == Decimal('1.500')
+        expected_volume, _ = mark_volume_and_mass(
+            30, Decimal('20.0'), species[0],
+        )
+        assert planned_item.volume_marked_m3 == expected_volume.quantize(
+            Decimal('0.001'),
+        )
 
     def test_parcel_scoped_mark_rejects_other_submitted_parcel(
         self, writer_client, planned_item, parcels, species,
@@ -1502,7 +1514,12 @@ class TestMarkSave:
         assert tm.d_cm == 30
         planned_item.refresh_from_db()
         other_item.refresh_from_db()
-        assert planned_item.volume_marked_m3 == Decimal('0.702')
+        expected_volume, _ = mark_volume_and_mass(
+            30, Decimal('20.0'), species[0],
+        )
+        assert planned_item.volume_marked_m3 == expected_volume.quantize(
+            Decimal('0.001'),
+        )
         assert other_item.volume_marked_m3 is None
 
     def test_update_region_wide_mark_can_change_parcel(

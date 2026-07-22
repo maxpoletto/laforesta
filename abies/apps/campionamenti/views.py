@@ -191,6 +191,16 @@ def tree_save_view(request):
     # Coppice create with existing tree: detect shoot-number collisions
     # against existing TreeSamples on this (sample, tree) before commit
     # so we surface a friendly error instead of an IntegrityError.
+    species = None
+    if existing_tree is not None and not ts_id:
+        species = existing_tree.species
+    elif parsed[FIELD_SPECIES_ID] is not None:
+        species = Species.objects.filter(id=parsed[FIELD_SPECIES_ID]).first()
+    if species is None:
+        return _validation_error(
+            [S.ERR_BOSCO_SPECIES_REQUIRED], ts_id, request, body,
+        )
+
     if parsed[FIELD_COPPICE] and not ts_id and existing_tree is not None:
         existing_shoots = set(TreeSample.objects.filter(
             sample=sample, tree=existing_tree,
@@ -205,13 +215,13 @@ def tree_save_view(request):
 
     with transaction.atomic():
         if ts_id:
-            ts = _update_tree_sample(ts_id, sample, parsed, body, request)
+            ts = _update_tree_sample(ts_id, sample, parsed, body, request, species)
             if isinstance(ts, JsonResponse):
                 return ts
             created_or_updated_ids = [ts.id]
         elif parsed[FIELD_COPPICE]:
             tree = existing_tree or Tree.objects.create(
-                species_id=parsed[FIELD_SPECIES_ID],
+                species=species,
                 coppice=True,
             )
             created_or_updated_ids = []
@@ -232,6 +242,9 @@ def tree_save_view(request):
                 created_or_updated_ids.append(ts.id)
         elif existing_tree is not None:
             # Reuse the existing Tree row.  Do not create a new Tree.
+            volume_m3, mass_q = csv_trees.tree_volume_and_mass(
+                False, parsed[FIELD_D_CM], parsed[FIELD_H_M], species,
+            )
             ts = TreeSample.objects.create(
                 sample=sample, tree=existing_tree, parcel_id=parcel_id,
                 shoot=0, standard=False,
@@ -242,15 +255,18 @@ def tree_save_view(request):
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
                 h_measured=parsed[FIELD_H_MEASURED], l10_mm=parsed[FIELD_L10_MM],
                 pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
-                volume_m3=parsed[FIELD_VOLUME_M3],
-                mass_q=parsed[FIELD_MASS_Q],
+                volume_m3=volume_m3,
+                mass_q=mass_q,
                 lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
             )
             created_or_updated_ids = [ts.id]
         else:
             tree = Tree.objects.create(
-                species_id=parsed[FIELD_SPECIES_ID],
+                species=species,
                 coppice=False,
+            )
+            volume_m3, mass_q = csv_trees.tree_volume_and_mass(
+                False, parsed[FIELD_D_CM], parsed[FIELD_H_M], species,
             )
             ts = TreeSample.objects.create(
                 sample=sample, tree=tree, parcel_id=parcel_id,
@@ -262,8 +278,8 @@ def tree_save_view(request):
                 d_cm=parsed[FIELD_D_CM], h_m=parsed[FIELD_H_M],
                 h_measured=parsed[FIELD_H_MEASURED], l10_mm=parsed[FIELD_L10_MM],
                 pressler_coeff=parsed[FIELD_PRESSLER_COEFF],
-                volume_m3=parsed[FIELD_VOLUME_M3],
-                mass_q=parsed[FIELD_MASS_Q],
+                volume_m3=volume_m3,
+                mass_q=mass_q,
                 lat=parsed[FIELD_LAT], lon=parsed[FIELD_LON],
             )
             created_or_updated_ids = [ts.id]
@@ -803,8 +819,8 @@ def _parse_tree_body(body):
     """Extract and validate fields for a tree+sample save.
 
     Two branches:
-      - Fustaia (default): reads d_cm/h_m/l10_mm/volume_m3/mass_q from
-        top-level fields.  Creates exactly one TreeSample on save.
+      - Fustaia (default): reads d_cm/h_m/l10_mm from top-level fields.
+        Creates exactly one TreeSample on save.
       - Coppice: reads a `shoots` JSON array of {shoot, standard, d_cm,
         h_m, l10_mm} entries.  Creates N TreeSamples on save (or
         updates a single one on the edit path — in that case the array
@@ -921,8 +937,10 @@ def _parse_tree_body(body):
         FIELD_H_MEASURED: h_measured,
         FIELD_L10_MM: l10_mm,
         FIELD_PRESSLER_COEFF: pressler_coeff,
-        FIELD_VOLUME_M3: parse_decimal(body.get(FIELD_VOLUME_M3)) if not coppice else None,
-        FIELD_MASS_Q: parse_decimal(body.get(FIELD_MASS_Q)) if not coppice else None,
+        # Backward-compatible payload fields.  The server recomputes these
+        # derived values during save instead of trusting the browser preview.
+        FIELD_VOLUME_M3: None,
+        FIELD_MASS_Q: None,
         FIELD_LAT: coord_float(parse_decimal(body.get(FIELD_LAT))),
         FIELD_LON: coord_float(parse_decimal(body.get(FIELD_LON))),
         FIELD_PRESERVED: is_truthy(body.get(FIELD_PRESERVED)),
@@ -1041,7 +1059,7 @@ def _sample_date_conflict_error(sample):
     )
 
 
-def _update_tree_sample(ts_id, sample, parsed, body, request):
+def _update_tree_sample(ts_id, sample, parsed, body, request, species):
     ts = (TreeSample.objects
           .select_for_update()
           .select_related(
@@ -1083,13 +1101,14 @@ def _update_tree_sample(ts_id, sample, parsed, body, request):
         ts.h_measured = parsed[FIELD_H_MEASURED]
         ts.l10_mm = parsed[FIELD_L10_MM]
         ts.pressler_coeff = parsed[FIELD_PRESSLER_COEFF]
-        ts.volume_m3 = parsed[FIELD_VOLUME_M3]
-        ts.mass_q = parsed[FIELD_MASS_Q]
+        ts.volume_m3, ts.mass_q = csv_trees.tree_volume_and_mass(
+            False, ts.d_cm, ts.h_m, species,
+        )
     ts.version += 1
     ts.save()
     # Tree identity fields that can change on edit.
     tree = ts.tree
-    tree.species_id = parsed[FIELD_SPECIES_ID]
+    tree.species = species
     tree.version += 1
     tree.save()
     return ts

@@ -55,6 +55,7 @@ from apps.piano_di_taglio.mark_import import (
     auto_advance_to_marked as _auto_advance_to_marked,
     csv_mark_fingerprint, import_mark_rows,
     legacy_csv_mark_fingerprint, mark_parcel_matches_item,
+    mark_volume_and_mass,
     next_mark_number as _next_mark_number,
     rematerialize_volume_marked as _rematerialize_volume_marked,
 )
@@ -816,8 +817,8 @@ def _parse_csv_mark_number(reader, row: dict):
 def mark_save_view(request):
     """Create or update a single TreeMark (manual entry or pencil-edit).
 
-    The client computes volume_m3 and mass_q via volume.js and sends
-    them as-is; no server-side recompute on this path.
+    The client may compute a live preview of volume_m3 and mass_q, but the
+    server persists only values recomputed through the shared import path.
     """
     body, error = parse_json_body(request)
     if error:
@@ -828,8 +829,6 @@ def mark_save_view(request):
     d_cm = int_or_none(body.get(FIELD_D_CM))
     h_m = parse_decimal(body.get(FIELD_H_M))
     h_measured = is_truthy(body.get(FIELD_H_MEASURED))
-    volume_m3 = parse_decimal(body.get(FIELD_VOLUME_M3))
-    mass_q = parse_decimal(body.get(FIELD_MASS_Q))
     lat = coord_float(parse_decimal(body.get(FIELD_LAT)))
     lon = coord_float(parse_decimal(body.get(FIELD_LON)))
     acc_m = int_or_none(body.get(FIELD_ACC_M))
@@ -849,10 +848,6 @@ def mark_save_view(request):
         errors.append(S.ERR_MARK_D_REQUIRED)
     if h_m is None or h_m <= 0:
         errors.append(S.ERR_MARK_H_REQUIRED)
-    if volume_m3 is not None and volume_m3 < 0:
-        errors.append(S.ERR_MARK_VOLUME_NEGATIVE)
-    if mass_q is not None and mass_q < 0:
-        errors.append(S.ERR_MARK_MASS_NEGATIVE)
     if not operator:
         errors.append(S.ERR_MARK_OPERATOR_REQUIRED)
     if not date_raw:
@@ -886,6 +881,7 @@ def mark_save_view(request):
     species = Species.objects.filter(id=species_id).first()
     if species is None:
         return validation_error([S.ERR_MARK_SPECIES_REQUIRED])
+    volume_m3, mass_q = mark_volume_and_mass(d_cm, h_m, species)
     if number is not _MARK_NUMBER_MISSING and number is not None:
         duplicate = TreeMark.objects.filter(
             harvest_plan_item_id=item.id, number=number,
