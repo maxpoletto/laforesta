@@ -203,6 +203,21 @@ class TestTreeForm:
         resp = writer_client.get('/api/campionamenti/tree/form/?survey=x&area=1')
         assert resp.status_code == 404
 
+    def test_form_add_rejects_unknown_survey_id(self, writer_client, sample_setup):
+        resp = writer_client.get('/api/campionamenti/tree/form/?survey=9999&area=1')
+        assert resp.status_code == 404
+
+    def test_form_add_rejects_unknown_area_id(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={s["survey"].id}&area=9999'
+        )
+        assert resp.status_code == 404
+
+    def test_form_edit_rejects_unknown_tree_sample_id(self, writer_client, db):
+        resp = writer_client.get('/api/campionamenti/tree/form/9999/')
+        assert resp.status_code == 404
+
     def test_reader_forbidden(self, reader_client, db):
         resp = reader_client.get('/api/campionamenti/tree/form/')
         assert resp.status_code == 403
@@ -436,6 +451,68 @@ class TestTreeSave:
         )
         assert resp.status_code == 400
         assert expected in resp.json()[MESSAGE]
+
+    def test_save_rejects_malformed_row_id(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            ROW_ID: 'abc',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
+            'l10_mm': '12', FIELD_HIGHFOREST: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_ROW_ID_INVALID in resp.json()[MESSAGE]
+
+    def test_save_unknown_tree_sample_returns_404(self, writer_client, sample_setup):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            ROW_ID: '9999',
+            VERSION: '1',
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
+            'l10_mm': '12', FIELD_HIGHFOREST: 'true',
+        })
+
+        assert resp.status_code == 404
+
+    def test_save_unknown_survey_is_validation_error(
+            self, writer_client, sample_setup,
+    ):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: '9999',
+            FIELD_SAMPLE_AREA_ID: str(s['area'].id),
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
+            'l10_mm': '12', FIELD_HIGHFOREST: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_AREA_OUT_OF_SURVEY in resp.json()[MESSAGE]
+
+    def test_save_unknown_area_is_validation_error(
+            self, writer_client, sample_setup,
+    ):
+        s = sample_setup
+        resp = self._post(writer_client, {
+            FIELD_SURVEY_ID: str(s['survey'].id),
+            FIELD_SAMPLE_AREA_ID: '9999',
+            FIELD_SPECIES_ID: str(s['tree'].species_id),
+            FIELD_NUMBER: '42',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5', FIELD_H_MEASURED: 'true',
+            'l10_mm': '12', FIELD_HIGHFOREST: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert S.ERR_AREA_OUT_OF_SURVEY in resp.json()[MESSAGE]
 
     def test_create_unstructured_tree_creates_null_area_sample(
             self, writer_client, parcels, species,

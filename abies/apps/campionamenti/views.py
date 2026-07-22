@@ -630,23 +630,31 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
                                 'sample__sample_area__parcel__eclass',
                                 'parcel__region', 'parcel__eclass',
                                 'tree__species')
-                .get(id=ts_id))
+                .filter(id=ts_id)
+                .first())
+        if ts is None:
+            raise Http404('tree sample not found')
         sample = ts.sample
         area = sample.sample_area
         survey = sample.survey
     else:
         if survey_id is None:
             raise Http404('survey required')
-        survey = Survey.objects.get(id=survey_id)
+        survey = Survey.objects.filter(id=survey_id).first()
+        if survey is None:
+            raise Http404('survey not found')
         if survey.sample_grid_id is None:
             if area_id is not None:
                 raise Http404('unstructured survey has no sample areas')
         else:
             if area_id is None:
                 raise Http404('area required')
-            area = SampleArea.objects.select_related(
-                'parcel__region', 'parcel__eclass',
-            ).get(id=area_id)
+            area = (SampleArea.objects
+                    .select_related('parcel__region', 'parcel__eclass')
+                    .filter(id=area_id)
+                    .first())
+            if area is None:
+                raise Http404('sample_area not found')
             if area.sample_grid_id != survey.sample_grid_id:
                 raise Http404('sample_area not in survey grid')
             sample = Sample.objects.filter(
@@ -846,8 +854,10 @@ def _parse_tree_body(body):
     them in the UI — server treats the existing Tree as authoritative).
     """
     errors = []
-    ts_id = body.get(ROW_ID)
-    ts_id = int(ts_id) if ts_id else None
+    ts_raw = body.get(ROW_ID)
+    ts_id = int_or_none(ts_raw) if ts_raw else None
+    if ts_raw and ts_id is None:
+        errors.append(S.ERR_ROW_ID_INVALID)
 
     # The field is optional in the wire format: missing keeps the
     # existing sample.date or defaults a new Sample to today.  A submitted
@@ -1060,7 +1070,9 @@ def _find_or_create_sample(parsed):
     group manual Abies entries by (survey, date) with sample_area=NULL.
     Returns None when the submitted scope is invalid.
     """
-    survey = Survey.objects.get(id=parsed[FIELD_SURVEY_ID])
+    survey = Survey.objects.filter(id=parsed[FIELD_SURVEY_ID]).first()
+    if survey is None:
+        return None
     sample_date = parsed.get(FIELD_DATE) or date_type.today()
     if survey.sample_grid_id is None:
         if parsed[FIELD_SAMPLE_AREA_ID] is not None:
@@ -1076,9 +1088,12 @@ def _find_or_create_sample(parsed):
 
     if parsed[FIELD_SAMPLE_AREA_ID] is None:
         return None
-    area = SampleArea.objects.select_related(FIELD_PARCEL).get(
-        id=parsed[FIELD_SAMPLE_AREA_ID],
-    )
+    area = (SampleArea.objects
+            .select_related(FIELD_PARCEL)
+            .filter(id=parsed[FIELD_SAMPLE_AREA_ID])
+            .first())
+    if area is None:
+        return None
     if area.sample_grid_id != survey.sample_grid_id:
         return None
     sample, _ = Sample.objects.get_or_create(
@@ -1105,7 +1120,10 @@ def _update_tree_sample(
               'sample__survey', 'sample__sample_area__parcel__region',
               'parcel__region', 'tree__species',
           )
-          .get(id=ts_id))
+          .filter(id=ts_id)
+          .first())
+    if ts is None:
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if ts.version != submitted_version(body):
         return conflict_response(
             data_id=f'sampled_trees_{ts.sample.survey_id}', row_id=ts.id,
