@@ -118,7 +118,7 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     free_survey: {
       id: 'free_survey', labelKey: 'MODE_FREE_SURVEYS',
       preTitleKey: 'PRE_NEW_FREE_SURVEY', buttonId: 'btn-mode-free-survey',
-      autoHeight: true, localOnly: true, freeSurvey: true, enabled: true,
+      autoHeight: true, freeSurvey: true, enabled: true,
     },
     pai: {
       id: 'pai', labelKey: 'MODE_PAI', buttonId: 'btn-mode-pai',
@@ -607,11 +607,11 @@ const session = {
         'onEnd does not persist a pending upload payload after payload validation fails');
 }
 
-// Ending a free-survey session exports CSV locally and does not build an
-// upload payload before Abies import support exists.
+// Ending a free-survey session now follows the normal staged-upload path.
 {
   const { context, events } = makeHarness();
   const app = context.__ipsoAppTest;
+  const payload = { records: [{ client_record_id: 'free-1' }], csv_text: 'csv-text' };
   app.State.db = {};
   app.State.reference = referenceFixture();
   app.State.session = { ...session, status: 'open', mode: 'free_survey' };
@@ -619,20 +619,49 @@ const session = {
     id: 1, seq: 1, particella: '1', specie: 'Abete', d_cm: 42, h_m: 22,
     h_measured: 1, preserved: true, lat: 38.5, lon: 16.3, acc_m: 5,
   }];
-  context.Store.setSessionStatus = async (_db, id, status) => {
-    events.push(['setSessionStatus', id, status]);
+  context.upload.buildUploadPayload = () => {
+    events.push('buildPayload');
+    return payload;
   };
 
   await app.onEnd();
 
   check(events.includes('download'), 'free-survey end downloads the local CSV');
-  check(!events.includes('buildPayload'),
-        'free-survey end does not build an upload payload');
-  check(!events.some(e => Array.isArray(e) && e[0] === 'uploadEnter'),
-        'free-survey end does not enter the upload screen');
-  check(events.some(e => Array.isArray(e) && e[0] === 'setSessionStatus' &&
-        e[2] === 'exported'),
-        'free-survey end marks the local session exported');
+  check(events.includes('buildPayload'),
+        'free-survey end builds an upload payload');
+  check(events.some(e => Array.isArray(e) && e[0] === 'setSessionPendingUpload'),
+        'free-survey end persists the pending upload');
+  check(events.some(e => Array.isArray(e) && e[0] === 'uploadEnter'),
+        'free-survey end enters the upload screen');
+}
+
+
+// Free-survey preserved rows use the same per-parcel next-number source as PAI.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = {
+    ...referenceFixture(),
+    pai: { preserved_trees: [{ parcel_id: 100, number: 8 }] },
+  };
+  app.State.session = { ...session, status: 'open', mode: 'free_survey' };
+  app.State.override = { resolve: () => '1' };
+  context.document.getElementById('in-preserved').checked = true;
+  let numberValue = '';
+  app.State.numpad = {
+    value(field) { return field === 'numero' ? numberValue : ''; },
+    setValue(field, value) { if (field === 'numero') numberValue = value; },
+  };
+  context.Store.listTrees = async () => [
+    { numero: 9, particella: '1', parcel_id: 100, preserved: true },
+    { numero: 14, particella: '2', parcel_id: 101, preserved: true },
+  ];
+
+  await app.prefillNumber();
+
+  check(numberValue === '10',
+        'free-survey preserved numbering advances within the selected parcel');
 }
 
 // A successful session end persists the exact upload payload before entering upload.

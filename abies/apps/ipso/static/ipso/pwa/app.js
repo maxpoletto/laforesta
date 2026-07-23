@@ -429,6 +429,16 @@ function isFreeSurveyMode() {
   return mode === IpsoModes.FREE_SURVEY;
 }
 
+function isPreservedEntry() {
+  if (isPaiMode()) return true;
+  const checkbox = document.getElementById('in-preserved');
+  return isFreeSurveyMode() && !!checkbox && checkbox.checked;
+}
+
+function usesParcelScopedNumberDefaults() {
+  return isPaiMode() || isPreservedEntry();
+}
+
 function selectedSampleSurveyId() {
   const raw = document.getElementById('in-sample-survey').value;
   const id = parseInt(raw, 10);
@@ -697,7 +707,7 @@ function wireRecording() {
     updateSaveEnabled();
   });
   document.getElementById('in-h-measured').addEventListener('change', onHeightMeasuredToggle);
-  document.getElementById('in-preserved').addEventListener('change', updateSaveEnabled);
+  document.getElementById('in-preserved').addEventListener('change', onPreservedToggle);
 
   // Particella select: sticky-override transitions. The sentinel option
   // (value AUTO_SENTINEL) toggles auto mode; any other value enters
@@ -737,6 +747,13 @@ function wireRecording() {
     hideModal('modal-confirm-end');
   });
 
+}
+
+function onPreservedToggle() {
+  if (isFreeSurveyMode() && document.getElementById('in-preserved').checked) {
+    prefillNumber();
+  }
+  updateSaveEnabled();
 }
 
 function onHeightMeasuredToggle() {
@@ -930,7 +947,8 @@ function refreshParticellaSelect() {
   const changed = State.parcelName !== selectedParcelName;
   State.parcelName = selectedParcelName;
   sel.classList.toggle('error', ov.isMismatch(autoParcelName));
-  if (isPaiMode() && changed && State.numpad && shouldReplaceNumberDefault()) {
+  if (usesParcelScopedNumberDefaults() && changed &&
+      State.numpad && shouldReplaceNumberDefault()) {
     prefillNumber();
   }
 }
@@ -1055,9 +1073,11 @@ async function computeNextNumberDefault(trees) {
   let rows = trees;
   if (isSamplesMode()) {
     rows = trees.filter((t) => t && t[FIELD_SAMPLE_AREA_ID] === State.sampleAreaId);
-  } else if (isPaiMode()) {
+  } else if (usesParcelScopedNumberDefaults()) {
     const name = currentParcelName();
-    rows = trees.filter((t) => t && t.particella === name);
+    rows = trees.filter((t) =>
+      t && t.particella === name && (!isFreeSurveyMode() || t[FIELD_PRESERVED])
+    );
   }
   const inSession = session.nextNumberDefault(rows);
   if (inSession != null) return inSession;
@@ -1066,7 +1086,7 @@ async function computeNextNumberDefault(trees) {
     const maxNumber = sampleArea ? sampleArea[FIELD_MAX_TREE_NUMBER] : null;
     if (Number.isInteger(maxNumber)) return maxNumber + 1;
   }
-  if (isPaiMode()) {
+  if (usesParcelScopedNumberDefaults()) {
     const parcel = currentParcelReference();
     if (parcel) {
       const maxNumber = upload.paiMaxNumberForParcel(
@@ -1190,6 +1210,7 @@ function treeValidationOptions() {
     dRequired: mode.dRequired !== false,
     hRequired: mode.hRequired !== false,
     numberRequired: !!mode.numberRequired,
+    preservedNumberRequired: isFreeSurveyMode(),
     parcelRequired: !!mode.parcelRequired,
     sampleAreaRequired: !!mode.sampleAreaRequired,
     gpsRequired: true,
@@ -1349,7 +1370,19 @@ async function onSave() {
 async function numberExistsInSession(rec) {
   if (!State.session || !Number.isInteger(rec.numero)) return false;
   const trees = await Store.listTrees(State.db, State.session.id);
+  if (isFreeSurveyMode()) return freeSurveyNumberExists(trees, rec);
   return trees.some((tree) => sameNumberScope(tree, rec));
+}
+
+function freeSurveyNumberExists(trees, rec) {
+  if (rec[FIELD_PRESERVED]) {
+    return trees.some((tree) =>
+      tree && tree[FIELD_PRESERVED] && sameNumberScope(tree, rec)
+    );
+  }
+  return trees.some((tree) =>
+    tree && !tree[FIELD_PRESERVED] && tree.numero === rec.numero
+  );
 }
 
 function sameNumberScope(tree, rec) {

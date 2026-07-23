@@ -2,7 +2,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const session = require('./session.js');
-const { FIELD_SAMPLE_AREA_ID } = require('./constants.js');
+const { FIELD_PRESERVED, FIELD_SAMPLE_AREA_ID } = require('./constants.js');
 
 let pass = 0;
 const failures = [];
@@ -64,6 +64,20 @@ check(
 check(
   !session.validateTree(validTree({ numero: null }), {}).includes('numero'),
   'blank number remains allowed unless the mode requires a number',
+);
+check(
+  session.validateTree(
+    validTree({ numero: null, [FIELD_PRESERVED]: true }),
+    { preservedNumberRequired: true },
+  ).includes('numero'),
+  'preservedNumberRequired rejects a blank preserved-tree number',
+);
+check(
+  !session.validateTree(
+    validTree({ numero: null, [FIELD_PRESERVED]: false }),
+    { preservedNumberRequired: true },
+  ).includes('numero'),
+  'preservedNumberRequired still allows blank ordinary free-survey numbers',
 );
 check(
   session.validateTree(validTree({ lat: null, lon: 16.3 }), { gpsRequired: true }).includes('gps'),

@@ -43,8 +43,8 @@ check(freeSurvey.labelKey === "MODE_FREE_SURVEYS",
       "free-survey mode uses a localized label key");
 check(freeSurvey.autoHeight === true,
       "free-survey mode can derive unmeasured heights");
-check(IpsoModes.get(IPSO_MODE_FREE_SURVEY).localOnly === true,
-      "free-survey mode is marked local-only");
+check(IpsoModes.get(IPSO_MODE_FREE_SURVEY).localOnly !== true,
+      "free-survey mode is uploadable");
 
 if (failures.length) {
   console.error(failures.join("\n"));

@@ -51,7 +51,6 @@ const IpsoModes = (function() {
       numberRequired: false,
       parcelRequired: true,
       persistNumber: false,
-      localOnly: true,
       freeSurvey: true,
       enabled: true,
     },

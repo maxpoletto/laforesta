@@ -2,6 +2,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const upload = require('./upload.js');
+const { FIELD_PRESERVED } = require('./constants.js');
 
 let pass = 0;
 const failures = [];
@@ -130,12 +131,42 @@ check(
   'upload payload fills completed_at for live session completion',
 );
 
-check(!upload.isSupportedUploadMode('free_survey'),
-      'free-survey mode is not upload-supported before import support');
+check(upload.isSupportedUploadMode(upload.UPLOAD_MODE_FREE_SURVEY),
+      'free-survey mode is upload-supported');
+
+const freeSurveyPayload = upload.buildUploadPayload(
+  sess(upload.UPLOAD_MODE_FREE_SURVEY),
+  [tree({ numero: null, [FIELD_PRESERVED]: false })],
+  reference(),
+  'csv',
+);
+check(
+  freeSurveyPayload.records[0].number === null &&
+    freeSurveyPayload.records[0][FIELD_PRESERVED] === false,
+  'free-survey upload allows blank ordinary tree numbers',
+);
+
+const freePreservedPayload = upload.buildUploadPayload(
+  sess(upload.UPLOAD_MODE_FREE_SURVEY),
+  [tree({ numero: 9, [FIELD_PRESERVED]: true })],
+  reference(),
+  'csv',
+);
+check(
+  freePreservedPayload.records[0].number === 9 &&
+    freePreservedPayload.records[0][FIELD_PRESERVED] === true,
+  'free-survey upload carries preserved-tree numbers',
+);
+
 checkThrows(
-  () => upload.buildUploadPayload(sess('free_survey'), [tree()], reference(), 'csv'),
-  'Modalità non supportata',
-  'free-survey sessions cannot be uploaded before import support',
+  () => upload.buildUploadPayload(
+    sess(upload.UPLOAD_MODE_FREE_SURVEY),
+    [tree({ numero: null, [FIELD_PRESERVED]: true })],
+    reference(),
+    'csv',
+  ),
+  'numero obbligatorio',
+  'free-survey upload rejects blank preserved-tree numbers',
 );
 
 checkThrows(
@@ -201,6 +232,41 @@ checkThrows(
   ),
   'numero già presente',
   'PAI upload rejects number already present in the same parcel',
+);
+
+checkThrows(
+  () => upload.buildUploadPayload(
+    sess(upload.UPLOAD_MODE_FREE_SURVEY),
+    [tree({ numero: 8, [FIELD_PRESERVED]: true })],
+    reference(),
+    'csv',
+  ),
+  'numero già presente',
+  'free-survey upload rejects preserved numbers already present in the same parcel',
+);
+
+const freePreservedDistinctParcels = upload.buildUploadPayload(
+  sess(upload.UPLOAD_MODE_FREE_SURVEY),
+  [tree({ id: 1, seq: 1, particella: '1', numero: 9, [FIELD_PRESERVED]: true }),
+   tree({ id: 2, seq: 2, particella: '2', parcel_id: 101, numero: 9, [FIELD_PRESERVED]: true })],
+  reference(),
+  'csv',
+);
+check(
+  freePreservedDistinctParcels.records.length === 2,
+  'free-survey upload allows the same preserved number in different parcels',
+);
+
+checkThrows(
+  () => upload.buildUploadPayload(
+    sess(upload.UPLOAD_MODE_FREE_SURVEY),
+    [tree({ id: 1, seq: 1, particella: '1', numero: 5, [FIELD_PRESERVED]: false }),
+     tree({ id: 2, seq: 2, particella: '2', parcel_id: 101, numero: 5, [FIELD_PRESERVED]: false })],
+    reference(),
+    'csv',
+  ),
+  'numero già usato',
+  'free-survey upload rejects duplicate ordinary sample numbers',
 );
 
 const paiDistinctParcels = upload.buildUploadPayload(

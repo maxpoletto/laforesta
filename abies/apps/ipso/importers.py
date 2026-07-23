@@ -20,8 +20,8 @@ from config.constants import (
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_LAT, FIELD_LON, FIELD_L10_MM, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_PARCEL_ID,
-    FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_SAMPLE_AREA_ID, FIELD_SHOOT,
-    FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
+    FIELD_PRESERVED, FIELD_PRESERVED_NUMBER, FIELD_PRESSLER_COEFF,
+    FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     PRESSLER_DEFAULT, RECORDS, SESSION, TREE_H_QUANTUM,
 )
 
@@ -144,6 +144,95 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
     return rows, errors
 
 
+def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
+    if survey.sample_grid_id is not None:
+        return [], [S.ERR_SURVEY_UNSTRUCTURED_REQUIRED]
+    records = _payload_records(payload)
+    if records is None:
+        return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
+
+    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
+    session_operator = (
+        (session.get(FIELD_OPERATOR) or '').strip()
+        if isinstance(session, dict) else ''
+    )
+    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
+    species = {sp.id: sp for sp in Species.objects.filter(id__in=species_ids)}
+    parcels = {
+        parcel.id: parcel
+        for parcel in (Parcel.objects
+                       .filter(id__in=parcel_ids)
+                       .select_related('region', 'eclass'))
+    }
+    seen_sample_numbers = set(
+        TreeSample.objects
+        .filter(sample__survey=survey)
+        .values_list(FIELD_NUMBER, flat=True)
+    )
+    next_sample_number = (max(seen_sample_numbers) if seen_sample_numbers else 0) + 1
+    seen_preserved_numbers = current_preserved_number_keys(parcel_ids)
+
+    rows = []
+    errors = []
+    for i, record in enumerate(records, start=1):
+        if not isinstance(record, dict):
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
+            continue
+        parcel = parcels.get(record.get(FIELD_PARCEL_ID))
+        if parcel is None:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
+            continue
+        sp = species.get(record.get(FIELD_SPECIES_ID))
+        if sp is None:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
+            continue
+
+        preserved = bool(record.get(FIELD_PRESERVED))
+        number = record.get(FIELD_NUMBER)
+        if number is not None:
+            try:
+                number = int(number)
+            except (TypeError, ValueError):
+                errors.append(S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
+                continue
+            if number <= 0:
+                errors.append(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
+                continue
+        if preserved and number is None:
+            errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
+            continue
+
+        preserved_number = number if preserved else None
+        if preserved_number is not None:
+            preserved_key = (parcel.id, preserved_number)
+            if preserved_key in seen_preserved_numbers:
+                errors.append(S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(i))
+                continue
+            seen_preserved_numbers.add(preserved_key)
+
+        sample_number = None if preserved else number
+        if sample_number is None:
+            while next_sample_number in seen_sample_numbers:
+                next_sample_number += 1
+            sample_number = next_sample_number
+            next_sample_number += 1
+        if sample_number in seen_sample_numbers:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
+            continue
+        seen_sample_numbers.add(sample_number)
+
+        parsed = _free_survey_record_values(
+            record, parcel, sp, session_operator, sample_number,
+            preserved_number,
+        )
+        if parsed is None:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
+            continue
+        rows.append(parsed)
+    return rows, errors
+
+
 def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
     records = _payload_records(payload)
     if records is None:
@@ -219,6 +308,41 @@ def record_measurements(record: dict) -> TreeMeasurements | None:
     if h_m is None or d_cm <= 0 or h_m <= 0:
         return None
     return TreeMeasurements(date=row_date, d_cm=d_cm, h_m=h_m)
+
+
+def _free_survey_record_values(
+        record: dict, parcel: Parcel, sp: Species, session_operator: str,
+        sample_number: int, preserved_number: int | None,
+) -> dict | None:
+    measurements = record_measurements(record)
+    if measurements is None:
+        return None
+    values = normalize_sample_tree_values(
+        number=sample_number,
+        d_cm=measurements.d_cm,
+        h_m=measurements.h_m,
+        shoot=0,
+        l10_mm=0,
+        pressler_coeff=PRESSLER_DEFAULT,
+        h_measured=bool(record.get(FIELD_H_MEASURED)),
+    )
+    if values is None:
+        return None
+    row = parsed_tree_row(
+        area=None, parcel=parcel, row_date=measurements.date, species=sp,
+        coppice=parcel.eclass.coppice, preserved=False, number=values.number,
+        shoot=values.shoot, standard=False,
+        d_cm=values.d_cm, h_m=values.h_m,
+        h_measured=values.h_measured,
+        l10_mm=values.l10_mm, pressler_coeff=values.pressler_coeff,
+        lat=record.get(FIELD_LAT), lon=record.get(FIELD_LON),
+        acc_m=record.get(FIELD_ACC_M),
+        operator=(record.get(FIELD_OPERATOR) or session_operator).strip(),
+        note=(record.get(FIELD_NOTE) or '').strip(),
+    )
+    row[FIELD_PRESERVED] = preserved_number is not None
+    row[FIELD_PRESERVED_NUMBER] = preserved_number
+    return row
 
 
 def _sample_record_values(

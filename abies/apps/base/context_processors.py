@@ -5,13 +5,15 @@ from django.conf import settings
 from apps.base.models import Role
 from config import strings as S
 from config.constants import (
-    FIELD_MODE, IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
+    FIELD_MODE, IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE, IPSO_MODE_PAI,
+    IPSO_MODE_SAMPLES,
 )
 
 
 IPSO_UPLOAD_MODE_OPTIONS = (
     {'value': IPSO_MODE_MARTELLATE, 'label': S.IPSO_MODE_MARTELLATE_LABEL},
     {'value': IPSO_MODE_SAMPLES, 'label': S.IPSO_MODE_SAMPLES_LABEL},
+    {'value': IPSO_MODE_FREE_SURVEY, 'label': S.IPSO_MODE_FREE_SURVEY_LABEL},
     {'value': IPSO_MODE_PAI, 'label': S.IPSO_MODE_PAI_LABEL},
 )
 

@@ -83,6 +83,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
 function isSupportedUploadMode(mode) {
   return mode === IPSO_MODE_MARTELLATE ||
     mode === IPSO_MODE_SAMPLES ||
+    mode === IPSO_MODE_FREE_SURVEY ||
     mode === IPSO_MODE_PAI;
 }
 
@@ -124,6 +125,8 @@ function canonicalRecord(sess, t, reference) {
   };
   if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_SAMPLES) {
     Object.assign(record, sampleRecordContext(reference, sess, t, parcelId));
+  } else if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_FREE_SURVEY) {
+    Object.assign(record, freeSurveyRecordContext(sess, t));
   } else if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_PAI) {
     Object.assign(record, paiRecordContext(sess, t));
   }
@@ -133,6 +136,11 @@ function canonicalRecord(sess, t, reference) {
 function validateRecordNumbers(sess, records, reference) {
   const mode = sess.mode || IPSO_MODE_MARTELLATE;
   if (mode === IPSO_MODE_MARTELLATE) return;
+  if (mode === IPSO_MODE_FREE_SURVEY) {
+    validateFreeSurveyNumbers(records, reference);
+    return;
+  }
+
   const seen = new Set();
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
@@ -155,6 +163,40 @@ function validateRecordNumbers(sess, records, reference) {
         throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
       }
     } else if (mode === IPSO_MODE_PAI && paiNumberExists(reference, scope, number)) {
+      throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
+    }
+  }
+}
+
+function validateFreeSurveyNumbers(records, reference) {
+  const sampleNumbers = new Set();
+  const preservedNumbers = new Set();
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const number = record[FIELD_NUMBER];
+    const preserved = !!record[FIELD_PRESERVED];
+    if (number == null) {
+      if (preserved) throw new Error(S.UPLOAD_ERROR_NUMBER_REQUIRED(i + 1));
+      continue;
+    }
+    if (!Number.isInteger(number) || number <= 0) {
+      throw new Error(S.UPLOAD_ERROR_NUMBER_REQUIRED(i + 1));
+    }
+    if (!preserved) {
+      const sampleKey = String(number);
+      if (sampleNumbers.has(sampleKey)) {
+        throw new Error(S.UPLOAD_ERROR_NUMBER_DUPLICATE(i + 1));
+      }
+      sampleNumbers.add(sampleKey);
+      continue;
+    }
+    const parcelId = record[FIELD_PARCEL_ID];
+    const preservedKey = parcelId + ':' + number;
+    if (preservedNumbers.has(preservedKey)) {
+      throw new Error(S.UPLOAD_ERROR_NUMBER_DUPLICATE(i + 1));
+    }
+    preservedNumbers.add(preservedKey);
+    if (paiNumberExists(reference, parcelId, number)) {
       throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
     }
   }
@@ -219,6 +261,14 @@ function sampleRecordContext(reference, sess, tree, parcelId) {
     [FIELD_L10_MM]: Number.isInteger(tree[FIELD_L10_MM]) ? tree[FIELD_L10_MM] : 0,
     [FIELD_PRESSLER_COEFF]: tree[FIELD_PRESSLER_COEFF] || PRESSLER_DEFAULT,
     [FIELD_PRESERVED]: !!tree[FIELD_PRESERVED],
+  };
+}
+
+function freeSurveyRecordContext(sess, tree) {
+  return {
+    [FIELD_PRESERVED]: !!tree[FIELD_PRESERVED],
+    [FIELD_OPERATOR]: tree[FIELD_OPERATOR] || sess.operatore || '',
+    [FIELD_NOTE]: tree[FIELD_NOTE] || '',
   };
 }
 
@@ -341,6 +391,7 @@ const upload = {
   UPLOAD_SCHEMA_VERSION,
   UPLOAD_MODE_MARTELLATE: IPSO_MODE_MARTELLATE,
   UPLOAD_MODE_SAMPLES: IPSO_MODE_SAMPLES,
+  UPLOAD_MODE_FREE_SURVEY: IPSO_MODE_FREE_SURVEY,
   UPLOAD_MODE_PAI: IPSO_MODE_PAI,
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,

@@ -38,8 +38,9 @@ from config.constants import (
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID,
     FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL,
     IMPORTED, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
-    IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_MARTELLATE,
-    IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_UPLOAD_FILE_READY, MESSAGE,
+    IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
+    IPSO_UPLOAD_FILE_READY, MESSAGE,
     PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, UPLOAD,
 )
 
@@ -577,6 +578,51 @@ def test_upload_stages_non_martellate_modes(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_upload_stages_free_survey_with_optional_number_and_hypso(
+        db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    hypso_set = HypsoParamSet.objects.create(source=HypsoParamSource.IMPORTED)
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='55555555-5555-4555-8555-555555555555',
+        record_overrides={
+            FIELD_NUMBER: None,
+            FIELD_PRESERVED: False,
+            FIELD_HYPSO_PARAM_SET_ID: hypso_set.id,
+        },
+    )
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 200, resp.content
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    assert upload.mode == IPSO_MODE_FREE_SURVEY
+    staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
+    row = staged[RECORDS][0]
+    assert row[FIELD_NUMBER] is None
+    assert row[FIELD_PRESERVED] is False
+    assert row[FIELD_HYPSO_PARAM_SET_ID] == hypso_set.id
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_free_survey_preserved_without_number(
+        db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='56565656-5656-4565-8565-565656565656',
+        record_overrides={FIELD_NUMBER: None, FIELD_PRESERVED: True},
+    )
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
+    assert 'numero obbligatorio' in resp.json()[DETAIL]
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_empty_records(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
@@ -986,6 +1032,7 @@ def test_shell_renders_ipso_upload_modes_from_constants(writer_client, db):
     assert f'name="{FIELD_MODE}"' in body
     assert f'value="{IPSO_MODE_MARTELLATE}"' in body
     assert f'value="{IPSO_MODE_SAMPLES}"' in body
+    assert f'value="{IPSO_MODE_FREE_SURVEY}"' in body
     assert f'value="{IPSO_MODE_PAI}"' in body
 
 
@@ -1101,6 +1148,7 @@ def test_upload_detail_reports_staged_checksum_mismatch(
     ('post', 'ipso-upload-mode', {FIELD_MODE: IPSO_MODE_PAI}),
     ('post', 'ipso-upload-import-martellate', {FIELD_HARVEST_PLAN_ITEM_ID: 1}),
     ('post', 'ipso-upload-import-samples', {FIELD_SURVEY_ID: 1}),
+    ('post', 'ipso-upload-import-free-survey', {FIELD_SURVEY_ID: 1}),
     ('post', 'ipso-upload-import-pai', {}),
 ])
 def test_upload_id_endpoints_return_404_for_unknown_upload(
@@ -2591,6 +2639,152 @@ def test_samples_import_rejects_second_submit_without_duplicate_samples(
     assert first.status_code == 200
     assert second.status_code == 400
     assert TreeSample.objects.count() == 1
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_free_survey_detail_lists_only_unstructured_targets(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    structured, _area = _sample_survey(parcels[0], name='Structured target')
+    free = Survey.objects.create(name='Free target')
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='57575757-5757-4575-8575-575757575757',
+        record_overrides={FIELD_NUMBER: None, FIELD_PRESERVED: False},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.get(reverse('ipso-upload-detail', args=[upload.id]))
+
+    assert resp.status_code == 200
+    targets = resp.json()['targets']
+    assert targets == [{'id': free.id, 'label': f'{free.name} - {S.NO_SAMPLE_GRID}'}]
+    assert all(target['id'] != structured.id for target in targets)
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_free_survey_import_rejects_structured_survey(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    structured, _area = _sample_survey(parcels[0], name='Structured free target')
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='58585858-5858-4585-8585-585858585858',
+        record_overrides={FIELD_NUMBER: None, FIELD_PRESERVED: False},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-free-survey', args=[upload.id]),
+        data=json.dumps({FIELD_SURVEY_ID: structured.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert S.ERR_SURVEY_UNSTRUCTURED_REQUIRED in resp.json()[MESSAGE]
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_writer_imports_free_survey_upload_into_unstructured_survey(
+        writer_client, writer_user, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey = Survey.objects.create(name='Ipso free import target')
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='59595959-5959-4595-8595-595959595959',
+        record_overrides={
+            FIELD_NUMBER: None,
+            FIELD_PRESERVED: False,
+            FIELD_H_MEASURED: False,
+            FIELD_HYPSO_PARAM_SET_ID: None,
+            FIELD_NOTE: 'nota libera',
+        },
+    )
+    payload[RECORDS].append({
+        **payload[RECORDS][0],
+        FIELD_CLIENT_RECORD_ID: '2',
+        FIELD_PARCEL_ID: parcels[1].id,
+        FIELD_NUMBER: 7,
+        FIELD_PRESERVED: True,
+        FIELD_H_MEASURED: True,
+        FIELD_LAT: 38.61234,
+        FIELD_LON: 16.22345,
+    })
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    nonce = 'ipso-import-free-survey-test-nonce'
+    resp = writer_client.post(
+        reverse('ipso-upload-import-free-survey', args=[upload.id]),
+        data=json.dumps({FIELD_SURVEY_ID: survey.id, FIELD_NONCE: nonce}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    assert resp.json()[IMPORTED] == 2
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.imported_by == writer_user
+    assert upload.target_type == 'survey'
+    assert upload.target_id == survey.id
+    _assert_nonce_saved(writer_user, nonce)
+    sample = Sample.objects.get(survey=survey)
+    assert sample.sample_area is None
+    assert sample.date == date(2026, 6, 17)
+    rows = list(
+        TreeSample.objects
+        .select_related('tree', 'tree__species', 'parcel')
+        .filter(sample=sample)
+        .order_by('id')
+    )
+    assert len(rows) == 2
+    assert rows[0].number == 1
+    assert rows[0].preserved_number is None
+    assert rows[0].parcel == parcels[0]
+    assert rows[0].tree.species == species[0]
+    assert rows[0].h_measured is False
+    assert rows[0].lat == 38.51234
+    assert rows[0].lon == 16.12345
+    assert rows[0].acc_m == 5
+    assert rows[0].operator == 'Mario Rossi'
+    assert rows[0].note == 'nota libera'
+    assert rows[0].volume_m3 is not None
+    assert rows[1].number == 2
+    assert rows[1].preserved_number == 7
+    assert rows[1].parcel == parcels[1]
+    assert rows[1].h_measured is True
+    assert rows[1].lat == 38.61234
+    assert rows[1].lon == 16.22345
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_free_survey_import_rejects_second_submit_without_duplicate_samples(
+        writer_client, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey = Survey.objects.create(name='Ipso free idempotent target')
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='60606060-6060-4606-8606-606060606060',
+        record_overrides={FIELD_NUMBER: None, FIELD_PRESERVED: False},
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    body = json.dumps({FIELD_SURVEY_ID: survey.id})
+    url = reverse('ipso-upload-import-free-survey', args=[upload.id])
+
+    first = writer_client.post(url, data=body, content_type='application/json')
+    second = writer_client.post(url, data=body, content_type='application/json')
+
+    assert first.status_code == 200
+    assert second.status_code == 400
+    assert second.json()[MESSAGE] == S.IPSO_ERR_UPLOAD_NOT_RECEIVED
+    assert Sample.objects.filter(survey=survey).count() == 1
+    assert TreeSample.objects.filter(sample__survey=survey).count() == 1
 
 
 @override_settings(IPSO_SECRET='test-token')

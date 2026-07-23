@@ -43,8 +43,8 @@ from apps.base.responses import row_delete, success_response, validation_error
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
-    _int_ids, apply_pai_rows, pai_import_rows, record_measurements,
-    sample_import_rows,
+    _int_ids, apply_pai_rows, free_survey_import_rows, pai_import_rows,
+    record_measurements, sample_import_rows,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
@@ -71,8 +71,9 @@ from config.constants import (
     FIELD_SURVEY_ID,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
-    IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_MARTELLATE,
-    IPSO_MODE_PAI, IPSO_MODE_SAMPLES, IPSO_REF_GENERATED_AT,
+    IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
+    IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
     DATA_ID_IPSO_UPLOADS,
@@ -418,6 +419,7 @@ STATE_LABELS = {
 MODE_LABELS = {
     IPSO_MODE_MARTELLATE: S.IPSO_MODE_MARTELLATE_LABEL,
     IPSO_MODE_SAMPLES: S.IPSO_MODE_SAMPLES_LABEL,
+    IPSO_MODE_FREE_SURVEY: S.IPSO_MODE_FREE_SURVEY_LABEL,
     IPSO_MODE_PAI: S.IPSO_MODE_PAI_LABEL,
 }
 REFERENCE_LABELS = {
@@ -638,6 +640,51 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
             if file_error:
                 return _upload_validation_error(upload, [file_error])
             rows, errors = sample_import_rows(payload, survey)
+            if errors:
+                return _upload_validation_error(upload, errors)
+
+            result = csv_trees.apply(survey, rows)
+            if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
+                return _rollback_upload_not_received_response()
+            data = _upload_metadata(upload)
+    except IntegrityError:
+        upload = _get_upload(upload_id)
+        return _upload_validation_error(upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT])
+    return success_response(request, body, extra={
+        IMPORTED: result['n_trees'],
+        UPLOAD: data,
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json(request)
+        survey_id = _int(body, FIELD_SURVEY_ID)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+
+    try:
+        with transaction.atomic():
+            upload = _get_upload(upload_id, for_update=True)
+            if upload.mode != IPSO_MODE_FREE_SURVEY:
+                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+            if upload.state != IpsoUploadState.RECEIVED:
+                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+            survey = (Survey.objects
+                      .select_for_update()
+                      .filter(id=survey_id).first())
+            if survey is None:
+                return validation_error([S.IPSO_ERR_INVALID_FREE_SURVEY_TARGET])
+            if survey.sample_grid_id is not None:
+                return validation_error([S.ERR_SURVEY_UNSTRUCTURED_REQUIRED])
+
+            payload, file_error = _read_staged_payload(upload)
+            if file_error:
+                return _upload_validation_error(upload, [file_error])
+            rows, errors = free_survey_import_rows(payload, survey)
             if errors:
                 return _upload_validation_error(upload, errors)
 
@@ -1038,7 +1085,9 @@ def _upload_targets(upload: IpsoUpload) -> tuple[list[dict], int | None]:
     if upload.mode == IPSO_MODE_MARTELLATE:
         return _martellate_targets(), _suggested_harvest_item_id(upload.work_package_id)
     if upload.mode == IPSO_MODE_SAMPLES:
-        return _survey_targets(), _suggested_survey_id(upload.work_package_id)
+        return _survey_targets(structured=True), _suggested_survey_id(upload.work_package_id)
+    if upload.mode == IPSO_MODE_FREE_SURVEY:
+        return _survey_targets(structured=False), None
     return [], None
 
 
@@ -1095,9 +1144,9 @@ def _suggested_harvest_item_id(work_package_id: str) -> int | None:
     return None
 
 
-def _survey_targets() -> list[dict]:
+def _survey_targets(*, structured: bool) -> list[dict]:
     surveys = (Survey.objects
-               .filter(sample_grid__isnull=False)
+               .filter(sample_grid__isnull=not structured)
                .select_related('sample_grid')
                .order_by('name', 'id'))
     return [{'id': survey.id, 'label': _survey_label(survey)} for survey in surveys]
@@ -1428,7 +1477,10 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
         raise UploadValidationError(S.IPSO_ERR_RECORD_SAMPLE_AREA_REQUIRED.format(index))
 
     hypso_param_set_id = _opt_int(row, FIELD_HYPSO_PARAM_SET_ID)
-    if mode != IPSO_MODE_MARTELLATE and hypso_param_set_id is not None:
+    if (
+            mode not in {IPSO_MODE_MARTELLATE, IPSO_MODE_FREE_SURVEY}
+            and hypso_param_set_id is not None
+    ):
         raise UploadValidationError(
             S.IPSO_ERR_RECORD_HYPSO_ONLY_MARTELLATE.format(index)
         )
@@ -1464,6 +1516,15 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
             FIELD_L10_MM: l10_mm,
             FIELD_PRESSLER_COEFF: format(pressler_coeff, 'f'),
             FIELD_PRESERVED: _opt_bool(row, FIELD_PRESERVED) or False,
+            FIELD_OPERATOR: _opt_str(row, FIELD_OPERATOR),
+            FIELD_NOTE: _opt_str(row, FIELD_NOTE),
+        })
+    elif mode == IPSO_MODE_FREE_SURVEY:
+        preserved = _opt_bool(row, FIELD_PRESERVED) or False
+        if preserved and number is None:
+            raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(index))
+        normalized.update({
+            FIELD_PRESERVED: preserved,
             FIELD_OPERATOR: _opt_str(row, FIELD_OPERATOR),
             FIELD_NOTE: _opt_str(row, FIELD_NOTE),
         })

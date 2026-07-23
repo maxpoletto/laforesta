@@ -44,6 +44,7 @@ IPSO_COL_OPERATOR = 'Operatore'
 IPSO_COL_RECORDS = 'Righe'
 IPSO_MODE_MARTELLATE_LABEL = 'Martellate'
 IPSO_MODE_SAMPLES_LABEL = 'Rilevamenti predefiniti'
+IPSO_MODE_FREE_SURVEY_LABEL = 'Rilevamenti liberi'
 IPSO_MODE_PAI_LABEL = 'PAI'
 IPSO_REFERENCE_LEGACY_CONVERTED = 'Convertito da CSV storico'
 IPSO_COL_STATE = 'Stato'
@@ -61,6 +62,7 @@ IPSO_ERR_MODE_UNSUPPORTED = 'Modalità non supportata.'
 IPSO_ERR_UPLOAD_NOT_RECEIVED = 'Solo i caricamenti da importare possono essere importati.'
 IPSO_ERR_INVALID_MARTELLATE_TARGET = 'Destinazione non valida per Martellate.'
 IPSO_ERR_INVALID_SAMPLES_TARGET = 'Destinazione non valida per Campionamenti.'
+IPSO_ERR_INVALID_FREE_SURVEY_TARGET = 'Destinazione non valida per Rilevamenti liberi.'
 IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH = 'Il rilevamento selezionato usa una griglia diversa da quella scelta in Ipso.'
 IPSO_TARGET_PAI_LABEL = 'PAI'
 IPSO_REJECT_DEFAULT_REASON = 'Rifiutato in revisione Abies.'
@@ -262,6 +264,9 @@ ERR_SURVEY_NAME_DUPLICATE = 'Esiste già un rilevamento con questo nome.'
 ERR_SURVEY_GRID_REQUIRED = 'Selezionare una griglia.'
 ERR_SURVEY_STRUCTURED_REQUIRED = (
     'Il rilevamento selezionato non ha una griglia di campionamento.'
+)
+ERR_SURVEY_UNSTRUCTURED_REQUIRED = (
+    'Il rilevamento selezionato ha una griglia di campionamento.'
 )
 NO_SAMPLE_GRID = 'Nessuna (rilevamento libero)'
 ERR_AREA_OUT_OF_SURVEY = (

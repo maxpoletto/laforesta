@@ -43,6 +43,7 @@ function validateTree(rec, options) {
   // numbers on upload, where the offending row can no longer be edited.
   const numberMissing = rec.numero == null;
   if ((opts.numberRequired && numberMissing) ||
+      (opts.preservedNumberRequired && rec[FIELD_PRESERVED] && numberMissing) ||
       (!numberMissing && (!Number.isInteger(rec.numero) || rec.numero <= 0))) {
     errors.push('numero');
   }
