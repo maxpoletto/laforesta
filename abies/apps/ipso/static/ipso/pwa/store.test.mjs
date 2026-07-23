@@ -160,6 +160,13 @@ function makeStoreDb({ sessions = [], trees = [], meta = [] } = {}) {
       function treeStore(rows) {
         return {
           ...objectStore(rows, 'id'),
+          add(row) {
+            return request(() => {
+              const id = rows.size ? Math.max(...rows.keys()) + 1 : 1;
+              rows.set(id, { ...row, id });
+              return id;
+            });
+          },
           delete(key) {
             return request(() => rows.delete(key));
           },
@@ -288,6 +295,28 @@ check(
   const refreshed = await Store.getCachedBootResources(db);
   check(same(refreshed.reference, replacement), 'new reference replaces the last-good snapshot');
   check(same(refreshed.terreni, terreni), 'reference refresh retains last-good geometry');
+}
+
+// addTree stores free-survey flags in the same durable row as the measured
+// tree fields.
+{
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', operatore: 'Mario', mode: 'free_survey', tree_count: 0 }],
+  });
+
+  const row = await Store.addTree(db, 's1', {
+    specie: 'Abete', d_cm: 42, h_m: 22, h_measured: true,
+    hypso_param_set_id: null, lat: 38.5, lon: 16.3, acc_m: 5,
+    numero: null, gruppo: '', particella: '1', region_id: 1,
+    parcel_id: 100, species_id: 10, preserved: true,
+    sample_area_id: null, coppice: null,
+  });
+
+  check(row.preserved === true, 'addTree returns the preserved flag');
+  check(db.trees.get(row.id).preserved === true,
+        'addTree persists the preserved flag in IndexedDB');
+  check(db.sessions.get('s1').tree_count === 1,
+        'addTree updates the free-survey session tree count');
 }
 
 // deleteTree performs the row delete, session count refresh, and monotonic

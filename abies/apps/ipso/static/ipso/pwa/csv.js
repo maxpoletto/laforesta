@@ -21,6 +21,7 @@ const CSV_SEP = ';';
 const CSV_NL = '\r\n';
 const HEADER = S.CSV_HEADER;
 const SAMPLE_AREA_HEADER = S.CSV_HEADER_SAMPLE_AREA;
+const PRESERVED_HEADER = S.CSV_HEADER_PRESERVED;
 const FORMULA_PREFIX_RE = /^[=+\-@\t\r\n]/;
 const NUMERIC_LITERAL_RE = /^[+-]?(?:\d+|\d*[.,]\d+)(?:[eE][+-]?\d+)?$/;
 
@@ -70,10 +71,21 @@ function includeSampleArea(session) {
   return session && session.mode === IPSO_MODE_SAMPLES;
 }
 
+function includePreserved(session) {
+  return session && session.mode === IPSO_MODE_FREE_SURVEY;
+}
+
 function csvHeader(session) {
-  return includeSampleArea(session)
+  const header = includeSampleArea(session)
     ? [...HEADER.slice(0, 3), SAMPLE_AREA_HEADER, ...HEADER.slice(3)]
     : HEADER;
+  if (!includePreserved(session)) return header;
+  const insertAt = header.length - 4;
+  return [
+    ...header.slice(0, insertAt),
+    PRESERVED_HEADER,
+    ...header.slice(insertAt),
+  ];
 }
 
 function sampleAreaNumber(reference, sampleAreaId) {
@@ -109,6 +121,9 @@ function formatRow(rec, session, reference) {
     fmtInt(rec.d_cm),
     fmtInt(rec.h_m),
     rec.h_measured ? '1' : '0',
+  );
+  if (includePreserved(session)) cells.push(rec[FIELD_PRESERVED] ? '1' : '0');
+  cells.push(
     fmtFloat(rec.lat, 6),
     fmtFloat(rec.lon, 6),
     fmtInt(rec.acc_m),
@@ -149,9 +164,10 @@ function sanitize(s) {
 }
 
 const csv = {
-  CSV_BOM, CSV_SEP, CSV_NL, HEADER, SAMPLE_AREA_HEADER,
+  CSV_BOM, CSV_SEP, CSV_NL, HEADER, SAMPLE_AREA_HEADER, PRESERVED_HEADER,
   FILENAME_CATASTROFATE,
   formatDate, fmtFloat, fmtInt, hardenCSVFormula, escapeField, sampleAreaNumber,
-  formatHeader, formatRow, formatFile, filename, sanitize,
+  includeSampleArea, includePreserved, formatHeader, formatRow, formatFile,
+  filename, sanitize,
 };
 if (typeof module !== 'undefined') module.exports = csv;

@@ -94,7 +94,7 @@
           <span class="lbl" id="lbl-particella-rec"></span>
           <select id="in-particella-rec" class="dh-select"></select>
         </label>
-        <label class="field dh">
+        <label class="field dh" id="field-gruppo">
           <span class="lbl" id="lbl-gruppo"></span>
           <select id="in-gruppo" class="dh-select"></select>
         </label>
@@ -112,6 +112,17 @@
       </div>
       <div class="hint" id="hint-autoh" hidden></div>
 
+      <div id="field-free-survey-options" hidden>
+        <label class="check" for="in-h-measured">
+          <input type="checkbox" id="in-h-measured">
+          <span class="check-lbl" id="lbl-h-measured"></span>
+        </label>
+        <label class="check" for="in-preserved">
+          <input type="checkbox" id="in-preserved">
+          <span class="check-lbl" id="lbl-preserved"></span>
+        </label>
+      </div>
+
       <div id="numpad" class="numpad"></div>
 
       <button id="btn-save" class="btn-primary btn-big" type="button" disabled></button>
@@ -126,7 +137,7 @@
     <section id="screen-data" class="screen" hidden>
       <h1 id="data-title"></h1>
 
-      <div class="data-section">
+      <div class="data-section" id="section-data-groups">
         <h2 class="data-section-h" id="data-groups-h"></h2>
         <div id="data-groups-wrap" class="data-table-wrap">
           <table class="data-table" id="data-groups-table"></table>

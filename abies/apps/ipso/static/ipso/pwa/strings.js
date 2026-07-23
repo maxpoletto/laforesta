@@ -17,6 +17,7 @@ const S = {
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',
   PRE_NEW_SAMPLES: 'Nuovo rilevamento predefinito',
+  PRE_NEW_FREE_SURVEY: 'Nuovo rilevamento libero',
   PRE_NEW_PAI: 'Nuovo PAI',
   PRE_OPERATOR: 'Operatore',
   PRE_DATA: 'Data',
@@ -48,6 +49,8 @@ const S = {
   REC_H: 'h (m)',
   REC_AUTO_H_MISSING:
     'Nessuna regressione per questa compresa e specie: inserisci h manualmente.',
+  REC_H_MEASURED: 'h misurata',
+  REC_PRESERVED: 'Albero da preservare',
   REC_SAVE: 'Salva e prossimo',
   REC_MAP: 'Mappa',
   REC_VIEW_DATA: 'Dati',
@@ -126,6 +129,7 @@ const S = {
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
   CSV_HEADER_SAMPLE_AREA: 'Area saggio',
+  CSV_HEADER_PRESERVED: 'PAI',
   CSV_HEADER: [
     'Data', 'Compresa', 'Particella', 'Catastrofata',
     'Numero', 'Genere', 'D_cm', 'H_m', 'H_measured',
@@ -189,6 +193,7 @@ const S = {
   UPLOAD_ERROR_RATE_LIMITED: 'Server occupato. Riprovo…',
   UPLOAD_NEXT_RETRY_IN: (s) => `Prossimo tentativo fra ${s} s`,
   UPLOAD_ERROR_CONTEXT_MISSING: 'Contesto caricamento mancante.',
+  UPLOAD_ERROR_MODE_UNSUPPORTED: 'Modalità non supportata per il caricamento.',
   UPLOAD_ERROR_SPECIES_ID_MISSING: (name) =>
     `Specie senza ID Abies: ${name || ''}`,
   UPLOAD_ERROR_REGION_ID_MISSING: (compresa) =>

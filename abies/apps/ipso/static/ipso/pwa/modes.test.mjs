@@ -4,7 +4,7 @@ const require = createRequire(import.meta.url);
 const {
   IPSO_MODE_MARTELLATE,
   IPSO_MODE_SAMPLES,
-  IPSO_MODE_FREE_SURVEY_PLACEHOLDER,
+  IPSO_MODE_FREE_SURVEY,
   IPSO_MODE_PAI,
   IPSO_MODE_MAP,
   IpsoModes,
@@ -28,21 +28,23 @@ const allModes = IpsoModes.all();
 
 eq(allModes.map((mode) => mode.id), [
   IPSO_MODE_SAMPLES,
-  IPSO_MODE_FREE_SURVEY_PLACEHOLDER,
+  IPSO_MODE_FREE_SURVEY,
   IPSO_MODE_MARTELLATE,
   IPSO_MODE_PAI,
   IPSO_MODE_MAP,
 ], "landing mode order keeps predefined surveys first");
 
 const freeSurvey = allModes.find((mode) =>
-  mode.id === IPSO_MODE_FREE_SURVEY_PLACEHOLDER
+  mode.id === IPSO_MODE_FREE_SURVEY
 );
-check(Boolean(freeSurvey), "free-survey placeholder is present");
-check(freeSurvey.enabled === false, "free-survey placeholder is disabled");
+check(Boolean(freeSurvey), "free-survey mode is present");
+check(freeSurvey.enabled === true, "free-survey mode is enabled");
 check(freeSurvey.labelKey === "MODE_FREE_SURVEYS",
-      "free-survey placeholder uses a localized label key");
-check(IpsoModes.get(IPSO_MODE_FREE_SURVEY_PLACEHOLDER).id === IPSO_MODE_MARTELLATE,
-      "free-survey placeholder is not an upload/session mode");
+      "free-survey mode uses a localized label key");
+check(freeSurvey.autoHeight === true,
+      "free-survey mode can derive unmeasured heights");
+check(IpsoModes.get(IPSO_MODE_FREE_SURVEY).localOnly === true,
+      "free-survey mode is marked local-only");
 
 if (failures.length) {
   console.error(failures.join("\n"));

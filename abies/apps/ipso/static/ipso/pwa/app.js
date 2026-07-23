@@ -65,6 +65,8 @@ async function boot() {
   document.getElementById('lbl-numero').textContent = S.REC_NUMBER;
   document.getElementById('lbl-particella-rec').textContent = S.PRE_PARTICELLA;
   document.getElementById('lbl-gruppo').textContent = S.REC_GRUPPO;
+  document.getElementById('lbl-h-measured').textContent = S.REC_H_MEASURED;
+  document.getElementById('lbl-preserved').textContent = S.REC_PRESERVED;
   document.getElementById('lbl-d').textContent = S.REC_D;
   document.getElementById('lbl-h').textContent = S.REC_H;
   document.getElementById('btn-save').textContent = S.REC_SAVE;
@@ -422,6 +424,11 @@ function isPaiMode() {
   return mode === IpsoModes.PAI;
 }
 
+function isFreeSurveyMode() {
+  const mode = State.session ? State.session.mode : currentMode().id;
+  return mode === IpsoModes.FREE_SURVEY;
+}
+
 function selectedSampleSurveyId() {
   const raw = document.getElementById('in-sample-survey').value;
   const id = parseInt(raw, 10);
@@ -537,6 +544,10 @@ function currentMode() {
   return State.mode || IpsoModes.defaultMode();
 }
 
+function activeMode() {
+  return State.session ? IpsoModes.get(State.session.mode) : currentMode();
+}
+
 function setMode(modeId) {
   State.mode = IpsoModes.get(modeId);
   const title = document.getElementById('pre-title');
@@ -549,12 +560,15 @@ function applyModeUi() {
   const catastrofataField = catastrofata ? catastrofata.closest('label') : null;
   const surveyField = document.getElementById('field-sample-survey');
   const surveySelect = document.getElementById('in-sample-survey');
+  const freeOptions = document.getElementById('field-free-survey-options');
   const martellate = currentMode().id === IpsoModes.MARTELLATE;
   const samples = currentMode().id === IpsoModes.SAMPLES;
+  const freeSurvey = currentMode().id === IpsoModes.FREE_SURVEY;
   if (catastrofataField) catastrofataField.hidden = !martellate;
   if (catastrofata && !martellate) catastrofata.checked = false;
   if (surveyField) surveyField.hidden = !samples;
   if (surveySelect && !samples) surveySelect.value = '';
+  if (freeOptions) freeOptions.hidden = !freeSurvey;
   if (samples) populateSampleSurveyOptions();
 }
 
@@ -667,7 +681,10 @@ function wireRecording() {
     maxLen: { d: 3, h: 2, numero: 4 },
     onChange: (field) => {
       if (field === 'numero' && !State.inAutoNumberFill) State.autoNumberValue = null;
-      if (field === 'h' && !State.inAutoFill) State.hMeasured = true;
+      if (field === 'h' && !State.inAutoFill) {
+        State.hMeasured = true;
+        if (isFreeSurveyMode()) document.getElementById('in-h-measured').checked = true;
+      }
       if (field === 'd' && shouldAutoHeight() && !State.hMeasured) recomputeAutoH();
       updateSaveEnabled();
     },
@@ -679,6 +696,8 @@ function wireRecording() {
     if (shouldAutoHeight() && !State.hMeasured) recomputeAutoH();
     updateSaveEnabled();
   });
+  document.getElementById('in-h-measured').addEventListener('change', onHeightMeasuredToggle);
+  document.getElementById('in-preserved').addEventListener('change', updateSaveEnabled);
 
   // Particella select: sticky-override transitions. The sentinel option
   // (value AUTO_SENTINEL) toggles auto mode; any other value enters
@@ -720,6 +739,24 @@ function wireRecording() {
 
 }
 
+function onHeightMeasuredToggle() {
+  if (!isFreeSurveyMode()) {
+    updateSaveEnabled();
+    return;
+  }
+  const checked = document.getElementById('in-h-measured').checked;
+  if (checked) {
+    State.hMeasured = true;
+    State.numpad.setValue('h', '');
+    const hint = document.getElementById('hint-autoh');
+    if (hint) hint.hidden = true;
+  } else {
+    State.hMeasured = false;
+    recomputeAutoH();
+  }
+  updateSaveEnabled();
+}
+
 function wireMap() {
   document.getElementById('btn-rec-map').addEventListener('click', () => {
     enterMapScreen('screen-rec');
@@ -734,7 +771,10 @@ function wireMap() {
 function enterRecording() {
   populateSpecie();
   populateGruppo();
-  document.getElementById('in-gruppo').value = State.lastGroup || '';
+  document.getElementById('field-gruppo').hidden = isFreeSurveyMode();
+  document.getElementById('in-gruppo').value = isFreeSurveyMode()
+    ? ''
+    : State.lastGroup || '';
   const where = S.where(State.session);
   State.lastFix = null;
   document.getElementById('rec-where').textContent = where;
@@ -962,6 +1002,9 @@ function resetEntryFields() {
   State.numpad.clear();
   State.numpad.setFocus('d');
   State.hMeasured = false;
+  document.getElementById('in-h-measured').checked = isFreeSurveyMode();
+  document.getElementById('in-preserved').checked = false;
+  document.getElementById('field-free-survey-options').hidden = !isFreeSurveyMode();
   document.getElementById('hint-autoh').hidden = true;
   // Prefill the number field asynchronously from the tree list. The numpad
   // starts empty (above); we only fill if the operator hasn't started
@@ -1033,10 +1076,11 @@ async function computeNextNumberDefault(trees) {
     }
     return 1;
   }
-  if (Number.isInteger(currentMode().firstNumber)) return currentMode().firstNumber;
-  if (!State.session || !currentMode().persistNumber) return null;
+  const mode = activeMode();
+  if (Number.isInteger(mode.firstNumber)) return mode.firstNumber;
+  if (!State.session || !mode.persistNumber) return null;
   return Store.getNextNumberForOperator(
-    State.db, State.session.operatore, State.session.mode
+    State.db, State.session.operatore, mode.id
   );
 }
 
@@ -1088,6 +1132,10 @@ function renderGpsStatus(st) {
   }
 }
 
+function isLocalOnlySession(sess) {
+  return !!IpsoModes.get(sess && sess.mode).localOnly;
+}
+
 function currentGpsSnapshot() {
   return State.gps ? State.gps.snapshot() : null;
 }
@@ -1129,16 +1177,21 @@ function setupWakeLockVisibility() {
 }
 
 function shouldAutoHeight() {
-  return !!currentMode().autoHeight;
+  const mode = activeMode();
+  if (!mode.autoHeight) return false;
+  if (!mode.freeSurvey) return true;
+  const measured = document.getElementById('in-h-measured');
+  return !!measured && !measured.checked;
 }
 
 function treeValidationOptions() {
+  const mode = activeMode();
   return {
-    dRequired: currentMode().dRequired !== false,
-    hRequired: currentMode().hRequired !== false,
-    numberRequired: !!currentMode().numberRequired,
-    parcelRequired: !!currentMode().parcelRequired,
-    sampleAreaRequired: !!currentMode().sampleAreaRequired,
+    dRequired: mode.dRequired !== false,
+    hRequired: mode.hRequired !== false,
+    numberRequired: !!mode.numberRequired,
+    parcelRequired: !!mode.parcelRequired,
+    sampleAreaRequired: !!mode.sampleAreaRequired,
     gpsRequired: true,
   };
 }
@@ -1197,7 +1250,11 @@ function currentRecord() {
       ? State.override.resolve(currentAutoParcelName())
       : '';
   const autoHeight = shouldAutoHeight();
-  const hMeasured = autoHeight ? State.hMeasured : Number.isFinite(h);
+  const freeSurvey = isFreeSurveyMode();
+  const hMeasured = freeSurvey
+    ? document.getElementById('in-h-measured').checked
+    : autoHeight ? State.hMeasured : Number.isFinite(h);
+  const preserved = freeSurvey && document.getElementById('in-preserved').checked;
   const gps = currentGpsSnapshot();
   return {
     specie: State.specie || '',
@@ -1215,6 +1272,7 @@ function currentRecord() {
     [FIELD_PARCEL_ID]: parcel && Number.isInteger(parcel[FIELD_PARCEL_ID])
       ? parcel[FIELD_PARCEL_ID] : null,
     [FIELD_SPECIES_ID]: species && Number.isInteger(species.id) ? species.id : null,
+    [FIELD_PRESERVED]: !!preserved,
     lat: gps ? gps.lat : null,
     lon: gps ? gps.lon : null,
     acc_m: gps ? gps.acc_m : null,
@@ -1345,6 +1403,14 @@ async function onEnd() {
       csvText = downloadFinal(State.session, trees, State.reference);
     } catch (e) {
       showToast(S.TOAST_EXPORT_ERROR(e.message));
+      return;
+    }
+    if (isLocalOnlySession(State.session)) {
+      await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_EXPORTED);
+      State.session.status = Store.STATUS_EXPORTED;
+      stopRecordingSensors();
+      releaseWakeLock();
+      showUploadDone(trees.length, false);
       return;
     }
     const uploadPayload = upload.buildUploadPayload(
@@ -1628,7 +1694,9 @@ async function enterDataScreen() {
     return;
   }
   trees.sort((a, b) => a.seq - b.seq);
-  renderGroupsTable(trees);
+  const showGroups = !isFreeSurveyMode();
+  document.getElementById('section-data-groups').hidden = !showGroups;
+  if (showGroups) renderGroupsTable(trees);
   renderTreesTable(trees);
   showScreen('screen-data');
 }
@@ -1697,18 +1765,21 @@ function renderTreesTable(trees) {
   if (!trees.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 7;
+    td.colSpan = isFreeSurveyMode() ? 6 : 7;
     td.className = 'empty';
     td.textContent = S.DATA_EMPTY;
     tr.appendChild(td);
     tbl.appendChild(tr);
     return;
   }
+  const showGroup = !isFreeSurveyMode();
   const colgroup = document.createElement('colgroup');
-  for (const cls of [
-    'col-number', 'col-specie', 'col-particella', 'col-gruppo',
+  const colClasses = [
+    'col-number', 'col-specie', 'col-particella',
+    ...(showGroup ? ['col-gruppo'] : []),
     'col-d', 'col-h', 'col-delete',
-  ]) {
+  ];
+  for (const cls of colClasses) {
     const col = document.createElement('col');
     col.className = cls;
     colgroup.appendChild(col);
@@ -1720,7 +1791,7 @@ function renderTreesTable(trees) {
     { label: S.DATA_COL_NUMBER, cls: 'num' },
     { label: S.DATA_COL_SPECIE, cls: '' },
     { label: S.DATA_COL_PARTICELLA, cls: '' },
-    { label: S.DATA_COL_GRUPPO, cls: '' },
+    ...(showGroup ? [{ label: S.DATA_COL_GRUPPO, cls: '' }] : []),
     { label: S.DATA_COL_D, cls: 'num' },
     { label: S.DATA_COL_H, cls: 'num' },
     { label: '', cls: 'tree-delete' },
@@ -1740,7 +1811,7 @@ function renderTreesTable(trees) {
       { v: t.numero == null ? '' : '' + t.numero, cls: 'num tree-number' },
       { v: t.specie || '', cls: 'tree-species' },
       { v: isSamplesMode() ? sampleAreaTextForTree(t) : (t.particella || ''), cls: 'tree-parcel' },
-      { v: t.gruppo || '', cls: 'tree-group' },
+      ...(showGroup ? [{ v: t.gruppo || '', cls: 'tree-group' }] : []),
       { v: t.d_cm == null ? '' : '' + t.d_cm, cls: 'num tree-d' },
       { v: t.h_m == null ? '' : '' + t.h_m, cls: 'num tree-h' },
     ];

@@ -130,6 +130,14 @@ check(
   'upload payload fills completed_at for live session completion',
 );
 
+check(!upload.isSupportedUploadMode('free_survey'),
+      'free-survey mode is not upload-supported before import support');
+checkThrows(
+  () => upload.buildUploadPayload(sess('free_survey'), [tree()], reference(), 'csv'),
+  'Modalità non supportata',
+  'free-survey sessions cannot be uploaded before import support',
+);
+
 checkThrows(
   () => upload.buildUploadPayload(
     sess(upload.UPLOAD_MODE_SAMPLES), [tree({ numero: null })], reference(), 'csv',

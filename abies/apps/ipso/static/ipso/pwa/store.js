@@ -379,6 +379,7 @@ async function addTree(db, sessionId, rec) {
       [FIELD_REGION_ID]: Number.isInteger(rec[FIELD_REGION_ID]) ? rec[FIELD_REGION_ID] : null,
       [FIELD_PARCEL_ID]: Number.isInteger(rec[FIELD_PARCEL_ID]) ? rec[FIELD_PARCEL_ID] : null,
       [FIELD_SPECIES_ID]: Number.isInteger(rec[FIELD_SPECIES_ID]) ? rec[FIELD_SPECIES_ID] : null,
+      [FIELD_PRESERVED]: !!rec[FIELD_PRESERVED],
       [FIELD_SAMPLE_AREA_ID]: Number.isInteger(rec[FIELD_SAMPLE_AREA_ID]) ? rec[FIELD_SAMPLE_AREA_ID] : null,
       [FIELD_COPPICE]: typeof rec[FIELD_COPPICE] === 'boolean' ? rec[FIELD_COPPICE] : null,
     };

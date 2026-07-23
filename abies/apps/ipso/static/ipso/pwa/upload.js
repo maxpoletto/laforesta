@@ -54,6 +54,8 @@ class UploadError extends Error {
 
 function buildUploadPayload(sess, trees, reference, csvText) {
   if (!sess || !reference) throw new Error(S.UPLOAD_ERROR_CONTEXT_MISSING);
+  const mode = sess.mode || IPSO_MODE_MARTELLATE;
+  if (!isSupportedUploadMode(mode)) throw new Error(S.UPLOAD_ERROR_MODE_UNSUPPORTED);
   const regionId = Number.isInteger(sess[FIELD_REGION_ID])
     ? sess[FIELD_REGION_ID]
     : regionIdForCompresa(reference, sess.compresa);
@@ -62,7 +64,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   return {
     [SESSION]: {
       [FIELD_SESSION_ID]: sess.id,
-      [FIELD_MODE]: sess.mode || IPSO_MODE_MARTELLATE,
+      [FIELD_MODE]: mode,
       [FIELD_SCHEMA_VERSION]: UPLOAD_SCHEMA_VERSION,
       [FIELD_REFERENCE_VERSION]:
         sess.reference_version || reference.reference_version || '',
@@ -76,6 +78,12 @@ function buildUploadPayload(sess, trees, reference, csvText) {
     [RECORDS]: records,
     [FIELD_CSV_TEXT]: csvText || '',
   };
+}
+
+function isSupportedUploadMode(mode) {
+  return mode === IPSO_MODE_MARTELLATE ||
+    mode === IPSO_MODE_SAMPLES ||
+    mode === IPSO_MODE_PAI;
 }
 
 function completedAt(sess) {
@@ -337,7 +345,8 @@ const upload = {
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
-  validateRecordNumbers, sampleSurveyIdFromWorkPackage, sampleMaxNumberForArea,
+  isSupportedUploadMode, validateRecordNumbers, sampleSurveyIdFromWorkPackage,
+  sampleMaxNumberForArea,
   paiNumberExists, paiMaxNumberForParcel,
   UploadError, buildUploadPayload, uploadSession,
 };

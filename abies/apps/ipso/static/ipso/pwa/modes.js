@@ -9,16 +9,7 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
   Object.assign(globalThis, require('./constants.js'));
 }
 
-const IPSO_MODE_FREE_SURVEY_PLACEHOLDER = 'free_survey_placeholder';
-
 const IpsoModes = (function() {
-  const freeSurveyPlaceholder = {
-    id: IPSO_MODE_FREE_SURVEY_PLACEHOLDER,
-    labelKey: 'MODE_FREE_SURVEYS',
-    buttonId: 'btn-mode-free-survey',
-    enabled: false,
-  };
-
   const defs = {
     [IPSO_MODE_MARTELLATE]: {
       id: IPSO_MODE_MARTELLATE,
@@ -46,6 +37,22 @@ const IpsoModes = (function() {
       sampleAreaRequired: true,
       firstNumber: 1,
       persistNumber: false,
+      enabled: true,
+    },
+    [IPSO_MODE_FREE_SURVEY]: {
+      id: IPSO_MODE_FREE_SURVEY,
+      labelKey: 'MODE_FREE_SURVEYS',
+      preTitleKey: 'PRE_NEW_FREE_SURVEY',
+      buttonId: 'btn-mode-free-survey',
+      autoHeight: true,
+      blankSmallNumber: false,
+      dRequired: true,
+      hRequired: true,
+      numberRequired: false,
+      parcelRequired: true,
+      persistNumber: false,
+      localOnly: true,
+      freeSurvey: true,
       enabled: true,
     },
     [IPSO_MODE_PAI]: {
@@ -82,7 +89,7 @@ const IpsoModes = (function() {
   function all() {
     return [
       defs[IPSO_MODE_SAMPLES],
-      freeSurveyPlaceholder,
+      defs[IPSO_MODE_FREE_SURVEY],
       defs[IPSO_MODE_MARTELLATE],
       defs[IPSO_MODE_PAI],
       defs[IPSO_MODE_MAP],
@@ -92,6 +99,7 @@ const IpsoModes = (function() {
   return {
     MARTELLATE: IPSO_MODE_MARTELLATE,
     SAMPLES: IPSO_MODE_SAMPLES,
+    FREE_SURVEY: IPSO_MODE_FREE_SURVEY,
     PAI: IPSO_MODE_PAI,
     MAP: IPSO_MODE_MAP,
     get, defaultMode, all,
@@ -100,7 +108,7 @@ const IpsoModes = (function() {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_FREE_SURVEY_PLACEHOLDER,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_PAI, IPSO_MODE_MAP, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IpsoModes,
   };

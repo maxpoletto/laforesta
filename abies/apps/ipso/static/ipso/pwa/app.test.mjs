@@ -10,7 +10,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
   `showResumeModal, prefillNumber, currentRecord, renderTreesTable, ` +
-  `wireModeSelection, validateReference, validateTerreniFeatures, ` +
+  `wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
+  `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
   `restoreCachedBootResources, ` +
   `refreshBootResources, loadBearerToken, bearerHeaders };\n`;
 
@@ -114,9 +115,10 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
       id: 'samples', labelKey: 'MODE_SAMPLES',
       buttonId: 'btn-mode-samples', enabled: true,
     },
-    free_survey_placeholder: {
-      id: 'free_survey_placeholder', labelKey: 'MODE_FREE_SURVEYS',
-      buttonId: 'btn-mode-free-survey', enabled: false,
+    free_survey: {
+      id: 'free_survey', labelKey: 'MODE_FREE_SURVEYS',
+      preTitleKey: 'PRE_NEW_FREE_SURVEY', buttonId: 'btn-mode-free-survey',
+      autoHeight: true, localOnly: true, freeSurvey: true, enabled: true,
     },
     pai: {
       id: 'pai', labelKey: 'MODE_PAI', buttonId: 'btn-mode-pai',
@@ -149,6 +151,11 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     GPS_PERMISSION_BANNER: 'gps denied',
     PRE_PICK_COMPRESA: 'pick region',
     PRE_PICK_SURVEY: 'pick survey',
+    PRE_NEW_FREE_SURVEY: 'Nuovo rilevamento libero',
+    REC_H_MEASURED: 'h misurata',
+    REC_PRESERVED: 'Albero da preservare',
+    DONE_TITLE: 'Sessione esportata',
+    DONE_BODY: (n) => `${n} alberi salvati su CSV.`,
     TOAST_EXPORT_ERROR: (msg) => `export error: ${msg}`,
     UPLOAD_RESUME_TITLE: 'Upload sospeso',
     RESUME_TITLE: 'Riprendi',
@@ -203,6 +210,7 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     FIELD_SPECIES_ID: 'species_id',
     FIELD_CSV_TEXT: 'csv_text',
     FIELD_COPPICE: 'coppice',
+    FIELD_PRESERVED: 'preserved',
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
     window: {
       AbiesGeoReady: Promise.resolve(),
@@ -232,12 +240,13 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     IpsoModes: {
       MARTELLATE: 'martellate',
       SAMPLES: 'samples',
+      FREE_SURVEY: 'free_survey',
       PAI: 'pai',
       get(id) { events.push(['modeGet', id]); return modes[id] || modes.martellate; },
       defaultMode() { return modes.martellate; },
       all() {
         return [
-          modes.samples, modes.free_survey_placeholder, modes.martellate,
+          modes.samples, modes.free_survey, modes.martellate,
           modes.pai, modes.map,
         ];
       },
@@ -288,6 +297,13 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
         throw new Error('validation failed');
       },
     },
+    ipso: {
+      lookup(ipsometrica, compresa, specie) {
+        return ipsometrica && ipsometrica[compresa]
+          ? ipsometrica[compresa][specie] || null : null;
+      },
+      computeH(eq, d) { return eq ? Math.round(eq.a * Math.log(d) + eq.b) : null; },
+    },
     createUploadFlow() {
       return {
         enter(sessionId, payload, count) {
@@ -328,11 +344,12 @@ const session = {
   tree_count: 1,
 };
 
-// The free-survey landing entry is present but intentionally inert until the
-// dedicated capture/upload mode is implemented.
+// The free-survey landing entry starts the standard pre-session flow but is
+// marked local-only until Abies import support lands in the next CL.
 {
-  const { context, events, elements } = makeHarness();
+  const { context, elements } = makeHarness();
   const app = context.__ipsoAppTest;
+  app.State.reference = referenceFixture();
   app.wireModeSelection();
 
   const samplesButton = elements.get('btn-mode-samples');
@@ -341,15 +358,16 @@ const session = {
         'sample mode is labelled as predefined surveys');
   check(!samplesButton.disabled, 'predefined survey mode remains enabled');
   check(freeButton.textContent === 'Rilevamenti liberi',
-        'free-survey placeholder is labelled on the landing page');
-  check(freeButton.disabled, 'free-survey placeholder is disabled');
+        'free-survey mode is labelled on the landing page');
+  check(!freeButton.disabled, 'free-survey mode is enabled');
 
   await freeButton.click();
-  check(!events.some(event => Array.isArray(event) &&
-        event[0] === 'modeGet' && event[1] === 'free_survey_placeholder'),
-        'disabled free-survey placeholder does not enter pre-session flow');
-  check(elements.get('toast').textContent === '',
-        'disabled free-survey placeholder does not show a missing-reference error');
+  check(app.State.mode.id === 'free_survey',
+        'free-survey button selects the free-survey mode');
+  check(app.State.currentScreen === 'screen-pre',
+        'free-survey button opens the pre-session screen');
+  check(elements.get('pre-title').textContent === 'Nuovo rilevamento libero',
+        'free-survey pre-session title is localized');
 }
 
 // A previously provisioned device keeps using the bearer secret stored before
@@ -379,6 +397,62 @@ const session = {
   check(events.some(event => Array.isArray(event) && event[0] === 'replaceState' &&
         !event[1].includes('secret=')),
         'provisioning fragment is removed from the address bar');
+}
+
+// In free surveys an unchecked h_measured box means h is derived from the
+// region/species regression, not manually entered.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  context.session.validateTree = () => [];
+  app.State.reference = {
+    ...referenceFixture(),
+    ipsometrica: { Serra: { Abete: { a: 0, b: 18, hypso_param_set_id: 44 } } },
+  };
+  app.State.session = { ...session, status: 'open', mode: 'free_survey', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  let hValue = '';
+  app.State.numpad = {
+    value(field) { return { d: '42', h: hValue, numero: '' }[field] || ''; },
+    setValue(field, value) { if (field === 'h') hValue = value; },
+  };
+
+  const measured = context.document.getElementById('in-h-measured');
+  measured.checked = false;
+  app.onHeightMeasuredToggle();
+  check(app.shouldAutoHeight(), 'unchecked free-survey h_measured enables auto height');
+  check(hValue === '18', 'unchecked free-survey h_measured computes h');
+  let record = app.currentRecord();
+  check(record.h_measured === 0, 'derived free-survey h is recorded as unmeasured');
+  check(record.hypso_param_set_id === 44,
+        'derived free-survey h records the regression parameter set');
+
+  measured.checked = true;
+  app.onHeightMeasuredToggle();
+  check(hValue === '', 'checking h_measured clears the derived height');
+  record = app.currentRecord();
+  check(record.h_measured === 1, 'checked free-survey h is recorded as measured');
+}
+
+// Free-survey rows preserve the explicit h_measured and preserved flags.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, status: 'open', mode: 'free_survey', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  app.State.numpad = {
+    value(field) { return { d: '42', h: '22', numero: '' }[field] || ''; },
+  };
+  context.document.getElementById('in-h-measured').checked = false;
+  context.document.getElementById('in-preserved').checked = true;
+
+  const record = app.currentRecord();
+  check(record.numero === null, 'free-survey tree number is optional');
+  check(record.h_measured === 0, 'free-survey row preserves h_measured false');
+  check(record.preserved === true, 'free-survey row preserves the PAI flag');
 }
 
 // Canonical IDs are captured with each observation; names remain display/CSV
@@ -531,6 +605,34 @@ const session = {
   check(!events.includes('setSessionStatus'), 'onEnd does not mark pending after payload validation fails');
   check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionPendingUpload'),
         'onEnd does not persist a pending upload payload after payload validation fails');
+}
+
+// Ending a free-survey session exports CSV locally and does not build an
+// upload payload before Abies import support exists.
+{
+  const { context, events } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, status: 'open', mode: 'free_survey' };
+  context.Store.listTrees = async () => [{
+    id: 1, seq: 1, particella: '1', specie: 'Abete', d_cm: 42, h_m: 22,
+    h_measured: 1, preserved: true, lat: 38.5, lon: 16.3, acc_m: 5,
+  }];
+  context.Store.setSessionStatus = async (_db, id, status) => {
+    events.push(['setSessionStatus', id, status]);
+  };
+
+  await app.onEnd();
+
+  check(events.includes('download'), 'free-survey end downloads the local CSV');
+  check(!events.includes('buildPayload'),
+        'free-survey end does not build an upload payload');
+  check(!events.some(e => Array.isArray(e) && e[0] === 'uploadEnter'),
+        'free-survey end does not enter the upload screen');
+  check(events.some(e => Array.isArray(e) && e[0] === 'setSessionStatus' &&
+        e[2] === 'exported'),
+        'free-survey end marks the local session exported');
 }
 
 // A successful session end persists the exact upload payload before entering upload.

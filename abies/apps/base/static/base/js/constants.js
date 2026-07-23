@@ -67,6 +67,7 @@ export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
 export const IPSO_REFERENCE_LEGACY_CONVERTED = 'legacy-converted';
 export const IPSO_MODE_MARTELLATE = 'martellate';
 export const IPSO_MODE_SAMPLES = 'samples';
+export const IPSO_MODE_FREE_SURVEY = 'free_survey';
 export const IPSO_MODE_PAI = 'pai';
 export const IPSO_UPLOAD_STATE_RECEIVED = 'received';
 export const IPSO_UPLOAD_STATE_IMPORTED = 'imported';

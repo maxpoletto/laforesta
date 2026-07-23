@@ -57,6 +57,19 @@ check(markHeader[3] === 'Catastrofata', 'martellate CSV header stays unchanged')
 check(markHeader[5] === 'Genere', 'martellate CSV uses the manual importer species header');
 check(markRow[3] === '0', 'martellate CSV row does not include sample area');
 
+const freeLines = csv.formatFile(
+  { ...session, mode: 'free_survey' },
+  [{ ...tree, preserved: true }],
+  reference,
+).slice(csv.CSV_BOM.length).trimEnd().split(csv.CSV_NL);
+const freeHeader = freeLines[0].split(csv.CSV_SEP);
+const freeRow = freeLines[1].split(csv.CSV_SEP);
+check(freeHeader[9] === csv.PRESERVED_HEADER,
+      'free-survey CSV header includes the preserved-tree flag');
+check(freeRow[8] === '0', 'free-survey CSV preserves h_measured false');
+check(freeRow[9] === '1', 'free-survey CSV exports preserved-tree true');
+check(freeRow[10] === '38,512345', 'free-survey GPS columns stay after PAI');
+
 check(csv.hardenCSVFormula('=cmd') === "'=cmd", 'formula-looking equals text is hardened');
 check(csv.hardenCSVFormula('+cmd') === "'+cmd", 'formula-looking plus text is hardened');
 check(csv.hardenCSVFormula('-cmd') === "'-cmd", 'formula-looking minus text is hardened');
