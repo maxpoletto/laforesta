@@ -236,6 +236,7 @@ test: test-js
 # Pure-JS tests for shared client-side modules.
 test-js:
 	node apps/ipso/static/ipso/pwa/session.test.mjs
+	node apps/ipso/static/ipso/pwa/modes.test.mjs
 	node apps/ipso/static/ipso/pwa/csv.test.mjs
 	node apps/ipso/static/ipso/pwa/gps.test.mjs
 	node apps/ipso/static/ipso/pwa/upload.test.mjs

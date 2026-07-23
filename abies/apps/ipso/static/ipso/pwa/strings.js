@@ -8,14 +8,15 @@ const S = {
   // Mode select screen
   MODE_TITLE: 'Ipso',
   MODE_MARTELLATE: 'Martellate',
-  MODE_SAMPLES: 'Campionamenti',
+  MODE_SAMPLES: 'Rilevamenti predefiniti',
+  MODE_FREE_SURVEYS: 'Rilevamenti liberi',
   MODE_PAI: 'PAI',
   MODE_MAP: 'Mappa',
   MODE_BACK: 'Indietro',
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',
-  PRE_NEW_SAMPLES: 'Nuovo campionamento',
+  PRE_NEW_SAMPLES: 'Nuovo rilevamento predefinito',
   PRE_NEW_PAI: 'Nuovo PAI',
   PRE_OPERATOR: 'Operatore',
   PRE_DATA: 'Data',

@@ -581,12 +581,12 @@ function showModeScreen() {
 }
 
 function enterPreSession(modeId) {
+  const mode = IpsoModes.get(modeId);
+  if (!mode.enabled) return;
   if (!State.reference) {
     showToast(S.TOAST_REFERENCE_REQUIRED);
     return;
   }
-  const mode = IpsoModes.get(modeId);
-  if (!mode.enabled) return;
   setMode(mode.id);
   populateSampleSurveyOptions();
   showScreen('screen-pre');
@@ -599,6 +599,7 @@ function wireModeSelection() {
     button.textContent = modeStringFor(mode, 'labelKey', mode.id);
     button.disabled = !mode.enabled;
     button.addEventListener('click', () => {
+      if (!mode.enabled) return;
       if (mode.mapOnly) enterMapScreen('screen-mode', { standalone: true });
       else enterPreSession(mode.id);
     });

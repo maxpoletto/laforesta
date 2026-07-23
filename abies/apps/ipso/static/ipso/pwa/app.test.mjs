@@ -10,7 +10,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
   `showResumeModal, prefillNumber, currentRecord, renderTreesTable, ` +
-  `validateReference, validateTerreniFeatures, restoreCachedBootResources, ` +
+  `wireModeSelection, validateReference, validateTerreniFeatures, ` +
+  `restoreCachedBootResources, ` +
   `refreshBootResources, loadBearerToken, bearerHeaders };\n`;
 
 let pass = 0;
@@ -105,11 +106,33 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
 
   const localValues = new Map(storedToken ? [['ipso.bearer_token', storedToken]] : []);
   const modes = {
-    martellate: { id: 'martellate', enabled: true },
-    samples: { id: 'samples', enabled: true },
-    pai: { id: 'pai', enabled: true },
+    martellate: {
+      id: 'martellate', labelKey: 'MODE_MARTELLATE',
+      buttonId: 'btn-mode-martellate', enabled: true,
+    },
+    samples: {
+      id: 'samples', labelKey: 'MODE_SAMPLES',
+      buttonId: 'btn-mode-samples', enabled: true,
+    },
+    free_survey_placeholder: {
+      id: 'free_survey_placeholder', labelKey: 'MODE_FREE_SURVEYS',
+      buttonId: 'btn-mode-free-survey', enabled: false,
+    },
+    pai: {
+      id: 'pai', labelKey: 'MODE_PAI', buttonId: 'btn-mode-pai',
+      enabled: true,
+    },
+    map: {
+      id: 'map', labelKey: 'MODE_MAP', buttonId: 'btn-mode-map',
+      mapOnly: true, enabled: true,
+    },
   };
   const strings = new Proxy({
+    MODE_MARTELLATE: 'Martellate',
+    MODE_SAMPLES: 'Rilevamenti predefiniti',
+    MODE_FREE_SURVEYS: 'Rilevamenti liberi',
+    MODE_PAI: 'PAI',
+    MODE_MAP: 'Mappa',
     ERROR_GEO_UNAVAILABLE: 'geo unavailable',
     ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
     ERROR_TOKEN_MISSING: 'token missing',
@@ -210,9 +233,14 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
       MARTELLATE: 'martellate',
       SAMPLES: 'samples',
       PAI: 'pai',
-      get(id) { return modes[id] || modes.martellate; },
+      get(id) { events.push(['modeGet', id]); return modes[id] || modes.martellate; },
       defaultMode() { return modes.martellate; },
-      all() { return []; },
+      all() {
+        return [
+          modes.samples, modes.free_survey_placeholder, modes.martellate,
+          modes.pai, modes.map,
+        ];
+      },
     },
     session: {
       nextNumberDefault(trees) {
@@ -299,6 +327,30 @@ const session = {
   operatore: 'Mario',
   tree_count: 1,
 };
+
+// The free-survey landing entry is present but intentionally inert until the
+// dedicated capture/upload mode is implemented.
+{
+  const { context, events, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.wireModeSelection();
+
+  const samplesButton = elements.get('btn-mode-samples');
+  const freeButton = elements.get('btn-mode-free-survey');
+  check(samplesButton.textContent === 'Rilevamenti predefiniti',
+        'sample mode is labelled as predefined surveys');
+  check(!samplesButton.disabled, 'predefined survey mode remains enabled');
+  check(freeButton.textContent === 'Rilevamenti liberi',
+        'free-survey placeholder is labelled on the landing page');
+  check(freeButton.disabled, 'free-survey placeholder is disabled');
+
+  await freeButton.click();
+  check(!events.some(event => Array.isArray(event) &&
+        event[0] === 'modeGet' && event[1] === 'free_survey_placeholder'),
+        'disabled free-survey placeholder does not enter pre-session flow');
+  check(elements.get('toast').textContent === '',
+        'disabled free-survey placeholder does not show a missing-reference error');
+}
 
 // A previously provisioned device keeps using the bearer secret stored before
 // the upgrade unless a fresh provisioning fragment explicitly replaces it.
