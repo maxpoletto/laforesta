@@ -2291,7 +2291,30 @@ function closeDetailOverlay() {
 }
 
 function onDetailKeyDown(e) {
-  if (e.key === 'Escape' && detailOverlay && !detailOverlay.hidden) closeDetailOverlay();
+  if (!detailOverlay || detailOverlay.hidden || isModalOpen()) return;
+  if (e.key === 'Escape') {
+    closeDetailOverlay();
+    return;
+  }
+  if (isEditableKeyTarget(e.target)) return;
+  let direction = 0;
+  if (e.key === 'ArrowLeft') direction = -1;
+  else if (e.key === 'ArrowRight') direction = 1;
+  if (!direction) return;
+  const scope = detailScopeForState();
+  if (!scope || scope.type !== 'parcel') return;
+  e.preventDefault();
+  openAdjacentParcel(direction);
+}
+
+function isModalOpen() {
+  return document.getElementById('modal-container')?.classList.contains('open');
+}
+
+function isEditableKeyTarget(target) {
+  return target instanceof Element && Boolean(
+    target.closest('input, textarea, select, [contenteditable="true"]'),
+  );
 }
 
 function openAdjacentParcel(direction) {
