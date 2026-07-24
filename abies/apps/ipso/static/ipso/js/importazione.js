@@ -21,7 +21,8 @@ import { installEscapeHandler } from '../../base/js/escape.js';
 import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-map.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID_IPSO_UPLOADS, FIELD_ACC_M, FIELD_D_CM, FIELD_DATE, FIELD_ERROR_SUMMARY,
+  DATA_ID_IPSO_UPLOADS, FIELD_ACC_M, FIELD_D_CM, FIELD_DATE,
+  FIELD_ERROR_SUMMARY, FIELD_ERRORS,
   FIELD_H_M, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_LAT, FIELD_LON,
   FIELD_MODE, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NUMBER, FIELD_OPERATOR,
   FIELD_PARCEL, FIELD_RECEIVED_AT, FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION,
@@ -514,11 +515,20 @@ async function importUpload(uploadId, config, targetId) {
   if (status >= 400) {
     await cache.load(DATA_ID);
     await openUpload(uploadId);
-    showError(data?.[MESSAGE] || S.ERROR_GENERIC);
+    showError(importErrorMessage(data));
     return;
   }
   await cache.load(DATA_ID);
   await openUpload(uploadId);
+}
+
+function importErrorMessage(data) {
+  const errors = data?.[FIELD_ERRORS];
+  if (Array.isArray(errors)) {
+    const lines = errors.map(error => String(error || '').trim()).filter(Boolean);
+    if (lines.length) return lines.join('\n');
+  }
+  return data?.[MESSAGE] || S.ERROR_GENERIC;
 }
 
 function canRejectUpload(upload) {

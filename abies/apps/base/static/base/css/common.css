@@ -232,6 +232,7 @@ body {
 }
 
 .modal-error, .form-error { color: var(--color-danger); }
+.modal-error { white-space: pre-line; }
 .form-error { margin-top: 10px; }
 
 /* Shared confirmation and CSV-import feedback.  These classes are emitted by

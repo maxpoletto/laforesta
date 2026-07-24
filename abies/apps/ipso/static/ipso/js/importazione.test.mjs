@@ -216,16 +216,25 @@ function buildInboxTemplate() {
   return frag;
 }
 
+function buildConfirmTemplate() {
+  const frag = el('fragment');
+  frag.appendChild(el('p', { dataset: { field: 'message' } }));
+  frag.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  frag.appendChild(el('button', { dataset: { action: 'confirm' } }));
+  return frag;
+}
+
 const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
   'tmpl-ipso-inbox-page': { content: buildInboxTemplate() },
+  'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
 
 globalThis.document = {
   documentElement: { lang: 'it' },
-  body: el('body', { dataset: { csrf: 'csrf-token', role: 'reader' } }),
+  body: el('body', { dataset: { csrf: 'csrf-token', role: 'writer' } }),
   head: { appendChild: link => links.push(link) },
   createElement: tag => el(tag),
   createTextNode: text => { const node = el('#text'); node.textContent = text; return node; },
@@ -416,7 +425,7 @@ const S = await import(staticModule('base/js/strings.js'));
 const {
   FIELD_ACC_M, FIELD_DATE, FIELD_D_CM, FIELD_ERROR_SUMMARY, FIELD_H_M,
   FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_MODE, FIELD_MODE_LABEL,
-  FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_RECEIVED_AT,
+  FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_RECEIVED_AT, FIELD_ERRORS,
   FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
   FIELD_SAMPLE_AREA_ID, FIELD_SEQ, FIELD_SESSION_ID, FIELD_SPECIES,
   FIELD_STATE, FIELD_STATE_LABEL, FIELD_TARGET_LABEL, FIELD_WORK_PACKAGE_LABEL,
@@ -424,10 +433,10 @@ const {
   RECORD_COUNT, RECORDS, ROW_ID, TARGETS, UPLOAD,
 } = await import(staticModule('base/js/constants.js'));
 
-function response(data, lastModified = 'v1') {
+function response(data, lastModified = 'v1', status = 200) {
   return {
-    status: 200,
-    ok: true,
+    status,
+    ok: status >= 200 && status < 300,
     headers: { get: h => h === 'Last-Modified' ? lastModified : null },
     json: async () => data,
   };
@@ -487,7 +496,7 @@ function uploadDetail(id, records) {
     },
     [RECORD_COUNT]: records.length,
     [RECORDS]: records,
-    [TARGETS]: [],
+    [TARGETS]: [{ id: 900, label: 'Destinazione' }],
   };
 }
 
@@ -514,7 +523,16 @@ const details = new Map([
   ['/api/ipso/uploads/502/', uploadDetail(502, [record(4, 38.4, 16.4, 'Leccio')])],
 ]);
 
-globalThis.fetch = async (url) => {
+const importErrors = ['Riga 1: errore uno.', 'Riga 2: errore due.'];
+
+globalThis.fetch = async (url, opts = {}) => {
+  if (opts.method === 'POST' &&
+      /^\/api\/ipso\/uploads\/\d+\/import-martellate\/$/.test(url)) {
+    return response({
+      message: importErrors.join(' '),
+      [FIELD_ERRORS]: importErrors,
+    }, 'v1', 400);
+  }
   if (url === '/api/ipso/inbox/') return response(inboxDigest());
   if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
   if (details.has(url)) return response(details.get(url));
@@ -556,6 +574,19 @@ eq(detailEl.querySelectorAll('.ipso-record-map-host').length, 1,
    'opening a second upload leaves exactly one preview map host');
 eq(latestTreeMarkers().map(marker => marker.latlng), [[38.4, 16.4]],
    'opening a second upload replaces the preview map markers');
+
+const importPanel = detailEl.querySelector('.ipso-import-target');
+check(Boolean(importPanel), 'writer sees the import target panel');
+const targetSelect = importPanel.querySelector('select');
+targetSelect.value = '900';
+for (const fn of targetSelect._listeners.change || []) fn({ target: targetSelect });
+importPanel.querySelector('.btn-import').click();
+modalEl.querySelector('[data-action="confirm"]').click();
+await flushSeveral();
+const errorEl = modalEl.querySelector('.modal-error');
+check(Boolean(errorEl), 'failed import opens the error modal');
+eq(errorEl.textContent, importErrors.join('\n'),
+   'failed import shows one validation error per line');
 
 importazione.unmount();
 
