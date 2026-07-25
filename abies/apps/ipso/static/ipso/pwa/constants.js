@@ -23,6 +23,7 @@ const IPSO_REF_PRESERVED_TREES = 'preserved_trees';
 const IPSO_REF_SPECIES = 'species';
 const IPSO_REF_PARCELS = 'parcels';
 const IPSO_REF_HYPSOMETRY = 'ipsometrica';
+const IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories';
 
 const FIELD_SESSION_ID = 'session_id';
 const FIELD_MODE = 'mode';
@@ -93,6 +94,7 @@ if (typeof module !== 'undefined') {
     IPSO_REF_SPECIES,
     IPSO_REF_PARCELS,
     IPSO_REF_HYPSOMETRY,
+    IPSO_REF_OBSERVATION_CATEGORIES,
     FIELD_SESSION_ID,
     FIELD_MODE,
     FIELD_SCHEMA_VERSION,

@@ -34,7 +34,8 @@ from apps.base.http import (
 )
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
-    HypsoParamSet, Parcel, SampleArea, Species, Survey, TreeSample,
+    HypsoParamSet, ObservationCategory, Parcel, SampleArea, Species, Survey,
+    TreeSample,
     natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
@@ -57,7 +58,7 @@ from config import strings as S
 from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CHECKSUM,
     FIELD_COPPICE, FIELD_DAMAGED, FIELD_CLIENT_RECORD_ID, FIELD_ERROR_SUMMARY,
-    FIELD_ID,
+    FIELD_ID, FIELD_NAME,
     FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
@@ -67,7 +68,8 @@ from config.constants import (
     FIELD_REASON, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
     FIELD_REGION_ID, FIELD_SEQ,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SCHEMA_VERSION,
-    FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
+    FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
+    FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE, FIELD_TREE_ID,
     FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT, FIELD_STATE, FIELD_STATE_LABEL,
     FIELD_SURVEY_ID, FIELD_WARNINGS_CONFIRMED,
@@ -76,7 +78,8 @@ from config.constants import (
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
-    IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
+    IPSO_REF_HYPSOMETRY, IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_PAI,
+    IPSO_REF_PARCELS,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
     DATA_ID_IPSO_UPLOADS,
     IPSO_REF_SAMPLE_AREAS, IPSO_REF_SAMPLING, IPSO_REF_SPECIES,
@@ -202,6 +205,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         IPSO_REF_HYPSOMETRY: _ipsometrica(),
         IPSO_REF_SAMPLING: sampling,
         IPSO_REF_PAI: pai,
+        IPSO_REF_OBSERVATION_CATEGORIES: _observation_category_rows(),
         IPSO_REF_WORK_PACKAGES: _work_packages(sampling),
     }
     payload[FIELD_REFERENCE_VERSION] = _reference_version(payload)
@@ -239,6 +243,21 @@ def _parcel_rows() -> list[dict]:
             FIELD_COPPICE: p.eclass.coppice,
         }
         for p in parcels
+    ]
+
+
+def _observation_category_rows() -> list[dict]:
+    return [
+        {
+            FIELD_ID: category.id,
+            FIELD_NAME: category.name,
+            FIELD_SORT_ORDER: category.sort_order,
+        }
+        for category in (
+            ObservationCategory.objects
+            .filter(active=True)
+            .order_by('sort_order', 'name', 'id')
+        )
     ]
 
 

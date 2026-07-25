@@ -7,7 +7,7 @@
  *   - Tractors, Species (writers and admins)
  *   - Future production and Dendrometric data (writers and admins)
  *   - Hypsometric parameters (writers and admins)
- *   - App Users (admins only)
+ *   - Observation categories and app users (admins only)
  *
  * Entity tables lazy-load data when the section is first opened.
  * Forms open in modals.
@@ -35,7 +35,7 @@ import {
   FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_PLANS,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
-  FIELD_YEAR_END, FIELD_YEAR_START,
+  FIELD_YEAR_END, FIELD_YEAR_START, IPSO_REF_OBSERVATION_CATEGORIES,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
@@ -78,6 +78,20 @@ const ENTITY_SECTIONS = {
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
   },
+  observationCategories: {
+    key: IPSO_REF_OBSERVATION_CATEGORIES,
+    dataUrl: `${API}observation-categories/data/`,
+    formUrl: `${API}observation-categories/form/`,
+    saveUrl: `${API}observation-categories/save/`,
+    csvFilename: S.CSV_OBSERVATION_CATEGORIES,
+    columnDefs: {
+      [S.CSV_COL_SORT_ORDER]: {
+        label: S.CSV_COL_SORT_ORDER, type: 'number', width: '80px',
+        className: 'num', formatter: fmtInt,
+      },
+      [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+    },
+  },
   users: {
     key: 'users',
     dataUrl: `${API}users/data/`,
@@ -106,6 +120,10 @@ const SECTION_CONFIGS = {
   species: {
     minRole: ROLE_WRITER,
     wire: root => wireEntitySection(root, ENTITY_SECTIONS.species),
+  },
+  'observation-categories': {
+    minRole: ROLE_ADMIN,
+    wire: root => wireEntitySection(root, ENTITY_SECTIONS.observationCategories),
   },
   'future-production': { minRole: ROLE_WRITER, wire: wireFutureProductionSection },
   dendrometry: { minRole: ROLE_WRITER, wire: wireDendrometrySection },

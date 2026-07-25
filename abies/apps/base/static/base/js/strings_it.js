@@ -124,6 +124,7 @@ export const COL_NOTE = 'Note';
 export const COL_EXTRA_NOTE = 'Altre note';
 export const COL_VOLUME_M3 = 'Volume (m³)';
 export const COL_ACTIVE = 'Attivo';
+export const CSV_COL_SORT_ORDER = 'Ordine';
 export const COL_MINOR = 'Minore';
 
 // Hypsometric-parameters section.  (Accept/Reject/title are literal in the
@@ -177,6 +178,7 @@ export const CSV_CREWS = 'squadre.csv';
 export const CSV_TRACTORS = 'trattori.csv';
 export const CSV_SPECIES = 'specie.csv';
 export const CSV_USERS = 'utenti.csv';
+export const CSV_OBSERVATION_CATEGORIES = 'categorie-osservazioni.csv';
 export const CSV_AUDIT = 'controllo.csv';
 export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 

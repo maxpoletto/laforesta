@@ -28,7 +28,8 @@ from apps.base.selectors import (
 )
 from apps.base.models import (
     HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
-    LoginMethod, Role, SiteSettings, Species, Survey, Tractor, TreeSample, User,
+    LoginMethod, ObservationCategory, Role, SiteSettings, Species, Survey,
+    Tractor, TreeSample, User,
 )
 from config import strings as S
 from config.constants import (
@@ -44,12 +45,13 @@ from config.constants import (
     FIELD_MANUFACTURER, FIELD_MIN_N,
     FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PARCELS, FIELD_PLANS,
     FIELD_PRESSLER_DEFAULT, FIELD_REGIONS,
-    FIELD_CURRENT_PASSWORD, PRESSLER_DEFAULT,
+    FIELD_CURRENT_PASSWORD, FIELD_SORT_ORDER, PRESSLER_DEFAULT,
     FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
     FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR, FIELD_YEAR_END,
     FIELD_YEAR_START,
-    HTML, MESSAGE, ROWS, ROW_ID, VERSION, is_truthy,
+    HTML, IPSO_REF_OBSERVATION_CATEGORIES, MESSAGE, ROWS, ROW_ID, VERSION,
+    is_truthy,
 )
 
 
@@ -217,6 +219,67 @@ def species_save(request):
         unique_field=FIELD_COMMON_NAME,
         unique_value=parsed[FIELD_COMMON_NAME],
         unique_error=S.ERR_SPECIES_NAME_DUPLICATE,
+    )
+
+
+
+# ---------------------------------------------------------------------------
+# Observation categories
+# ---------------------------------------------------------------------------
+
+OBSERVATION_CATEGORY_COLS = [
+    ROW_ID, S.LABEL_NAME, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE,
+]
+
+
+def _observation_category_row(category):
+    return [category.id, category.name, category.sort_order, category.active]
+
+
+@login_required
+@require_admin
+def observation_categories_data(request):
+    rows = [
+        _observation_category_row(category)
+        for category in ObservationCategory.objects.order_by('sort_order', 'name', 'id')
+    ]
+    return JsonResponse({COLUMNS: OBSERVATION_CATEGORY_COLS, ROWS: rows})
+
+
+@login_required
+@require_admin
+def observation_categories_form(request, obj_id=None):
+    return _form(
+        'impostazioni/_observation_category_form.html',
+        ObservationCategory, obj_id, request,
+    )
+
+
+@login_required
+@require_admin
+@require_POST
+def observation_categories_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    name = body.get(FIELD_NAME, '').strip()
+    if not name:
+        return _error(S.ERR_NAME_REQUIRED)
+    sort_order = int_or_none(body.get(FIELD_SORT_ORDER))
+    if sort_order is None:
+        return _error(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.CSV_COL_SORT_ORDER))
+    parsed = {
+        FIELD_NAME: name,
+        FIELD_SORT_ORDER: sort_order,
+        FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
+    }
+    return save_model_response(
+        request, body, model=ObservationCategory,
+        data_id=IPSO_REF_OBSERVATION_CATEGORIES, values=parsed,
+        row_fn=_observation_category_row, stale=('audit',),
+        unique_field=FIELD_NAME, unique_value=name,
+        unique_error=S.ERR_OBSERVATION_CATEGORY_NAME_DUPLICATE,
+        unique_case_insensitive=True,
     )
 
 

@@ -424,7 +424,8 @@ def _audit_configs() -> list:
     """
     from apps.base.models import (
         Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet,
-        Parcel, SampleArea, SampleGrid, Species, Survey, Tractor, User,
+        ObservationCategory, Parcel, SampleArea, SampleGrid, Species, Survey,
+        Tractor, User,
     )
     from apps.ipso.models import IpsoUpload
     from apps.mannesi.models import ProductionCredit, WorkHour
@@ -460,6 +461,11 @@ def _audit_configs() -> list:
             'common_name': S.LABEL_NAME,
             'latin_name': S.COL_LATIN_NAME,
             'density': S.LABEL_DENSITY,
+            'active': S.COL_ACTIVE,
+        }),
+        (ObservationCategory, S.TABLE_OBSERVATION_CATEGORY, {
+            'name': S.LABEL_NAME,
+            'sort_order': S.CSV_COL_SORT_ORDER,
             'active': S.COL_ACTIVE,
         }),
         (HarvestPlan, S.TABLE_HARVEST_PLAN, {

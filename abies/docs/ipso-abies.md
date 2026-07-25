@@ -66,6 +66,7 @@ Protected reference endpoints require the shared bearer:
 - active hypsometric parameters;
 - sampling surveys, sample grids, sample areas, and existing max tree numbers;
 - PAI preserved-tree context;
+- active observation categories;
 - work-package options used by Ipso modes;
 - a derived `reference_version` hash.
 

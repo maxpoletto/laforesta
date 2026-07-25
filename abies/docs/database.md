@@ -558,3 +558,10 @@ Most of these are configurable in the Settings section.
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:
     "Cippato", 3: "Ramaglia", 4: "Pertiche-Puntelli", 5: "Pertiche-Tronchi")
+
+- observation_category: (id:int, name:string, sort_order:int, active:bool)
+  - Admin-managed category list for field observations. Default active rows
+    are "fitosanitario", "viabilità", and "rifiuti".
+  - `sort_order` controls display order in settings and Ipso reference data.
+  - Rows are deactivated rather than deleted so future observations can keep
+    stable category IDs.

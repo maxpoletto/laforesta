@@ -9,8 +9,9 @@ import pytest
 from django.test import Client, override_settings
 
 from apps.base.models import (
-    DigestStatus, HarvestPlan, LoginMethod, Role, Sample, SampleArea,
-    SampleGrid, SiteSettings, Species, Survey, Tractor, Tree, TreeSample, User,
+    DigestStatus, HarvestPlan, LoginMethod, ObservationCategory, Role, Sample,
+    SampleArea, SampleGrid, SiteSettings, Species, Survey, Tractor, Tree,
+    TreeSample, User,
 )
 from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
@@ -22,11 +23,11 @@ from config.constants import (
     FIELD_HARVEST_PLAN_ID,
     FIELD_IS_ACTIVE, FIELD_LANDING_PAGE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
-    FIELD_PRESSLER_DEFAULT, FIELD_SPECIES,
+    FIELD_PRESSLER_DEFAULT, FIELD_SPECIES, FIELD_SORT_ORDER,
     FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_PASSWORD1,
     FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME, FIELD_YEAR,
     HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR, VERSION,
+    IPSO_REF_OBSERVATION_CATEGORIES, STATUS_VALIDATION_ERROR, VERSION,
 )
 
 
@@ -530,6 +531,105 @@ class TestSpecies:
         assert altro.common_name == S.SPECIES_OTHER
         assert altro.density == Decimal('9.0')
         assert altro.pressler_default == Decimal('0.55')
+
+
+# ---------------------------------------------------------------------------
+# Observation categories
+# ---------------------------------------------------------------------------
+
+class TestObservationCategories:
+    DATA_URL = '/api/impostazioni/observation-categories/data/'
+    FORM_URL = '/api/impostazioni/observation-categories/form/'
+    SAVE_URL = '/api/impostazioni/observation-categories/save/'
+
+    def test_data_lists_seeded_categories(self, admin_client, db):
+        resp = admin_client.get(self.DATA_URL)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data[COLUMNS] == [
+            ROW_ID, S.LABEL_NAME, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE,
+        ]
+        assert [row[1] for row in data[ROWS]] == [
+            S.OBSERVATION_CATEGORY_PHYTOSANITARY,
+            S.OBSERVATION_CATEGORY_ACCESS,
+            S.OBSERVATION_CATEGORY_WASTE,
+        ]
+
+    def test_form_add(self, admin_client, db):
+        resp = admin_client.get(self.FORM_URL)
+
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert '<form' in html
+        assert f'name="{FIELD_SORT_ORDER}"' in html
+
+    def test_save_create(self, admin_client, db):
+        resp = _post(admin_client, self.SAVE_URL, {
+            FIELD_NAME: 'incendio',
+            FIELD_SORT_ORDER: '40',
+            FIELD_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 200, resp.content
+        category = ObservationCategory.objects.get(name='incendio')
+        assert category.sort_order == 40
+        assert category.active is True
+        assert resp.json()[PATCHES][0][DATA_ID] == IPSO_REF_OBSERVATION_CATEGORIES
+        assert resp.json()[PATCHES][0][RECORD] == [category.id, 'incendio', 40, True]
+        assert DigestStatus.objects.get(name='audit').stale is True
+
+    def test_save_update(self, admin_client, db):
+        category = ObservationCategory.objects.create(
+            name='sentieri', sort_order=50, active=True,
+        )
+
+        resp = _post(admin_client, self.SAVE_URL, {
+            ROW_ID: str(category.id), VERSION: str(category.version),
+            FIELD_NAME: 'viabilità interna',
+            FIELD_SORT_ORDER: '15',
+            FIELD_ACTIVE: 'false',
+        })
+
+        assert resp.status_code == 200, resp.content
+        category.refresh_from_db()
+        assert category.name == 'viabilità interna'
+        assert category.sort_order == 15
+        assert category.active is False
+        assert category.version == 2
+
+    def test_duplicate_name_rejected_case_insensitive(self, admin_client, db):
+        ObservationCategory.objects.create(name='incendio', sort_order=40)
+
+        resp = _post(admin_client, self.SAVE_URL, {
+            FIELD_NAME: 'Incendio',
+            FIELD_SORT_ORDER: '50',
+            FIELD_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert resp.json()[MESSAGE] == S.ERR_OBSERVATION_CATEGORY_NAME_DUPLICATE
+
+    def test_sort_order_must_be_integer(self, admin_client, db):
+        resp = _post(admin_client, self.SAVE_URL, {
+            FIELD_NAME: 'incendio',
+            FIELD_SORT_ORDER: 'x',
+            FIELD_ACTIVE: 'true',
+        })
+
+        assert resp.status_code == 400
+        assert resp.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert S.CSV_COL_SORT_ORDER in resp.json()[MESSAGE]
+
+    def test_writer_forbidden(self, writer_client, db):
+        assert writer_client.get(self.DATA_URL).status_code == 403
+        assert writer_client.get(self.FORM_URL).status_code == 403
+        assert _post(writer_client, self.SAVE_URL, {
+            FIELD_NAME: 'incendio',
+            FIELD_SORT_ORDER: '40',
+            FIELD_ACTIVE: 'true',
+        }).status_code == 403
 
 
 # ---------------------------------------------------------------------------

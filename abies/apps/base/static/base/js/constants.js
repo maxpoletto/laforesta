@@ -79,6 +79,7 @@ export const IPSO_REF_HYPSOMETRY = 'ipsometrica';
 export const IPSO_REF_SAMPLING = 'sampling';
 export const IPSO_REF_PAI = 'pai';
 export const IPSO_REF_WORK_PACKAGES = 'work_packages';
+export const IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories';
 export const IPSO_REF_SAMPLE_AREA_MAX_NUMBERS = 'sample_area_max_numbers';
 
 // Role identifiers — mirror apps/base/models.py Role.TextChoices values.

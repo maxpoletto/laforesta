@@ -263,6 +263,22 @@ class Product(models.Model):
         return self.name
 
 
+class ObservationCategory(TimestampedModel):
+    """Admin-managed category for field observations."""
+    name = models.CharField(max_length=100, unique=True)
+    sort_order = models.IntegerField(default=0)
+    active = models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.OBSERVATION_CATEGORY
+        verbose_name_plural = S.OBSERVATION_CATEGORIES
+        ordering = ['sort_order', 'name', 'id']
+
+    def __str__(self):
+        return self.name
+
+
 # ---------------------------------------------------------------------------
 # Forest structure
 # ---------------------------------------------------------------------------

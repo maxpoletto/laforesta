@@ -15,8 +15,8 @@ from django.urls import reverse
 
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HypsoParam, HypsoParamSet, HypsoParamSource, Parcel, Sample,
-    SampleArea, SampleGrid, Survey, Tree, TreeMark,
+    HypsoParam, HypsoParamSet, HypsoParamSource, ObservationCategory, Parcel,
+    Sample, SampleArea, SampleGrid, Survey, Tree, TreeMark,
     TreeSample, UsedNonce,
 )
 from apps.ipso import staging as ipso_staging
@@ -27,21 +27,22 @@ from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CLIENT_RECORD_ID,
     FIELD_COMPLETED_AT, FIELD_COPPICE, FIELD_CREATED_AT,
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
-    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M,
+    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_ID,
     FIELD_H_MEASURED,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
-    FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
+    FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
     FIELD_OPERATOR, FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PRESERVED,
     FIELD_PRESSLER_COEFF, FIELD_REASON, FIELD_RECORD_DATE,
     FIELD_REFERENCE_VERSION, FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID,
     FIELD_SCHEMA_VERSION, FIELD_STANDARD, FIELD_TREE_PRESERVED_ID,
-    FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID,
+    FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
+    FIELD_SPECIES_ID,
     FIELD_SURVEY_ID, FIELD_WARNINGS, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, IMPORTED,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
-    IPSO_UPLOAD_FILE_READY, MESSAGE,
+    IPSO_REF_OBSERVATION_CATEGORIES, IPSO_UPLOAD_FILE_READY, MESSAGE,
     PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, STATUS, STATUS_WARNING,
     UPLOAD,
 )
@@ -227,6 +228,9 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         func=HYPSO_FUNC_LN, a=Decimal('7.0000'), b=Decimal('-4.0000'),
         r2=Decimal('0.5000'), n=12,
     )
+    ObservationCategory.objects.create(
+        name='archiviata', sort_order=40, active=False,
+    )
 
     resp = Client().get(
         '/ipso/reference.json', HTTP_AUTHORIZATION='Bearer test-token',
@@ -246,6 +250,22 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     assert data['ipsometrica']['Capistrano']['Abete'] == {
         'a': 7.0, 'b': -4.0, 'hypso_param_set_id': active.id,
     }
+    assert data[IPSO_REF_OBSERVATION_CATEGORIES] == [
+        {
+            FIELD_ID: row.id,
+            FIELD_NAME: row.name,
+            FIELD_SORT_ORDER: row.sort_order,
+        }
+        for row in (
+            ObservationCategory.objects
+            .filter(active=True)
+            .order_by('sort_order', 'name', 'id')
+        )
+    ]
+    assert all(
+        row[FIELD_NAME] != 'archiviata'
+        for row in data[IPSO_REF_OBSERVATION_CATEGORIES]
+    )
     assert data['work_packages'] == [
         {
             'id': f'sampling_survey:{survey.id}',

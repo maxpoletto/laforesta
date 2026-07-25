@@ -198,6 +198,7 @@ TABLE_USER = 'Utente'
 TABLE_CREW = 'Squadra'
 TABLE_TRACTOR = 'Trattore'
 TABLE_SPECIES = 'Specie'
+TABLE_OBSERVATION_CATEGORY = 'Categoria di osservazioni'
 TABLE_HARVEST_PLAN = 'Piano di gestione'
 TABLE_HARVEST_PLAN_ITEM = 'Voce di piano'
 TABLE_PARCEL = 'Particella'
@@ -241,6 +242,7 @@ ERR_EMAIL_DUPLICATE = 'Email già utilizzata.'
 ERR_ROW_ID_INVALID = 'ID riga non valido.'
 ERR_CREW_NAME_DUPLICATE = 'Esiste già una squadra con questo nome.'
 ERR_SPECIES_NAME_DUPLICATE = 'Esiste già una specie con questo nome.'
+ERR_OBSERVATION_CATEGORY_NAME_DUPLICATE = 'Esiste già una categoria con questo nome.'
 ERR_PRODUCT_REQUIRED = 'Prodotto obbligatorio.'
 ERR_LANDING_PAGE_INVALID = 'Pagina iniziale non valida.'
 ERR_DENSITY_INVALID = 'La densità deve essere un numero positivo.'
@@ -506,7 +508,7 @@ CSV_COL_ACTIVE      = 'Attivo'              # Crew/Species.active (bool); paired
 CSV_COL_LATIN       = 'Nome latino'         # Species.latin_name; paired with COL_LATIN_NAME
 CSV_COL_DENSITY     = 'Densità (q/m³)'      # Species.density; paired with COL_DENSITY
 CSV_COL_MINOR       = 'Minore'              # Species.minor (bool); paired with COL_MINOR
-CSV_COL_SORT_ORDER  = 'Ordine'             # Species.sort_order
+CSV_COL_SORT_ORDER  = 'Ordine'             # Species/ObservationCategory.sort_order
 
 # --- Named-container CSV headers (bootstrap: sample_grids/surveys/harvest_plans).
 CSV_COL_GRID         = 'Griglia'       # SampleGrid.name / Survey grid FK; paired with COL_GRID
@@ -768,6 +770,8 @@ SPECIES_DEFAULT_COPPICE = 'castagno'
 
 PRODUCT = 'tipo di prodotto'
 PRODUCTS = 'tipi di prodotto'
+OBSERVATION_CATEGORY = 'categoria di osservazioni'
+OBSERVATION_CATEGORIES = 'categorie di osservazioni'
 
 HARVEST_PLAN = 'piano di gestione'
 HARVEST_PLANS = 'piani di gestione'
@@ -845,6 +849,9 @@ USED_NONCE = 'nonce utilizzato'
 USED_NONCES = 'nonce utilizzati'
 
 SPECIES_OTHER = 'Altro'
+OBSERVATION_CATEGORY_PHYTOSANITARY = 'fitosanitario'
+OBSERVATION_CATEGORY_ACCESS = 'viabilità'
+OBSERVATION_CATEGORY_WASTE = 'rifiuti'
 
 HARVEST = 'operazione di prelievo'
 HARVESTS = 'operazioni di prelievo'

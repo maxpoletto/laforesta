@@ -22,9 +22,11 @@ default, then `/prelievi`.
 
 ## Reference tables
 
-Visible to writers. Two collapsible sub-sections have sortable tables. Tables
-support add and edit but not delete; entities are deactivated via the `active`
-flag. The `Solo attivi` checkbox is checked by default and filters the table.
+Tractors and species are visible to writers. Observation categories are
+visible only to admins. The collapsible sub-sections have sortable tables.
+Tables support add and edit but not delete; entities are deactivated via the
+`active` flag. The `Solo attivi` checkbox is checked by default and filters the
+table.
 
 - Trattori: manufacturer, model, year, active flag.
 - Specie: common name, Latin name, density (q/m³; see `database.md`; used to
@@ -32,6 +34,9 @@ flag. The `Solo attivi` checkbox is checked by default and filters the table.
   `Minore` flag, and active flag. Minor species are grouped under a single
   `Altro` entry in Prelievi (see `page-prelievi.md`); the flag is editable
   here.
+- Categorie di osservazioni: name, sort order, and active flag. Active
+  categories are sent to Ipso in `reference.json`. The default rows are `fitosanitario`, `viabilità`,
+  and `rifiuti`.
 
 ## Future production (Produzione futura)
 

@@ -27,6 +27,18 @@ urlpatterns = [
     path('species/save/', views.species_save, name='impostazioni-species-save'),
 
 
+    # Observation categories
+    path('observation-categories/data/', views.observation_categories_data,
+         name='impostazioni-observation-categories-data'),
+    path('observation-categories/form/', views.observation_categories_form,
+         name='impostazioni-observation-categories-form-add'),
+    path('observation-categories/form/<int:obj_id>/',
+         views.observation_categories_form,
+         name='impostazioni-observation-categories-form-edit'),
+    path('observation-categories/save/', views.observation_categories_save,
+         name='impostazioni-observation-categories-save'),
+
+
     # Bosco source settings (writer+)
     path('future-production/data/', views.future_production_data,
          name='impostazioni-future-production-data'),
