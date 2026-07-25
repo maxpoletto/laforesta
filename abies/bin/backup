@@ -171,6 +171,14 @@ def create_backup(
                 'note': 'filesystem snapshot; SQLite is the transactional consistency anchor',
             }
 
+        observation_media = data_dir / 'observation-media'
+        if observation_media.exists():
+            manifest['contents'].append('observation-media')
+            manifest['observation_media'] = {
+                'source': 'data/observation-media',
+                'note': 'filesystem snapshot; SQLite is the transactional consistency anchor',
+            }
+
         manifest_path = tmp_root / 'manifest.json'
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8')
         manifest_path.chmod(0o600)
@@ -182,6 +190,11 @@ def create_backup(
             tar.add(db_snapshot, arcname='db.sqlite3', recursive=False)
             if include_ipso_inbox and ipso_inbox.exists():
                 tar.add(ipso_inbox, arcname='ipso-inbox', recursive=True, filter=tar_filter)
+            if observation_media.exists():
+                tar.add(
+                    observation_media, arcname='observation-media',
+                    recursive=True, filter=tar_filter,
+                )
 
         tmp_archive_path.chmod(0o600)
         tmp_archive_path.replace(archive_path)
@@ -267,9 +280,9 @@ def validate_restore_member(member: tarfile.TarInfo) -> None:
     if member.issym() or member.islnk():
         raise SystemExit(f'error: backup archive must not contain links: {member.name}')
     name = member.name
-    if name in {'manifest.json', 'db.sqlite3', 'ipso-inbox'}:
+    if name in {'manifest.json', 'db.sqlite3', 'ipso-inbox', 'observation-media'}:
         return
-    if name.startswith('ipso-inbox/'):
+    if name.startswith('ipso-inbox/') or name.startswith('observation-media/'):
         return
     raise SystemExit(f'error: unexpected backup member: {member.name}')
 

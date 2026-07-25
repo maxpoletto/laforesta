@@ -424,7 +424,8 @@ def _audit_configs() -> list:
     """
     from apps.base.models import (
         Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet,
-        ObservationCategory, Parcel, SampleArea, SampleGrid, Species, Survey,
+        Observation, ObservationCategory, Parcel, SampleArea, SampleGrid,
+        Species, Survey,
         Tractor, User,
     )
     from apps.ipso.models import IpsoUpload
@@ -467,6 +468,19 @@ def _audit_configs() -> list:
             'name': S.LABEL_NAME,
             'sort_order': S.CSV_COL_SORT_ORDER,
             'active': S.COL_ACTIVE,
+        }),
+        (Observation, S.TABLE_OBSERVATION, {
+            'date': S.COL_DATE,
+            'text': S.COL_TEXT,
+            'lat': S.COL_LAT,
+            'lon': S.COL_LON,
+            'acc_m': S.CSV_COL_ACC_M,
+            'operator': S.COL_OPERATOR,
+            'source': S.COL_SOURCE,
+            'upload_session_id': S.COL_UPLOAD_SESSION,
+            'client_record_id': S.COL_CLIENT_RECORD_ID,
+            'import_fingerprint': S.COL_IMPORT_FINGERPRINT,
+            'created_by_id': S.COL_USER,
         }),
         (HarvestPlan, S.TABLE_HARVEST_PLAN, {
             'name': S.LABEL_NAME, 'year_start': S.COL_YEAR_START,

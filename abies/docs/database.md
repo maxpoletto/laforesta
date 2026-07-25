@@ -96,6 +96,40 @@ audited and the contract that keeps that coverage complete.
   - `note` (optional) is an additional arbitrary string (e.g., for recording
     local conditions).
 
+## Observations
+
+- observation: (id:int, date:date, text:string, lat:real, lon:real,
+  acc_m:int nullable, operator:string, source:string, upload_session_id:string,
+  client_record_id:string, import_fingerprint:string nullable,
+  created_by_id:int nullable)
+  - A point observation recorded in the forest. `lat` and `lon` are required;
+    `acc_m` records GPS accuracy in meters when available. Line/polygon
+    cartography is intentionally separate and not represented by this table.
+  - `operator` is the field operator name when supplied by Ipso. `source`,
+    `upload_session_id`, `client_record_id`, and `import_fingerprint` preserve
+    upload/import provenance without making observation rows depend on the
+    lifecycle of `ipso_upload` rows. Non-empty `import_fingerprint` values are
+    unique for idempotent imports.
+  - Rows are history-tracked and appear in Controllo. Category join rows and
+    photo metadata rows are not audited separately.
+
+- observation_category_assignment: (id:int, observation_id:int,
+  category_id:int)
+  - Many-to-many join between observations and `observation_category`. Unique
+    per `(observation_id, category_id)`. Category deletion is protected while
+    assignments exist; categories should normally be deactivated instead.
+
+- observation_photo: (id:int, observation_id:int, file_path:string,
+  content_type:string, size_bytes:int, width_px:int nullable,
+  height_px:int nullable, checksum:string, original_filename:string)
+  - Metadata for a photo stored on the filesystem, not in SQLite. `file_path`
+    is a generated relative path under `OBSERVATION_MEDIA_DIR`
+    (`data/observation-media` by default); user-provided filenames are kept
+    only as display metadata and never used as storage paths.
+  - `checksum` is the SHA-256 of the stored file content. `width_px` and
+    `height_px` are optional because upload/import code may not always inspect
+    image dimensions.
+
 ## Trees
 
 - tree: (id:int, species_id:int, estimated_birth_year:int nullable,

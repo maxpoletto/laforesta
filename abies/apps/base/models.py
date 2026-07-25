@@ -3,6 +3,7 @@
 import re
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -277,6 +278,111 @@ class ObservationCategory(TimestampedModel):
 
     def __str__(self):
         return self.name
+
+
+class Observation(TimestampedModel):
+    """A geo-referenced field observation."""
+    date = models.DateField()
+    text = models.TextField(blank=True)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    acc_m = models.IntegerField(null=True, blank=True)
+    operator = models.CharField(max_length=100, blank=True)
+    source = models.CharField(max_length=32, blank=True)
+    upload_session_id = models.CharField(max_length=64, blank=True)
+    client_record_id = models.CharField(max_length=100, blank=True)
+    import_fingerprint = models.CharField(max_length=67, null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_observations',
+    )
+    categories = models.ManyToManyField(
+        ObservationCategory, through='ObservationCategoryAssignment',
+        related_name='observations', blank=True,
+    )
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.OBSERVATION
+        verbose_name_plural = S.OBSERVATIONS
+        ordering = ['-date', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['import_fingerprint'],
+                condition=(
+                    models.Q(import_fingerprint__isnull=False)
+                    & ~models.Q(import_fingerprint='')
+                ),
+                name='uniq_observation_import_fingerprint',
+            ),
+            *_coordinate_constraints('observation'),
+        ]
+
+    def __str__(self):
+        text = ' '.join(self.text.split())
+        if len(text) > 40:
+            text = text[:37] + '…'
+        return f'{self.date} {text}'.strip()
+
+
+class ObservationCategoryAssignment(models.Model):
+    """Category membership for an observation."""
+    observation = models.ForeignKey(
+        Observation, on_delete=models.CASCADE, related_name='category_assignments',
+    )
+    category = models.ForeignKey(ObservationCategory, on_delete=models.PROTECT)
+
+    class Meta:
+        verbose_name = S.OBSERVATION_CATEGORY_ASSIGNMENT
+        verbose_name_plural = S.OBSERVATION_CATEGORY_ASSIGNMENTS
+        unique_together = [('observation', 'category')]
+
+    def __str__(self):
+        return f'{self.observation_id}:{self.category}'
+
+
+class ObservationPhoto(TimestampedModel):
+    """Metadata for one filesystem-backed observation photo."""
+    observation = models.ForeignKey(
+        Observation, on_delete=models.CASCADE, related_name='photos',
+    )
+    file_path = models.CharField(max_length=500, unique=True)
+    content_type = models.CharField(max_length=100)
+    size_bytes = models.PositiveBigIntegerField()
+    width_px = models.PositiveIntegerField(null=True, blank=True)
+    height_px = models.PositiveIntegerField(null=True, blank=True)
+    checksum = models.CharField(max_length=64, db_index=True)
+    original_filename = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = S.OBSERVATION_PHOTO
+        verbose_name_plural = S.OBSERVATION_PHOTOS
+        ordering = ['id']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(size_bytes__gte=0),
+                name='observation_photo_size_nonnegative',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(width_px__isnull=True) | models.Q(width_px__gt=0)
+                ),
+                name='observation_photo_width_positive',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(height_px__isnull=True) | models.Q(height_px__gt=0)
+                ),
+                name='observation_photo_height_positive',
+            ),
+        ]
+
+    def absolute_path(self):
+        from apps.base.observation_storage import observation_photo_absolute_path
+        return observation_photo_absolute_path(self.file_path)
+
+    def __str__(self):
+        return self.file_path
 
 
 # ---------------------------------------------------------------------------

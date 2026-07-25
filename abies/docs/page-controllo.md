@@ -41,6 +41,8 @@ dropping it from the config.
 | `base.HarvestPlanItem` | `base_harvestplanitem` | `base_historicalharvestplanitem` | `Voce piano di taglio` | Worksite/plan-item state and materialized volumes. |
 | `base.HypsoParam` | `base_hypsoparam` | `base_historicalhypsoparam` | `Parametro ipsometrico` | Individual regression coefficients. |
 | `base.HypsoParamSet` | `base_hypsoparamset` | `base_historicalhypsoparamset` | `Set parametri ipsometrici` | Regression set metadata and archive/supersession state. |
+| `base.Observation` | `base_observation` | `base_historicalobservation` | `Osservazione` | Field observations. |
+| `base.ObservationCategory` | `base_observationcategory` | `base_historicalobservationcategory` | `Categoria di osservazioni` | Observation reference table. |
 | `base.Parcel` | `base_parcel` | `base_historicalparcel` | `Particella` | Parcel metadata. |
 | `base.SampleArea` | `base_samplearea` | `base_historicalsamplearea` | `Area di saggio` | Sample plot metadata. |
 | `base.SampleGrid` | `base_samplegrid` | `base_historicalsamplegrid` | `Griglia di campionamento` | Grid metadata. |
@@ -68,7 +70,8 @@ in the Controllo audit digest:
 - `base.TreeMark`: intentionally excluded; martellate CSV/PWA imports are
   bulk-ish; the linked `HarvestPlanItem` aggregate is audited instead.
 - Junction/detail tables such as `prelievi.HarvestSpecies`,
-  `prelievi.HarvestTractor`, `base.HypsoParamSetSurvey`, and other
+  `prelievi.HarvestTractor`, `base.HypsoParamSetSurvey`,
+  `base.ObservationCategoryAssignment`, `base.ObservationPhoto`, and other
   many-to-many or child rows are not individually audited unless
   represented by an audited parent or aggregate row.
 - Bootstrap/reference-only tables without `HistoricalRecords()`, such as

@@ -18,6 +18,7 @@ def test_dry_run_defaults_to_prod_to_dev():
 
     assert proc.returncode == 0, proc.stderr
     assert 'Mirror Abies runtime state: prod -> dev' in proc.stdout
+    assert 'State copied: SQLite database + observation media + Ipso inbox' in proc.stdout
     assert 'abies-prod-20260625T210000Z-mirror-to-dev.tar.gz' in proc.stdout
     assert 'compose/prod.yml' in proc.stdout
     assert 'compose/dev.yml' in proc.stdout
@@ -37,6 +38,7 @@ def test_dry_run_can_skip_target_side_post_restore_steps():
 
     assert proc.returncode == 0, proc.stderr
     assert '--no-include-ipso-inbox' in proc.stdout
+    assert 'State copied: SQLite database + observation media' in proc.stdout
     assert 'pre-mirror-from-prod' not in proc.stdout
     assert 'manage.py migrate --noinput' not in proc.stdout
     assert 'generate_all' not in proc.stdout

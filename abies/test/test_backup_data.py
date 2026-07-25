@@ -28,7 +28,7 @@ def _make_db(path):
     conn.close()
 
 
-def test_backup_creates_compressed_sqlite_and_ipso_bundle(tmp_path):
+def test_backup_creates_compressed_runtime_bundle(tmp_path):
     data_dir = tmp_path / 'data'
     backup_dir = tmp_path / 'backup'
     _make_db(data_dir / 'db.sqlite3')
@@ -37,6 +37,11 @@ def test_backup_creates_compressed_sqlite_and_ipso_bundle(tmp_path):
     inbox_file.write_text('{"ok": true}\n', encoding='utf-8')
     tmp_file = inbox_file.with_name('upload.json.tmp')
     tmp_file.write_text('partial', encoding='utf-8')
+    photo_file = data_dir / 'observation-media' / '1' / 'photo.jpg'
+    photo_file.parent.mkdir(parents=True)
+    photo_file.write_bytes(b'jpg')
+    photo_tmp = photo_file.with_name('photo.jpg.tmp')
+    photo_tmp.write_bytes(b'partial')
 
     _run(
         '--data-dir', str(data_dir),
@@ -57,9 +62,13 @@ def test_backup_creates_compressed_sqlite_and_ipso_bundle(tmp_path):
         assert 'db.sqlite3' in names
         assert 'ipso-inbox/2026/06/session-1/upload.json' in names
         assert 'ipso-inbox/2026/06/session-1/upload.json.tmp' not in names
+        assert 'observation-media/1/photo.jpg' in names
+        assert 'observation-media/1/photo.jpg.tmp' not in names
         manifest = json.load(tar.extractfile('manifest.json'))
         assert manifest['sqlite']['integrity_check'] == 'ok'
-        assert manifest['contents'] == ['db.sqlite3', 'ipso-inbox']
+        assert manifest['contents'] == [
+            'db.sqlite3', 'ipso-inbox', 'observation-media',
+        ]
         extracted_db.write_bytes(tar.extractfile('db.sqlite3').read())
 
     conn = sqlite3.connect(extracted_db)
@@ -77,6 +86,9 @@ def test_restore_extracts_backup_to_empty_destination(tmp_path):
     inbox_file = data_dir / 'ipso-inbox' / '2026' / '06' / 'session-1' / 'upload.json'
     inbox_file.parent.mkdir(parents=True)
     inbox_file.write_text('{"ok": true}\n', encoding='utf-8')
+    photo_file = data_dir / 'observation-media' / '1' / 'photo.jpg'
+    photo_file.parent.mkdir(parents=True)
+    photo_file.write_bytes(b'jpg')
 
     _run(
         '--data-dir', str(data_dir),
@@ -94,6 +106,7 @@ def test_restore_extracts_backup_to_empty_destination(tmp_path):
     assert (restore_dir / 'ipso-inbox' / '2026' / '06' / 'session-1' / 'upload.json').read_text(
         encoding='utf-8',
     ) == '{"ok": true}\n'
+    assert (restore_dir / 'observation-media' / '1' / 'photo.jpg').read_bytes() == b'jpg'
     conn = sqlite3.connect(restore_dir / 'db.sqlite3')
     try:
         assert conn.execute('select name from sample').fetchone() == ('abies',)

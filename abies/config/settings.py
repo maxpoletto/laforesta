@@ -35,6 +35,7 @@ SATELLITE_DIR = Path(os.environ.get(
 IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
+OBSERVATION_MEDIA_DIR = DATA_DIR / 'observation-media'
 IPSO_SECRET = os.environ.get('ABIES_IPSO_SECRET', '').strip()
 IPSO_UPLOAD_MAX_BYTES = int(os.environ.get(
     'ABIES_IPSO_UPLOAD_MAX_BYTES', str(2 * 1024 * 1024),

@@ -2,9 +2,9 @@
 """Mirror Abies runtime state from one deployed instance into another.
 
 The mirrored state is exactly the runtime state covered by ``bin/backup``:
-the SQLite database and, by default, the Ipso inbox.  Generated/static inputs
-such as canonical CSVs, satellite data, geodata, collected static files, and
-branding remain owned by the target instance.
+the SQLite database, observation media, and, by default, the Ipso inbox.
+Generated/static inputs such as canonical CSVs, satellite data, geodata,
+collected static files, and branding remain owned by the target instance.
 
 Intended use from the deployment checkout:
 
@@ -32,14 +32,15 @@ archive="$1"
 work="/app/data/.mirror-restore"
 new_db="/app/data/.mirror-db.sqlite3"
 new_inbox="/app/data/.mirror-ipso-inbox"
+new_observation_media="/app/data/.mirror-observation-media"
 
 cleanup() {
   rm -f "$new_db"
-  rm -rf "$work" "$new_inbox"
+  rm -rf "$work" "$new_inbox" "$new_observation_media"
 }
 trap cleanup EXIT
 
-rm -rf "$work" "$new_inbox"
+rm -rf "$work" "$new_inbox" "$new_observation_media"
 rm -f "$new_db"
 
 bin/backup --restore "/app/backup/$archive" --dest "$work"
@@ -57,6 +58,16 @@ if [ -d "$new_inbox" ]; then
   mv "$new_inbox" /app/data/ipso-inbox
 else
   mkdir -p /app/data/ipso-inbox
+fi
+
+if [ -d "$work/observation-media" ]; then
+  cp -a "$work/observation-media" "$new_observation_media"
+fi
+rm -rf /app/data/observation-media
+if [ -d "$new_observation_media" ]; then
+  mv "$new_observation_media" /app/data/observation-media
+else
+  mkdir -p /app/data/observation-media
 fi
 
 rm -rf "$work"
@@ -203,7 +214,10 @@ def filename_part(value: str) -> str:
 def print_plan(plan: MirrorPlan, args: argparse.Namespace) -> None:
     print(f'Mirror Abies runtime state: {plan.source} -> {plan.target}')
     print(f'Archive: {plan.archive_name}')
-    print('State copied: SQLite database' + (' + Ipso inbox' if args.include_ipso_inbox else ' only'))
+    state = 'SQLite database + observation media'
+    if args.include_ipso_inbox:
+        state += ' + Ipso inbox'
+    print(f'State copied: {state}')
     print('Target pre-mirror backup: ' + ('no' if args.no_target_backup else 'yes'))
     print('Target migrations: ' + ('no' if args.no_migrate else 'yes'))
     print('Target digest regeneration: ' + ('no' if args.no_digests else 'yes'))

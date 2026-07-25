@@ -6,9 +6,11 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 
 from apps.base.models import (
-    Crew, Eclass, HarvestDetail, HarvestPlan, HarvestPlanItem, Product, Parcel,
-    Region, Sample, SampleArea, SampleGrid, Species, Survey, Tractor, Tree,
-    TreeMark, TreeSample, User, Role, SiteSettings, DigestStatus, UsedNonce,
+    Crew, Eclass, HarvestDetail, HarvestPlan, HarvestPlanItem,
+    Observation, ObservationCategory, ObservationCategoryAssignment,
+    ObservationPhoto, Product, Parcel, Region, Sample, SampleArea, SampleGrid,
+    Species, Survey, Tractor, Tree, TreeMark, TreeSample, User, Role,
+    SiteSettings, DigestStatus, UsedNonce,
 )
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
@@ -57,6 +59,13 @@ class TestStr:
     def test_harvest_detail(self, db):
         hd = HarvestDetail.objects.create(description='Cut firs 20-40cm')
         assert str(hd) == 'Cut firs 20-40cm'
+
+    def test_observation(self, db):
+        obs = Observation.objects.create(
+            date='2026-07-25', text='Sentiero danneggiato vicino al confine',
+            lat=38.5, lon=16.3,
+        )
+        assert str(obs) == '2026-07-25 Sentiero danneggiato vicino al confine'
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +410,74 @@ class TestConstraints:
                 operator='Mario', lat=38.5, lon=181,
             )
 
+    def test_observation_coordinate_range_checked(self, db):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Observation.objects.create(
+                date='2026-07-25', text='fuori range', lat=91, lon=16.3,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Observation.objects.create(
+                date='2026-07-25', text='fuori range', lat=38.5, lon=181,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Observation.objects.create(
+                date='2026-07-25', text='precisione negativa',
+                lat=38.5, lon=16.3, acc_m=-1,
+            )
+
+    def test_observation_import_fingerprint_unique_when_present(self, db):
+        fingerprint = 'v1:' + 'a' * 64
+        Observation.objects.create(
+            date='2026-07-25', text='uno', lat=38.5, lon=16.3,
+            import_fingerprint=fingerprint,
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Observation.objects.create(
+                date='2026-07-25', text='due', lat=38.6, lon=16.4,
+                import_fingerprint=fingerprint,
+            )
+        Observation.objects.create(
+            date='2026-07-25', text='manuale 1', lat=38.7, lon=16.5,
+            import_fingerprint='',
+        )
+        Observation.objects.create(
+            date='2026-07-25', text='manuale 2', lat=38.8, lon=16.6,
+            import_fingerprint='',
+        )
+
+    def test_observation_category_assignment_unique(self, db):
+        obs = Observation.objects.create(
+            date='2026-07-25', text='rifiuti', lat=38.5, lon=16.3,
+        )
+        category = ObservationCategory.objects.create(name='incendio')
+        ObservationCategoryAssignment.objects.create(
+            observation=obs, category=category,
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ObservationCategoryAssignment.objects.create(
+                observation=obs, category=category,
+            )
+        with pytest.raises(Exception):
+            category.delete()
+
+    def test_observation_photo_constraints(self, db):
+        obs = Observation.objects.create(
+            date='2026-07-25', text='foto', lat=38.5, lon=16.3,
+        )
+        ObservationPhoto.objects.create(
+            observation=obs, file_path='1/a.jpg', content_type='image/jpeg',
+            size_bytes=10, checksum='a' * 64, original_filename='campo.jpg',
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ObservationPhoto.objects.create(
+                observation=obs, file_path='1/a.jpg', content_type='image/jpeg',
+                size_bytes=11, checksum='b' * 64,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ObservationPhoto.objects.create(
+                observation=obs, file_path='1/b.jpg', content_type='image/jpeg',
+                size_bytes=10, width_px=0, checksum='c' * 64,
+            )
 
     def test_parcel_same_name_different_region_ok(self, parcels):
         """Parcel '1' in Capistrano and Fabrizia are distinct."""

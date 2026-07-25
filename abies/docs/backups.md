@@ -5,6 +5,8 @@ or canonical data bundle:
 
 - `data/db.sqlite3`, copied with SQLite's online backup API and verified with
   `PRAGMA integrity_check` before archiving;
+- `data/observation-media`, the filesystem-backed photos attached to
+  observations;
 - `data/ipso-inbox`, included by default as operational evidence for staged
   mobile uploads.
 
@@ -26,13 +28,15 @@ Each archive contains:
 ```text
 manifest.json
  db.sqlite3
+ observation-media/...
  ipso-inbox/...
 ```
 
-`db.sqlite3` is the transactional consistency anchor. The inbox is a filesystem
-snapshot taken just after the SQLite snapshot; Ipso writes files atomically and
-keeps them append-style, so this is good enough for recovering staged uploads,
-but it is not a filesystem-level transaction.
+`db.sqlite3` is the transactional consistency anchor. The inbox and
+observation media are filesystem snapshots taken just after the SQLite
+snapshot; Ipso and observation-photo writes use generated paths and atomic file
+writes where applicable, so this is good enough for recovery, but it is not a
+filesystem-level transaction.
 
 ## Creating A Backup
 
@@ -180,10 +184,11 @@ production for realistic testing:
 make mirror-prod-to-dev MIRROR_ARGS=--yes
 ```
 
-The tool copies the same runtime state covered by backups: `db.sqlite3` and,
-by default, `ipso-inbox`. It intentionally does not copy generated/static or
-deployment-owned inputs such as canonical CSVs, satellite data, geodata,
-branding, collected static files, or compose environment secrets.
+The tool copies the same runtime state covered by backups: `db.sqlite3`,
+`observation-media`, and, by default, `ipso-inbox`. It intentionally does not
+copy generated/static or deployment-owned inputs such as canonical CSVs,
+satellite data, geodata, branding, collected static files, or compose
+environment secrets.
 
 The default `prod -> dev` flow is:
 
@@ -192,8 +197,8 @@ The default `prod -> dev` flow is:
 3. transfer the source archive into the target backup mount;
 4. stop the target compose stack;
 5. restore `db.sqlite3`, remove stale SQLite WAL/SHM files, and replace the
-   target Ipso inbox with the restored inbox, or an empty inbox when the source
-   archive has none;
+   target observation media and Ipso inbox with restored copies, or empty
+   directories when the source archive has none;
 6. run target migrations and regenerate digests using the target image;
 7. start the target compose stack.
 
