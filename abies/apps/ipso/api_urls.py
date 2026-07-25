@@ -21,6 +21,4 @@ urlpatterns = [
          views.import_samples_upload, name='ipso-upload-import-samples'),
     path('uploads/<int:upload_id>/import-free-survey/',
          views.import_free_survey_upload, name='ipso-upload-import-free-survey'),
-    path('uploads/<int:upload_id>/import-pai/',
-         views.import_pai_upload, name='ipso-upload-import-pai'),
 ]

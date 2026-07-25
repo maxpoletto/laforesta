@@ -27,7 +27,7 @@ from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CLIENT_RECORD_ID,
     FIELD_COMPLETED_AT, FIELD_COPPICE, FIELD_CREATED_AT,
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
-    FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M,
+    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M,
     FIELD_H_MEASURED,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
     FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
@@ -40,7 +40,7 @@ from config.constants import (
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, IMPORTED,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
     IPSO_UPLOAD_FILE_READY, MESSAGE,
     PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, STATUS, STATUS_WARNING,
     UPLOAD,
@@ -96,7 +96,7 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'id="screen-mode"' in body
     assert 'id="btn-mode-samples" class="btn-primary btn-big" type="button"' in body
     assert 'id="btn-mode-free-survey" class="btn-secondary btn-big" type="button"' in body
-    assert 'id="btn-mode-pai" class="btn-secondary btn-big" type="button"' in body
+    assert 'id="btn-mode-pai"' not in body
     assert 'id="screen-map"' in body
     assert 'src="modes.js"' in body
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
@@ -423,12 +423,6 @@ def _legacy_ipso_1_1_4_payload(
             FIELD_PRESERVED: False,
             # abies-1.1.4 did not include per-record operator/note for samples.
         })
-    elif mode == IPSO_MODE_PAI:
-        record.update({
-            FIELD_ESTIMATED_BIRTH_YEAR: 1920,
-            FIELD_OPERATOR: 'Mario Rossi',
-            FIELD_NOTE: 'nota PAI da 1.1.4',
-        })
     # Martellate records deliberately carry no per-record operator in the
     # 1.1.4 client; the session operator is the fallback.
     if record_overrides:
@@ -553,30 +547,44 @@ def test_upload_stages_json_and_metadata(db, parcels, species, settings, tmp_pat
     assert (Path(upload.inbox_path) / 'export.csv').read_text() == 'csv backup'
 
 
-@pytest.mark.parametrize(('mode', 'session_id'), [
-    ('samples', '22222222-2222-4222-8222-222222222222'),
-    ('pai', '33333333-3333-4333-8333-333333333333'),
-])
 @override_settings(IPSO_SECRET='test-token')
-def test_upload_stages_non_martellate_modes(
-        db, parcels, species, settings, tmp_path, mode, session_id):
+def test_upload_stages_sample_mode(db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    payload = _upload_payload(parcels, species, mode=mode, session_id=session_id)
-    if mode == 'samples':
-        survey, area = _sample_survey(parcels[0])
-        payload[SESSION]['work_package_id'] = f'sampling_survey:{survey.id}'
-        payload[RECORDS][0][FIELD_SAMPLE_AREA_ID] = area.id
+    session_id = '22222222-2222-4222-8222-222222222222'
+    survey, area = _sample_survey(parcels[0])
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_SAMPLES, session_id=session_id,
+    )
+    payload[SESSION]['work_package_id'] = f'sampling_survey:{survey.id}'
+    payload[RECORDS][0][FIELD_SAMPLE_AREA_ID] = area.id
+
     resp = _post_upload(Client(), payload)
 
     assert resp.status_code == 200
     upload = IpsoUpload.objects.get(session_id=session_id)
-    assert upload.mode == mode
+    assert upload.mode == IPSO_MODE_SAMPLES
     assert upload.state == IpsoUploadState.RECEIVED
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
-    assert staged[SESSION][FIELD_MODE] == mode
+    assert staged[SESSION][FIELD_MODE] == IPSO_MODE_SAMPLES
     assert staged[RECORDS][0][FIELD_HYPSO_PARAM_SET_ID] is None
-    if mode == 'samples':
-        assert staged[RECORDS][0][FIELD_SAMPLE_AREA_ID] == area.id
+    assert staged[RECORDS][0][FIELD_SAMPLE_AREA_ID] == area.id
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_standalone_pai_mode(
+        db, parcels, species, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(
+        parcels, species, mode='pai',
+        session_id='33333333-3333-4333-8333-333333333333',
+    )
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
+    assert resp.json()[DETAIL] == S.IPSO_ERR_MODE_UNSUPPORTED
+    assert IpsoUpload.objects.count() == 0
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -723,23 +731,8 @@ def test_upload_rate_key_ignores_invalid_forwarded_client(db):
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_upload_rejects_pai_without_height(db, parcels, species, settings, tmp_path):
-    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    payload = _upload_payload(
-        parcels, species, mode='pai',
-        session_id='33333333-3333-4333-8333-333333333333',
-    )
-    payload[RECORDS][0][FIELD_H_M] = None
-
-    resp = _post_upload(Client(), payload)
-
-    assert resp.status_code == 422
-    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
-    assert IpsoUpload.objects.count() == 0
-
-
-@override_settings(IPSO_SECRET='test-token')
-def test_upload_rejects_pai_without_number(db, parcels, species, settings, tmp_path):
+def test_upload_rejects_standalone_pai_before_number_validation(
+        db, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(
         parcels, species, mode='pai',
@@ -751,7 +744,7 @@ def test_upload_rejects_pai_without_number(db, parcels, species, settings, tmp_p
 
     assert resp.status_code == 422
     assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
-    assert 'numero obbligatorio' in resp.json()['detail']
+    assert resp.json()[DETAIL] == S.IPSO_ERR_MODE_UNSUPPORTED
     assert IpsoUpload.objects.count() == 0
 
 
@@ -1035,7 +1028,6 @@ def test_shell_renders_ipso_upload_modes_from_constants(writer_client, db):
     assert f'value="{IPSO_MODE_MARTELLATE}"' in body
     assert f'value="{IPSO_MODE_SAMPLES}"' in body
     assert f'value="{IPSO_MODE_FREE_SURVEY}"' in body
-    assert f'value="{IPSO_MODE_PAI}"' in body
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1147,11 +1139,10 @@ def test_upload_detail_reports_staged_checksum_mismatch(
     ('post', 'ipso-upload-reject', {}),
     ('get', 'ipso-upload-download', None),
     ('post', 'ipso-upload-delete', {}),
-    ('post', 'ipso-upload-mode', {FIELD_MODE: IPSO_MODE_PAI}),
+    ('post', 'ipso-upload-mode', {FIELD_MODE: IPSO_MODE_MARTELLATE}),
     ('post', 'ipso-upload-import-martellate', {FIELD_HARVEST_PLAN_ITEM_ID: 1}),
     ('post', 'ipso-upload-import-samples', {FIELD_SURVEY_ID: 1}),
     ('post', 'ipso-upload-import-free-survey', {FIELD_SURVEY_ID: 1}),
-    ('post', 'ipso-upload-import-pai', {}),
 ])
 def test_upload_id_endpoints_return_404_for_unknown_upload(
         admin_client, method, url_name, body):
@@ -1272,7 +1263,7 @@ def test_writer_cannot_download_delete_or_edit_upload_mode(
     ).status_code == 403
     assert writer_client.post(
         reverse('ipso-upload-mode', args=[upload.id]),
-        data=json.dumps({'mode': 'pai'}), content_type='application/json',
+        data=json.dumps({FIELD_MODE: IPSO_MODE_SAMPLES}), content_type='application/json',
     ).status_code == 403
     upload.refresh_from_db()
     assert upload.mode == IPSO_MODE_MARTELLATE
@@ -1284,8 +1275,9 @@ def test_admin_updates_upload_mode_and_staged_payload(
         admin_client, admin_user, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(
-        parcels, species, mode='pai',
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
         session_id='33333333-3333-4333-8333-333333333338',
+        record_overrides={FIELD_NUMBER: None, FIELD_PRESERVED: False},
     )
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
@@ -1316,8 +1308,9 @@ def test_admin_updates_rejected_upload_mode_preserves_rejection_detail(
         admin_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(
-        parcels, species, mode=IPSO_MODE_PAI,
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
         session_id='33333333-3333-4333-8333-333333333339',
+        record_overrides={FIELD_NUMBER: None, FIELD_PRESERVED: False},
     )
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
@@ -1380,7 +1373,7 @@ def test_admin_cannot_update_mode_with_corrupted_staged_payload(
 
     resp = admin_client.post(
         reverse('ipso-upload-mode', args=[upload.id]),
-        data=json.dumps({FIELD_MODE: IPSO_MODE_PAI}),
+        data=json.dumps({FIELD_MODE: IPSO_MODE_SAMPLES}),
         content_type='application/json',
     )
 
@@ -1408,7 +1401,7 @@ def test_admin_cannot_update_mode_after_domain_import(
 
     resp = admin_client.post(
         reverse('ipso-upload-mode', args=[upload.id]),
-        data=json.dumps({'mode': 'pai'}),
+        data=json.dumps({FIELD_MODE: IPSO_MODE_SAMPLES}),
         content_type='application/json',
     )
 
@@ -1621,38 +1614,6 @@ def test_old_normalized_samples_upload_imports_after_release_1(
     row = TreeSample.objects.get(sample__survey=survey)
     assert row.operator == 'Mario Rossi'
     assert row.note == ''
-
-
-@override_settings(IPSO_SECRET='test-token')
-def test_abies_1_1_4_pai_payload_uploads_and_imports(
-        writer_client, parcels, species, settings, tmp_path):
-    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    payload = _legacy_ipso_1_1_4_payload(
-        parcels, species, mode=IPSO_MODE_PAI,
-        session_id='43434343-3434-4343-8343-434343434303',
-        number=12,
-    )
-
-    assert _post_upload(Client(), payload).status_code == 200
-    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-    resp = writer_client.post(
-        reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 200, resp.content
-    row = (TreeSample.objects
-           .select_related('sample', 'tree', 'parcel')
-           .get(preserved_number__isnull=False))
-    assert row.parcel == parcels[0]
-    assert row.parcel == parcels[0]
-    assert row.preserved_number == 12
-    assert row.sample.date == date(2026, 6, 17)
-    assert row.operator == 'Mario Rossi'
-    assert row.note == 'nota PAI da 1.1.4'
-    upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.IMPORTED
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -2523,174 +2484,6 @@ def test_samples_import_rejects_duplicate_number_shoot_in_upload(
     assert resp.status_code == 400
     assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2) in resp.json()[MESSAGE]
     assert TreeSample.objects.count() == 0
-
-@override_settings(IPSO_SECRET='test-token')
-def test_pai_import_rejects_duplicate_tree_number_in_parcel(
-        writer_client, parcels, species, settings, tmp_path):
-    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    tree = Tree.objects.create(species=species[0])
-    _preserved_sample(
-        tree, parcels[0], number=1, sample_date=date(2026, 6, 17),
-        d_cm=30, h_m=Decimal('18.00'), lat=38.51234, lon=16.12345,
-    )
-    payload = _upload_payload(
-        parcels, species, mode='pai',
-        session_id='33333333-3333-4333-8333-333333333335',
-        record_overrides={FIELD_NUMBER: 1},
-    )
-    assert _post_upload(Client(), payload).status_code == 200
-    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-
-    resp = writer_client.post(
-        reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 400
-    assert resp.json()[MESSAGE] == (
-        S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(1)
-    )
-    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
-    upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.RECEIVED
-
-
-@override_settings(IPSO_SECRET='test-token')
-def test_pai_import_integrity_error_returns_validation(
-        writer_client, parcels, species, settings, tmp_path, monkeypatch):
-    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    payload = _upload_payload(
-        parcels, species, mode='pai',
-        session_id='33333333-3333-4333-8333-333333333336',
-    )
-    assert _post_upload(Client(), payload).status_code == 200
-    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-
-    def raise_integrity_error(rows):
-        raise IntegrityError
-
-    monkeypatch.setattr(ipso_views, 'apply_pai_rows', raise_integrity_error)
-
-    resp = writer_client.post(
-        reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 400
-    assert resp.json()[MESSAGE] == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
-    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 0
-    upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.RECEIVED
-    assert upload.error_summary == S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT
-
-
-@override_settings(IPSO_SECRET='test-token')
-def test_pai_import_rejects_staged_missing_number(
-        writer_client, parcels, species, settings, tmp_path):
-    payload = _upload_payload(
-        parcels, species, mode='pai',
-        session_id='33333333-3333-4333-8333-333333333337',
-        record_overrides={FIELD_NUMBER: None},
-    )
-    upload = _stage_upload_direct(settings, tmp_path, payload)
-
-    resp = writer_client.post(
-        reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()[MESSAGE]
-    assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 0
-    upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.RECEIVED
-
-
-@override_settings(IPSO_SECRET='test-token')
-def test_writer_imports_pai_upload(writer_client, writer_user, parcels, species, settings, tmp_path):
-    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    settings.DIGEST_DIR = tmp_path / 'digests'
-    preserved_url = '/api/bosco/preserved-trees/data/'
-    assert _read_gzip_json(writer_client.get(preserved_url))[ROWS] == []
-    payload = _upload_payload(
-        parcels, species, mode='pai',
-        session_id='33333333-3333-4333-8333-333333333333',
-        record_overrides={
-            FIELD_NUMBER: 1,
-            'estimated_birth_year': 1920,
-            'note': 'nota PAI',
-        },
-    )
-    assert _post_upload(Client(), payload).status_code == 200
-    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-
-    nonce = 'ipso-import-pai-test-nonce'
-    resp = writer_client.post(
-        reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({FIELD_NONCE: nonce}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()[IMPORTED] == 1
-    upload.refresh_from_db()
-    assert upload.state == IpsoUploadState.IMPORTED
-    assert upload.imported_by == writer_user
-    assert upload.target_type == 'pai'
-    _assert_nonce_saved(writer_user, nonce)
-    pai = (TreeSample.objects
-           .select_related('sample', 'tree', 'tree__species', 'parcel')
-           .get(preserved_number__isnull=False))
-    assert pai.parcel == parcels[0]
-    assert pai.parcel == parcels[0]
-    assert pai.tree.species == species[0]
-    assert pai.preserved_number == 1
-    assert pai.sample.date == date(2026, 6, 17)
-    assert pai.d_cm == 42
-    assert pai.h_m == Decimal('22.00')
-    assert pai.h_measured is True
-    assert pai.operator == 'Mario Rossi'
-    assert pai.note == 'nota PAI'
-    assert pai.tree.coppice is False
-    assert pai.volume_m3 is None
-    assert pai.mass_q is None
-    preserved = _read_gzip_json(writer_client.get(preserved_url))
-    assert len(preserved[ROWS]) == 1
-    assert preserved[ROWS][0][preserved[COLUMNS].index(ROW_ID)] == pai.id
-    assert preserved[ROWS][0][preserved[COLUMNS].index(S.COL_NUMBER)] == 1
-
-
-@override_settings(IPSO_SECRET='test-token')
-def test_pai_import_supports_coppice_parcels(
-        writer_client, regions, eclasses, species, settings, tmp_path):
-    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    coppice_parcel = Parcel.objects.create(
-        name='P1', region=regions[0], eclass=next(e for e in eclasses if e.coppice),
-        area_ha=Decimal('1.0'),
-        intervention_interval=18, standards_per_ha=75,
-    )
-    payload = _upload_payload(
-        [coppice_parcel], species, mode='pai',
-        session_id='33333333-3333-4333-8333-333333333334',
-    )
-    assert _post_upload(Client(), payload).status_code == 200
-    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-
-    resp = writer_client.post(
-        reverse('ipso-upload-import-pai', args=[upload.id]),
-        data=json.dumps({}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 200
-    pai = TreeSample.objects.select_related('tree').get(preserved_number__isnull=False)
-    assert pai.tree.coppice is False
-    assert pai.volume_m3 is None
-    assert pai.mass_q is None
-
 
 @override_settings(IPSO_SECRET='test-token')
 def test_import_rejects_second_submit_without_duplicate_marks(

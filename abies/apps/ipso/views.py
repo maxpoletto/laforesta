@@ -46,8 +46,7 @@ from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
-    _int_ids, apply_pai_rows, free_survey_import_rows, pai_import_rows,
-    record_measurements, sample_import_rows,
+    _int_ids, free_survey_import_rows, record_measurements, sample_import_rows,
 )
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
@@ -75,7 +74,7 @@ from config.constants import (
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_PAI, IPSO_REF_PARCELS,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
@@ -84,7 +83,7 @@ from config.constants import (
     IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_LEGACY_CONVERTED,
     IPSO_REFERENCE_VERSION_KEYS,
-    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_PAI, IPSO_TARGET_SURVEY,
+    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_SURVEY,
     IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
@@ -423,7 +422,6 @@ MODE_LABELS = {
     IPSO_MODE_MARTELLATE: S.IPSO_MODE_MARTELLATE_LABEL,
     IPSO_MODE_SAMPLES: S.IPSO_MODE_SAMPLES_LABEL,
     IPSO_MODE_FREE_SURVEY: S.IPSO_MODE_FREE_SURVEY_LABEL,
-    IPSO_MODE_PAI: S.IPSO_MODE_PAI_LABEL,
 }
 REFERENCE_LABELS = {
     IPSO_REFERENCE_LEGACY_CONVERTED: S.IPSO_REFERENCE_LEGACY_CONVERTED,
@@ -712,43 +710,6 @@ def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonRespo
     })
 
 
-@login_required
-@require_writer
-@require_POST
-def import_pai_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
-    try:
-        body = _request_json(request)
-    except UploadValidationError as e:
-        return validation_error([str(e)])
-
-    try:
-        with transaction.atomic():
-            upload = _get_upload(upload_id, for_update=True)
-            if upload.mode != IPSO_MODE_PAI:
-                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-            if upload.state != IpsoUploadState.RECEIVED:
-                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-
-            payload, file_error = _read_staged_payload(upload)
-            if file_error:
-                return _upload_validation_error(upload, [file_error])
-            rows, errors = pai_import_rows(payload)
-            if errors:
-                return _upload_validation_error(upload, errors)
-
-            imported = apply_pai_rows(rows)
-            if not _claim_upload_import(upload, request.user, IPSO_TARGET_PAI, None):
-                return _rollback_upload_not_received_response()
-            data = _upload_metadata(upload)
-    except IntegrityError:
-        upload = _get_upload(upload_id)
-        return _upload_validation_error(upload, [S.IPSO_ERR_IMPORT_PAI_NUMBER_CONFLICT])
-    return success_response(request, body, extra={
-        IMPORTED: imported,
-        UPLOAD: data,
-    })
-
-
 @csrf_exempt
 @require_POST
 def upload_session(request: HttpRequest) -> JsonResponse:
@@ -970,8 +931,6 @@ def _target_label(upload: IpsoUpload, labels: dict | None = None) -> str:
         survey = Survey.objects.select_related('sample_grid').filter(id=upload.target_id).first()
         if survey is not None:
             return _survey_label(survey)
-    if upload.target_type == IPSO_TARGET_PAI:
-        return S.IPSO_TARGET_PAI_LABEL
     if upload.target_type and upload.target_id:
         return f'{upload.target_type}:{upload.target_id}'
     return ''
@@ -1480,7 +1439,7 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     number = _opt_int(row, FIELD_NUMBER)
     if number is not None and number <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(index))
-    if mode in {IPSO_MODE_SAMPLES, IPSO_MODE_PAI} and number is None:
+    if mode == IPSO_MODE_SAMPLES and number is None:
         raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(index))
 
     sample_area_id = _opt_int(row, FIELD_SAMPLE_AREA_ID)
@@ -1536,12 +1495,6 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
             raise UploadValidationError(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(index))
         normalized.update({
             FIELD_PRESERVED: preserved,
-            FIELD_OPERATOR: _opt_str(row, FIELD_OPERATOR),
-            FIELD_NOTE: _opt_str(row, FIELD_NOTE),
-        })
-    elif mode == IPSO_MODE_PAI:
-        normalized.update({
-            FIELD_ESTIMATED_BIRTH_YEAR: _opt_int(row, FIELD_ESTIMATED_BIRTH_YEAR),
             FIELD_OPERATOR: _opt_str(row, FIELD_OPERATOR),
             FIELD_NOTE: _opt_str(row, FIELD_NOTE),
         })

@@ -83,8 +83,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
 function isSupportedUploadMode(mode) {
   return mode === IPSO_MODE_MARTELLATE ||
     mode === IPSO_MODE_SAMPLES ||
-    mode === IPSO_MODE_FREE_SURVEY ||
-    mode === IPSO_MODE_PAI;
+    mode === IPSO_MODE_FREE_SURVEY;
 }
 
 function completedAt(sess) {
@@ -127,8 +126,6 @@ function canonicalRecord(sess, t, reference) {
     Object.assign(record, sampleRecordContext(reference, sess, t, parcelId));
   } else if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_FREE_SURVEY) {
     Object.assign(record, freeSurveyRecordContext(sess, t));
-  } else if ((sess.mode || IPSO_MODE_MARTELLATE) === IPSO_MODE_PAI) {
-    Object.assign(record, paiRecordContext(sess, t));
   }
   return record;
 }
@@ -162,8 +159,6 @@ function validateRecordNumbers(sess, records, reference) {
       if (Number.isInteger(maxNumber) && number <= maxNumber) {
         throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
       }
-    } else if (mode === IPSO_MODE_PAI && paiNumberExists(reference, scope, number)) {
-      throw new Error(S.UPLOAD_ERROR_NUMBER_ALREADY_USED(i + 1));
     }
   }
 }
@@ -267,16 +262,6 @@ function sampleRecordContext(reference, sess, tree, parcelId) {
 function freeSurveyRecordContext(sess, tree) {
   return {
     [FIELD_PRESERVED]: !!tree[FIELD_PRESERVED],
-    [FIELD_OPERATOR]: tree[FIELD_OPERATOR] || sess.operatore || '',
-    [FIELD_NOTE]: tree[FIELD_NOTE] || '',
-  };
-}
-
-function paiRecordContext(sess, tree) {
-  return {
-    [FIELD_ESTIMATED_BIRTH_YEAR]: Number.isInteger(tree[FIELD_ESTIMATED_BIRTH_YEAR])
-      ? tree[FIELD_ESTIMATED_BIRTH_YEAR]
-      : null,
     [FIELD_OPERATOR]: tree[FIELD_OPERATOR] || sess.operatore || '',
     [FIELD_NOTE]: tree[FIELD_NOTE] || '',
   };
@@ -392,7 +377,6 @@ const upload = {
   UPLOAD_MODE_MARTELLATE: IPSO_MODE_MARTELLATE,
   UPLOAD_MODE_SAMPLES: IPSO_MODE_SAMPLES,
   UPLOAD_MODE_FREE_SURVEY: IPSO_MODE_FREE_SURVEY,
-  UPLOAD_MODE_PAI: IPSO_MODE_PAI,
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,

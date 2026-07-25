@@ -18,7 +18,6 @@ const S = {
   PRE_NEW_SESSION: 'Nuova martellata',
   PRE_NEW_SAMPLES: 'Nuovo rilevamento predefinito',
   PRE_NEW_FREE_SURVEY: 'Nuovo rilevamento libero',
-  PRE_NEW_PAI: 'Nuovo PAI',
   PRE_OPERATOR: 'Operatore',
   PRE_DATA: 'Data',
   PRE_COMPRESA: 'Compresa',

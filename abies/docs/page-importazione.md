@@ -17,7 +17,7 @@ Row actions:
 
 - Magnifier: open the upload detail and record preview.
 - Pencil: admin-only mode edit before import (`Martellate`, `Rilevamenti
-  predefiniti`, `Rilevamenti liberi`, or `PAI`).
+  predefiniti`, or `Rilevamenti liberi`).
 - Trash: admin-only staged-upload delete, after the forced `Esporta` download
   step.
 
@@ -43,7 +43,6 @@ Writers and admins can import received uploads:
   creates sampled trees via the CSV import core.
 - `Rilevamenti liberi`: requires an unstructured survey destination and creates
   one null-area sample for the uploaded session.
-- `PAI`: imports preserved trees without a destination selector.
 
 The server validates mode, state, target, staged-file integrity, record ids,
 parcel/region consistency, and mode-specific fields. Failed imports leave the
@@ -70,20 +69,19 @@ Target consistency is enforced at import time:
   same grid.
 - `Rilevamenti liberi`: rows carry their own parcel and must target an
   unstructured survey. A single uploaded session creates one
-  `Sample(sample_area=NULL)`.
-- `PAI`: rows carry their own parcel and no target selector is shown. Each
-  imported row becomes a preserved-tree sample row whose `number` is the
-  submitted sample-local sequence and whose `preserved_number` is the
-  parcel-scoped PAI number.
+  `Sample(sample_area=NULL)`. Preserved rows store the submitted number as the
+  parcel-scoped `preserved_number`.
 
 Rejecting an upload is available to writers and admins only while the upload is
 still in the `received` / `Da importare` state.
 
 ## Number invariants
 
-Tree numbers are required for preserved trees (PAI) and sampled trees, but
-optional for marks. Ipso and the import page preserve submitted values exactly;
-they do not fill in missing numbers during import.
+Tree numbers are required for predefined sampled trees and free-survey rows
+for preserved trees. They are optional for marks and ordinary free-survey rows.
+Ipso and the import page preserve submitted values exactly except when an
+ordinary free-survey row omits `number`; then import assigns the next
+sample-local number.
 
 - `Martellate`: `number` may be null. Ipso proposes the usual next number while
   recording, but the operator may clear it before saving. The staged upload,
@@ -98,11 +96,6 @@ they do not fill in missing numbers during import.
   supplies a number, it must be positive and unused in that survey. Preserved
   rows require a positive submitted number, store it as the parcel-scoped
   `preserved_number`, and receive a separate sample-local `number`.
-- `PAI`: `number` must be a positive integer. Ipso proposes the next value for
-  the selected parcel, does not allow clearing it, rejects duplicates within the
-  upload for that parcel, and rejects values already present in Abies for that
-  parcel. On import this value is stored as `tree_sample.preserved_number`; the
-  row also has a sample-local `tree_sample.number`, initially the same value.
   The import page rejects staged rows missing, invalid, non-positive, or
   duplicate within-parcel `number` values.
 

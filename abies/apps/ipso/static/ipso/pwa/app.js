@@ -419,10 +419,6 @@ function isSamplesMode() {
   return mode === IpsoModes.SAMPLES;
 }
 
-function isPaiMode() {
-  const mode = State.session ? State.session.mode : currentMode().id;
-  return mode === IpsoModes.PAI;
-}
 
 function isFreeSurveyMode() {
   const mode = State.session ? State.session.mode : currentMode().id;
@@ -430,13 +426,12 @@ function isFreeSurveyMode() {
 }
 
 function isPreservedEntry() {
-  if (isPaiMode()) return true;
   const checkbox = document.getElementById('in-preserved');
   return isFreeSurveyMode() && !!checkbox && checkbox.checked;
 }
 
 function usesParcelScopedNumberDefaults() {
-  return isPaiMode() || isPreservedEntry();
+  return isPreservedEntry();
 }
 
 function selectedSampleSurveyId() {
@@ -1609,7 +1604,7 @@ function refreshMapRecords() {
 
 function renderMapPai() {
   if (!State.map || !State.map.ready()) return;
-  const enabled = State.session && State.session.mode === IpsoModes.PAI;
+  const enabled = State.session && State.session.mode === IpsoModes.FREE_SURVEY;
   const records = enabled ? currentMapPaiRecords() : [];
   State.map.renderPai(records, enabled, currentPaiSpeciesColors());
 }

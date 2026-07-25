@@ -11,7 +11,6 @@ const DEFAULT_SAMPLE_RADIUS_M = 12;
 const IPSO_MODE_MARTELLATE = 'martellate';
 const IPSO_MODE_SAMPLES = 'samples';
 const IPSO_MODE_FREE_SURVEY = 'free_survey';
-const IPSO_MODE_PAI = 'pai';
 const IPSO_MODE_MAP = 'map';
 const IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX = 'sampling_survey:';
 
@@ -83,7 +82,6 @@ if (typeof module !== 'undefined') {
     IPSO_MODE_MARTELLATE,
     IPSO_MODE_SAMPLES,
     IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_PAI,
     IPSO_MODE_MAP,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_REF_SAMPLING,

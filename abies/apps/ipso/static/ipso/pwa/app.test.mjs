@@ -120,10 +120,6 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
       preTitleKey: 'PRE_NEW_FREE_SURVEY', buttonId: 'btn-mode-free-survey',
       autoHeight: true, freeSurvey: true, enabled: true,
     },
-    pai: {
-      id: 'pai', labelKey: 'MODE_PAI', buttonId: 'btn-mode-pai',
-      enabled: true,
-    },
     map: {
       id: 'map', labelKey: 'MODE_MAP', buttonId: 'btn-mode-map',
       mapOnly: true, enabled: true,
@@ -133,7 +129,6 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     MODE_MARTELLATE: 'Martellate',
     MODE_SAMPLES: 'Rilevamenti predefiniti',
     MODE_FREE_SURVEYS: 'Rilevamenti liberi',
-    MODE_PAI: 'PAI',
     MODE_MAP: 'Mappa',
     ERROR_GEO_UNAVAILABLE: 'geo unavailable',
     ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
@@ -241,13 +236,12 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
       MARTELLATE: 'martellate',
       SAMPLES: 'samples',
       FREE_SURVEY: 'free_survey',
-      PAI: 'pai',
       get(id) { events.push(['modeGet', id]); return modes[id] || modes.martellate; },
       defaultMode() { return modes.martellate; },
       all() {
         return [
           modes.samples, modes.free_survey, modes.martellate,
-          modes.pai, modes.map,
+          modes.map,
         ];
       },
     },

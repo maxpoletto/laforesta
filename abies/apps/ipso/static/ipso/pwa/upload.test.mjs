@@ -133,6 +133,8 @@ check(
 
 check(upload.isSupportedUploadMode(upload.UPLOAD_MODE_FREE_SURVEY),
       'free-survey mode is upload-supported');
+check(!upload.isSupportedUploadMode('pai'),
+      'standalone PAI mode is no longer upload-supported');
 
 const freeSurveyPayload = upload.buildUploadPayload(
   sess(upload.UPLOAD_MODE_FREE_SURVEY),
@@ -177,21 +179,6 @@ checkThrows(
   'samples upload rejects missing number',
 );
 
-checkThrows(
-  () => upload.buildUploadPayload(
-    sess(upload.UPLOAD_MODE_PAI), [tree({ numero: null })], reference(), 'csv',
-  ),
-  'numero obbligatorio',
-  'PAI upload rejects missing number',
-);
-
-checkThrows(
-  () => upload.buildUploadPayload(
-    sess(upload.UPLOAD_MODE_PAI), [tree({ numero: 0 })], reference(), 'csv',
-  ),
-  'numero obbligatorio',
-  'PAI upload rejects zero number',
-);
 
 checkThrows(
   () => upload.buildUploadPayload(
@@ -226,13 +213,6 @@ checkThrows(
   'samples upload rejects numbers already covered by reference max',
 );
 
-checkThrows(
-  () => upload.buildUploadPayload(
-    sess(upload.UPLOAD_MODE_PAI), [tree({ numero: 8 })], reference(), 'csv',
-  ),
-  'numero già presente',
-  'PAI upload rejects number already present in the same parcel',
-);
 
 checkThrows(
   () => upload.buildUploadPayload(
@@ -269,17 +249,6 @@ checkThrows(
   'free-survey upload rejects duplicate ordinary sample numbers',
 );
 
-const paiDistinctParcels = upload.buildUploadPayload(
-  sess(upload.UPLOAD_MODE_PAI),
-  [tree({ id: 1, seq: 1, particella: '1', numero: 9 }),
-   tree({ id: 2, seq: 2, particella: '2', parcel_id: 101, numero: 9 })],
-  reference(),
-  'csv',
-);
-check(
-  paiDistinctParcels.records.length === 2,
-  'PAI upload allows same number in different parcels',
-);
 
 // New rows use IDs captured at record time even if names are later renamed or
 // reused for different entities in the current reference bundle.

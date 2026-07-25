@@ -5,7 +5,6 @@ const {
   IPSO_MODE_MARTELLATE,
   IPSO_MODE_SAMPLES,
   IPSO_MODE_FREE_SURVEY,
-  IPSO_MODE_PAI,
   IPSO_MODE_MAP,
   IpsoModes,
 } = require("./modes.js");
@@ -30,7 +29,6 @@ eq(allModes.map((mode) => mode.id), [
   IPSO_MODE_SAMPLES,
   IPSO_MODE_FREE_SURVEY,
   IPSO_MODE_MARTELLATE,
-  IPSO_MODE_PAI,
   IPSO_MODE_MAP,
 ], "landing mode order keeps predefined surveys first");
 

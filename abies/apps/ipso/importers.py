@@ -4,25 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date as date_type
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Survey, TreeSample,
 )
 from apps.base.numparse import to_decimal
 from apps.base.preserved_trees import current_preserved_number_keys
-from apps.campionamenti import csv_preserved
 from apps.campionamenti.csv_trees import parsed_tree_row
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
 from config import strings as S
 from config.constants import (
     FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
-    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_H_MEASURED,
+    FIELD_D_CM, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_LAT, FIELD_LON, FIELD_L10_MM, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_PARCEL_ID,
     FIELD_PRESERVED, FIELD_PRESERVED_NUMBER, FIELD_PRESSLER_COEFF,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
-    PRESSLER_DEFAULT, RECORDS, SESSION, TREE_H_QUANTUM,
+    PRESSLER_DEFAULT, RECORDS, SESSION,
 )
 
 
@@ -33,11 +32,6 @@ class TreeMeasurements:
     h_m: Decimal
 
 
-_PAI_PARSE_COORDS = 'coords'
-_PAI_PARSE_DUPLICATE = 'duplicate'
-_PAI_PARSE_NUMBER_INVALID = 'number_invalid'
-_PAI_PARSE_NUMBER_POSITIVE = 'number_positive'
-_PAI_PARSE_NUMBER_REQUIRED = 'number_required'
 _SAMPLE_PARSE_NUMBER_INVALID = 'sample_number_invalid'
 _SAMPLE_PARSE_NUMBER_POSITIVE = 'sample_number_positive'
 
@@ -233,66 +227,6 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
     return rows, errors
 
 
-def pai_import_rows(payload: dict) -> tuple[list[dict], list[str]]:
-    records = _payload_records(payload)
-    if records is None:
-        return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
-    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
-    session_operator = (
-        (session.get(FIELD_OPERATOR) or '').strip() if isinstance(session, dict) else ''
-    )
-
-    species_ids = _int_ids(records, FIELD_SPECIES_ID)
-    parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
-    species = {sp.id: sp for sp in Species.objects.filter(id__in=species_ids)}
-    parcels = {
-        parcel.id: parcel
-        for parcel in (Parcel.objects
-                       .filter(id__in=parcel_ids)
-                       .select_related('region', 'eclass'))
-    }
-    seen_numbers = current_preserved_number_keys(parcel_ids)
-    rows = []
-    errors = []
-    for i, record in enumerate(records, start=1):
-        if not isinstance(record, dict):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
-            continue
-        parcel = parcels.get(record.get(FIELD_PARCEL_ID))
-        if parcel is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
-            continue
-        sp = species.get(record.get(FIELD_SPECIES_ID))
-        if sp is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
-            continue
-        parsed = _pai_record_values(record, parcel, sp, session_operator, seen_numbers)
-        if parsed is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
-            continue
-        if parsed == _PAI_PARSE_COORDS:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED.format(i))
-            continue
-        if parsed == _PAI_PARSE_DUPLICATE:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(i))
-            continue
-        if parsed == _PAI_PARSE_NUMBER_INVALID:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
-            continue
-        if parsed == _PAI_PARSE_NUMBER_POSITIVE:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
-            continue
-        if parsed == _PAI_PARSE_NUMBER_REQUIRED:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
-            continue
-        rows.append(parsed)
-    return rows, errors
-
-
-def apply_pai_rows(rows: list[dict]) -> int:
-    return csv_preserved.apply(rows)
-
-
 def _payload_records(payload: dict) -> list | None:
     records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
     return records if isinstance(records, list) else None
@@ -390,44 +324,3 @@ def _sample_record_values(
         operator=(record.get(FIELD_OPERATOR) or session_operator).strip(),
         note=(record.get(FIELD_NOTE) or '').strip(),
     )
-
-
-def _pai_record_values(
-        record: dict, parcel: Parcel, sp: Species, session_operator: str,
-        seen_numbers: set[tuple[int, int]],
-):
-    measurements = record_measurements(record)
-    if measurements is None:
-        return None
-    h_m = measurements.h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-    lat = record.get(FIELD_LAT)
-    lon = record.get(FIELD_LON)
-    if lat is None or lon is None:
-        return _PAI_PARSE_COORDS
-    number = record.get(FIELD_NUMBER)
-    if number is None:
-        return _PAI_PARSE_NUMBER_REQUIRED
-    try:
-        number = int(number)
-    except (TypeError, ValueError):
-        return _PAI_PARSE_NUMBER_INVALID
-    if number <= 0:
-        return _PAI_PARSE_NUMBER_POSITIVE
-    if (parcel.id, number) in seen_numbers:
-        return _PAI_PARSE_DUPLICATE
-    seen_numbers.add((parcel.id, number))
-    return {
-        FIELD_PARCEL: parcel,
-        FIELD_SPECIES: sp,
-        FIELD_NUMBER: number,
-        FIELD_DATE: measurements.date,
-        FIELD_ESTIMATED_BIRTH_YEAR: record.get(FIELD_ESTIMATED_BIRTH_YEAR),
-        FIELD_D_CM: measurements.d_cm,
-        FIELD_H_M: h_m,
-        FIELD_H_MEASURED: True,
-        FIELD_LAT: lat,
-        FIELD_LON: lon,
-        FIELD_ACC_M: record.get(FIELD_ACC_M),
-        FIELD_OPERATOR: (record.get(FIELD_OPERATOR) or session_operator).strip(),
-        FIELD_NOTE: (record.get(FIELD_NOTE) or '').strip(),
-    }
