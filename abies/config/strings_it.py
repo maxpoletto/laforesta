@@ -418,6 +418,11 @@ ERR_PAI_TREE_IDENTITY_CONFLICT = 'Numero PAI già associato a un altro albero.'
 ERR_CSV_ROW_TREE_NUMBER_DUPLICATE = (
     'Riga {}: numero albero {} / pollone {} già presente nel campione.'
 )
+WARN_IMPORT_H_NOT_MEASURED = 'Riga {}: altezza non misurata.'
+WARN_IMPORT_PARCEL_MISMATCH = (
+    'Riga {}: la posizione GPS cade in {}; la riga indica {}.'
+)
+
 ERR_SAMPLE_DATE_CONFLICT = (
     'Data diversa per area di saggio già presente nel rilevamento '
     '({} / {} / {}; data già registrata: {}).'

@@ -12,9 +12,9 @@ from apps.base.middleware import save_nonce
 from apps.base.numparse import int_or_none
 from config import strings as S
 from config.constants import (
-    DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, HTML, MESSAGE, PATCHES,
-    RECORD, ROW_ID, STATUS, STATUS_CONFLICT, STATUS_NOT_FOUND,
-    STATUS_VALIDATION_ERROR, VERSION,
+    DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, FIELD_WARNINGS, HTML,
+    MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
+    STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR, STATUS_WARNING, VERSION,
 )
 
 
@@ -184,6 +184,20 @@ def validation_error(errors: list, html: str = '') -> JsonResponse:
     full list in ``field_errors``, optional replacement form HTML.
     """
     return _validation_response(' '.join(errors), errors, html)
+
+
+def warning_response(warnings: list[str]) -> JsonResponse:
+    """HTTP 409 non-blocking warning response.
+
+    The client can show the warnings with proceed/abort controls and resubmit
+    with explicit confirmation.  This is intentionally distinct from
+    validation_error(): imports with actual validation errors must still block.
+    """
+    return JsonResponse({
+        STATUS: STATUS_WARNING,
+        MESSAGE: '\n'.join(warnings),
+        FIELD_WARNINGS: warnings,
+    }, status=409)
 
 
 def parse_json_body(request) -> tuple[dict | None, JsonResponse | None]:

@@ -240,6 +240,7 @@ export const CSV_IMPORT_IN_PROGRESS =
   'Importazione in corso, attendere…  ' +
   'Non chiudere la finestra né cliccare di nuovo "Importa".';
 export const CSV_EXTRA_ERRORS = (n) => `… +${n} altri errori`;
+export const IMPORT_WARNINGS_CONFIRM = 'Procedi';
 
 // Coppice (per-shoot) entry
 export const REMOVE_POLLONE = 'Rimuovi';

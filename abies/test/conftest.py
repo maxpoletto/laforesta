@@ -1,11 +1,15 @@
 """Shared test fixtures."""
 
+import json
 import math
 from datetime import date
 from decimal import Decimal
 from itertools import count
+from pathlib import Path
 
 import pytest
+
+from config.constants import IPSO_TERRENI_GEOJSON
 
 from apps.base.models import (
     Crew, Eclass, Parcel, Product, Region, Role, Sample, SampleArea,
@@ -81,6 +85,41 @@ def parcels(db, regions, eclasses):
         Parcel.objects.create(name='1', region=regions[1], eclass=eclasses[0],
                               area_ha=Decimal('8.0')),
     ]
+
+
+@pytest.fixture
+def write_terreni_geojson(settings):
+    def _write(*parcels):
+        Path(settings.GEO_DIR).mkdir(parents=True, exist_ok=True)
+        centers = {}
+        features = []
+        for index, parcel in enumerate(parcels):
+            lon = 16.0 + index
+            lat = 38.0 + index
+            delta = 0.1
+            centers[parcel.id] = {'lat': lat, 'lon': lon}
+            ring = [
+                [lon - delta, lat - delta],
+                [lon + delta, lat - delta],
+                [lon + delta, lat + delta],
+                [lon - delta, lat + delta],
+                [lon - delta, lat - delta],
+            ]
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'layer': parcel.region.name,
+                    'name': f'{parcel.region.name}-{parcel.name}',
+                },
+                'geometry': {'type': 'Polygon', 'coordinates': [ring]},
+            })
+        path = Path(settings.GEO_DIR) / IPSO_TERRENI_GEOJSON
+        path.write_text(json.dumps({
+            'type': 'FeatureCollection',
+            'features': features,
+        }), encoding='utf-8')
+        return centers
+    return _write
 
 
 @pytest.fixture

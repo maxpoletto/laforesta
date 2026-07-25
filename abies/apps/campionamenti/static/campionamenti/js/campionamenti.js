@@ -24,6 +24,10 @@ import {
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
 import { fileToBase64, postJSON } from '../../base/js/api.js';
 import {
+  importWarningLines, isImportWarningResponse, showImportWarningModal,
+  withImportWarningsConfirmed,
+} from '../../base/js/import-warnings.js';
+import {
   deleteRowWithVersion, fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
   interceptSubmit, submitCsvImport, showFormError,
 } from '../../base/js/forms.js';
@@ -1188,25 +1192,55 @@ function showEditSurveyModal() {
       rebuildSurveyPulldown();
       return null;
     },
-    onImportSubmit: async (form) => {
-      const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
-      if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
-      const defaultDate = form.querySelector(`[name="${FIELD_DEFAULT_DATE}"]`)?.value || '';
-      const { data, status } = await postJSON(TREE_CSV_IMPORT_URL, {
-        [FIELD_SURVEY_ID]: String(activeSurveyId),
-        [FIELD_DEFAULT_DATE]: defaultDate,
-        [FIELD_FILE]: await fileToBase64(file),
-        [FIELD_NONCE]: crypto.randomUUID(),
-      });
-      if (status === 200) {
-        await refreshAfterTreeImport();
-        return { ok: true };
-      }
-      return data?.errors?.length
-        ? { errors: data.errors }
-        : { error: data?.message };
-    },
+    onImportSubmit: async (form) => submitTreeCsvImport(form),
   });
+}
+
+async function submitTreeCsvImport(form) {
+  const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
+  if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
+  const defaultDate = form.querySelector(
+    `[name="${FIELD_DEFAULT_DATE}"]`,
+  )?.value || '';
+  const body = {
+    [FIELD_SURVEY_ID]: String(activeSurveyId),
+    [FIELD_DEFAULT_DATE]: defaultDate,
+    [FIELD_FILE]: await fileToBase64(file),
+    [FIELD_NONCE]: crypto.randomUUID(),
+  };
+  return postTreeCsvImport(body, { allowWarnings: true });
+}
+
+async function postTreeCsvImport(body, { allowWarnings = false } = {}) {
+  const { data, status } = await postJSON(TREE_CSV_IMPORT_URL, body);
+  if (status === 200) {
+    await refreshAfterTreeImport();
+    return { ok: true };
+  }
+  if (allowWarnings && isImportWarningResponse(data)) {
+    const warnings = importWarningLines(data);
+    showImportWarningModal(warnings, () => confirmTreeCsvImport(body));
+    return { pending: true };
+  }
+  return csvImportErrorResult(data);
+}
+
+async function confirmTreeCsvImport(body) {
+  const result = await postTreeCsvImport(
+    withImportWarningsConfirmed({
+      ...body,
+      [FIELD_NONCE]: crypto.randomUUID(),
+    }),
+  );
+  if (result?.ok) return;
+  if (result?.errors?.length) showError(result.errors.join('\n'));
+  else showError(result?.error || S.ERROR_GENERIC);
+}
+
+function csvImportErrorResult(data) {
+  return data?.errors?.length
+    ? { errors: data.errors }
+    : { error: data?.message };
 }
 
 function showEditModal(opts) {

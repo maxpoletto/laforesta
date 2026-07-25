@@ -36,12 +36,14 @@ from config.constants import (
     FIELD_REFERENCE_VERSION, FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID,
     FIELD_SCHEMA_VERSION, FIELD_STANDARD, FIELD_TREE_PRESERVED_ID,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID,
-    FIELD_SURVEY_ID, FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL,
-    IMPORTED, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
+    FIELD_SURVEY_ID, FIELD_WARNINGS, FIELD_WARNINGS_CONFIRMED,
+    FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, IMPORTED,
+    IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_PAI, IPSO_MODE_SAMPLES,
     IPSO_UPLOAD_FILE_READY, MESSAGE,
-    PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, UPLOAD,
+    PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, STATUS, STATUS_WARNING,
+    UPLOAD,
 )
 
 
@@ -1572,7 +1574,10 @@ def test_abies_1_1_4_samples_payload_uploads_and_imports(
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({FIELD_SURVEY_ID: survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -1605,7 +1610,10 @@ def test_old_normalized_samples_upload_imports_after_release_1(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({FIELD_SURVEY_ID: survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2001,7 +2009,10 @@ def test_samples_import_allows_recovery_to_survey_with_same_grid(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': target_survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: target_survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2097,7 +2108,10 @@ def test_samples_import_integrity_error_returns_validation(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2128,7 +2142,10 @@ def test_samples_import_rejects_target_with_different_source_grid(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': target_survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: target_survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2155,7 +2172,10 @@ def test_samples_import_rejects_area_outside_selected_survey_grid(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': target_survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: target_survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2168,6 +2188,62 @@ def test_samples_import_rejects_area_outside_selected_survey_grid(
     assert upload.error_summary == S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(1)
     assert source_survey.sample_grid_id == area.sample_grid_id
     assert target_survey.sample_grid_id != area.sample_grid_id
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_samples_import_warns_before_unmeasured_or_mismatched_rows(
+        writer_client, parcels, species, settings, tmp_path,
+        write_terreni_geojson):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey, area = _sample_survey(parcels[0], name='Ipso warning survey')
+    centers = write_terreni_geojson(parcels[0], parcels[1])
+    gps = centers[parcels[1].id]
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_SAMPLES,
+        session_id='22222222-2222-4222-8222-222222222240',
+        record_overrides={
+            FIELD_SAMPLE_AREA_ID: area.id,
+            FIELD_H_MEASURED: False,
+            FIELD_LAT: gps['lat'],
+            FIELD_LON: gps['lon'],
+        },
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({FIELD_SURVEY_ID: survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body[STATUS] == STATUS_WARNING
+    assert body[FIELD_WARNINGS] == [
+        S.WARN_IMPORT_H_NOT_MEASURED.format(1),
+        S.WARN_IMPORT_PARCEL_MISMATCH.format(
+            1, f'{parcels[1].region.name} / {parcels[1].name}',
+            f'{parcels[0].region.name} / {parcels[0].name}',
+        ),
+    ]
+    assert TreeSample.objects.count() == 0
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+    confirmed = writer_client.post(
+        reverse('ipso-upload-import-samples', args=[upload.id]),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
+        content_type='application/json',
+    )
+
+    assert confirmed.status_code == 200, confirmed.content
+    row = TreeSample.objects.get(sample__survey=survey)
+    assert row.parcel == parcels[0]
+    assert row.h_measured is False
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -2199,7 +2275,10 @@ def test_writer_imports_samples_upload_into_survey(
     nonce = 'ipso-import-samples-test-nonce'
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id, FIELD_NONCE: nonce}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id, FIELD_NONCE: nonce,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2258,7 +2337,10 @@ def test_writer_rejects_samples_import_into_unstructured_survey(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': unstructured.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: unstructured.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2282,7 +2364,10 @@ def test_samples_import_rejects_staged_missing_number(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2313,7 +2398,10 @@ def test_samples_import_supports_coppice_parcels(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2352,7 +2440,10 @@ def test_samples_import_supports_coppice_shoots_with_same_number(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2388,7 +2479,10 @@ def test_samples_import_rejects_existing_number_shoot(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2419,7 +2513,10 @@ def test_samples_import_rejects_duplicate_number_shoot_in_upload(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-samples', args=[upload.id]),
-        data=json.dumps({'survey_id': survey.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2630,7 +2727,10 @@ def test_samples_import_rejects_second_submit_without_duplicate_samples(
     )
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-    body = json.dumps({'survey_id': survey.id})
+    body = json.dumps({
+        FIELD_SURVEY_ID: survey.id,
+        FIELD_WARNINGS_CONFIRMED: True,
+    })
     url = reverse('ipso-upload-import-samples', args=[upload.id])
 
     first = writer_client.post(url, data=body, content_type='application/json')
@@ -2678,7 +2778,10 @@ def test_free_survey_import_rejects_structured_survey(
 
     resp = writer_client.post(
         reverse('ipso-upload-import-free-survey', args=[upload.id]),
-        data=json.dumps({FIELD_SURVEY_ID: structured.id}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: structured.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2687,6 +2790,56 @@ def test_free_survey_import_rejects_structured_survey(
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_free_survey_import_warns_before_parcel_mismatch(
+        writer_client, parcels, species, settings, tmp_path,
+        write_terreni_geojson):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    survey = Survey.objects.create(name='Ipso free warning target')
+    centers = write_terreni_geojson(parcels[0], parcels[1])
+    gps = centers[parcels[1].id]
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        session_id='59595959-5959-4595-8595-595959595960',
+        record_overrides={
+            FIELD_NUMBER: None,
+            FIELD_PRESERVED: False,
+            FIELD_H_MEASURED: True,
+            FIELD_LAT: gps['lat'],
+            FIELD_LON: gps['lon'],
+        },
+    )
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-free-survey', args=[upload.id]),
+        data=json.dumps({FIELD_SURVEY_ID: survey.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()[FIELD_WARNINGS] == [
+        S.WARN_IMPORT_PARCEL_MISMATCH.format(
+            1, f'{parcels[1].region.name} / {parcels[1].name}',
+            f'{parcels[0].region.name} / {parcels[0].name}',
+        ),
+    ]
+    assert TreeSample.objects.filter(sample__survey=survey).count() == 0
+
+    confirmed = writer_client.post(
+        reverse('ipso-upload-import-free-survey', args=[upload.id]),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
+        content_type='application/json',
+    )
+
+    assert confirmed.status_code == 200, confirmed.content
+    assert TreeSample.objects.get(sample__survey=survey).parcel == parcels[0]
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -2721,7 +2874,10 @@ def test_writer_imports_free_survey_upload_into_unstructured_survey(
     nonce = 'ipso-import-free-survey-test-nonce'
     resp = writer_client.post(
         reverse('ipso-upload-import-free-survey', args=[upload.id]),
-        data=json.dumps({FIELD_SURVEY_ID: survey.id, FIELD_NONCE: nonce}),
+        data=json.dumps({
+            FIELD_SURVEY_ID: survey.id, FIELD_NONCE: nonce,
+            FIELD_WARNINGS_CONFIRMED: True,
+        }),
         content_type='application/json',
     )
 
@@ -2774,7 +2930,10 @@ def test_free_survey_import_rejects_second_submit_without_duplicate_samples(
     )
     assert _post_upload(Client(), payload).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-    body = json.dumps({FIELD_SURVEY_ID: survey.id})
+    body = json.dumps({
+        FIELD_SURVEY_ID: survey.id,
+        FIELD_WARNINGS_CONFIRMED: True,
+    })
     url = reverse('ipso-upload-import-free-survey', args=[upload.id])
 
     first = writer_client.post(url, data=body, content_type='application/json')

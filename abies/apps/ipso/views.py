@@ -39,7 +39,10 @@ from apps.base.models import (
 )
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.preserved_trees import latest_preserved_tree_samples
-from apps.base.responses import row_delete, success_response, validation_error
+from apps.base.responses import (
+    row_delete, success_response, validation_error, warning_response,
+)
+from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
@@ -68,7 +71,7 @@ from config.constants import (
     FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE, FIELD_TREE_ID,
     FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT, FIELD_STATE, FIELD_STATE_LABEL,
-    FIELD_SURVEY_ID,
+    FIELD_SURVEY_ID, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
@@ -89,7 +92,7 @@ from config.constants import (
     OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
-    TREE_H_QUANTUM, UPLOAD,
+    TREE_H_QUANTUM, UPLOAD, is_truthy,
 )
 
 SCHEMA_VERSION = 1
@@ -643,6 +646,10 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
             if errors:
                 return _upload_validation_error(upload, errors)
 
+            warnings = tree_import_warnings(rows, first_row_number=1)
+            if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
+                return warning_response(warnings)
+
             result = csv_trees.apply(survey, rows)
             if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
                 return _rollback_upload_not_received_response()
@@ -687,6 +694,10 @@ def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonRespo
             rows, errors = free_survey_import_rows(payload, survey)
             if errors:
                 return _upload_validation_error(upload, errors)
+
+            warnings = tree_import_warnings(rows, first_row_number=1)
+            if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
+                return warning_response(warnings)
 
             result = csv_trees.apply(survey, rows)
             if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):

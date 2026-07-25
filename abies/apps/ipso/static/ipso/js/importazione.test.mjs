@@ -428,9 +428,10 @@ const {
   FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_RECEIVED_AT, FIELD_ERRORS,
   FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
   FIELD_SAMPLE_AREA_ID, FIELD_SEQ, FIELD_SESSION_ID, FIELD_SPECIES,
-  FIELD_STATE, FIELD_STATE_LABEL, FIELD_TARGET_LABEL, FIELD_WORK_PACKAGE_LABEL,
-  IPSO_MODE_MARTELLATE, IPSO_UPLOAD_STATE_RECEIVED, PENDING_COUNT,
-  RECORD_COUNT, RECORDS, ROW_ID, TARGETS, UPLOAD,
+  FIELD_STATE, FIELD_STATE_LABEL, FIELD_TARGET_LABEL, FIELD_WARNINGS,
+  FIELD_WARNINGS_CONFIRMED, FIELD_WORK_PACKAGE_LABEL, IPSO_MODE_MARTELLATE,
+  IPSO_MODE_SAMPLES, IPSO_UPLOAD_STATE_RECEIVED, PENDING_COUNT,
+  RECORD_COUNT, RECORDS, ROW_ID, STATUS, STATUS_WARNING, TARGETS, UPLOAD,
 } = await import(staticModule('base/js/constants.js'));
 
 function response(data, lastModified = 'v1', status = 200) {
@@ -454,6 +455,8 @@ function inboxDigest() {
        S.IPSO_MODE_MARTELLATE_LABEL, 'Operatore A', 3, 'Ricevuto', 'WP 1', 'Cantiere 1', ''],
       [502, IPSO_UPLOAD_STATE_RECEIVED, '2026-07-02 10:00', '2026-07-02',
        S.IPSO_MODE_MARTELLATE_LABEL, 'Operatore B', 1, 'Ricevuto', 'WP 2', 'Cantiere 2', ''],
+      [503, IPSO_UPLOAD_STATE_RECEIVED, '2026-07-03 10:00', '2026-07-03',
+       S.IPSO_MODE_SAMPLES_LABEL, 'Operatore C', 1, 'Ricevuto', 'WP 3', 'Rilevamento', ''],
     ],
     [PENDING_COUNT]: 2,
   };
@@ -475,15 +478,19 @@ function record(seq, lat, lon, species = 'Abete bianco') {
   };
 }
 
-function uploadDetail(id, records) {
+function uploadDetail(id, records, mode = IPSO_MODE_MARTELLATE) {
+  const labels = {
+    [IPSO_MODE_MARTELLATE]: S.IPSO_MODE_MARTELLATE_LABEL,
+    [IPSO_MODE_SAMPLES]: S.IPSO_MODE_SAMPLES_LABEL,
+  };
   return {
     [UPLOAD]: {
       [FIELD_ID]: id,
       [FIELD_SESSION_ID]: `session-${id}`,
       [FIELD_STATE]: IPSO_UPLOAD_STATE_RECEIVED,
       [FIELD_STATE_LABEL]: 'Ricevuto',
-      [FIELD_MODE]: IPSO_MODE_MARTELLATE,
-      [FIELD_MODE_LABEL]: S.IPSO_MODE_MARTELLATE_LABEL,
+      [FIELD_MODE]: mode,
+      [FIELD_MODE_LABEL]: labels[mode],
       [FIELD_OPERATOR]: 'Operatore',
       [FIELD_RECEIVED_AT]: '2026-07-01 10:00',
       [FIELD_RECORD_DATE]: '2026-07-01',
@@ -521,9 +528,12 @@ const details = new Map([
     record(3, 38.3, 16.3, 'Pino'),
   ])],
   ['/api/ipso/uploads/502/', uploadDetail(502, [record(4, 38.4, 16.4, 'Leccio')])],
+  ['/api/ipso/uploads/503/', uploadDetail(503, [record(5, 38.5, 16.5)], IPSO_MODE_SAMPLES)],
 ]);
 
 const importErrors = ['Riga 1: errore uno.', 'Riga 2: errore due.'];
+const importWarnings = ['Riga 1: altezza non misurata.', 'Riga 1: particella diversa.'];
+const sampleImportBodies = [];
 
 globalThis.fetch = async (url, opts = {}) => {
   if (opts.method === 'POST' &&
@@ -532,6 +542,19 @@ globalThis.fetch = async (url, opts = {}) => {
       message: importErrors.join(' '),
       [FIELD_ERRORS]: importErrors,
     }, 'v1', 400);
+  }
+  if (opts.method === 'POST' &&
+      /^\/api\/ipso\/uploads\/\d+\/import-samples\/$/.test(url)) {
+    const body = JSON.parse(opts.body || '{}');
+    sampleImportBodies.push(body);
+    if (!body[FIELD_WARNINGS_CONFIRMED]) {
+      return response({
+        [STATUS]: STATUS_WARNING,
+        message: importWarnings.join('\n'),
+        [FIELD_WARNINGS]: importWarnings,
+      }, 'v1', 409);
+    }
+    return response({ imported: 1, upload: {} }, 'v2', 200);
   }
   if (url === '/api/ipso/inbox/') return response(inboxDigest());
   if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
@@ -587,6 +610,28 @@ const errorEl = modalEl.querySelector('.modal-error');
 check(Boolean(errorEl), 'failed import opens the error modal');
 eq(errorEl.textContent, importErrors.join('\n'),
    'failed import shows one validation error per line');
+
+clickInboxOpen(2);
+await flushSeveral();
+
+const samplePanel = detailEl.querySelector('.ipso-import-target');
+check(Boolean(samplePanel), 'sample upload shows the import target panel');
+const sampleTarget = samplePanel.querySelector('select');
+sampleTarget.value = '900';
+for (const fn of sampleTarget._listeners.change || []) fn({ target: sampleTarget });
+samplePanel.querySelector('.btn-import').click();
+modalEl.querySelector('[data-action="confirm"]').click();
+await flushSeveral();
+const warningMessage = modalEl.querySelector('[data-field="message"]');
+eq(warningMessage.textContent, importWarnings.join('\n'),
+   'warning import opens a multiline confirmation modal');
+modalEl.querySelector('[data-action="confirm"]').click();
+await flushSeveral();
+eq(sampleImportBodies.length, 2, 'warning import resubmits after confirmation');
+check(!sampleImportBodies[0][FIELD_WARNINGS_CONFIRMED],
+      'first warning import submit is unconfirmed');
+check(sampleImportBodies[1][FIELD_WARNINGS_CONFIRMED] === true,
+      'warning import confirmation adds warnings_confirmed');
 
 importazione.unmount();
 

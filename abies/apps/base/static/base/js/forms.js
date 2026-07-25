@@ -268,6 +268,7 @@ export function showFormError(form, message) {
  *   - `{ errors: [...] }`  → error list rendered into `errorsBox`,
  *                            modal stays open
  *   - `{ error: 'msg' }`   → form-level error shown, modal stays open
+ *   - `{ pending: true }`  → caller owns the next UI step
  *   - anything else        → generic error shown, modal stays open
  *
  * Exceptions from `attempt` are caught and surfaced as a network error.
@@ -288,6 +289,9 @@ export async function submitCsvImport({ form, statusBox, errorsBox, attempt }) {
     result = await attempt(form);
     if (result?.ok) dismissModal();
     else if (result?.errors?.length) renderCsvErrors(errorsBox, result.errors);
+    else if (result?.pending) {
+      // The caller opened a follow-up UI, e.g. an import-warning confirm.
+    }
     else showFormError(form, result?.error || S.ERROR_GENERIC);
   } catch {
     showFormError(form, S.ERROR_NETWORK);

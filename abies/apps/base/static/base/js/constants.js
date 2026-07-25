@@ -40,6 +40,7 @@ export const STATUS_CONFLICT         = 'conflict';
 export const STATUS_VALIDATION_ERROR = 'validation_error';
 export const STATUS_RATE_LIMITED     = 'rate_limited';
 export const STATUS_NOT_FOUND        = 'not_found';
+export const STATUS_WARNING          = 'warning';
 
 // Device / integration API envelope keys.
 export const PENDING_COUNT = 'pending_count';
@@ -203,6 +204,8 @@ export const FIELD_PATH                  = 'path';
 export const FIELD_FIRST_DATE            = 'first_date';
 export const FIELD_LAST_DATE             = 'last_date';
 export const FIELD_ERRORS                = 'errors';
+export const FIELD_WARNINGS              = 'warnings';
+export const FIELD_WARNINGS_CONFIRMED    = 'warnings_confirmed';
 export const FIELD_RECORD1               = 'record1';
 export const FIELD_RECORD2               = 'record2';
 export const FIELD_HARVEST_PLAN_ID       = 'harvest_plan_id';

@@ -28,10 +28,11 @@ from apps.base.digests import (
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.preserved_trees import latest_preserved_tree_sample
+from apps.base.tree_import_warnings import tree_import_warnings
 from apps.base.responses import (
     conflict_response, csv_error_list, parse_json_body, row_delete,
     row_patch, row_patches, save_model_response, submitted_version,
-    success_response, validation_error,
+    success_response, validation_error, warning_response,
 )
 from apps.base.models import (
     Parcel, Region, Sample, SampleArea, SampleGrid, Species, Survey, Tree,
@@ -58,8 +59,8 @@ from config.constants import (
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, HTML, ROW_ID, SAMPLE_GRID_UNSTRUCTURED, STATUS,
-    STATUS_NOT_FOUND, VERSION, is_truthy,
+    FIELD_VOLUME_M3, FIELD_WARNINGS_CONFIRMED, HTML, ROW_ID,
+    SAMPLE_GRID_UNSTRUCTURED, STATUS, STATUS_NOT_FOUND, VERSION, is_truthy,
 )
 
 
@@ -1462,6 +1463,10 @@ def tree_csv_import_view(request):
         return csv_error_list(errors)
     if not parsed:
         return validation_error([S.ERR_CSV_EMPTY])
+
+    warnings = tree_import_warnings(parsed, first_row_number=2)
+    if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
+        return warning_response(warnings)
 
     counts = csv_trees.apply(survey, parsed)
 

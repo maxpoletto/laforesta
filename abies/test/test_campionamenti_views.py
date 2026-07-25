@@ -24,9 +24,10 @@ from config.constants import (
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
-    FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, HTML, MESSAGE, PATCHES,
-    RECORD, ROWS, ROW_ID, SAMPLE_GRID_UNSTRUCTURED, STATUS, STATUS_CONFLICT,
-    STATUS_VALIDATION_ERROR, VERSION,
+    FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_WARNINGS,
+    FIELD_WARNINGS_CONFIRMED, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
+    SAMPLE_GRID_UNSTRUCTURED, STATUS, STATUS_CONFLICT,
+    STATUS_VALIDATION_ERROR, STATUS_WARNING, VERSION,
 )
 
 
@@ -2526,14 +2527,17 @@ class TestTreeCsvImport:
     URL = '/api/campionamenti/survey/import-csv/'
 
     @staticmethod
-    def _post(client, survey_id, csv_text, default_date=''):
+    def _post(client, survey_id, csv_text, default_date='', confirmed=True):
+        body = {
+            FIELD_SURVEY_ID: str(survey_id),
+            FIELD_DEFAULT_DATE: default_date,
+            FIELD_FILE: _csv_b64(csv_text),
+        }
+        if confirmed is not None:
+            body[FIELD_WARNINGS_CONFIRMED] = confirmed
         return client.post(
             TestTreeCsvImport.URL,
-            data=json.dumps({
-                FIELD_SURVEY_ID: str(survey_id),
-                FIELD_DEFAULT_DATE: default_date,
-                FIELD_FILE: _csv_b64(csv_text),
-            }),
+            data=json.dumps(body),
             content_type='application/json',
         )
 
@@ -2676,6 +2680,84 @@ class TestTreeCsvImport:
             if row[points[COLUMNS].index(COL_SURVEY_ID)] == empty_survey.id
         ]) == 2
 
+    def test_structured_import_warns_before_unmeasured_or_mismatched_rows(
+            self, writer_client, sample_setup, species, write_terreni_geojson,
+    ):
+        from apps.base.models import Parcel, Survey, TreeSample
+        s = sample_setup
+        provided = s['area'].parcel
+        other = Parcel.objects.create(
+            name='2', region=provided.region, eclass=provided.eclass,
+            area_ha=Decimal('5.0'),
+        )
+        target = Survey.objects.create(
+            name='CSV warning target', sample_grid=s['grid'],
+        )
+        centers = write_terreni_geojson(provided, other)
+        gps = centers[other.id]
+        compresa = provided.region.name
+        particella = provided.name
+        adc = s['area'].number
+        csv_text = (
+            'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,H_measured,Lat,Lon\n'
+            f'{compresa},{particella},{adc},20,0,false,30,20.5,10,2,'
+            f'{species[0].common_name},true,2024-09-15,false,'
+            f'{gps["lat"]},{gps["lon"]}\n'
+        )
+
+        resp = self._post(writer_client, target.id, csv_text, confirmed=False)
+
+        assert resp.status_code == 409
+        body = resp.json()
+        assert body[STATUS] == STATUS_WARNING
+        assert body[FIELD_WARNINGS] == [
+            S.WARN_IMPORT_H_NOT_MEASURED.format(2),
+            S.WARN_IMPORT_PARCEL_MISMATCH.format(
+                2, f'{other.region.name} / {other.name}',
+                f'{provided.region.name} / {provided.name}',
+            ),
+        ]
+        assert TreeSample.objects.filter(sample__survey=target).count() == 0
+
+        confirmed = self._post(writer_client, target.id, csv_text, confirmed=True)
+
+        assert confirmed.status_code == 200, confirmed.content
+        row = TreeSample.objects.get(sample__survey=target)
+        assert row.parcel == provided
+        assert row.h_measured is False
+
+    def test_unstructured_import_warns_before_parcel_mismatch(
+            self, writer_client, parcels, species, write_terreni_geojson,
+    ):
+        from apps.base.models import Survey, TreeSample
+        survey = Survey.objects.create(name='CSV free warning target')
+        centers = write_terreni_geojson(parcels[0], parcels[1])
+        gps = centers[parcels[1].id]
+        csv_text = (
+            'Compresa,Particella,Albero,Pollone,Matricina,'
+            'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,H_measured,Lat,Lon\n'
+            f'{parcels[0].region.name},{parcels[0].name},1,0,false,'
+            f'30,20.5,10,2,{species[0].common_name},true,2024-09-15,true,'
+            f'{gps["lat"]},{gps["lon"]}\n'
+        )
+
+        resp = self._post(writer_client, survey.id, csv_text, confirmed=False)
+
+        assert resp.status_code == 409
+        assert resp.json()[FIELD_WARNINGS] == [
+            S.WARN_IMPORT_PARCEL_MISMATCH.format(
+                2, f'{parcels[1].region.name} / {parcels[1].name}',
+                f'{parcels[0].region.name} / {parcels[0].name}',
+            ),
+        ]
+        assert TreeSample.objects.filter(sample__survey=survey).count() == 0
+
+        confirmed = self._post(writer_client, survey.id, csv_text, confirmed=True)
+
+        assert confirmed.status_code == 200, confirmed.content
+        assert TreeSample.objects.get(sample__survey=survey).parcel == parcels[0]
+
     def test_h_measured_column_persists_when_present(
             self, writer_client, sample_setup,
     ):
@@ -2798,6 +2880,7 @@ class TestTreeCsvImport:
             FIELD_DEFAULT_DATE: '',
             FIELD_FILE: _csv_b64(csv_text),
             FIELD_NONCE: 'tree-import-nonce',
+            FIELD_WARNINGS_CONFIRMED: True,
         }
         resp1 = writer_client.post(
             self.URL, data=json.dumps(body), content_type='application/json',

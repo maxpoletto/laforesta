@@ -15,6 +15,10 @@ import {
   showCascadeDeleteModal, showConfirmModal, wireCancelButtons,
 } from '../../base/js/ui-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
+import {
+  importWarningLines, isImportWarningResponse, showImportWarningModal,
+  withImportWarningsConfirmed,
+} from '../../base/js/import-warnings.js';
 import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
 import { sortFeaturesByArea } from '../../base/js/geo.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
@@ -505,14 +509,24 @@ function confirmImport(uploadId, config, targetId) {
   );
 }
 
-async function importUpload(uploadId, config, targetId) {
-  const body = config.requiresTarget ? {
+async function importUpload(uploadId, config, targetId, warningsConfirmed = false) {
+  const baseBody = config.requiresTarget ? {
     [config.targetField]: Number(targetId),
   } : {};
+  const body = warningsConfirmed
+    ? withImportWarningsConfirmed(baseBody)
+    : baseBody;
   const { data, status } = await api.postJSON(
     config.url(uploadId), mutationBody('import', body),
   );
   if (status >= 400) {
+    if (!warningsConfirmed && isImportWarningResponse(data)) {
+      showImportWarningModal(
+        importWarningLines(data),
+        async () => importUpload(uploadId, config, targetId, true),
+      );
+      return;
+    }
     await cache.load(DATA_ID);
     await openUpload(uploadId);
     showError(importErrorMessage(data));
