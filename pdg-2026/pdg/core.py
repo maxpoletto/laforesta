@@ -1144,15 +1144,22 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
     if particelle:
         parcel_harvests = {k: v for k, v in parcel_harvests.items()
                            if k[1] in particelle}
-    if not parcel_harvests:
-        return RenderResult(snippet='')
-
     df = calculate_harvest_table(data, parcel_harvests, group_cols)
     if df.empty:
-        return RenderResult(snippet='')
-    _apply_riduzione(df, options)
-
-    total_area = sum(data.parcels[k].area_ha for k in parcel_harvests)
+        # The plan harvested nothing from the requested parcels (e.g. a mature
+        # fustaia parcel whose volume is too low to cut).  Report zeros rather
+        # than an empty section, unless the filter matches no real parcel.
+        displayed = {k for k in data.parcels
+                     if (not comprese or k[0] in comprese)
+                     and (not particelle or k[1] in particelle)}
+        if not displayed:
+            return RenderResult(snippet='')
+        df = pd.DataFrame({COL_N_TREES: pd.Series(dtype=float),
+                           COL_HARVEST: pd.Series(dtype=float)})
+        total_area = sum(data.parcels[k].area_ha for k in displayed)
+    else:
+        _apply_riduzione(df, options)
+        total_area = sum(data.parcels[k].area_ha for k in parcel_harvests)
     col_specs = [
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
                 options[OPT_COL_AREA_HA]),

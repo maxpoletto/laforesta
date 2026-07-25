@@ -65,6 +65,7 @@ from pdg.core import (
     calculate_volumes, calculate_stock_table, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
     calculate_stumps, render_prop_coppice,
+    ROW_TOTAL,
 )
 from pdg.formatters import HTMLSnippetFormatter
 from pdg.core import (
@@ -812,6 +813,34 @@ class TestRenderHarvestTableOptions:
                                OPT_COL_PRELIEVO_HA: False}))
         assert 'Area (ha)' not in result.snippet
         assert 'Prel/ha' not in result.snippet
+
+    @staticmethod
+    def _no_harvest(comparto, eta_media, volume_per_ha, area_basimetrica_per_ha):
+        return 0.0, 0.0
+
+    def test_zero_harvest_parcel_renders_zeros(self, data_all):
+        """A requested parcel the plan never harvests renders a 0s table.
+
+        Regression: a mature fustaia parcel whose volume is too low to cut was
+        dropped entirely (empty Ripresa section) instead of reporting zeros.
+        """
+        result = render_harvest_table(
+            data_all, None, self._no_harvest, HTMLSnippetFormatter(),
+            comprese=['Test'], particelle=['A'],
+            **self._options(**{OPT_TOTALI: True}))
+        assert result.snippet != ''
+        assert ROW_TOTAL in result.snippet
+        # Parcel A area (10.0 ha) is shown; harvest totals are zero.
+        assert '10.0' in result.snippet
+        assert 'Prel' in result.snippet
+
+    def test_no_matching_parcel_renders_empty(self, data_all):
+        """A filter matching no real parcel still yields an empty snippet."""
+        result = render_harvest_table(
+            data_all, None, self._no_harvest, HTMLSnippetFormatter(),
+            comprese=['Test'], particelle=['ZZ'],
+            **self._options(**{OPT_TOTALI: True}))
+        assert result.snippet == ''
 
 
 class TestPlanEventsCache:
