@@ -2353,7 +2353,7 @@ function renderObservationsMode() {
   }
 
   const region = regionById.get(currentState.regionId)?.name || '';
-  const allObservations = regionObservations(region);
+  const allObservations = regionObservations(currentState.regionId, region);
   const categoryItems = observationCategoryItems(allObservations);
   const years = observationYears(allObservations);
   const yearRange = normalizeObservationYearRange(
@@ -2372,10 +2372,12 @@ function renderObservationsMode() {
   setObservationSummary(observations.length, allObservations.length);
 }
 
-function regionObservations(region) {
+function regionObservations(regionId, region) {
   const features = parcelsGeo?.features || [];
-  return attributeObservationParcels(buildObservations(observationsData), features)
-    .filter(obs => !region || obs.region === region);
+  return filterObservations(
+    attributeObservationParcels(buildObservations(observationsData), features),
+    { regionId, region },
+  );
 }
 
 function renderObservationCategoryCheckboxes(items, selectedIds) {
@@ -2777,7 +2779,7 @@ function canonicalizeObservationParams(params, state) {
 
   let changed = false;
   const region = regionById.get(state.regionId)?.name || '';
-  const allObservations = regionObservations(region);
+  const allObservations = regionObservations(state.regionId, region);
   const categoryIds = observationCategoryItems(allObservations).map(item => item.id);
   changed = canonicalizeOptionalIdParam(
     params, 'oc', state.observationCategoryIds, categoryIds,

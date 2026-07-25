@@ -286,6 +286,10 @@ class Observation(TimestampedModel):
     text = models.TextField(blank=True)
     lat = models.FloatField()
     lon = models.FloatField()
+    region = models.ForeignKey(
+        Region, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='observations',
+    )
     acc_m = models.IntegerField(null=True, blank=True)
     operator = models.CharField(max_length=100, blank=True)
     source = models.CharField(max_length=32, blank=True)

@@ -101,10 +101,12 @@ audited and the contract that keeps that coverage complete.
 ## Observations
 
 - observation: (id:int, date:date, text:string, lat:real, lon:real,
-  acc_m:int nullable, operator:string, source:string, upload_session_id:string,
-  client_record_id:string, import_fingerprint:string nullable,
-  created_by_id:int nullable)
+  region_id:int nullable, acc_m:int nullable, operator:string, source:string,
+  upload_session_id:string, client_record_id:string,
+  import_fingerprint:string nullable, created_by_id:int nullable)
   - A point observation recorded in the forest. `lat` and `lon` are required;
+    `region_id` scopes the observation to a compresa. It is nullable only for
+    legacy/repair rows; new Ipso observation imports require a valid region.
     `acc_m` records GPS accuracy in meters when available. Line/polygon
     cartography is intentionally separate and not represented by this table.
   - `operator` is the field operator name when supplied by Ipso.

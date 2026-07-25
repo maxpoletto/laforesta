@@ -1,6 +1,7 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, ROW_ID, ROWS, VERSION,
+  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID,
+  ROWS, VERSION,
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 import { findContainingParcel, parcelNames } from '../../base/js/geo.js';
@@ -19,6 +20,7 @@ export function buildObservations(digest) {
     return {
       id: row[c[ROW_ID]],
       version: row[c[VERSION]],
+      regionId: toNumber(row[c[FIELD_REGION_ID]], null),
       categoryIds,
       categoryNames,
       date,
@@ -46,11 +48,17 @@ export function attributeObservationParcels(observations, features) {
 }
 
 export function filterObservations(
-  observations, { region = '', categoryIds = null, yearFrom = null, yearTo = null } = {},
+  observations, {
+    regionId = null, region = '', categoryIds = null, yearFrom = null, yearTo = null,
+  } = {},
 ) {
   const categories = categoryIds == null ? null : new Set(categoryIds);
   return observations.filter(obs => {
-    if (region && obs.region !== region) return false;
+    if (Number.isInteger(regionId)) {
+      if (Number.isInteger(obs.regionId)) {
+        if (obs.regionId !== regionId) return false;
+      } else if (region && obs.region !== region) return false;
+    } else if (region && obs.region !== region) return false;
     if (categories && !obs.categoryIds.some(id => categories.has(id))) return false;
     if (Number.isInteger(yearFrom) && (!Number.isInteger(obs.year) || obs.year < yearFrom)) return false;
     if (Number.isInteger(yearTo) && (!Number.isInteger(obs.year) || obs.year > yearTo)) return false;

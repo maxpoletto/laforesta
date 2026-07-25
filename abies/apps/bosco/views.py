@@ -202,6 +202,7 @@ def observation_detail(request, observation_id: int):
         FIELD_TEXT: observation.text,
         FIELD_LAT: observation.lat,
         FIELD_LON: observation.lon,
+        FIELD_REGION_ID: observation.region_id,
         FIELD_ACC_M: observation.acc_m,
         FIELD_OPERATOR: observation.operator,
         FIELD_SOURCE: observation.source,

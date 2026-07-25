@@ -126,13 +126,15 @@ hosts (top to bottom):
 
   Scrollable category list with counts, `Tutte` / `Nessuna` buttons, and two
   year selectors (`Da`, `A`) for year-granularity filtering. The map shows
-  dark-green point markers for observations whose coordinates fall inside the
-  currently selected region's parcel geometry.
+  dark-green point markers for observations assigned to the currently selected
+  region. Parcel geometry is used only to enrich points with a parcel name when
+  the coordinate falls inside a known parcel.
 
   Clicking a dot opens a standard modal with date, text, categories, lat/lon,
-  GPS accuracy, operator, and photo thumbnails/links. Observations outside any
-  known parcel geometry are not assigned to a region and therefore do not appear
-  in this region-scoped layer.
+  GPS accuracy, operator, and photo thumbnails/links. Observations with an
+  explicit region are shown even when their coordinates fall outside all parcel
+  polygons. Legacy observations without a region are shown only when geometry
+  can assign them to the current region.
 
 ### Map conventions
 
@@ -365,11 +367,13 @@ mode-switch.
 - **`observations.json`** — point observations with text, categories, GPS,
   operator, and photo count. Invalidated on observation imports/writes.
 
-  Columns: `row_id`, `version`, `category_ids`, `Data`, `Testo`, `Lat`, `Lon`,
-  `Acc_m`, `Operatore`, `Categorie`, `photo_count`. Photo payloads are not in
+  Columns: `row_id`, `version`, `region_id`, `category_ids`, `Data`, `Testo`,
+  `Lat`, `Lon`, `Acc_m`, `Operatore`, `Categorie`, `photo_count`. Photo
+  payloads are not in
   the digest; the click modal loads observation details/photos from the
-  per-row Bosco API. Filtered client-side by `oc=` and `oy1=`/`oy2=` after
-  assigning rows to the active region via parcel geometry.
+  per-row Bosco API. Filtered client-side by the selected region, `oc=`, and
+  `oy1=`/`oy2=`. Parcel geometry supplies optional parcel names and a display
+  fallback for legacy rows with no stored `region_id`.
 
 ### Lazy on per-parcel/per-region overlay open
 

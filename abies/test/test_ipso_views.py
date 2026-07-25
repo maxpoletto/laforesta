@@ -786,6 +786,7 @@ def test_import_observation_upload_creates_observations_and_photos(
     assert upload.target_id is None
     observation = Observation.objects.get()
     assert observation.text == 'sentiero danneggiato'
+    assert observation.region_id == parcels[0].region_id
     assert observation.operator == 'Mario Rossi'
     assert observation.created_by_id is not None
     assert list(observation.categories.values_list('name', flat=True)) == ['viabilità']
@@ -794,6 +795,30 @@ def test_import_observation_upload_creates_observations_and_photos(
     assert photo.size_bytes == len(b'photo-bytes')
     assert photo.original_filename == 'sentiero.jpg'
     assert (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes() == b'photo-bytes'
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_import_observation_upload_rejects_missing_region(
+        writer_client, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(parcels[0], category)
+    del payload[SESSION][FIELD_REGION_ID]
+    del payload[RECORDS][0][FIELD_REGION_ID]
+    assert _post_multipart_upload(Client(), payload, {}).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-observations', args=[upload.id]),
+        data=json.dumps({FIELD_NONCE: 'import-observation-region-nonce'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()[MESSAGE] == (
+        S.IPSO_ERR_IMPORT_RECORD_REGION_NOT_FOUND.format(1)
+    )
+    assert Observation.objects.count() == 0
 
 
 @override_settings(IPSO_SECRET='test-token')

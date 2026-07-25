@@ -37,7 +37,7 @@ from apps.base.digests import mark_stale
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
     HypsoParamSet, Observation, ObservationCategory,
-    ObservationCategoryAssignment, ObservationPhoto, Parcel, SampleArea,
+    ObservationCategoryAssignment, ObservationPhoto, Parcel, Region, SampleArea,
     Species, Survey, TreeSample,
     natural_sort_key, parcel_sort_key,
 )
@@ -1415,6 +1415,21 @@ def _import_observation_records(
         category.id: category
         for category in ObservationCategory.objects.filter(id__in=category_ids)
     }
+    region_ids = {
+        region_id
+        for record in records if isinstance(record, dict)
+        for region_id in [record.get(FIELD_REGION_ID)]
+        if type(region_id) is int
+    }
+    session_region_id = (
+        session.get(FIELD_REGION_ID) if isinstance(session, dict) else None
+    )
+    if type(session_region_id) is int:
+        region_ids.add(session_region_id)
+    regions = {
+        region.id: region
+        for region in Region.objects.filter(id__in=region_ids)
+    }
     session_operator = (
         (session.get(FIELD_OPERATOR) or '').strip()
         if isinstance(session, dict) else ''
@@ -1437,6 +1452,13 @@ def _import_observation_records(
             row_categories.append(category)
         if len(row_categories) != len(record.get(FIELD_CATEGORY_IDS, [])):
             continue
+        region_id = record.get(FIELD_REGION_ID)
+        if type(region_id) is not int:
+            region_id = session_region_id
+        region = regions.get(region_id)
+        if region is None:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_REGION_NOT_FOUND.format(i))
+            continue
         photos, photo_error = _staged_observation_photos(upload, record, i)
         if photo_error:
             errors.append(photo_error)
@@ -1453,6 +1475,7 @@ def _import_observation_records(
             text=(record.get(FIELD_TEXT) or '').strip(),
             lat=lat,
             lon=lon,
+            region=region,
             acc_m=record.get(FIELD_ACC_M),
             operator=session_operator,
             source='ipso',

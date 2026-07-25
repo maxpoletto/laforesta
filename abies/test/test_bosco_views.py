@@ -26,7 +26,8 @@ from config.constants import (
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_HEIGHT_PX,
     FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID,
-    FIELD_PHOTOS, FIELD_SIZE_BYTES, FIELD_SOURCE, FIELD_SPECIES_ID,
+    FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
+    FIELD_SPECIES_ID,
     FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML, MESSAGE, PATCHES, RECORD,
     ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
@@ -87,12 +88,14 @@ def test_bosco_digest_endpoints_reader_access(
     assert resp['Cache-Control'] == 'no-store'
 
 
-def test_observation_detail_and_photo_reader_access(reader_client, tmp_path, settings):
+def test_observation_detail_and_photo_reader_access(
+        reader_client, parcels, tmp_path, settings):
     settings.OBSERVATION_MEDIA_DIR = tmp_path
     category = ObservationCategory.objects.create(name='sentieri-test', sort_order=10)
     observation = Observation.objects.create(
         date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
-        acc_m=4, operator='Mario', source='ipso', client_record_id='rec-1',
+        region=parcels[0].region, acc_m=4, operator='Mario', source='ipso',
+        client_record_id='rec-1',
     )
     ObservationCategoryAssignment.objects.create(
         observation=observation, category=category,
@@ -122,6 +125,7 @@ def test_observation_detail_and_photo_reader_access(reader_client, tmp_path, set
     assert payload[FIELD_TEXT] == 'Frana sul sentiero'
     assert payload[FIELD_LAT] == 38.5
     assert payload[FIELD_LON] == 16.3
+    assert payload[FIELD_REGION_ID] == parcels[0].region_id
     assert payload[FIELD_ACC_M] == 4
     assert payload[FIELD_OPERATOR] == 'Mario'
     assert payload[FIELD_SOURCE] == 'ipso'

@@ -19,7 +19,8 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 const O = await import(staticModule('bosco/js/bosco-observations.js'));
 const S = await import(staticModule('base/js/strings.js'));
 const {
-  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, ROW_ID, ROWS, VERSION,
+  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID,
+  ROWS, VERSION,
 } = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
@@ -40,22 +41,27 @@ function assertEqual(actual, expected, msg) {
 console.log('bosco-observations.js');
 
 const digest = {
-  [COLUMNS]: [ROW_ID, VERSION, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
-    S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
-    S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT],
+  [COLUMNS]: [ROW_ID, VERSION, FIELD_REGION_ID, FIELD_CATEGORY_IDS,
+    S.COL_DATE, S.COL_TEXT, S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M,
+    S.COL_OPERATOR, S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT],
   [ROWS]: [
-    [1, 1, [10, 11], '2026-07-25', 'Frana sul sentiero', 38.5, 16.3, 4,
+    [1, 1, 1, [10, 11], '2026-07-25', 'Frana sul sentiero', 38.5, 16.3, 4,
       'Mario', 'viabilità, rifiuti', 2],
-    [2, 1, [12], '2025-05-10', 'Chioma secca', 38.7, 16.6, '', '',
+    [2, 1, 2, [12], '2025-05-10', 'Chioma secca', 38.7, 16.6, '', '',
       'fitosanitario', 0],
-    [3, 1, [], 'bad', 'Ignorata', '', 16.9, '', '', '', 0],
+    [3, 1, 1, [10], '2026-01-03', 'Fuori particella', 39.0, 17.0, 7,
+      'Mario', 'viabilità', 0],
+    [4, 1, null, [11], '2026-01-04', 'Storica in particella', 38.4, 16.2,
+      '', '', 'rifiuti', 0],
+    [5, 1, 1, [], 'bad', 'Ignorata', '', 16.9, '', '', '', 0],
   ],
 };
 
 const observations = O.buildObservations(digest);
-assertEqual(observations.length, 2, 'buildObservations: ignores invalid coords');
+assertEqual(observations.length, 4, 'buildObservations: ignores invalid coords');
 assertEqual({
   id: observations[0].id,
+  regionId: observations[0].regionId,
   categoryIds: observations[0].categoryIds,
   categoryNames: observations[0].categoryNames,
   year: observations[0].year,
@@ -65,6 +71,7 @@ assertEqual({
   photoCount: observations[0].photoCount,
 }, {
   id: 1,
+  regionId: 1,
   categoryIds: [10, 11],
   categoryNames: ['viabilità', 'rifiuti'],
   year: 2026,
@@ -87,13 +94,14 @@ const features = [
   },
 ];
 const attributed = O.attributeObservationParcels(observations, features);
-assertEqual(attributed.map(o => [o.region, o.parcel]), [['Capistrano', '1'], ['Serra', '2']],
-            'attributeObservationParcels: region/parcel from geometry');
+assertEqual(attributed.map(o => [o.region, o.parcel]), [
+  ['Capistrano', '1'], ['Serra', '2'], ['', ''], ['Capistrano', '1'],
+], 'attributeObservationParcels: region/parcel from geometry');
 
 assertEqual(O.observationCategoryItems(attributed), [
   { id: 12, name: 'fitosanitario', count: 1 },
-  { id: 11, name: 'rifiuti', count: 1 },
-  { id: 10, name: 'viabilità', count: 1 },
+  { id: 11, name: 'rifiuti', count: 2 },
+  { id: 10, name: 'viabilità', count: 2 },
 ], 'observationCategoryItems: sorted counts');
 assertEqual(O.observationYears(attributed), [2025, 2026], 'observationYears: sorted years');
 assertEqual(O.normalizeObservationYearRange(null, null, [2025, 2026]), { from: 2025, to: 2026 },
@@ -101,8 +109,17 @@ assertEqual(O.normalizeObservationYearRange(null, null, [2025, 2026]), { from: 2
 assertEqual(O.normalizeObservationYearRange(2026, 2025, [2025, 2026]), { from: 2025, to: 2026 },
             'normalizeObservationYearRange: swaps reversed range');
 assertEqual(O.filterObservations(attributed, {
-  region: 'Capistrano', categoryIds: [10], yearFrom: 2026, yearTo: 2026,
-}).map(o => o.id), [1], 'filterObservations: region, category, and year');
+  regionId: 1, region: 'Capistrano', categoryIds: [10], yearFrom: 2026, yearTo: 2026,
+}).map(o => o.id), [1, 3],
+            'filterObservations: region ID includes outside-parcel observations');
+assertEqual(O.filterObservations(attributed, {
+  regionId: 1, region: 'Capistrano', categoryIds: [11], yearFrom: 2026, yearTo: 2026,
+}).map(o => o.id), [1, 4],
+            'filterObservations: legacy rows can fall back to geometry region');
+assertEqual(O.filterObservations(attributed, {
+  regionId: 2, region: 'Serra', categoryIds: [10], yearFrom: 2026, yearTo: 2026,
+}).map(o => o.id), [],
+            'filterObservations: explicit region ID overrides geometry region');
 assertEqual(O.filterObservations(attributed, { categoryIds: [] }).map(o => o.id), [],
             'filterObservations: explicit empty categories means none');
 

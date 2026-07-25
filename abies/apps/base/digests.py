@@ -39,6 +39,7 @@ from config.constants import (
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS,
     FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER, FIELD_PHOTO_COUNT,
+    FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
     ROW_ID, VERSION,
@@ -1273,7 +1274,7 @@ def generate_preserved_trees() -> None:
 
 
 OBSERVATION_COLUMNS = [
-    ROW_ID, VERSION, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
+    ROW_ID, VERSION, FIELD_REGION_ID, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
     S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
     S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT,
 ]
@@ -1291,7 +1292,7 @@ def build_observation_record(observation) -> list:
     category_ids = [category.id for category in categories]
     category_names = ', '.join(category.name for category in categories)
     return [
-        observation.id, observation.version, category_ids,
+        observation.id, observation.version, observation.region_id, category_ids,
         observation.date.isoformat(), observation.text, observation.lat,
         observation.lon, observation.acc_m, observation.operator,
         category_names, getattr(observation, 'photo_count', 0),

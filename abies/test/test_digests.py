@@ -39,7 +39,8 @@ from config.constants import (
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION,
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY_POINTS,
-    DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, ROWS,
+    DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT,
+    FIELD_REGION_ID, ROWS,
     ROW_ID, VERSION,
 )
 
@@ -395,13 +396,13 @@ class TestGenerateBoscoDigests:
         assert row[cols.index(S.COL_H_M)] is None
         assert row[cols.index(S.COL_H_MEASURED)] is False
 
-    def test_observations_digest(self, db, tmp_path, settings):
+    def test_observations_digest(self, db, parcels, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         cat1 = ObservationCategory.objects.create(name='rifiuti-test', sort_order=20)
         cat2 = ObservationCategory.objects.create(name='viabilita-test', sort_order=10)
         obs = Observation.objects.create(
             date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
-            acc_m=4, operator='Mario',
+            region=parcels[0].region, acc_m=4, operator='Mario',
         )
         ObservationCategoryAssignment.objects.create(observation=obs, category=cat1)
         ObservationCategoryAssignment.objects.create(observation=obs, category=cat2)
@@ -415,12 +416,14 @@ class TestGenerateBoscoDigests:
         data = self._read(tmp_path, DIGEST_OBSERVATIONS)
         cols = data[COLUMNS]
         assert data[ROWS] == [[
-            obs.id, obs.version, [cat2.id, cat1.id], '2026-07-25',
+            obs.id, obs.version, parcels[0].region_id, [cat2.id, cat1.id],
+            '2026-07-25',
             'Frana sul sentiero', 38.5, 16.3, 4, 'Mario',
             'viabilita-test, rifiuti-test', 1,
         ]]
         assert cols == [
-            ROW_ID, VERSION, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
+            ROW_ID, VERSION, FIELD_REGION_ID, FIELD_CATEGORY_IDS,
+            S.COL_DATE, S.COL_TEXT,
             S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
             S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT,
         ]
