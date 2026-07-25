@@ -26,8 +26,8 @@ from apps.base.http import (
     CACHE_NO_CACHE, apply_cache_control, conditional_file_response, not_modified_response,
 )
 from apps.base.models import (
-    Eclass, Parcel, Region, Sample, Species, Survey, Tree, TreeSample,
-    parcel_sort_key,
+    Eclass, Observation, ObservationPhoto, Parcel, Region, Sample, Species,
+    Survey, Tree, TreeSample, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.preserved_trees import (
@@ -40,11 +40,14 @@ from apps.base.responses import (
 )
 from config import strings as S
 from config.constants import (
-    DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
-    FIELD_ACC_M, FIELD_DATE, FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M,
-    FIELD_H_MEASURED, FIELD_LAT, FIELD_LON, FIELD_NOTE, FIELD_NUMBER,
-    FIELD_OPERATOR, FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES_ID, HTML,
+    FIELD_ACC_M, FIELD_CATEGORIES, FIELD_CLIENT_RECORD_ID, FIELD_CONTENT_TYPE,
+    FIELD_DATE, FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M,
+    FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME,
+    FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME,
+    FIELD_PARCEL_ID, FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
+    FIELD_SPECIES_ID, FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML,
     ROW_ID, VERSION,
 )
 
@@ -171,6 +174,74 @@ def parcel_metadata_save_view(request):
         request, body, data_id=DIGEST_PARCELS, row_id=parcel.id,
         patches=[row_patch(DIGEST_PARCELS, parcel.id, build_parcel_record(parcel))],
     )
+
+
+@login_required
+def observations_data(request):
+    return serve_digest(request, DIGEST_OBSERVATIONS)
+
+
+@login_required
+def observation_detail(request, observation_id: int):
+    observation = (
+        Observation.objects
+        .prefetch_related('categories', 'photos')
+        .filter(id=observation_id)
+        .first()
+    )
+    if observation is None:
+        raise Http404
+    categories = sorted(
+        observation.categories.all(),
+        key=lambda c: (c.sort_order, c.name, c.id),
+    )
+    return JsonResponse({
+        ROW_ID: observation.id,
+        VERSION: observation.version,
+        FIELD_DATE: observation.date.isoformat(),
+        FIELD_TEXT: observation.text,
+        FIELD_LAT: observation.lat,
+        FIELD_LON: observation.lon,
+        FIELD_ACC_M: observation.acc_m,
+        FIELD_OPERATOR: observation.operator,
+        FIELD_SOURCE: observation.source,
+        FIELD_CLIENT_RECORD_ID: observation.client_record_id,
+        FIELD_CATEGORIES: [
+            {FIELD_ID: category.id, FIELD_NAME: category.name}
+            for category in categories
+        ],
+        FIELD_PHOTOS: [_observation_photo_metadata(photo)
+                       for photo in observation.photos.all()],
+    })
+
+
+@login_required
+def observation_photo(request, photo_id: int):
+    photo = ObservationPhoto.objects.filter(id=photo_id).first()
+    if photo is None:
+        raise Http404
+    try:
+        path = photo.absolute_path()
+    except ValueError as exc:
+        raise Http404 from exc
+    if not path.is_file():
+        raise Http404
+    return conditional_file_response(
+        request, path, content_type=photo.content_type or 'application/octet-stream',
+        cache_control=CACHE_NO_CACHE,
+    )
+
+
+def _observation_photo_metadata(photo: ObservationPhoto) -> dict:
+    return {
+        FIELD_ID: photo.id,
+        FIELD_URL: f'/api/bosco/observations/photos/{photo.id}/',
+        FIELD_CONTENT_TYPE: photo.content_type,
+        FIELD_SIZE_BYTES: photo.size_bytes,
+        FIELD_WIDTH_PX: photo.width_px,
+        FIELD_HEIGHT_PX: photo.height_px,
+        FIELD_ORIGINAL_FILENAME: photo.original_filename,
+    }
 
 
 @login_required

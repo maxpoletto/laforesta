@@ -21,7 +21,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
-from django.db.models import F, Sum
+from django.db.models import Count, F, Sum
 from django.utils import timezone
 
 from apps.base.http import CACHE_NO_STORE, conditional_file_response
@@ -37,7 +37,8 @@ from config.constants import (
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
     DIGEST_PARCELS,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
-    DIGEST_PRESERVED_TREES, FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER,
+    DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS,
+    FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER, FIELD_PHOTO_COUNT,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
     ROW_ID, VERSION,
@@ -1271,6 +1272,51 @@ def generate_preserved_trees() -> None:
     logger.info('%s.json.gz: %s rows', DIGEST_PRESERVED_TREES, len(rows))
 
 
+OBSERVATION_COLUMNS = [
+    ROW_ID, VERSION, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
+    S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
+    S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT,
+]
+
+
+def build_observation_record(observation) -> list:
+    """Build one row of the `observations` digest.
+
+    Caller should prefetch `categories` and annotate `photo_count`.
+    """
+    categories = sorted(
+        observation.categories.all(),
+        key=lambda c: (c.sort_order, c.name, c.id),
+    )
+    category_ids = [category.id for category in categories]
+    category_names = ', '.join(category.name for category in categories)
+    return [
+        observation.id, observation.version, category_ids,
+        observation.date.isoformat(), observation.text, observation.lat,
+        observation.lon, observation.acc_m, observation.operator,
+        category_names, getattr(observation, 'photo_count', 0),
+    ]
+
+
+def generate_observations() -> None:
+    from apps.base.models import Observation
+
+    rows = [
+        build_observation_record(observation)
+        for observation in (
+            Observation.objects
+            .prefetch_related('categories')
+            .annotate(photo_count=Count('photos'))
+            .order_by('-date', '-id')
+        )
+    ]
+    _write_gzip_json(
+        {'columns': OBSERVATION_COLUMNS, 'rows': rows},
+        _dest(DIGEST_OBSERVATIONS),
+    )
+    logger.info('%s.json.gz: %s rows', DIGEST_OBSERVATIONS, len(rows))
+
+
 FUTURE_PRODUCTION_COLUMNS = [
     ROW_ID, VERSION, S.COL_HARVEST_PLAN, COL_PARCEL_ID,
     S.COL_REGION, S.COL_PARCEL, S.COL_YEAR_PLANNED, S.COL_VOLUME_PLANNED,
@@ -1473,6 +1519,7 @@ _GENERATORS: dict[str, callable] = {
     DIGEST_PARCEL_DENDROMETRY: generate_parcel_dendrometry,
     DIGEST_PARCEL_DENDROMETRY_POINTS: generate_parcel_dendrometry_points,
     DIGEST_PRESERVED_TREES: generate_preserved_trees,
+    DIGEST_OBSERVATIONS: generate_observations,
     DIGEST_HYPSO_PARAMS: generate_hypso_params,
 }
 

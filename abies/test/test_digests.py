@@ -18,14 +18,15 @@ from apps.base.digests import (
     generate_parcel_dendrometry, generate_parcel_dendrometry_points,
     generate_sampled_trees_for_survey,
     generate_prelievi, generate_preserved_trees, generate_parcels,
-    generate_audit, generate_all, mark_stale,
+    generate_audit, generate_all, generate_observations, mark_stale,
     regenerate_if_stale, prelievi_species_cols, _write_gzip_json,
     _audit_configs, _tracked_models,
 )
 from apps.base.models import (
     Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HypsoParamSet, HypsoParamSource, Parcel, Role, Sample, SampleArea,
-    SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
+    HypsoParamSet, HypsoParamSource, Observation, ObservationCategory,
+    ObservationCategoryAssignment, ObservationPhoto, Parcel, Role, Sample,
+    SampleArea, SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
 )
 from apps.campionamenti import csv_grid
 from apps.mannesi.models import ProductionCredit, WorkHour
@@ -37,8 +38,9 @@ from config.constants import (
     COLUMNS, COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION,
     DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, ROWS, ROW_ID,
-    VERSION,
+    DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, ROWS,
+    ROW_ID, VERSION,
 )
 
 
@@ -393,6 +395,35 @@ class TestGenerateBoscoDigests:
         assert row[cols.index(S.COL_H_M)] is None
         assert row[cols.index(S.COL_H_MEASURED)] is False
 
+    def test_observations_digest(self, db, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        cat1 = ObservationCategory.objects.create(name='rifiuti-test', sort_order=20)
+        cat2 = ObservationCategory.objects.create(name='viabilita-test', sort_order=10)
+        obs = Observation.objects.create(
+            date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
+            acc_m=4, operator='Mario',
+        )
+        ObservationCategoryAssignment.objects.create(observation=obs, category=cat1)
+        ObservationCategoryAssignment.objects.create(observation=obs, category=cat2)
+        ObservationPhoto.objects.create(
+            observation=obs, file_path='1/photo.jpg', content_type='image/jpeg',
+            size_bytes=3, checksum='a' * 64,
+        )
+
+        generate_observations()
+
+        data = self._read(tmp_path, DIGEST_OBSERVATIONS)
+        cols = data[COLUMNS]
+        assert data[ROWS] == [[
+            obs.id, obs.version, [cat2.id, cat1.id], '2026-07-25',
+            'Frana sul sentiero', 38.5, 16.3, 4, 'Mario',
+            'viabilita-test, rifiuti-test', 1,
+        ]]
+        assert cols == [
+            ROW_ID, VERSION, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
+            S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
+            S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT,
+        ]
 
     def test_future_production_active_highforest_only(
             self, parcels, regions, eclasses, tmp_path, settings,

@@ -62,6 +62,17 @@ export const FIELD_TARGET_TYPE = 'target_type';
 export const FIELD_TARGET_ID = 'target_id';
 export const FIELD_TARGET_LABEL = 'target_label';
 export const FIELD_ERROR_SUMMARY = 'error_summary';
+export const FIELD_TEXT = 'text';
+export const FIELD_CATEGORY_IDS = 'category_ids';
+export const FIELD_CATEGORIES = 'categories';
+export const FIELD_PHOTO_COUNT = 'photo_count';
+export const FIELD_PHOTOS = 'photos';
+export const FIELD_URL = 'url';
+export const FIELD_CONTENT_TYPE = 'content_type';
+export const FIELD_SIZE_BYTES = 'size_bytes';
+export const FIELD_WIDTH_PX = 'width_px';
+export const FIELD_HEIGHT_PX = 'height_px';
+export const FIELD_ORIGINAL_FILENAME = 'original_filename';
 
 // Ipso integration identifiers.
 export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
@@ -100,6 +111,7 @@ export const DIGEST_FUTURE_PRODUCTION = 'future_production';
 export const DIGEST_PARCEL_DENDROMETRY = 'parcel_dendrometry';
 export const DIGEST_PARCEL_DENDROMETRY_POINTS = 'parcel_dendrometry_points';
 export const DIGEST_PRESERVED_TREES = 'preserved_trees';
+export const DIGEST_OBSERVATIONS = 'observations';
 
 // Hypsometric-parameter set source — mirror apps/base/models.py HypsoParamSource.
 export const HYPSO_SOURCE_COMPUTED = 'computed';

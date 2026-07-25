@@ -15,14 +15,20 @@ from apps.base import csv_io
 from apps.base.digests import (
     PRESERVED_TREE_COLUMNS, build_parcel_record, build_preserved_tree_record,
 )
-from apps.base.models import DigestStatus, Parcel, Region, Sample, Survey, Tree, TreeSample
+from apps.base.models import (
+    DigestStatus, Observation, ObservationCategory, ObservationCategoryAssignment,
+    ObservationPhoto, Parcel, Region, Sample, Survey, Tree, TreeSample,
+)
 from config import strings as S
 from config.constants import (
-    DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_DATE,
-    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_ACC_M, FIELD_H_M, FIELD_LAT,
-    FIELD_LON, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR,
-    FIELD_PARCEL_ID, FIELD_SPECIES_ID, HTML, MESSAGE, PATCHES, RECORD, ROW_ID,
-    STATUS, STATUS_CONFLICT, VERSION,
+    DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_ACC_M,
+    FIELD_CATEGORIES, FIELD_CLIENT_RECORD_ID, FIELD_CONTENT_TYPE, FIELD_DATE,
+    FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_HEIGHT_PX,
+    FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+    FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID,
+    FIELD_PHOTOS, FIELD_SIZE_BYTES, FIELD_SOURCE, FIELD_SPECIES_ID,
+    FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML, MESSAGE, PATCHES, RECORD,
+    ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
 
 
@@ -53,6 +59,7 @@ def reader_client(reader_user):
     c.force_login(reader_user)
     return c
 
+
 @pytest.fixture
 def writer_client(writer_user):
     c = Client()
@@ -63,6 +70,7 @@ def writer_client(writer_user):
 @pytest.mark.parametrize('path', [
     '/api/bosco/parcels/data/',
     '/api/bosco/preserved-trees/data/',
+    '/api/bosco/observations/data/',
     '/api/bosco/future-production/data/',
     '/api/bosco/parcel-dendrometry/data/',
     '/api/bosco/parcel-dendrometry-points/data/',
@@ -77,6 +85,81 @@ def test_bosco_digest_endpoints_reader_access(
     assert resp.status_code == 200
     assert resp['Content-Encoding'] == 'gzip'
     assert resp['Cache-Control'] == 'no-store'
+
+
+def test_observation_detail_and_photo_reader_access(reader_client, tmp_path, settings):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    category = ObservationCategory.objects.create(name='sentieri-test', sort_order=10)
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
+        acc_m=4, operator='Mario', source='ipso', client_record_id='rec-1',
+    )
+    ObservationCategoryAssignment.objects.create(
+        observation=observation, category=category,
+    )
+    photo_path = tmp_path / str(observation.id) / 'photo.jpg'
+    photo_path.parent.mkdir(parents=True)
+    photo_path.write_bytes(b'jpg')
+    photo = ObservationPhoto.objects.create(
+        observation=observation,
+        file_path=f'{observation.id}/photo.jpg',
+        content_type='image/jpeg',
+        size_bytes=3,
+        width_px=20,
+        height_px=10,
+        checksum='a' * 64,
+        original_filename='campo.jpg',
+    )
+
+    detail = reader_client.get(
+        f'/api/bosco/observations/{observation.id}/detail/',
+    )
+
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert payload[ROW_ID] == observation.id
+    assert payload[FIELD_DATE] == '2026-07-25'
+    assert payload[FIELD_TEXT] == 'Frana sul sentiero'
+    assert payload[FIELD_LAT] == 38.5
+    assert payload[FIELD_LON] == 16.3
+    assert payload[FIELD_ACC_M] == 4
+    assert payload[FIELD_OPERATOR] == 'Mario'
+    assert payload[FIELD_SOURCE] == 'ipso'
+    assert payload[FIELD_CLIENT_RECORD_ID] == 'rec-1'
+    assert payload[FIELD_CATEGORIES] == [
+        {FIELD_ID: category.id, FIELD_NAME: 'sentieri-test'},
+    ]
+    assert payload[FIELD_PHOTOS] == [{
+        FIELD_ID: photo.id,
+        FIELD_URL: f'/api/bosco/observations/photos/{photo.id}/',
+        FIELD_CONTENT_TYPE: 'image/jpeg',
+        FIELD_SIZE_BYTES: 3,
+        FIELD_WIDTH_PX: 20,
+        FIELD_HEIGHT_PX: 10,
+        FIELD_ORIGINAL_FILENAME: 'campo.jpg',
+    }]
+
+    resp = reader_client.get(payload[FIELD_PHOTOS][0][FIELD_URL])
+
+    assert resp.status_code == 200
+    assert resp['Content-Type'] == 'image/jpeg'
+    assert resp['Cache-Control'] == 'no-cache'
+    assert b''.join(resp.streaming_content) == b'jpg'
+
+
+def test_observation_photo_missing_file_404(reader_client, tmp_path, settings):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
+    )
+    photo = ObservationPhoto.objects.create(
+        observation=observation, file_path='missing/photo.jpg',
+        content_type='image/jpeg', size_bytes=3, checksum='a' * 64,
+    )
+
+    resp = reader_client.get(f'/api/bosco/observations/photos/{photo.id}/')
+
+    assert resp.status_code == 404
 
 
 @pytest.mark.parametrize('path', [

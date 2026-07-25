@@ -121,6 +121,7 @@ export const COL_HOURS = 'Ore';
 export const COL_CREDITS_Q = 'Quintali';
 export const COL_ID = 'ID';
 export const COL_NOTE = 'Note';
+export const COL_TEXT = 'Testo';
 export const COL_EXTRA_NOTE = 'Altre note';
 export const COL_VOLUME_M3 = 'Volume (m³)';
 export const COL_ACTIVE = 'Attivo';
@@ -415,6 +416,8 @@ export const COL_PRESSLER        = 'Pressler';
 export const COL_V_M3            = 'V (m³)';
 export const COL_MASS_Q          = 'm (q)';
 export const COL_PRESERVED       = 'PAI';
+export const COL_OBSERVATION_CATEGORIES = 'Categorie';
+export const COL_PHOTO_COUNT = 'Foto';
 
 // Abbreviated column labels used only in the TREES_COLS table header to
 // save horizontal space; not in any digest.

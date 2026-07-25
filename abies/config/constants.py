@@ -224,19 +224,33 @@ FIELD_TARGET_TYPE           = 'target_type'
 FIELD_TARGET_ID             = 'target_id'
 FIELD_TARGET_LABEL          = 'target_label'
 FIELD_ERROR_SUMMARY         = 'error_summary'
+FIELD_TEXT                  = 'text'
+FIELD_CATEGORY_IDS          = 'category_ids'
+FIELD_CATEGORIES            = 'categories'
+FIELD_PHOTO_COUNT           = 'photo_count'
+FIELD_PHOTOS                = 'photos'
+FIELD_URL                   = 'url'
+FIELD_CONTENT_TYPE          = 'content_type'
+FIELD_SIZE_BYTES            = 'size_bytes'
+FIELD_WIDTH_PX              = 'width_px'
+FIELD_HEIGHT_PX             = 'height_px'
+FIELD_ORIGINAL_FILENAME     = 'original_filename'
 
 # Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 DIGEST_FUTURE_PRODUCTION = 'future_production'
 DIGEST_PARCEL_DENDROMETRY = 'parcel_dendrometry'
 DIGEST_PARCEL_DENDROMETRY_POINTS = 'parcel_dendrometry_points'
 DIGEST_PRESERVED_TREES = 'preserved_trees'
+DIGEST_OBSERVATIONS = 'observations'
 DIGEST_HYPSO_PARAMS = 'hypso_params'
 
 BOSCO_DENDROMETRY_DIGESTS = (
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS,
 )
-BOSCO_TREE_DIGESTS = (*BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES)
+BOSCO_TREE_DIGESTS = (
+    *BOSCO_DENDROMETRY_DIGESTS, DIGEST_PRESERVED_TREES, DIGEST_OBSERVATIONS,
+)
 BOSCO_SPECIES_DIGESTS = BOSCO_TREE_DIGESTS
 
 # Domain defaults — locale-independent values the client and server must agree
