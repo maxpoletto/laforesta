@@ -1,0 +1,111 @@
+// Tests for Bosco observation helpers.
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'abies-bosco-observations-js-'));
+const staticRoot = path.join(tmpRoot, 'static');
+fs.mkdirSync(path.join(staticRoot, 'bosco'), { recursive: true });
+fs.mkdirSync(path.join(staticRoot, 'base'), { recursive: true });
+fs.cpSync(here, path.join(staticRoot, 'bosco', 'js'), { recursive: true });
+fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
+          path.join(staticRoot, 'base', 'js'), { recursive: true });
+process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
+const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
+
+const O = await import(staticModule('bosco/js/bosco-observations.js'));
+const S = await import(staticModule('base/js/strings.js'));
+const {
+  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, ROW_ID, ROWS, VERSION,
+} = await import(staticModule('base/js/constants.js'));
+
+let failed = 0;
+let passed = 0;
+
+function assertEqual(actual, expected, msg) {
+  const a = JSON.stringify(actual);
+  const e = JSON.stringify(expected);
+  if (a === e) passed++;
+  else {
+    failed++;
+    console.error(`FAIL ${msg}`);
+    console.error(`  expected: ${e}`);
+    console.error(`       got: ${a}`);
+  }
+}
+
+console.log('bosco-observations.js');
+
+const digest = {
+  [COLUMNS]: [ROW_ID, VERSION, FIELD_CATEGORY_IDS, S.COL_DATE, S.COL_TEXT,
+    S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
+    S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT],
+  [ROWS]: [
+    [1, 1, [10, 11], '2026-07-25', 'Frana sul sentiero', 38.5, 16.3, 4,
+      'Mario', 'viabilità, rifiuti', 2],
+    [2, 1, [12], '2025-05-10', 'Chioma secca', 38.7, 16.6, '', '',
+      'fitosanitario', 0],
+    [3, 1, [], 'bad', 'Ignorata', '', 16.9, '', '', '', 0],
+  ],
+};
+
+const observations = O.buildObservations(digest);
+assertEqual(observations.length, 2, 'buildObservations: ignores invalid coords');
+assertEqual({
+  id: observations[0].id,
+  categoryIds: observations[0].categoryIds,
+  categoryNames: observations[0].categoryNames,
+  year: observations[0].year,
+  text: observations[0].text,
+  accM: observations[0].accM,
+  operator: observations[0].operator,
+  photoCount: observations[0].photoCount,
+}, {
+  id: 1,
+  categoryIds: [10, 11],
+  categoryNames: ['viabilità', 'rifiuti'],
+  year: 2026,
+  text: 'Frana sul sentiero',
+  accM: 4,
+  operator: 'Mario',
+  photoCount: 2,
+}, 'buildObservations: row object');
+
+const features = [
+  {
+    type: 'Feature',
+    properties: { layer: 'Capistrano', name: 'Capistrano-1' },
+    geometry: { type: 'Polygon', coordinates: [[[16.0, 38.0], [16.4, 38.0], [16.4, 38.6], [16.0, 38.6], [16.0, 38.0]]] },
+  },
+  {
+    type: 'Feature',
+    properties: { layer: 'Serra', name: 'Serra-2' },
+    geometry: { type: 'Polygon', coordinates: [[[16.5, 38.6], [16.8, 38.6], [16.8, 38.8], [16.5, 38.8], [16.5, 38.6]]] },
+  },
+];
+const attributed = O.attributeObservationParcels(observations, features);
+assertEqual(attributed.map(o => [o.region, o.parcel]), [['Capistrano', '1'], ['Serra', '2']],
+            'attributeObservationParcels: region/parcel from geometry');
+
+assertEqual(O.observationCategoryItems(attributed), [
+  { id: 12, name: 'fitosanitario', count: 1 },
+  { id: 11, name: 'rifiuti', count: 1 },
+  { id: 10, name: 'viabilità', count: 1 },
+], 'observationCategoryItems: sorted counts');
+assertEqual(O.observationYears(attributed), [2025, 2026], 'observationYears: sorted years');
+assertEqual(O.normalizeObservationYearRange(null, null, [2025, 2026]), { from: 2025, to: 2026 },
+            'normalizeObservationYearRange: defaults');
+assertEqual(O.normalizeObservationYearRange(2026, 2025, [2025, 2026]), { from: 2025, to: 2026 },
+            'normalizeObservationYearRange: swaps reversed range');
+assertEqual(O.filterObservations(attributed, {
+  region: 'Capistrano', categoryIds: [10], yearFrom: 2026, yearTo: 2026,
+}).map(o => o.id), [1], 'filterObservations: region, category, and year');
+assertEqual(O.filterObservations(attributed, { categoryIds: [] }).map(o => o.id), [],
+            'filterObservations: explicit empty categories means none');
+
+console.log(`
+${passed} passed, ${failed} failed`);
+process.exit(failed > 0 ? 1 : 0);

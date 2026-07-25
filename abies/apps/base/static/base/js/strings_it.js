@@ -352,6 +352,13 @@ export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
 export const BOSCO_INSERT_PAI_TREE_HERE = 'Inserire un nuovo albero qui?';
 export const BOSCO_PAI_TREE_META = (parcel, number) => `${parcel} · n. ${number}`;
 export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';
+export const BOSCO_LOADING_OBSERVATIONS = 'Caricamento osservazioni...';
+export const BOSCO_OBSERVATIONS_UNAVAILABLE = 'Osservazioni non disponibili.';
+export const BOSCO_NO_OBSERVATIONS = 'Nessuna osservazione.';
+export const BOSCO_NO_OBSERVATION_CATEGORIES = 'Nessuna categoria.';
+export const BOSCO_OBSERVATIONS_SHOWN = (shown, total) =>
+  `${shown} di ${total} osservazioni visualizzate.`;
+export const BOSCO_OBSERVATION_DETAIL_TITLE = 'Osservazione';
 export const BOSCO_METRIC_AGE = 'Età';
 export const BOSCO_METRIC_TYPE = 'Governo';
 export const COL_GOVERNANCE = 'Governo';

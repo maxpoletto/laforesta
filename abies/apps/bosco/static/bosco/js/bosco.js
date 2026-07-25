@@ -5,9 +5,14 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
-  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_LAT, FIELD_LON,
-  FIELD_PARCEL_ID, FIELD_REGION_ID, FIELD_SPECIES, M2_PER_HA, ROWS,
+  COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
+  DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
+  DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_ACC_M,
+  FIELD_CATEGORIES, FIELD_CONTENT_TYPE, FIELD_DATE, FIELD_LAT,
+  FIELD_LON, FIELD_NAME, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME,
+  FIELD_PARCEL_ID, FIELD_PHOTOS,
+  FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SPECIES, FIELD_TEXT,
+  FIELD_URL, M2_PER_HA, ROWS,
 } from '../../base/js/constants.js';
 import { fetchJSON } from '../../base/js/api.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
@@ -26,13 +31,16 @@ import {
   showFormError,
 } from '../../base/js/forms.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
-import { dismiss as dismissModal } from '../../base/js/modals.js';
+import {
+  dismiss as dismissModal, show as showModal, showError,
+} from '../../base/js/modals.js';
 import { canModify } from '../../base/js/roles.js';
 import {
   showConfirmModal, wireCancelButtons, wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import {
-  BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI, clearDetailParams,
+  BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_OBSERVATIONS,
+  MODE_PAI, clearDetailParams,
   clearMapView, harvestPerHaAllowed, mapTypeToken, parcelAverageAllowed, readBoscoParams,
   writeMapView, writeOptionalIdList, writeSectionTokens,
 } from './bosco-state.js';
@@ -73,6 +81,10 @@ import {
   productionDeltaByParcel, productionYears,
 } from './bosco-production.js';
 import { E_HARVEST, Q_AGE, Q_ALTITUDE, Q_EVI, Q_NDMI, Q_NDVI } from './bosco-metrics.js';
+import {
+  attributeObservationParcels, buildObservations, filterObservations,
+  normalizeObservationYearRange, observationCategoryItems, observationYears,
+} from './bosco-observations.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -92,6 +104,9 @@ const PARCEL_METADATA_SAVE_URL = '/api/bosco/parcels/metadata/save/';
 const PARCEL_EXPORT_URL = '/api/bosco/parcels/export/';
 const PRESERVED_ID = DIGEST_PRESERVED_TREES;
 const PRESERVED_URL = '/api/bosco/preserved-trees/data/';
+const OBSERVATIONS_ID = DIGEST_OBSERVATIONS;
+const OBSERVATIONS_URL = '/api/bosco/observations/data/';
+const OBSERVATION_DETAIL_URL = id => `/api/bosco/observations/${id}/detail/`;
 const PAI_FORM_URL = '/api/bosco/pai/form/';
 const PAI_SAVE_URL = '/api/bosco/pai/save/';
 const PAI_DELETE_URL = '/api/bosco/pai/delete/';
@@ -112,6 +127,15 @@ const SATELLITE_OVERLAY_CLASS = 'bosco-satellite-raster-overlay';
 const TYPE_HIGHFOREST_KEY = 'highforest';
 const TYPE_COPPICE_KEY = 'coppice';
 const RASTER_TOOLTIP_HANDLERS = Symbol('rasterTooltipHandlers');
+const OBSERVATION_MARKER_STYLE = {
+  radius: 6,
+  color: '#143d24',
+  weight: 1,
+  opacity: 0.95,
+  fillColor: '#17613a',
+  fillOpacity: 0.9,
+  bubblingMouseEvents: false,
+};
 
 const NO_DATA_STYLE = {
   ...PARCEL_STYLE,
@@ -137,6 +161,7 @@ cache.register(SPECIES_ID, SPECIES_URL);
 cache.register(DENDROMETRY_ID, DENDROMETRY_URL);
 cache.register(DENDROMETRY_POINTS_ID, DENDROMETRY_POINTS_URL);
 cache.register(PRESERVED_ID, PRESERVED_URL);
+cache.register(OBSERVATIONS_ID, OBSERVATIONS_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
@@ -196,6 +221,10 @@ let productionMonthly = null;
 let productionChart = null;
 let paiParcelsHost = null;
 let paiSpeciesHost = null;
+let observationCategoriesHost = null;
+let observationYearFromInput = null;
+let observationYearToInput = null;
+let observationSummary = null;
 let detailSections = {};
 let parcelsData = null;
 let futureData = null;
@@ -204,6 +233,7 @@ let prelieviData = null;
 let dendrometryData = null;
 let dendrometryPointsData = null;
 let preservedData = null;
+let observationsData = null;
 let satelliteData = null;
 let satelliteRegionId = null;
 let satelliteLoad = null;
@@ -211,6 +241,7 @@ let satelliteRasterOverlay = null;
 let rasterTooltipContext = null;
 let rawRasterCache = new Map();
 let paiMarkerLayer = null;
+let observationMarkerLayer = null;
 let parcelsGeo = null;
 let map = null;
 let mapRegionId = null;
@@ -229,6 +260,7 @@ const loadDendrometryPoints = makeLoader(
   DENDROMETRY_POINTS_ID, data => { dendrometryPointsData = data; },
 );
 const loadPreservedTrees = makeLoader(PRESERVED_ID, data => { preservedData = data; });
+const loadObservations = makeLoader(OBSERVATIONS_ID, data => { observationsData = data; });
 
 const page = createPage({
   cssUrl: CSS_URL,
@@ -243,11 +275,12 @@ const page = createPage({
     [DENDROMETRY_ID, onDendrometryUpdate],
     [DENDROMETRY_POINTS_ID, onDendrometryPointsUpdate],
     [PRESERVED_ID, onPreservedUpdate],
+    [OBSERVATIONS_ID, onObservationsUpdate],
     [PRELIEVI_ID, onPrelieviUpdate],
   ],
   visibleIds: [
     PARCELS_ID, FUTURE_ID, SPECIES_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
-    PRESERVED_ID, PRELIEVI_ID,
+    PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID,
   ],
 });
 
@@ -343,6 +376,10 @@ function mountPage(el, params) {
   productionMonthly = el.querySelector('[data-role="production-monthly"]');
   paiParcelsHost = el.querySelector('[data-target="pai-parcels"]');
   paiSpeciesHost = el.querySelector('[data-target="pai-species"]');
+  observationCategoriesHost = el.querySelector('[data-target="observation-categories"]');
+  observationYearFromInput = el.querySelector('[data-role="observation-year-from"]');
+  observationYearToInput = el.querySelector('[data-role="observation-year-to"]');
+  observationSummary = el.querySelector('[data-target="observation-summary"]');
 
   buildRegionOptions();
   wireControls();
@@ -377,13 +414,15 @@ function destroyPage() {
   productionHost = productionCanvas = productionSummary = productionLink = null;
   productionPerHa = productionMonthly = null;
   destroyProductionChart();
-  paiParcelsHost = paiSpeciesHost = null;
+  paiParcelsHost = paiSpeciesHost = observationCategoriesHost = null;
+  observationYearFromInput = observationYearToInput = observationSummary = null;
   detailSections = {};
   parcelsData = futureData = prelieviData = dendrometryData = null;
   speciesNames = [];
-  dendrometryPointsData = preservedData = parcelsGeo = null;
+  dendrometryPointsData = preservedData = observationsData = parcelsGeo = null;
   satelliteData = satelliteRegionId = satelliteLoad = null;
   satelliteRasterOverlay = rasterTooltipContext = paiMarkerLayer = null;
+  observationMarkerLayer = null;
   rawRasterCache = new Map();
   regions = [];
   regionById = new Map();
@@ -432,6 +471,11 @@ function onDendrometryPointsUpdate(data) {
 function onPreservedUpdate(data) {
   preservedData = data;
   renderPaiMode();
+}
+
+function onObservationsUpdate(data) {
+  observationsData = data;
+  renderObservationsMode();
 }
 
 function rebuildRegionIndex() {
@@ -535,6 +579,13 @@ function wireControls() {
     setFlagParam(params, 'fc', evolutionCadastralToggle.checked);
     navigateWithParams(PAGE_PATH, params, true);
   });
+
+  observationYearFromInput?.addEventListener('change', () => updateObservationYearParam());
+  observationYearToInput?.addEventListener('change', () => updateObservationYearParam());
+  root?.querySelector('[data-action="show-all-observation-categories"]')
+    ?.addEventListener('click', () => setObservationCategoryFilter(null));
+  root?.querySelector('[data-action="hide-all-observation-categories"]')
+    ?.addEventListener('click', () => setObservationCategoryFilter([]));
 }
 
 function updateEvolutionDateParam(key, input) {
@@ -620,6 +671,8 @@ function applyParams(params) {
   syncDetailOverlay(state);
   if (state.mode === MODE_PAI) renderPaiMode();
   else clearPaiMarkers();
+  if (state.mode === MODE_OBSERVATIONS) renderObservationsMode();
+  else clearObservationMarkers();
 
   canonicalizeURL(state);
 }
@@ -814,6 +867,7 @@ function destroyMap() {
   if (map) {
     clearSatelliteRasterOverlay();
     clearPaiMarkers();
+    clearObservationMarkers();
     map.destroy();
     map = null;
   }
@@ -1805,7 +1859,7 @@ function appendMetadataField(label, value, wide = false) {
   const dt = document.createElement('dt');
   dt.textContent = label;
   const dd = document.createElement('dd');
-  dd.textContent = value || S.BOSCO_NO_DATA;
+  dd.textContent = value == null || value === '' ? S.BOSCO_NO_DATA : value;
   item.append(dt, dd);
   metadataHost.appendChild(item);
 }
@@ -2284,6 +2338,254 @@ function paiPopup(tree) {
   return el;
 }
 
+
+function renderObservationsMode() {
+  if (!map || currentState?.mode !== MODE_OBSERVATIONS) return;
+  if (!observationsData) {
+    if (observationCategoriesHost) observationCategoriesHost.textContent = S.LOADING;
+    if (observationSummary) observationSummary.textContent = S.BOSCO_LOADING_OBSERVATIONS;
+    clearObservationMarkers();
+    loadObservations().then(renderObservationsMode).catch(() => {
+      if (observationCategoriesHost) observationCategoriesHost.textContent = S.ERROR_NETWORK;
+      if (observationSummary) observationSummary.textContent = S.BOSCO_OBSERVATIONS_UNAVAILABLE;
+    });
+    return;
+  }
+
+  const region = regionById.get(currentState.regionId)?.name || '';
+  const allObservations = regionObservations(region);
+  const categoryItems = observationCategoryItems(allObservations);
+  const years = observationYears(allObservations);
+  const yearRange = normalizeObservationYearRange(
+    currentState.observationYearFrom, currentState.observationYearTo, years,
+  );
+  renderObservationCategoryCheckboxes(categoryItems, currentState.observationCategoryIds);
+  renderObservationYearSelect(observationYearFromInput, years, yearRange.from);
+  renderObservationYearSelect(observationYearToInput, years, yearRange.to);
+
+  const observations = filterObservations(allObservations, {
+    categoryIds: currentState.observationCategoryIds,
+    yearFrom: yearRange.from,
+    yearTo: yearRange.to,
+  });
+  renderObservationMarkers(observations);
+  setObservationSummary(observations.length, allObservations.length);
+}
+
+function regionObservations(region) {
+  const features = parcelsGeo?.features || [];
+  return attributeObservationParcels(buildObservations(observationsData), features)
+    .filter(obs => !region || obs.region === region);
+}
+
+function renderObservationCategoryCheckboxes(items, selectedIds) {
+  if (!observationCategoriesHost) return;
+  observationCategoriesHost.replaceChildren();
+  if (!items.length) {
+    observationCategoriesHost.textContent = S.BOSCO_NO_OBSERVATION_CATEGORIES;
+    return;
+  }
+  const selected = selectedIds == null ? null : new Set(selectedIds);
+  for (const item of items) {
+    const label = document.createElement('label');
+    label.className = 'bosco-check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = String(item.id);
+    input.checked = selected == null || selected.has(item.id);
+    input.addEventListener('change', () => updateObservationCategoryFilter(items));
+    const text = document.createElement('span');
+    text.textContent = `${item.name} (${fmtInt(item.count)})`;
+    label.append(input, text);
+    observationCategoriesHost.appendChild(label);
+  }
+}
+
+function updateObservationCategoryFilter(allCategories) {
+  const checked = [...observationCategoriesHost.querySelectorAll('input:checked')]
+    .map(input => Number(input.value));
+  setObservationCategoryFilter(
+    checked.length === allCategories.length ? null : checked,
+    allCategories.map(item => item.id),
+  );
+}
+
+function setObservationCategoryFilter(selected, allIds = null) {
+  const params = new URLSearchParams(location.search);
+  const ids = allIds || [...(observationCategoriesHost?.querySelectorAll('input') || [])]
+    .map(input => Number(input.value));
+  writeOptionalIdList(params, 'oc', selected, ids);
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
+function updateObservationYearParam() {
+  const params = new URLSearchParams(location.search);
+  setObservationYearParam(params, 'oy1', observationYearFromInput?.value);
+  setObservationYearParam(params, 'oy2', observationYearToInput?.value);
+  navigateWithParams(PAGE_PATH, params, true);
+}
+
+function setObservationYearParam(params, key, value) {
+  const year = Number(value);
+  if (Number.isInteger(year)) params.set(key, String(year));
+  else params.delete(key);
+}
+
+function renderObservationYearSelect(select, years, selected) {
+  if (!select) return;
+  select.replaceChildren();
+  if (!years.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = S.BOSCO_NO_DATE;
+    select.appendChild(opt);
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  for (const year of years) {
+    const opt = document.createElement('option');
+    opt.value = String(year);
+    opt.textContent = String(year);
+    opt.selected = year === selected;
+    select.appendChild(opt);
+  }
+}
+
+function setObservationSummary(shown, total) {
+  if (!observationSummary) return;
+  observationSummary.textContent = total
+    ? S.BOSCO_OBSERVATIONS_SHOWN(fmtInt(shown), fmtInt(total))
+    : S.BOSCO_NO_OBSERVATIONS;
+}
+
+function renderObservationMarkers(observations) {
+  clearObservationMarkers();
+  if (!map?.leaflet) return;
+  observationMarkerLayer = L.layerGroup().addTo(map.leaflet);
+  for (const observation of observations) {
+    const marker = L.circleMarker(
+      [observation.lat, observation.lon], OBSERVATION_MARKER_STYLE,
+    );
+    marker.bindTooltip(observationTooltip(observation), {
+      direction: 'top', offset: [0, -5],
+    });
+    marker.on('click', () => showObservationDetail(observation.id));
+    marker.addTo(observationMarkerLayer);
+  }
+}
+
+function clearObservationMarkers() {
+  if (observationMarkerLayer) {
+    observationMarkerLayer.remove();
+    observationMarkerLayer = null;
+  }
+}
+
+function observationTooltip(observation) {
+  const el = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'parcel-tooltip-title';
+  title.textContent = observation.text || S.BOSCO_OBSERVATION_DETAIL_TITLE;
+  const meta = document.createElement('div');
+  meta.textContent = [
+    observation.date,
+    observationCategoryText(observation.categoryNames),
+    observation.photoCount ? `${S.COL_PHOTO_COUNT}: ${fmtInt(observation.photoCount)}` : '',
+  ].filter(Boolean).join(' · ');
+  el.append(title, meta);
+  return el;
+}
+
+async function showObservationDetail(rowId) {
+  try {
+    const result = await fetchJSON(OBSERVATION_DETAIL_URL(rowId));
+    renderObservationDetailModal(result.data);
+  } catch (e) {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
+function renderObservationDetailModal(observation) {
+  const frag = document.createDocumentFragment();
+  const title = document.createElement('h2');
+  title.textContent = S.BOSCO_OBSERVATION_DETAIL_TITLE;
+  frag.appendChild(title);
+
+  const dl = document.createElement('dl');
+  dl.className = 'bosco-observation-detail';
+  const categories = Array.isArray(observation[FIELD_CATEGORIES])
+    ? observation[FIELD_CATEGORIES].map(row => row[FIELD_NAME]).filter(Boolean)
+    : [];
+  const rows = [
+    [S.COL_DATE, observation[FIELD_DATE]],
+    [S.COL_TEXT, observation[FIELD_TEXT]],
+    [S.COL_OBSERVATION_CATEGORIES, observationCategoryText(categories)],
+    [S.COL_LAT, fmtCoord(observation[FIELD_LAT])],
+    [S.COL_LON, fmtCoord(observation[FIELD_LON])],
+    [S.IPSO_COL_ACCURACY, observation[FIELD_ACC_M] == null ? '' : fmtInt(observation[FIELD_ACC_M])],
+    [S.COL_OPERATOR, observation[FIELD_OPERATOR]],
+  ];
+  for (const [label, value] of rows) observationModalRow(dl, label, value);
+  frag.appendChild(dl);
+
+  const photos = Array.isArray(observation[FIELD_PHOTOS]) ? observation[FIELD_PHOTOS] : [];
+  if (photos.length) {
+    const heading = document.createElement('h3');
+    heading.textContent = S.COL_PHOTO_COUNT;
+    frag.appendChild(heading);
+    const grid = document.createElement('div');
+    grid.className = 'bosco-observation-photos';
+    for (const photo of photos) grid.appendChild(observationPhotoElement(photo));
+    frag.appendChild(grid);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'btn';
+  close.textContent = S.DISMISS;
+  close.addEventListener('click', dismissModal);
+  actions.appendChild(close);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+function observationModalRow(parent, label, value) {
+  const dt = document.createElement('dt');
+  dt.textContent = label;
+  const dd = document.createElement('dd');
+  dd.textContent = value == null || value === '' ? S.BOSCO_NO_DATA : value;
+  parent.append(dt, dd);
+}
+
+function observationCategoryText(names) {
+  return (names || []).filter(Boolean).join(', ');
+}
+
+function observationPhotoElement(photo) {
+  const card = document.createElement('a');
+  card.className = 'bosco-observation-photo';
+  card.href = photo[FIELD_URL];
+  card.target = '_blank';
+  card.rel = 'noopener';
+  const isImage = String(photo[FIELD_CONTENT_TYPE] || '').startsWith('image/');
+  if (isImage) {
+    const img = document.createElement('img');
+    img.src = photo[FIELD_URL];
+    img.alt = photo[FIELD_ORIGINAL_FILENAME] || S.COL_PHOTO_COUNT;
+    card.appendChild(img);
+  }
+  const label = document.createElement('span');
+  label.textContent = [
+    photo[FIELD_ORIGINAL_FILENAME] || S.COL_PHOTO_COUNT,
+    photo[FIELD_SIZE_BYTES] ? `${fmtInt(photo[FIELD_SIZE_BYTES])} B` : '',
+  ].filter(Boolean).join(' · ');
+  card.appendChild(label);
+  return card;
+}
+
 function closeDetailOverlay() {
   const params = new URLSearchParams(location.search);
   clearDetailParams(params);
@@ -2417,6 +2719,7 @@ function canonicalizeURL(state) {
   changed = canonicalizeEvolutionParams(params, state) || changed;
   changed = canonicalizeDetailParams(params, state) || changed;
   changed = canonicalizePaiParams(params, state) || changed;
+  changed = canonicalizeObservationParams(params, state) || changed;
   if (changed) navigateWithParams(PAGE_PATH, params, true);
 }
 
@@ -2459,6 +2762,44 @@ function canonicalizePaiParams(params, state) {
     changed = canonicalizeOptionalIdParam(params, 'ps', state.paiSpeciesIds, speciesIds) || changed;
   }
   return changed;
+}
+
+
+function canonicalizeObservationParams(params, state) {
+  if (state.mode !== MODE_OBSERVATIONS) {
+    if (!params.has('oc') && !params.has('oy1') && !params.has('oy2')) return false;
+    params.delete('oc');
+    params.delete('oy1');
+    params.delete('oy2');
+    return true;
+  }
+  if (!observationsData) return false;
+
+  let changed = false;
+  const region = regionById.get(state.regionId)?.name || '';
+  const allObservations = regionObservations(region);
+  const categoryIds = observationCategoryItems(allObservations).map(item => item.id);
+  changed = canonicalizeOptionalIdParam(
+    params, 'oc', state.observationCategoryIds, categoryIds,
+  ) || changed;
+
+  const years = observationYears(allObservations);
+  const range = normalizeObservationYearRange(
+    state.observationYearFrom, state.observationYearTo, years,
+  );
+  changed = canonicalizeObservationYearParam(params, 'oy1', range.from, years[0]) || changed;
+  changed = canonicalizeObservationYearParam(
+    params, 'oy2', range.to, years[years.length - 1],
+  ) || changed;
+  return changed;
+}
+
+function canonicalizeObservationYearParam(params, key, value, defaultValue) {
+  const before = params.get(key);
+  const had = params.has(key);
+  if (value == null || value === defaultValue) params.delete(key);
+  else params.set(key, String(value));
+  return params.get(key) !== before || params.has(key) !== had;
 }
 
 function canonicalizeOptionalIdParam(params, key, selectedIds, allIds) {

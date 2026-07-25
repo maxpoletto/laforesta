@@ -17,7 +17,8 @@ process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
 const {
-  clearDetailParams, clearMapView, formatCenter, mapTypeName, mapTypeToken,
+  MODE_OBSERVATIONS, clearDetailParams, clearMapView, formatCenter,
+  mapTypeName, mapTypeToken,
   parseCenter, parseIdList, parseOptionalIdList, parseSectionTokens, readBoscoParams,
   writeMapView, writeOptionalIdList, writeSectionTokens,
 } = await import(staticModule('bosco/js/bosco-state.js'));
@@ -67,10 +68,15 @@ assertEqual(state.openSections, ['m', 'd', 'p'], 'readBoscoParams: default detai
 assertEqual(state.detailSpeciesIds, null, 'readBoscoParams: default detail species');
 assertEqual(state.paiParcelIds, null, 'readBoscoParams: default PAI parcels');
 assertEqual(state.paiSpeciesIds, null, 'readBoscoParams: default PAI species');
+assertEqual(state.observationCategoryIds, null,
+            'readBoscoParams: default observation categories');
+assertEqual(state.observationYearFrom, null, 'readBoscoParams: default observation from year');
+assertEqual(state.observationYearTo, null, 'readBoscoParams: default observation to year');
 
 state = readBoscoParams({
   c: '8', m: '3', mt: 't', mc: '38,16', mz: '12', q: '5', fc: '1', fh: '1',
   v: '1', pa: '42', vo: 'dmx', ds: '3,5,3,bad', pp: '7,8', ps: '',
+  oc: '11,12,bad', oy1: '2025', oy2: '2026',
 }, [7, 8]);
 assertEqual(state.regionId, 8, 'readBoscoParams: valid region');
 assertEqual(state.mode, '3', 'readBoscoParams: valid mode');
@@ -87,6 +93,20 @@ assertEqual(state.openSections, ['d', 'm'], 'readBoscoParams: detail sections');
 assertEqual(state.detailSpeciesIds, [3, 5], 'readBoscoParams: detail species ids');
 assertEqual(state.paiParcelIds, [7, 8], 'readBoscoParams: PAI parcel ids');
 assertEqual(state.paiSpeciesIds, [], 'readBoscoParams: explicit empty PAI species');
+assertEqual(state.observationCategoryIds, [11, 12],
+            'readBoscoParams: observation category ids');
+assertEqual(state.observationYearFrom, 2025, 'readBoscoParams: observation from year');
+assertEqual(state.observationYearTo, 2026, 'readBoscoParams: observation to year');
+
+
+state = readBoscoParams({ m: MODE_OBSERVATIONS, oc: '', oy1: '1899', oy2: '2101' }, [7, 8]);
+assertEqual(state.mode, MODE_OBSERVATIONS, 'readBoscoParams: observations mode');
+assertEqual(state.observationCategoryIds, [],
+            'readBoscoParams: explicit empty observation categories');
+assertEqual(state.observationYearFrom, null,
+            'readBoscoParams: invalid low observation year ignored');
+assertEqual(state.observationYearTo, null,
+            'readBoscoParams: invalid high observation year ignored');
 
 state = readBoscoParams({ ds: '' }, [7, 8]);
 assertEqual(state.detailSpeciesIds, [], 'readBoscoParams: explicit empty detail species');

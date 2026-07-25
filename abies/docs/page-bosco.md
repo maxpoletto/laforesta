@@ -15,7 +15,8 @@ Information provided:
 2. Dendrometric information by diameter class and species.
 3. Historical production by parcel and region
 4. Preserved trees (PAI)
-5. Satellite data
+5. Field observations
+6. Satellite data
 
 ## Visual appearance
 
@@ -28,6 +29,7 @@ hosts (top to bottom):
    - Caratteristiche (default)
    - Evoluzione
    - Piante ad accrescimento indefinito
+   - Osservazioni
 3. Per-mode controls (see below).
 
 ### Hover and click on the map
@@ -50,6 +52,9 @@ hosts (top to bottom):
 - In PAI mode, **click** on the map prompts writers to insert a new preserved
   tree at that coordinate; confirming opens the PAI add form with lat/lon
   prefilled, and with the parcel preselected when the click was inside one.
+- In Osservazioni mode, **hover** on an observation dot shows its text, date,
+  categories, and photo count. **Click** opens a standard detail modal with
+  the full text, coordinates, operator, categories, and any photos.
 
 ### Mode panels
 
@@ -116,6 +121,18 @@ hosts (top to bottom):
   Click on an existing tree dot opens a popover with species, tree number,
   parcel, survey date, estimated birth year, diameter/height, coordinates, and
   note; writers see a pencil and garbage icon.
+
+- **Osservazioni**
+
+  Scrollable category list with counts, `Tutte` / `Nessuna` buttons, and two
+  year selectors (`Da`, `A`) for year-granularity filtering. The map shows
+  dark-green point markers for observations whose coordinates fall inside the
+  currently selected region's parcel geometry.
+
+  Clicking a dot opens a standard modal with date, text, categories, lat/lon,
+  GPS accuracy, operator, and photo thumbnails/links. Observations outside any
+  known parcel geometry are not assigned to a region and therefore do not appear
+  in this region-scoped layer.
 
 ### Map conventions
 
@@ -217,8 +234,8 @@ Sections render lazily on first expand.
   (every page state is scoped to one region; see also CLAUDE.md
   "Maps").  Stale `c=N` (deleted region) falls back to the first
   region by name.
-- `m=1|2|3` — mode: 1 = Caratteristiche (default), 2 = Evoluzione,
-  3 = Piante ad accrescimento indefinito.
+- `m=1|2|3|4` — mode: 1 = Caratteristiche (default), 2 = Evoluzione,
+  3 = Piante ad accrescimento indefinito, 4 = Osservazioni.
 
 ### Per-parcel / per-region overlay
 
@@ -245,6 +262,7 @@ Cross-mode summary:
 - Caratteristiche (`m=1`): `q=` metric id, `fa=` parcel-average satellite flag, `fc=` cadastral flag, `fh=` per-hectare harvest flag.
 - Evoluzione (`m=2`): `q=`, `d1=`/`d2=`, `fa=`, `fc=`, `fh=`.
 - PAI (`m=3`): `pp=` parcels list, `ps=` species list.
+- Osservazioni (`m=4`): `oc=` category list, `oy1=`/`oy2=` year range.
 
 ### Cross-page links into Bosco
 
@@ -341,6 +359,17 @@ mode-switch.
 
   Drives both the species/parcel scrollable lists and the per-tree
   dot map.  Filtered client-side by `pp=` / `ps=`.
+
+### Lazy on Osservazioni mode (m=4)
+
+- **`observations.json`** — point observations with text, categories, GPS,
+  operator, and photo count. Invalidated on observation imports/writes.
+
+  Columns: `row_id`, `version`, `category_ids`, `Data`, `Testo`, `Lat`, `Lon`,
+  `Acc_m`, `Operatore`, `Categorie`, `photo_count`. Photo payloads are not in
+  the digest; the click modal loads observation details/photos from the
+  per-row Bosco API. Filtered client-side by `oc=` and `oy1=`/`oy2=` after
+  assigning rows to the active region via parcel geometry.
 
 ### Lazy on per-parcel/per-region overlay open
 

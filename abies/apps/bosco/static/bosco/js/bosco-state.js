@@ -7,7 +7,10 @@ import { harvestYear } from './bosco-production.js';
 export const MODE_CHARACTERISTICS = '1';
 export const MODE_EVOLUTION = '2';
 export const MODE_PAI = '3';
-export const BOSCO_MODES = [MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI];
+export const MODE_OBSERVATIONS = '4';
+export const BOSCO_MODES = [
+  MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_PAI, MODE_OBSERVATIONS,
+];
 
 const DEFAULT_MODE = MODE_CHARACTERISTICS;
 const DEFAULT_MAP_TYPE_TOKEN = 's';
@@ -32,6 +35,11 @@ function intParam(params, key) {
   if (raw == null || raw === '') return null;
   const n = parseInt(raw, 10);
   return Number.isFinite(n) ? n : null;
+}
+
+function yearParam(params, key) {
+  const n = intParam(params, key);
+  return Number.isInteger(n) && n >= 1900 && n <= 2100 ? n : null;
 }
 
 export function mapTypeName(token) {
@@ -99,6 +107,9 @@ export function readBoscoParams(params, regionIds = []) {
     detailSpeciesIds: parseOptionalIdList(paramValue(params, 'ds')),
     paiParcelIds: parseOptionalIdList(paramValue(params, 'pp')),
     paiSpeciesIds: parseOptionalIdList(paramValue(params, 'ps')),
+    observationCategoryIds: parseOptionalIdList(paramValue(params, 'oc')),
+    observationYearFrom: yearParam(params, 'oy1'),
+    observationYearTo: yearParam(params, 'oy2'),
     hasRegionParam: hasParam(params, 'c'),
   };
 }
