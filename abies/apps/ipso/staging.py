@@ -15,8 +15,8 @@ from django.utils import timezone as django_timezone
 from config.constants import (
     FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
-    IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_READY,
-    IPSO_UPLOAD_FILE_SHA256,
+    IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_PHOTOS_DIR,
+    IPSO_UPLOAD_FILE_READY, IPSO_UPLOAD_FILE_SHA256,
     RECORDS, SESSION,
 )
 
@@ -65,10 +65,13 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
 
 def write_upload_files(
         session_dir: Path, payload: dict, checksum: str, csv_text: str | None,
+        photo_files: dict[str, bytes] | None = None,
 ) -> Path:
     _write_payload_content(session_dir, payload, checksum)
     if csv_text:
         _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_CSV, csv_text)
+    if photo_files:
+        _write_photo_files(session_dir, photo_files)
     _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_READY, checksum + '\n')
     return session_dir
 
@@ -88,10 +91,27 @@ def _write_payload_content(session_dir: Path, payload: dict, checksum: str) -> N
     _atomic_write_text(session_dir / IPSO_UPLOAD_FILE_SHA256, checksum + '\n')
 
 
+def _write_photo_files(session_dir: Path, photo_files: dict[str, bytes]) -> None:
+    photo_dir = session_dir / IPSO_UPLOAD_FILE_PHOTOS_DIR
+    photo_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in photo_files.items():
+        _atomic_write_bytes(photo_dir / name, content)
+
+
 def _atomic_write_text(path: Path, text: str) -> None:
     tmp = path.with_name(path.name + '.tmp')
     with tmp.open('w', encoding='utf-8') as f:
         f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    tmp.replace(path)
+    _fsync_dir(path.parent)
+
+
+def _atomic_write_bytes(path: Path, content: bytes) -> None:
+    tmp = path.with_name(path.name + '.tmp')
+    with tmp.open('wb') as f:
+        f.write(content)
         f.flush()
         os.fsync(f.fileno())
     tmp.replace(path)

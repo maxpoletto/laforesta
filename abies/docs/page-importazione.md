@@ -17,7 +17,7 @@ Row actions:
 
 - Magnifier: open the upload detail and record preview.
 - Pencil: admin-only mode edit before import (`Martellate`, `Rilevamenti
-  predefiniti`, or `Rilevamenti liberi`).
+  predefiniti`, `Rilevamenti liberi`, or `Osservazioni`).
 - Trash: admin-only staged-upload delete, after the forced `Esporta` download
   step.
 
@@ -28,7 +28,8 @@ The navigation badge counts uploads still in `received` state.
 The lower panel shows session metadata, staged-file errors if files are missing
 or corrupt, and a sortable preview of uploaded records. The preview includes
 record id, date, parcel, sample area, species, number, diameter/height,
-coordinates, and GPS accuracy when present.
+coordinates, and GPS accuracy when present. Observation previews show text,
+categories, photo count, coordinates, and GPS accuracy.
 
 Target selectors appear only when the current user can import and the upload is
 still `received`.
@@ -43,6 +44,8 @@ Writers and admins can import received uploads:
   creates sampled trees via the CSV import core.
 - `Rilevamenti liberi`: requires an unstructured survey destination and creates
   one null-area sample for the uploaded session.
+- `Osservazioni`: requires no destination and creates observation rows,
+  category assignments, and photo metadata/files.
 
 The server validates mode, state, target, staged-file integrity, record ids,
 parcel/region consistency, and mode-specific fields. Failed imports leave the
@@ -71,6 +74,8 @@ Target consistency is enforced at import time:
   unstructured survey. A single uploaded session creates one
   `Sample(sample_area=NULL)`. Preserved rows store the submitted number as the
   parcel-scoped `preserved_number`.
+- `Osservazioni`: rows require text, known categories when supplied, and
+  coordinates. Uploaded photo metadata must match staged photo files.
 
 Rejecting an upload is available to writers and admins only while the upload is
 still in the `received` / `Da importare` state.

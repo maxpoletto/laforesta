@@ -11,7 +11,10 @@ const DEFAULT_SAMPLE_RADIUS_M = 12;
 const IPSO_MODE_MARTELLATE = 'martellate';
 const IPSO_MODE_SAMPLES = 'samples';
 const IPSO_MODE_FREE_SURVEY = 'free_survey';
+const IPSO_MODE_OBSERVATIONS = 'observations';
 const IPSO_MODE_MAP = 'map';
+const IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD = 'payload';
+const IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX = 'photo:';
 const IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX = 'sampling_survey:';
 
 const IPSO_REF_SAMPLING = 'sampling';
@@ -36,6 +39,7 @@ const FIELD_COMPLETED_AT = 'completed_at';
 const FIELD_DAMAGED = 'damaged';
 const FIELD_REGION_ID = 'region_id';
 const FIELD_CLIENT_RECORD_ID = 'client_record_id';
+const FIELD_CLIENT_PHOTO_ID = 'client_photo_id';
 const FIELD_DATE = 'date';
 const FIELD_PARCEL_ID = 'parcel_id';
 const FIELD_SPECIES_ID = 'species_id';
@@ -61,6 +65,13 @@ const FIELD_PRESERVED = 'preserved';
 const FIELD_ESTIMATED_BIRTH_YEAR = 'estimated_birth_year';
 const FIELD_NOTE = 'note';
 const FIELD_CSV_TEXT = 'csv_text';
+const FIELD_TEXT = 'text';
+const FIELD_CATEGORY_IDS = 'category_ids';
+const FIELD_CATEGORIES = 'categories';
+const FIELD_PHOTOS = 'photos';
+const FIELD_CONTENT_TYPE = 'content_type';
+const FIELD_SIZE_BYTES = 'size_bytes';
+const FIELD_ORIGINAL_FILENAME = 'original_filename';
 
 const SESSION = 'session';
 const RECORDS = 'records';
@@ -83,7 +94,10 @@ if (typeof module !== 'undefined') {
     IPSO_MODE_MARTELLATE,
     IPSO_MODE_SAMPLES,
     IPSO_MODE_FREE_SURVEY,
+    IPSO_MODE_OBSERVATIONS,
     IPSO_MODE_MAP,
+    IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD,
+    IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_REF_SAMPLING,
     IPSO_REF_SURVEYS,
@@ -106,6 +120,7 @@ if (typeof module !== 'undefined') {
     FIELD_DAMAGED,
     FIELD_REGION_ID,
     FIELD_CLIENT_RECORD_ID,
+    FIELD_CLIENT_PHOTO_ID,
     FIELD_DATE,
     FIELD_PARCEL_ID,
     FIELD_SPECIES_ID,
@@ -131,6 +146,13 @@ if (typeof module !== 'undefined') {
     FIELD_ESTIMATED_BIRTH_YEAR,
     FIELD_NOTE,
     FIELD_CSV_TEXT,
+    FIELD_TEXT,
+    FIELD_CATEGORY_IDS,
+    FIELD_CATEGORIES,
+    FIELD_PHOTOS,
+    FIELD_CONTENT_TYPE,
+    FIELD_SIZE_BYTES,
+    FIELD_ORIGINAL_FILENAME,
     SESSION,
     RECORDS,
     IPSO_SECRET_HASH_PARAM,

@@ -75,7 +75,12 @@ function includePreserved(session) {
   return session && session.mode === IPSO_MODE_FREE_SURVEY;
 }
 
+function includeObservations(session) {
+  return session && session.mode === IPSO_MODE_OBSERVATIONS;
+}
+
 function csvHeader(session) {
+  if (includeObservations(session)) return S.CSV_HEADER_OBSERVATIONS;
   const header = includeSampleArea(session)
     ? [...HEADER.slice(0, 3), SAMPLE_AREA_HEADER, ...HEADER.slice(3)]
     : HEADER;
@@ -101,6 +106,7 @@ function formatHeader(session) {
 }
 
 function formatRow(rec, session, reference) {
+  if (includeObservations(session)) return formatObservationRow(rec, session);
   const catastrofata = !!session.catastrofata;
   // Particella is per-tree (auto-detected or manually overridden) so it
   // is carried on `rec`, not the session. Catastrofate sessions are
@@ -132,6 +138,29 @@ function formatRow(rec, session, reference) {
   return cells.map(escapeField).join(CSV_SEP);
 }
 
+function formatObservationRow(rec, session) {
+  const photos = Array.isArray(rec[FIELD_PHOTOS]) ? rec[FIELD_PHOTOS] : [];
+  const photoNames = photos
+    .map((photo) => photo && photo[FIELD_ORIGINAL_FILENAME] || '')
+    .filter((name) => name);
+  const categories = Array.isArray(rec[FIELD_CATEGORIES])
+    ? rec[FIELD_CATEGORIES].join(', ')
+    : '';
+  const cells = [
+    formatDate(session.data),
+    session.compresa,
+    rec[FIELD_TEXT] || '',
+    categories,
+    fmtFloat(rec.lat, 6),
+    fmtFloat(rec.lon, 6),
+    fmtInt(rec.acc_m),
+    session.operatore || '',
+    fmtInt(photos.length),
+    photoNames.join(', '),
+  ];
+  return cells.map(escapeField).join(CSV_SEP);
+}
+
 // Full CSV file as a string. Caller wraps in a Blob and triggers download.
 function formatFile(session, trees, reference) {
   const lines = [formatHeader(session)];
@@ -149,7 +178,9 @@ function filename(session, now, kind, seq) {
   const compresa = sanitize(session.compresa);
   const date = session.data;  // already YYYY-MM-DD
   const hhmm = pad2(now.getHours()) + pad2(now.getMinutes());
-  const parts = ['ipso', compresa];
+  const parts = ['ipso'];
+  if (includeObservations(session)) parts.push(S.CSV_FILENAME_OBSERVATIONS);
+  parts.push(compresa);
   if (session.catastrofata) parts.push(FILENAME_CATASTROFATE);
   parts.push(date, hhmm);
   let base = parts.join('_');
@@ -167,7 +198,8 @@ const csv = {
   CSV_BOM, CSV_SEP, CSV_NL, HEADER, SAMPLE_AREA_HEADER, PRESERVED_HEADER,
   FILENAME_CATASTROFATE,
   formatDate, fmtFloat, fmtInt, hardenCSVFormula, escapeField, sampleAreaNumber,
-  includeSampleArea, includePreserved, formatHeader, formatRow, formatFile,
+  includeSampleArea, includePreserved, includeObservations,
+  formatHeader, formatRow, formatFile,
   filename, sanitize,
 };
 if (typeof module !== 'undefined') module.exports = csv;

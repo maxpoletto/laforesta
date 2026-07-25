@@ -54,6 +54,20 @@ const IpsoModes = (function() {
       freeSurvey: true,
       enabled: true,
     },
+    [IPSO_MODE_OBSERVATIONS]: {
+      id: IPSO_MODE_OBSERVATIONS,
+      labelKey: 'MODE_OBSERVATIONS',
+      preTitleKey: 'PRE_NEW_OBSERVATION',
+      buttonId: 'btn-mode-observations',
+      autoHeight: false,
+      dRequired: false,
+      hRequired: false,
+      numberRequired: false,
+      parcelRequired: false,
+      persistNumber: false,
+      observations: true,
+      enabled: true,
+    },
     [IPSO_MODE_MAP]: {
       id: IPSO_MODE_MAP,
       labelKey: 'MODE_MAP',
@@ -76,6 +90,7 @@ const IpsoModes = (function() {
       defs[IPSO_MODE_SAMPLES],
       defs[IPSO_MODE_FREE_SURVEY],
       defs[IPSO_MODE_MARTELLATE],
+      defs[IPSO_MODE_OBSERVATIONS],
       defs[IPSO_MODE_MAP],
     ];
   }
@@ -84,6 +99,7 @@ const IpsoModes = (function() {
     MARTELLATE: IPSO_MODE_MARTELLATE,
     SAMPLES: IPSO_MODE_SAMPLES,
     FREE_SURVEY: IPSO_MODE_FREE_SURVEY,
+    OBSERVATIONS: IPSO_MODE_OBSERVATIONS,
     MAP: IPSO_MODE_MAP,
     get, defaultMode, all,
   };
@@ -92,7 +108,8 @@ const IpsoModes = (function() {
 if (typeof module !== 'undefined') {
   module.exports = {
     IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_MAP, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
+    IPSO_MODE_OBSERVATIONS, IPSO_MODE_MAP,
+    IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IpsoModes,
   };
 }

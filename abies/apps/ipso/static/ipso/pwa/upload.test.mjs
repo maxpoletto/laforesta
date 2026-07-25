@@ -2,7 +2,11 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const upload = require('./upload.js');
-const { FIELD_PRESERVED } = require('./constants.js');
+const {
+  FIELD_CATEGORY_IDS, FIELD_CLIENT_PHOTO_ID, FIELD_CONTENT_TYPE,
+  FIELD_ORIGINAL_FILENAME, FIELD_PHOTOS, FIELD_PRESERVED, FIELD_SIZE_BYTES,
+  FIELD_TEXT,
+} = require('./constants.js');
 
 let pass = 0;
 const failures = [];
@@ -133,8 +137,52 @@ check(
 
 check(upload.isSupportedUploadMode(upload.UPLOAD_MODE_FREE_SURVEY),
       'free-survey mode is upload-supported');
+check(upload.isSupportedUploadMode(upload.UPLOAD_MODE_OBSERVATIONS),
+      'observations mode is upload-supported');
 check(!upload.isSupportedUploadMode('pai'),
       'standalone PAI mode is no longer upload-supported');
+
+
+const observationPayload = upload.buildUploadPayload(
+  sess(upload.UPLOAD_MODE_OBSERVATIONS),
+  [{
+    id: 5,
+    seq: 3,
+    region_id: 1,
+    [FIELD_TEXT]: 'sentiero danneggiato',
+    [FIELD_CATEGORY_IDS]: [12],
+    lat: 38.5,
+    lon: 16.3,
+    acc_m: 5,
+    [FIELD_PHOTOS]: [{
+      [FIELD_CLIENT_PHOTO_ID]: 'photo-1',
+      [FIELD_CONTENT_TYPE]: 'image/jpeg',
+      [FIELD_SIZE_BYTES]: 3,
+      [FIELD_ORIGINAL_FILENAME]: 'sentiero.jpg',
+      blob: new Blob(['abc'], { type: 'image/jpeg' }),
+    }],
+  }],
+  reference(),
+  'csv',
+);
+check(
+  observationPayload.session.mode === upload.UPLOAD_MODE_OBSERVATIONS &&
+    observationPayload.records[0][FIELD_TEXT] === 'sentiero danneggiato',
+  'observations upload builds observation records',
+);
+check(
+  upload.uploadPayloadHasFiles(observationPayload),
+  'observations upload detects local photo blobs',
+);
+const strippedObservationPayload = upload.stripUploadPayloadFiles(observationPayload);
+check(
+  !('blob' in strippedObservationPayload.records[0][FIELD_PHOTOS][0]),
+  'observations multipart wire payload strips local blobs',
+);
+check(
+  strippedObservationPayload.records[0][FIELD_PHOTOS][0][FIELD_CLIENT_PHOTO_ID] === 'photo-1',
+  'observations multipart wire payload keeps photo metadata',
+);
 
 const freeSurveyPayload = upload.buildUploadPayload(
   sess(upload.UPLOAD_MODE_FREE_SURVEY),

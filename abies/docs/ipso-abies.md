@@ -112,7 +112,7 @@ The request must include:
 ```http
 Authorization: Bearer <secret>
 X-Ipso-Session-Id: <uuid>
-Content-Type: application/json
+Content-Type: application/json or multipart/form-data
 ```
 
 The upload body contains:
@@ -120,19 +120,24 @@ The upload body contains:
 - `session`: UUID, mode, schema version, reference version, work package,
   operator, timestamps, region, and damage flag;
 - `records`: canonical Abies IDs and measurements for the mode;
-- optional `csv_text`: the local CSV text for operator/audit recovery.
+- optional `csv_text`: the local CSV text for operator/audit recovery;
+- for observation uploads with photos, multipart file parts named
+  `photo:<client_photo_id>`.
 
 Supported modes are:
 
 - `martellate` — marked trees for a harvest-plan item;
 - `samples` — predefined/grid-based tree surveys;
-- `free_survey` — free/unstructured tree surveys.
+- `free_survey` — free/unstructured tree surveys;
+- `observations` — point observations with text, categories, GPS, and
+  optional photos.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,
-and mode-specific invariants. It stages accepted uploads in `IpsoUpload` and
-writes `upload.json`, `upload.sha256`, and optional `export.csv` under
-`ABIES_IPSO_INBOX_DIR`.
+and mode-specific invariants. Observation uploads also validate category IDs
+and photo checksums. It stages accepted uploads in `IpsoUpload` and writes
+`upload.json`, `upload.sha256`, optional `export.csv`, and optional staged
+photo files under `ABIES_IPSO_INBOX_DIR`.
 
 Uploading does not directly mutate forestry records. It creates a staged inbox
 item. A logged-in Abies user can view upload metadata and previews. Import or
@@ -143,7 +148,9 @@ region for region-wide items. Predefined sample rows must fit the selected
 survey grid; if the session records the survey chosen in Ipso, selecting
 another survey is only accepted when it uses the same grid. Free-survey rows
 must be imported into an unstructured survey, where the import creates one
-`Sample(sample_area=NULL)` for the session.
+`Sample(sample_area=NULL)` for the session. Observation imports do not use a
+target selector; they create `Observation` rows, category assignments, and
+photo metadata/files directly from the staged session.
 
 For `samples` and `free_survey` imports, validation errors block immediately.
 After validation and before writing, Abies computes non-blocking warnings for
@@ -207,6 +214,7 @@ Abies writer permission required:
 - `POST /api/ipso/uploads/<id>/import-martellate/`
 - `POST /api/ipso/uploads/<id>/import-samples/`
 - `POST /api/ipso/uploads/<id>/import-free-survey/`
+- `POST /api/ipso/uploads/<id>/import-observations/`
 
 Abies admin permission required:
 

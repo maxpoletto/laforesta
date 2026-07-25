@@ -10,6 +10,7 @@ const S = {
   MODE_MARTELLATE: 'Martellate',
   MODE_SAMPLES: 'Rilevamenti predefiniti',
   MODE_FREE_SURVEYS: 'Rilevamenti liberi',
+  MODE_OBSERVATIONS: 'Osservazioni',
   MODE_PAI: 'PAI',
   MODE_MAP: 'Mappa',
   MODE_BACK: 'Indietro',
@@ -18,6 +19,7 @@ const S = {
   PRE_NEW_SESSION: 'Nuova martellata',
   PRE_NEW_SAMPLES: 'Nuovo rilevamento predefinito',
   PRE_NEW_FREE_SURVEY: 'Nuovo rilevamento libero',
+  PRE_NEW_OBSERVATION: 'Nuova osservazione',
   PRE_OPERATOR: 'Operatore',
   PRE_DATA: 'Data',
   PRE_COMPRESA: 'Compresa',
@@ -56,11 +58,17 @@ const S = {
   REC_END: 'Fine',
   REC_CANCEL: 'Annulla',
   REC_TREE_NUMBER: 'albero n.',
+  REC_OBSERVATION_TEXT: 'Descrizione',
+  REC_OBSERVATION_CATEGORIES: 'Categorie',
+  REC_OBSERVATION_PHOTOS: 'Foto',
+  REC_OBSERVATION_ADD_PHOTOS: 'Aggiungi foto',
+  REC_OBSERVATION_NO_CATEGORIES: 'Nessuna categoria disponibile.',
 
   // Visualizza dati raccolti screen
   DATA_TITLE: 'Dati raccolti',
   DATA_GROUPS: 'Gruppi',
   DATA_TREES: 'Alberi',
+  DATA_OBSERVATIONS: 'Osservazioni',
   DATA_COUNT: 'Conteggio',
   DATA_COL_NUMBER: 'N.',
   DATA_COL_SPECIE: 'Specie',
@@ -68,9 +76,15 @@ const S = {
   DATA_COL_GRUPPO: 'Gruppo',
   DATA_COL_D: 'D',
   DATA_COL_H: 'h',
+  DATA_COL_TEXT: 'Testo',
+  DATA_COL_CATEGORIES: 'Categorie',
+  DATA_COL_PHOTOS: 'Foto',
+  DATA_COL_COORDS: 'Coordinate',
   DATA_CLOSE: 'Chiudi',
   DATA_EMPTY: 'Nessun albero registrato.',
+  DATA_EMPTY_OBSERVATIONS: 'Nessuna osservazione registrata.',
   DATA_DELETE_TREE: 'Elimina albero',
+  DATA_DELETE_OBSERVATION: 'Elimina osservazione',
   MAP_TITLE: 'Mappa',
   MAP_BACK: 'Indietro',
   MAP_CENTER: 'Centra',
@@ -102,14 +116,20 @@ const S = {
   END_BODY: (n) =>
     `La sessione contiene ${n} alber${n === 1 ? 'o' : 'i'}. ` +
     `Esportare il CSV e chiudere?`,
+  END_BODY_OBSERVATIONS: (n) =>
+    `La sessione contiene ${n} osservazion${n === 1 ? 'e' : 'i'}. ` +
+    `Esportare il CSV e chiudere?`,
   END_CONFIRM: 'Esporta e chiudi',
 
   // Done screen
   DONE_TITLE: 'Sessione esportata',
   DONE_BODY: (n) =>
     `${n} alber${n === 1 ? 'o' : 'i'} salvat${n === 1 ? 'o' : 'i'} su CSV.`,
+  DONE_BODY_OBSERVATIONS: (n) =>
+    `${n} osservazion${n === 1 ? 'e' : 'i'} salvat${n === 1 ? 'a' : 'e'} su CSV.`,
   DONE_EMPTY_TITLE: 'Sessione chiusa',
   DONE_EMPTY_BODY: 'Nessun albero registrato.',
+  DONE_EMPTY_BODY_OBSERVATIONS: 'Nessuna osservazione registrata.',
   DONE_NEW: 'Nuova sessione',
 
   // Persistent-storage banner
@@ -127,6 +147,7 @@ const S = {
     'Permesso GPS non concesso. Ipso richiede le coordinate: abilita la ' +
     'posizione per ipso.laforesta.it nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
+  BACKUP_SAVED_OBSERVATIONS: (n) => `Backup CSV salvato (${n} osservazioni).`,
   CSV_HEADER_SAMPLE_AREA: 'Area saggio',
   CSV_HEADER_PRESERVED: 'PAI',
   CSV_HEADER: [
@@ -134,6 +155,11 @@ const S = {
     'Numero', 'Genere', 'D_cm', 'H_m', 'H_measured',
     'Lat', 'Lon', 'Acc_m', 'Operatore',
   ],
+  CSV_HEADER_OBSERVATIONS: [
+    'Data', 'Compresa', 'Testo', 'Categorie', 'Lat', 'Lon', 'Acc_m',
+    'Operatore', 'Foto', 'Nomi foto',
+  ],
+  CSV_FILENAME_OBSERVATIONS: 'osservazioni',
   CSV_FILENAME_CATASTROFATE: 'catastrofate',
   CSV_ERROR_DATE_FORMAT: (value) => `Data CSV non valida: ${value}`,
   STORE_ERROR_DB_BLOCKED:
@@ -212,6 +238,8 @@ const S = {
   UPLOAD_RESUME_KEEP_LOCAL: 'Mantieni solo locale',
   UPLOAD_DONE_BODY: (n) =>
     `${n} alber${n === 1 ? 'o' : 'i'} caricat${n === 1 ? 'o' : 'i'} sul server.`,
+  UPLOAD_DONE_BODY_OBSERVATIONS: (n) =>
+    `${n} osservazion${n === 1 ? 'e' : 'i'} caricat${n === 1 ? 'a' : 'e'} sul server.`,
 
   // "Where" formatter used in the recording-screen header (initial
   // paint, before GPS commits the first parcel), the app-bar

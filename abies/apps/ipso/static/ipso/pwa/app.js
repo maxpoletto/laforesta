@@ -37,6 +37,7 @@ const State = {
   mapStandalone: false,
   mapGpsStandalone: false,
   mapPendingCenterOnFix: false,
+  observationPhotos: [],
   direction: null,
   heading: null,
   bootReady: false,    // true once controls are wired and may be refreshed
@@ -69,6 +70,12 @@ async function boot() {
   document.getElementById('lbl-preserved').textContent = S.REC_PRESERVED;
   document.getElementById('lbl-d').textContent = S.REC_D;
   document.getElementById('lbl-h').textContent = S.REC_H;
+  document.getElementById('lbl-observation-text').textContent =
+    S.REC_OBSERVATION_TEXT;
+  document.getElementById('lbl-observation-categories').textContent =
+    S.REC_OBSERVATION_CATEGORIES;
+  document.getElementById('lbl-observation-photos').textContent =
+    S.REC_OBSERVATION_PHOTOS;
   document.getElementById('btn-save').textContent = S.REC_SAVE;
   document.getElementById('btn-rec-map').textContent = S.REC_MAP;
   document.getElementById('btn-view-data').textContent = S.REC_VIEW_DATA;
@@ -233,7 +240,8 @@ function validateReference(value) {
       !Array.isArray(sampling[IPSO_REF_SURVEYS]) ||
       !Array.isArray(sampling[IPSO_REF_SAMPLE_AREAS]) ||
       !isObject(pai) ||
-      !Array.isArray(pai[IPSO_REF_PRESERVED_TREES])) {
+      !Array.isArray(pai[IPSO_REF_PRESERVED_TREES]) ||
+      !Array.isArray(value[IPSO_REF_OBSERVATION_CATEGORIES])) {
     throw new Error(S.ERROR_REFERENCE_INVALID);
   }
   return value;
@@ -425,6 +433,11 @@ function isFreeSurveyMode() {
   return mode === IpsoModes.FREE_SURVEY;
 }
 
+function isObservationMode() {
+  const mode = State.session ? State.session.mode : currentMode().id;
+  return mode === IpsoModes.OBSERVATIONS;
+}
+
 function isPreservedEntry() {
   const checkbox = document.getElementById('in-preserved');
   return isFreeSurveyMode() && !!checkbox && checkbox.checked;
@@ -566,14 +579,17 @@ function applyModeUi() {
   const surveyField = document.getElementById('field-sample-survey');
   const surveySelect = document.getElementById('in-sample-survey');
   const freeOptions = document.getElementById('field-free-survey-options');
+  const observationOptions = document.getElementById('field-observation-options');
   const martellate = currentMode().id === IpsoModes.MARTELLATE;
   const samples = currentMode().id === IpsoModes.SAMPLES;
   const freeSurvey = currentMode().id === IpsoModes.FREE_SURVEY;
+  const observations = currentMode().id === IpsoModes.OBSERVATIONS;
   if (catastrofataField) catastrofataField.hidden = !martellate;
   if (catastrofata && !martellate) catastrofata.checked = false;
   if (surveyField) surveyField.hidden = !samples;
   if (surveySelect && !samples) surveySelect.value = '';
   if (freeOptions) freeOptions.hidden = !freeSurvey;
+  if (observationOptions) observationOptions.hidden = !observations;
   if (samples) populateSampleSurveyOptions();
 }
 
@@ -587,6 +603,32 @@ function modeStringFor(mode, field, fallback) {
   return S[key];
 }
 
+
+function isObservationSession(sess) {
+  return !!sess && sess.mode === IpsoModes.OBSERVATIONS;
+}
+
+function countLabel(sess, n) {
+  if (isObservationSession(sess)) {
+    return `${n} osservazion${n === 1 ? 'e' : 'i'}`;
+  }
+  return `${n} alber${n === 1 ? 'o' : 'i'}`;
+}
+
+function endBody(sess, n) {
+  return isObservationSession(sess) ? S.END_BODY_OBSERVATIONS(n) : S.END_BODY(n);
+}
+
+function doneBody(sess, n) {
+  return isObservationSession(sess) ? S.DONE_BODY_OBSERVATIONS(n) : S.DONE_BODY(n);
+}
+
+function uploadDoneBody(sess, n) {
+  return isObservationSession(sess)
+    ? S.UPLOAD_DONE_BODY_OBSERVATIONS(n)
+    : S.UPLOAD_DONE_BODY(n);
+}
+
 function showModeScreen() {
   State.session = null;
   State.lastGroup = '';
@@ -594,6 +636,7 @@ function showModeScreen() {
   State.override = null;
   State.sampleAreaId = null;
   State.parcelName = null;
+  State.observationPhotos = [];
   setMode(IpsoModes.MARTELLATE);
   document.getElementById('sub-status').textContent = '';
   showScreen('screen-mode');
@@ -703,6 +746,9 @@ function wireRecording() {
   });
   document.getElementById('in-h-measured').addEventListener('change', onHeightMeasuredToggle);
   document.getElementById('in-preserved').addEventListener('change', onPreservedToggle);
+  document.getElementById('in-observation-text').addEventListener('input', updateSaveEnabled);
+  document.getElementById('in-observation-photos').addEventListener('change', onObservationPhotosPicked);
+  document.getElementById('in-observation-categories').addEventListener('change', updateSaveEnabled);
 
   // Particella select: sticky-override transitions. The sentinel option
   // (value AUTO_SENTINEL) toggles auto mode; any other value enters
@@ -733,7 +779,7 @@ function wireRecording() {
   document.getElementById('btn-data-close').addEventListener('click', exitDataScreen);
   document.getElementById('btn-end').addEventListener('click', () => {
     document.getElementById('end-body').textContent =
-      S.END_BODY(State.session.tree_count);
+      endBody(State.session, State.session.tree_count);
     showModal('modal-confirm-end');
   });
 
@@ -781,9 +827,10 @@ function wireMap() {
 }
 
 function enterRecording() {
-  populateSpecie();
+  if (!isObservationMode()) populateSpecie();
   populateGruppo();
-  document.getElementById('field-gruppo').hidden = isFreeSurveyMode();
+  applyRecordingModeUi();
+  document.getElementById('field-gruppo').hidden = isFreeSurveyMode() || isObservationMode();
   document.getElementById('in-gruppo').value = isFreeSurveyMode()
     ? ''
     : State.lastGroup || '';
@@ -806,6 +853,20 @@ function enterRecording() {
 // Auto-mode sentinel value for the recording-screen particella select.
 // Real particella names are short alphanumeric strings (e.g. "7a"); the
 // "__auto__" form is unambiguous as a non-particella token.
+function applyRecordingModeUi() {
+  const observation = isObservationMode();
+  for (const id of ['row-specie-number', 'row-parcel-group', 'row-dh']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = observation;
+  }
+  document.getElementById('numpad').hidden = observation;
+  document.getElementById('field-observation-options').hidden = !observation;
+  document.getElementById('hint-autoh').hidden = true;
+  document.getElementById('field-free-survey-options').hidden =
+    observation || !isFreeSurveyMode();
+  if (observation) populateObservationCategories();
+}
+
 const AUTO_SENTINEL = '__auto__';
 
 // Build the per-session parcel locator and sticky-override controllers:
@@ -1012,6 +1073,11 @@ function populateSpecie() {
 }
 
 function resetEntryFields() {
+  if (isObservationMode()) {
+    resetObservationFields();
+    updateSaveEnabled();
+    return;
+  }
   State.numpad.clear();
   State.numpad.setFocus('d');
   State.hMeasured = false;
@@ -1249,6 +1315,112 @@ function recomputeAutoH() {
   }
 }
 
+function resetObservationFields() {
+  const text = document.getElementById('in-observation-text');
+  if (text) text.value = '';
+  const photoInput = document.getElementById('in-observation-photos');
+  if (photoInput) photoInput.value = '';
+  State.observationPhotos = [];
+  renderObservationPhotoList();
+  for (const checkbox of document.querySelectorAll(
+    '#in-observation-categories input[type="checkbox"]'
+  )) {
+    checkbox.checked = false;
+  }
+}
+
+function populateObservationCategories() {
+  const host = document.getElementById('in-observation-categories');
+  if (!host) return;
+  host.replaceChildren();
+  const rows = State.reference &&
+    State.reference[IPSO_REF_OBSERVATION_CATEGORIES] || [];
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = S.REC_OBSERVATION_NO_CATEGORIES;
+    host.appendChild(empty);
+    return;
+  }
+  for (const category of rows) {
+    const id = category && category.id;
+    if (!Number.isInteger(id)) continue;
+    const label = document.createElement('label');
+    label.className = 'check';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = String(id);
+    input.dataset.name = category.name || '';
+    label.append(input, document.createTextNode(category.name || String(id)));
+    host.appendChild(label);
+  }
+}
+
+function selectedObservationCategories() {
+  const ids = [];
+  const names = [];
+  for (const checkbox of document.querySelectorAll(
+    '#in-observation-categories input[type="checkbox"]:checked'
+  )) {
+    const id = parseInt(checkbox.value, 10);
+    if (Number.isInteger(id)) ids.push(id);
+    if (checkbox.dataset.name) names.push(checkbox.dataset.name);
+  }
+  return { ids, names };
+}
+
+function onObservationPhotosPicked(e) {
+  const files = Array.from(e.target.files || []);
+  for (const file of files) {
+    State.observationPhotos.push({
+      [FIELD_CLIENT_PHOTO_ID]: Store.uuid(),
+      [FIELD_CONTENT_TYPE]: file.type || '',
+      [FIELD_SIZE_BYTES]: Number.isInteger(file.size) ? file.size : 0,
+      [FIELD_ORIGINAL_FILENAME]: file.name || '',
+      blob: file,
+    });
+  }
+  e.target.value = '';
+  renderObservationPhotoList();
+  updateSaveEnabled();
+}
+
+function renderObservationPhotoList() {
+  const host = document.getElementById('observation-photo-list');
+  if (!host) return;
+  host.replaceChildren();
+  for (const photo of State.observationPhotos) {
+    const row = document.createElement('div');
+    row.className = 'photo-row';
+    row.textContent = photo[FIELD_ORIGINAL_FILENAME] || S.REC_OBSERVATION_PHOTOS;
+    host.appendChild(row);
+  }
+}
+
+function currentObservationRecord() {
+  const gps = currentGpsSnapshot();
+  const categories = selectedObservationCategories();
+  return {
+    [FIELD_DATE]: State.session ? State.session.data : '',
+    [FIELD_TEXT]: document.getElementById('in-observation-text').value.trim(),
+    [FIELD_CATEGORY_IDS]: categories.ids,
+    [FIELD_CATEGORIES]: categories.names,
+    [FIELD_PHOTOS]: State.observationPhotos.slice(),
+    [FIELD_REGION_ID]: State.session && Number.isInteger(State.session[FIELD_REGION_ID])
+      ? State.session[FIELD_REGION_ID] : null,
+    lat: gps ? gps.lat : null,
+    lon: gps ? gps.lon : null,
+    acc_m: gps ? gps.acc_m : null,
+  };
+}
+
+function validateObservation(rec) {
+  const errors = [];
+  if (!rec || !rec[FIELD_TEXT]) errors.push(FIELD_TEXT);
+  if (!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) errors.push('gps');
+  return errors;
+}
+
 function currentRecord() {
   const d = parseInt(State.numpad.value('d'), 10);
   const h = parseInt(State.numpad.value('h'), 10);
@@ -1308,13 +1480,19 @@ function currentHypsoParamSetId() {
 }
 
 function updateSaveEnabled() {
-  const rec = currentRecord();
-  const errs = session.validateTree(rec, treeValidationOptions());
+  const rec = isObservationMode() ? currentObservationRecord() : currentRecord();
+  const errs = isObservationMode()
+    ? validateObservation(rec)
+    : session.validateTree(rec, treeValidationOptions());
   const btn = document.getElementById('btn-save');
   btn.disabled = errs.length > 0 || Date.now() < State.saveLockUntil;
 }
 
 async function onSave() {
+  if (isObservationMode()) {
+    await onSaveObservation();
+    return;
+  }
   const rec = currentRecord();
   const validationErrors = session.validateTree(rec, treeValidationOptions());
   if (validationErrors.length > 0) {
@@ -1355,6 +1533,30 @@ async function onSave() {
     if (session.shouldBackup(row.seq)) {
       await downloadBackup(row.seq);
     }
+  } catch (e) {
+    showToast(S.TOAST_SAVE_ERROR(e.message));
+  } finally {
+    setTimeout(updateSaveEnabled, SAVE_COOLDOWN_RECHECK_MS);
+  }
+}
+
+async function onSaveObservation() {
+  const rec = currentObservationRecord();
+  const validationErrors = validateObservation(rec);
+  if (validationErrors.length > 0) {
+    if (validationErrors.includes('gps')) {
+      renderGpsStatus(State.gps ? State.gps.state() : { fix: null, tier: 'red' });
+    }
+    return;
+  }
+  State.saveLockUntil = Date.now() + SAVE_COOLDOWN_MS;
+  document.getElementById('btn-save').disabled = true;
+  try {
+    const row = await Store.addObservation(State.db, State.session.id, rec);
+    State.session = await Store.getSession(State.db, State.session.id);
+    resetEntryFields();
+    refreshMapRecords();
+    if (session.shouldBackup(row.seq)) await downloadBackup(row.seq);
   } catch (e) {
     showToast(S.TOAST_SAVE_ERROR(e.message));
   } finally {
@@ -1622,6 +1824,12 @@ function currentPaiSpeciesColors() {
 
 function formatMapRecordText(rec) {
   if (!rec) return '';
+  if (isObservationMode()) {
+    const text = rec[FIELD_TEXT] || '';
+    const cats = Array.isArray(rec[FIELD_CATEGORIES])
+      ? rec[FIELD_CATEGORIES].join(', ') : '';
+    return [text, cats].filter((v) => v).join(' · ');
+  }
   const bits = [];
   if (Number.isInteger(rec.numero)) bits.push('n. ' + rec.numero);
   if (rec.specie) bits.push(rec.specie);
@@ -1722,10 +1930,13 @@ async function enterDataScreen() {
     return;
   }
   trees.sort((a, b) => a.seq - b.seq);
-  const showGroups = !isFreeSurveyMode();
+  const showGroups = !isFreeSurveyMode() && !isObservationMode();
   document.getElementById('section-data-groups').hidden = !showGroups;
+  document.getElementById('data-trees-h').textContent = isObservationMode()
+    ? S.DATA_OBSERVATIONS : S.DATA_TREES;
   if (showGroups) renderGroupsTable(trees);
-  renderTreesTable(trees);
+  if (isObservationMode()) renderObservationsTable(trees);
+  else renderTreesTable(trees);
   showScreen('screen-data');
 }
 
@@ -1785,6 +1996,65 @@ function sampleAreaTextForTree(tree) {
   if (!tree || !Number.isInteger(tree[FIELD_SAMPLE_AREA_ID])) return tree && tree.particella || '';
   const area = sampleAreaById(tree[FIELD_SAMPLE_AREA_ID]);
   return area ? sampleAreaLabel(area) : (tree.particella || '');
+}
+
+function renderObservationsTable(rows) {
+  const tbl = document.getElementById('data-trees-table');
+  tbl.replaceChildren();
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'empty';
+    td.textContent = S.DATA_EMPTY_OBSERVATIONS;
+    tr.appendChild(td);
+    tbl.appendChild(tr);
+    return;
+  }
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  for (const label of [
+    '#', S.DATA_COL_TEXT, S.DATA_COL_CATEGORIES,
+    S.DATA_COL_PHOTOS, S.DATA_COL_COORDS, '',
+  ]) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    trh.appendChild(th);
+  }
+  thead.appendChild(trh);
+  tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    const photos = Array.isArray(row[FIELD_PHOTOS]) ? row[FIELD_PHOTOS] : [];
+    const values = [
+      row.seq,
+      row[FIELD_TEXT] || '',
+      Array.isArray(row[FIELD_CATEGORIES]) ? row[FIELD_CATEGORIES].join(', ') : '',
+      photos.length,
+      row.lat == null || row.lon == null
+        ? ''
+        : IpsoFormat.fmtCoord(row.lat) + ' ' + IpsoFormat.fmtCoord(row.lon),
+    ];
+    for (const value of values) {
+      const td = document.createElement('td');
+      td.textContent = value == null ? '' : String(value);
+      tr.appendChild(td);
+    }
+    const deleteTd = document.createElement('td');
+    deleteTd.className = 'tree-delete';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'tree-delete-btn';
+    deleteBtn.type = 'button';
+    deleteBtn.title = S.DATA_DELETE_OBSERVATION;
+    deleteBtn.setAttribute('aria-label', S.DATA_DELETE_OBSERVATION);
+    deleteBtn.appendChild(trashIcon());
+    deleteBtn.addEventListener('click', () => onDeleteTree(row.id));
+    deleteTd.appendChild(deleteBtn);
+    tr.appendChild(deleteTd);
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
 }
 
 function renderTreesTable(trees) {
@@ -1891,7 +2161,9 @@ async function downloadBackup(seq) {
   const text = csv.formatFile(State.session, trees, State.reference);
   const name = csv.filename(State.session, new Date(), 'backup', seq);
   downloadText(text, name);
-  showToast(S.BACKUP_SAVED(seq));
+  showToast(isObservationMode()
+    ? S.BACKUP_SAVED_OBSERVATIONS(seq)
+    : S.BACKUP_SAVED(seq));
 }
 
 // ---------------------------------------------------------------------------
@@ -1935,15 +2207,16 @@ async function closeEmptySession(sess) {
   stopRecordingSensors();
   releaseWakeLock();
   document.getElementById('done-title').textContent = S.DONE_EMPTY_TITLE;
-  document.getElementById('done-body').textContent = S.DONE_EMPTY_BODY;
+  document.getElementById('done-body').textContent =
+    isObservationSession(sess) ? S.DONE_EMPTY_BODY_OBSERVATIONS : S.DONE_EMPTY_BODY;
   showScreen('screen-done');
 }
 
 function showUploadDone(treeCount, uploaded) {
   document.getElementById('done-title').textContent = S.DONE_TITLE;
   document.getElementById('done-body').textContent = uploaded
-    ? S.UPLOAD_DONE_BODY(treeCount)
-    : S.DONE_BODY(treeCount);
+    ? uploadDoneBody(State.session, treeCount)
+    : doneBody(State.session, treeCount);
   showScreen('screen-done');
 }
 
@@ -2001,8 +2274,8 @@ function showResumeModal(sessions) {
     meta.className = 'resume-meta';
     meta.textContent =
       formatItalianDate(s.data) + ' · ' + S.where(s) +
-      ' · ' + (s.operatore || '—') + ' · ' + (s.tree_count || 0) + ' alberi' +
-      sessionStatusSuffix(s);
+      ' · ' + (s.operatore || '—') + ' · ' +
+      countLabel(s, s.tree_count || 0) + sessionStatusSuffix(s);
     li.appendChild(meta);
 
     const actions = document.createElement('div');

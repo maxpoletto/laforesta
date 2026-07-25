@@ -33,6 +33,7 @@
       <div class="mode-list">
         <button id="btn-mode-samples" class="btn-primary btn-big" type="button"></button>
         <button id="btn-mode-free-survey" class="btn-secondary btn-big" type="button"></button>
+        <button id="btn-mode-observations" class="btn-secondary btn-big" type="button"></button>
         <button id="btn-mode-martellate" class="btn-secondary btn-big" type="button"></button>
         <button id="btn-mode-map" class="btn-secondary btn-big" type="button"></button>
       </div>
@@ -77,7 +78,7 @@
         </div>
       </div>
 
-      <div class="dh-row">
+      <div class="dh-row" id="row-specie-number">
         <label class="field dh">
           <span class="lbl" id="lbl-specie"></span>
           <select id="in-specie" class="dh-select specie-select"></select>
@@ -88,7 +89,7 @@
         </label>
       </div>
 
-      <div class="dh-row">
+      <div class="dh-row" id="row-parcel-group">
         <label class="field dh">
           <span class="lbl" id="lbl-particella-rec"></span>
           <select id="in-particella-rec" class="dh-select"></select>
@@ -99,7 +100,7 @@
         </label>
       </div>
 
-      <div class="dh-row">
+      <div class="dh-row" id="row-dh">
         <label class="field dh">
           <span class="lbl" id="lbl-d"></span>
           <input id="in-d" type="text" inputmode="none" readonly autocomplete="off">
@@ -120,6 +121,22 @@
           <input type="checkbox" id="in-preserved">
           <span class="check-lbl" id="lbl-preserved"></span>
         </label>
+      </div>
+
+      <div id="field-observation-options" hidden>
+        <label class="field">
+          <span class="lbl" id="lbl-observation-text"></span>
+          <textarea id="in-observation-text" rows="4" autocomplete="off"></textarea>
+        </label>
+        <fieldset class="field observation-categories">
+          <legend class="lbl" id="lbl-observation-categories"></legend>
+          <div id="in-observation-categories" class="check-list"></div>
+        </fieldset>
+        <label class="field">
+          <span class="lbl" id="lbl-observation-photos"></span>
+          <input id="in-observation-photos" type="file" accept="image/*" capture="environment" multiple>
+        </label>
+        <div id="observation-photo-list" class="photo-list"></div>
       </div>
 
       <div id="numpad" class="numpad"></div>

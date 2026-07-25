@@ -26,7 +26,7 @@ const DB_NAME = 'ipso';
 // missing/extra fields without a structural change, so the bump is the
 // contract for "this code wrote/read vN-shaped rows" — not a migration
 // trigger at the moment.
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
@@ -421,6 +421,45 @@ async function getNextNumberForOperator(db, operator, mode) {
   });
 }
 
+async function addObservation(db, sessionId, rec) {
+  return tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
+    const sessStore = t.objectStore(STORE_SESSIONS);
+    const sess = await req(sessStore.get(sessionId));
+    if (!sess) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(sessionId));
+
+    const recordsStore = t.objectStore(STORE_TREES);
+    const existingRecords = await req(
+      recordsStore.index('by_session').getAll(sessionId)
+    );
+    const seq = nextSeqForSession(sess, existingRecords);
+    const row = {
+      session_id: sessionId,
+      seq,
+      ts: new Date().toISOString(),
+      [FIELD_DATE]: rec[FIELD_DATE] || sess.data,
+      [FIELD_TEXT]: rec[FIELD_TEXT] || '',
+      [FIELD_CATEGORY_IDS]: Array.isArray(rec[FIELD_CATEGORY_IDS])
+        ? rec[FIELD_CATEGORY_IDS].slice() : [],
+      [FIELD_CATEGORIES]: Array.isArray(rec[FIELD_CATEGORIES])
+        ? rec[FIELD_CATEGORIES].slice() : [],
+      [FIELD_PHOTOS]: Array.isArray(rec[FIELD_PHOTOS])
+        ? rec[FIELD_PHOTOS].slice() : [],
+      lat: rec.lat == null ? null : rec.lat,
+      lon: rec.lon == null ? null : rec.lon,
+      acc_m: rec.acc_m == null ? null : rec.acc_m,
+      [FIELD_REGION_ID]: Number.isInteger(rec[FIELD_REGION_ID])
+        ? rec[FIELD_REGION_ID] : null,
+    };
+    const id = await req(recordsStore.add(row));
+    row.id = id;
+
+    sess.tree_count = existingRecords.length + 1;
+    sess.last_seq = seq;
+    sessStore.put(sess);
+    return row;
+  });
+}
+
 async function listTrees(db, sessionId) {
   return tx(db, [STORE_TREES], 'readonly', (t) =>
     req(t.objectStore(STORE_TREES).index('by_session').getAll(sessionId))
@@ -497,7 +536,7 @@ const Store = {
   startSession, getSession, listResumableSessions, listRecoverableSessions,
   setSessionStatus, setSessionPendingUpload,
   setSessionUploadStatus,
-  addTree, listTrees, deleteTree, lastTree,
+  addTree, addObservation, listTrees, deleteTree, lastTree,
   getNextNumberForOperator,
   uuid,
 };

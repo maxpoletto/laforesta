@@ -1,6 +1,7 @@
 """Tests for the Abies-served Ipso PWA."""
 
 import gzip
+import hashlib
 import io
 import json
 import zipfile
@@ -9,14 +10,16 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
 
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HypsoParam, HypsoParamSet, HypsoParamSource, ObservationCategory, Parcel,
-    Sample, SampleArea, SampleGrid, Survey, Tree, TreeMark,
+    HypsoParam, HypsoParamSet, HypsoParamSource, Observation,
+    ObservationCategory, ObservationPhoto, Parcel, Sample, SampleArea,
+    SampleGrid, Survey, Tree, TreeMark,
     TreeSample, UsedNonce,
 )
 from apps.ipso import staging as ipso_staging
@@ -24,25 +27,29 @@ from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import (
-    COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CLIENT_RECORD_ID,
-    FIELD_COMPLETED_AT, FIELD_COPPICE, FIELD_CREATED_AT,
+    COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CATEGORIES,
+    FIELD_CATEGORY_IDS, FIELD_CHECKSUM, FIELD_CLIENT_PHOTO_ID, FIELD_CLIENT_RECORD_ID,
+    FIELD_COMPLETED_AT, FIELD_CONTENT_TYPE, FIELD_COPPICE, FIELD_CREATED_AT,
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_ID,
     FIELD_H_MEASURED,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
-    FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER,
-    FIELD_OPERATOR, FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PRESERVED,
+    FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+    FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL,
+    FIELD_PARCEL_ID, FIELD_PHOTO_COUNT, FIELD_PHOTOS, FIELD_PRESERVED,
     FIELD_PRESSLER_COEFF, FIELD_REASON, FIELD_RECORD_DATE,
     FIELD_REFERENCE_VERSION, FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID,
-    FIELD_SCHEMA_VERSION, FIELD_STANDARD, FIELD_TREE_PRESERVED_ID,
+    FIELD_SCHEMA_VERSION, FIELD_SIZE_BYTES, FIELD_STANDARD, FIELD_TEXT,
+    FIELD_TREE_PRESERVED_ID,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID,
     FIELD_SURVEY_ID, FIELD_WARNINGS, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, IMPORTED,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
-    IPSO_REF_OBSERVATION_CATEGORIES, IPSO_UPLOAD_FILE_READY, MESSAGE,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
+    IPSO_REF_OBSERVATION_CATEGORIES, IPSO_TARGET_OBSERVATIONS,
+    IPSO_UPLOAD_FILE_PHOTOS_DIR, IPSO_UPLOAD_FILE_READY, MESSAGE,
     PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, STATUS, STATUS_WARNING,
     UPLOAD,
 )
@@ -453,6 +460,51 @@ def _legacy_ipso_1_1_4_payload(
     }
 
 
+
+def _observation_payload(
+        parcel, category, *, session_id='77777777-7777-4777-8777-777777777777',
+        record_overrides=None,
+):
+    session = {
+        FIELD_SESSION_ID: session_id,
+        FIELD_MODE: IPSO_MODE_OBSERVATIONS,
+        FIELD_SCHEMA_VERSION: 1,
+        FIELD_REFERENCE_VERSION: '',
+        FIELD_WORK_PACKAGE_ID: '',
+        FIELD_OPERATOR: 'Mario Rossi',
+        FIELD_CREATED_AT: '2026-06-17T08:00:00Z',
+        FIELD_COMPLETED_AT: '2026-06-17T09:00:00Z',
+        FIELD_DAMAGED: False,
+        FIELD_REGION_ID: parcel.region_id,
+    }
+    record = {
+        FIELD_CLIENT_RECORD_ID: 'obs-1',
+        FIELD_DATE: '2026-06-17',
+        FIELD_REGION_ID: parcel.region_id,
+        FIELD_TEXT: 'sentiero danneggiato',
+        FIELD_CATEGORY_IDS: [category.id],
+        FIELD_LAT: 38.51234,
+        FIELD_LON: 16.12345,
+        FIELD_ACC_M: 5,
+        FIELD_PHOTOS: [],
+    }
+    if record_overrides:
+        record.update(record_overrides)
+    return {SESSION: session, RECORDS: [record], FIELD_CSV_TEXT: 'csv backup'}
+
+
+def _post_multipart_upload(client, payload, files, token='test-token'):
+    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
+    session_id = session.get(FIELD_SESSION_ID, '') if isinstance(session, dict) else ''
+    data = {'payload': json.dumps(payload)}
+    data.update(files)
+    return client.post(
+        reverse('ipso-upload-session'),
+        data=data,
+        HTTP_AUTHORIZATION=f'Bearer {token}',
+        HTTP_X_IPSO_SESSION_ID=session_id,
+    )
+
 def _preserved_sample(
         tree, parcel, *, number=7, sample_date=date(2024, 9, 15),
         d_cm=42, h_m=Decimal('18.50'), h_measured=True, lat=38.45678,
@@ -632,6 +684,136 @@ def test_upload_stages_free_survey_with_optional_number_and_hypso(
     assert row[FIELD_NUMBER] is None
     assert row[FIELD_PRESERVED] is False
     assert row[FIELD_HYPSO_PARAM_SET_ID] == hypso_set.id
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        record_overrides={
+            FIELD_PHOTOS: [{
+                FIELD_CLIENT_PHOTO_ID: 'photo-1',
+                FIELD_CONTENT_TYPE: '',
+                FIELD_SIZE_BYTES: 0,
+                FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+            }],
+        },
+    )
+
+    resp = _post_multipart_upload(Client(), payload, {
+        'photo:photo-1': SimpleUploadedFile(
+            'sentiero.jpg', b'photo-bytes', content_type='image/jpeg',
+        ),
+    })
+
+    assert resp.status_code == 200, resp.content
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    assert upload.mode == IPSO_MODE_OBSERVATIONS
+    assert upload.record_count == 1
+    staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
+    photo = staged[RECORDS][0][FIELD_PHOTOS][0]
+    assert photo[FIELD_CHECKSUM] == hashlib.sha256(b'photo-bytes').hexdigest()
+    assert photo[FIELD_SIZE_BYTES] == len(b'photo-bytes')
+    assert photo[FIELD_ORIGINAL_FILENAME] == 'sentiero.jpg'
+    staged_photo = (
+        Path(upload.inbox_path) / IPSO_UPLOAD_FILE_PHOTOS_DIR / 'photo-1'
+    )
+    assert staged_photo.read_bytes() == b'photo-bytes'
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_observation_missing_photo(
+        db, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        session_id='78787878-7878-4787-8787-787878787878',
+        record_overrides={
+            FIELD_PHOTOS: [{
+                FIELD_CLIENT_PHOTO_ID: 'photo-1',
+                FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+            }],
+        },
+    )
+
+    resp = _post_upload(Client(), payload)
+
+    assert resp.status_code == 422
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
+    assert resp.json()[DETAIL] == S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format('photo-1')
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_import_observation_upload_creates_observations_and_photos(
+        writer_client, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    settings.OBSERVATION_MEDIA_DIR = tmp_path / 'observation-media'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        session_id='79797979-7979-4797-8797-797979797979',
+        record_overrides={
+            FIELD_PHOTOS: [{
+                FIELD_CLIENT_PHOTO_ID: 'photo-1',
+                FIELD_CONTENT_TYPE: '',
+                FIELD_SIZE_BYTES: 0,
+                FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+            }],
+        },
+    )
+    assert _post_multipart_upload(Client(), payload, {
+        'photo:photo-1': SimpleUploadedFile(
+            'sentiero.jpg', b'photo-bytes', content_type='image/jpeg',
+        ),
+    }).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-observations', args=[upload.id]),
+        data=json.dumps({FIELD_NONCE: 'import-observation-nonce'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    assert resp.json()[IMPORTED] == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.target_type == IPSO_TARGET_OBSERVATIONS
+    assert upload.target_id is None
+    observation = Observation.objects.get()
+    assert observation.text == 'sentiero danneggiato'
+    assert observation.operator == 'Mario Rossi'
+    assert observation.created_by_id is not None
+    assert list(observation.categories.values_list('name', flat=True)) == ['viabilità']
+    photo = ObservationPhoto.objects.get(observation=observation)
+    assert photo.content_type == 'image/jpeg'
+    assert photo.size_bytes == len(b'photo-bytes')
+    assert photo.original_filename == 'sentiero.jpg'
+    assert (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes() == b'photo-bytes'
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_detail_previews_observation_records(
+        writer_client, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(parcels[0], category)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.get(reverse('ipso-upload-detail', args=[upload.id]))
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[UPLOAD][FIELD_MODE] == IPSO_MODE_OBSERVATIONS
+    assert data[UPLOAD][FIELD_MODE_LABEL] == S.IPSO_MODE_OBSERVATIONS_LABEL
+    assert data[RECORDS][0][FIELD_TEXT] == 'sentiero danneggiato'
+    assert data[RECORDS][0][FIELD_CATEGORIES] == 'viabilità'
+    assert data[RECORDS][0][FIELD_PHOTO_COUNT] == 0
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -1163,6 +1345,7 @@ def test_upload_detail_reports_staged_checksum_mismatch(
     ('post', 'ipso-upload-import-martellate', {FIELD_HARVEST_PLAN_ITEM_ID: 1}),
     ('post', 'ipso-upload-import-samples', {FIELD_SURVEY_ID: 1}),
     ('post', 'ipso-upload-import-free-survey', {FIELD_SURVEY_ID: 1}),
+    ('post', 'ipso-upload-import-observations', {}),
 ])
 def test_upload_id_endpoints_return_404_for_unknown_upload(
         admin_client, method, url_name, body):

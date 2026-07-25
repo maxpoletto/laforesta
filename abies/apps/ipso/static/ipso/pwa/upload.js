@@ -59,7 +59,9 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   const regionId = Number.isInteger(sess[FIELD_REGION_ID])
     ? sess[FIELD_REGION_ID]
     : regionIdForCompresa(reference, sess.compresa);
-  const records = trees.map((t) => canonicalRecord(sess, t, reference));
+  const records = mode === IPSO_MODE_OBSERVATIONS
+    ? trees.map((t) => canonicalObservationRecord(sess, t))
+    : trees.map((t) => canonicalRecord(sess, t, reference));
   validateRecordNumbers(sess, records, reference);
   return {
     [SESSION]: {
@@ -83,11 +85,48 @@ function buildUploadPayload(sess, trees, reference, csvText) {
 function isSupportedUploadMode(mode) {
   return mode === IPSO_MODE_MARTELLATE ||
     mode === IPSO_MODE_SAMPLES ||
-    mode === IPSO_MODE_FREE_SURVEY;
+    mode === IPSO_MODE_FREE_SURVEY ||
+    mode === IPSO_MODE_OBSERVATIONS;
 }
 
 function completedAt(sess) {
   return sess.completed_at || sess.exported_at || new Date().toISOString();
+}
+
+function canonicalObservationRecord(sess, rec) {
+  return {
+    [FIELD_CLIENT_RECORD_ID]: String(rec.seq || rec.id),
+    [FIELD_DATE]: sess.data,
+    [FIELD_REGION_ID]: Number.isInteger(rec[FIELD_REGION_ID])
+      ? rec[FIELD_REGION_ID]
+      : Number.isInteger(sess[FIELD_REGION_ID]) ? sess[FIELD_REGION_ID] : null,
+    [FIELD_TEXT]: rec[FIELD_TEXT] || '',
+    [FIELD_CATEGORY_IDS]: Array.isArray(rec[FIELD_CATEGORY_IDS])
+      ? rec[FIELD_CATEGORY_IDS].slice() : [],
+    [FIELD_LAT]: rec.lat == null ? null : rec.lat,
+    [FIELD_LON]: rec.lon == null ? null : rec.lon,
+    [FIELD_ACC_M]: rec.acc_m == null ? null : rec.acc_m,
+    [FIELD_PHOTOS]: observationPhotoMetadata(rec[FIELD_PHOTOS]),
+  };
+}
+
+function observationPhotoMetadata(photos) {
+  if (!Array.isArray(photos)) return [];
+  return photos.map((photo, index) => {
+    const blob = photo && photo.blob;
+    const clientId = photo && photo[FIELD_CLIENT_PHOTO_ID]
+      ? String(photo[FIELD_CLIENT_PHOTO_ID])
+      : String(index + 1);
+    return {
+      [FIELD_CLIENT_PHOTO_ID]: clientId,
+      [FIELD_CONTENT_TYPE]: photo && photo[FIELD_CONTENT_TYPE] || blob && blob.type || '',
+      [FIELD_SIZE_BYTES]: Number.isInteger(photo && photo[FIELD_SIZE_BYTES])
+        ? photo[FIELD_SIZE_BYTES]
+        : blob && Number.isInteger(blob.size) ? blob.size : 0,
+      [FIELD_ORIGINAL_FILENAME]: photo && photo[FIELD_ORIGINAL_FILENAME] || '',
+      blob: blob || null,
+    };
+  });
 }
 
 function canonicalRecord(sess, t, reference) {
@@ -132,7 +171,7 @@ function canonicalRecord(sess, t, reference) {
 
 function validateRecordNumbers(sess, records, reference) {
   const mode = sess.mode || IPSO_MODE_MARTELLATE;
-  if (mode === IPSO_MODE_MARTELLATE) return;
+  if (mode === IPSO_MODE_MARTELLATE || mode === IPSO_MODE_OBSERVATIONS) return;
   if (mode === IPSO_MODE_FREE_SURVEY) {
     validateFreeSurveyNumbers(records, reference);
     return;
@@ -333,22 +372,61 @@ function parcelForName(reference, compresa, particella) {
   return row;
 }
 
+function uploadPayloadHasFiles(payload) {
+  const records = Array.isArray(payload && payload[RECORDS])
+    ? payload[RECORDS] : [];
+  return records.some((record) =>
+    Array.isArray(record && record[FIELD_PHOTOS]) &&
+    record[FIELD_PHOTOS].some((photo) => photo && photo.blob)
+  );
+}
+
+function stripUploadPayloadFiles(payload) {
+  return {
+    ...payload,
+    [RECORDS]: (payload[RECORDS] || []).map((record) => ({
+      ...record,
+      [FIELD_PHOTOS]: (record[FIELD_PHOTOS] || []).map((photo) => {
+        const { blob, ...metadata } = photo || {};
+        return metadata;
+      }),
+    })),
+  };
+}
+
+function multipartBody(payload) {
+  const form = new FormData();
+  const wirePayload = stripUploadPayloadFiles(payload);
+  form.append(IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD, JSON.stringify(wirePayload));
+  for (const record of payload[RECORDS] || []) {
+    for (const photo of record[FIELD_PHOTOS] || []) {
+      if (!photo || !photo.blob) continue;
+      const clientId = photo[FIELD_CLIENT_PHOTO_ID];
+      const filename = photo[FIELD_ORIGINAL_FILENAME] || clientId || 'photo';
+      form.append(IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX + clientId, photo.blob, filename);
+    }
+  }
+  return form;
+}
+
 // Posts the canonical staged JSON payload. Resolves with { duplicate: bool } on
 // 200, throws UploadError otherwise. Caller passes signal for cancellation.
 async function uploadSession(args) {
   const { token, sessionId, payload, signal } = args;
+  const hasFiles = uploadPayloadHasFiles(payload);
   const headers = {
-    'Content-Type': 'application/json',
     'X-Ipso-Session-Id': sessionId,
   };
+  if (!hasFiles) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = 'Bearer ' + token;
+  const body = hasFiles ? multipartBody(payload) : JSON.stringify(payload);
 
   let resp;
   try {
     resp = await fetch('/api/ipso/uploads/', {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload),
+      body,
       signal,
     });
   } catch (e) {
@@ -377,13 +455,15 @@ const upload = {
   UPLOAD_MODE_MARTELLATE: IPSO_MODE_MARTELLATE,
   UPLOAD_MODE_SAMPLES: IPSO_MODE_SAMPLES,
   UPLOAD_MODE_FREE_SURVEY: IPSO_MODE_FREE_SURVEY,
+  UPLOAD_MODE_OBSERVATIONS: IPSO_MODE_OBSERVATIONS,
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
   isSupportedUploadMode, validateRecordNumbers, sampleSurveyIdFromWorkPackage,
   sampleMaxNumberForArea,
   paiNumberExists, paiMaxNumberForParcel,
-  UploadError, buildUploadPayload, uploadSession,
+  UploadError, buildUploadPayload, uploadPayloadHasFiles,
+  stripUploadPayloadFiles, multipartBody, uploadSession,
 };
 
 if (typeof module !== 'undefined') module.exports = upload;

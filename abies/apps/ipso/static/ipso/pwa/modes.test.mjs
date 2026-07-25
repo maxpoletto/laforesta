@@ -5,6 +5,7 @@ const {
   IPSO_MODE_MARTELLATE,
   IPSO_MODE_SAMPLES,
   IPSO_MODE_FREE_SURVEY,
+  IPSO_MODE_OBSERVATIONS,
   IPSO_MODE_MAP,
   IpsoModes,
 } = require("./modes.js");
@@ -29,6 +30,7 @@ eq(allModes.map((mode) => mode.id), [
   IPSO_MODE_SAMPLES,
   IPSO_MODE_FREE_SURVEY,
   IPSO_MODE_MARTELLATE,
+  IPSO_MODE_OBSERVATIONS,
   IPSO_MODE_MAP,
 ], "landing mode order keeps predefined surveys first");
 
@@ -43,6 +45,17 @@ check(freeSurvey.autoHeight === true,
       "free-survey mode can derive unmeasured heights");
 check(IpsoModes.get(IPSO_MODE_FREE_SURVEY).localOnly !== true,
       "free-survey mode is uploadable");
+
+
+const observations = allModes.find((mode) =>
+  mode.id === IPSO_MODE_OBSERVATIONS
+);
+check(Boolean(observations), "observations mode is present");
+check(observations.enabled === true, "observations mode is enabled");
+check(observations.labelKey === "MODE_OBSERVATIONS",
+      "observations mode uses a localized label key");
+check(observations.observations === true,
+      "observations mode is marked as observation-shaped");
 
 if (failures.length) {
   console.error(failures.join("\n"));

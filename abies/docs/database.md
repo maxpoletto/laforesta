@@ -41,8 +41,10 @@ audited and the contract that keeps that coverage complete.
     uploads without reopening `upload.json` for every row. `updated_at` is
     refreshed on every state change.
   - `checksum` is the SHA-256 of the canonical staged JSON. `inbox_path` points
-    to the directory containing `upload.json`, `upload.sha256`, and optional
-    `export.csv`.
+    to the directory containing `upload.json`, `upload.sha256`, optional
+    `export.csv`, and, for observation uploads with photos, an optional
+    `photos/` subdirectory containing staged photo blobs keyed by client photo
+    id.
   - Successful domain import records `imported_at`, `imported_by`,
     `target_type`, and `target_id`; rejection/conflict details are stored in
     `error_summary`.
@@ -105,8 +107,10 @@ audited and the contract that keeps that coverage complete.
   - A point observation recorded in the forest. `lat` and `lon` are required;
     `acc_m` records GPS accuracy in meters when available. Line/polygon
     cartography is intentionally separate and not represented by this table.
-  - `operator` is the field operator name when supplied by Ipso. `source`,
-    `upload_session_id`, `client_record_id`, and `import_fingerprint` preserve
+  - `operator` is the field operator name when supplied by Ipso.
+    `created_by_id` is the authenticated Abies user who created or imported
+    the row. `source`, `upload_session_id`, `client_record_id`, and
+    `import_fingerprint` preserve
     upload/import provenance without making observation rows depend on the
     lifecycle of `ipso_upload` rows. Non-empty `import_fingerprint` values are
     unique for idempotent imports.

@@ -70,6 +70,31 @@ check(freeRow[8] === '0', 'free-survey CSV preserves h_measured false');
 check(freeRow[9] === '1', 'free-survey CSV exports preserved-tree true');
 check(freeRow[10] === '38,512345', 'free-survey GPS columns stay after PAI');
 
+
+const observationLines = csv.formatFile(
+  { ...session, mode: 'observations' },
+  [{
+    text: 'sentiero; danneggiato',
+    categories: ['viabilità', 'rifiuti'],
+    photos: [{ original_filename: 'sentiero.jpg' }],
+    lat: 38.512345,
+    lon: 16.123456,
+    acc_m: 5,
+  }],
+  reference,
+).slice(csv.CSV_BOM.length).trimEnd().split(csv.CSV_NL);
+const observationHeader = observationLines[0].split(csv.CSV_SEP);
+check(observationHeader[2] === 'Testo', 'observations CSV has text column');
+check(observationLines[1].includes('"sentiero; danneggiato"'),
+      'observations CSV escapes text');
+check(observationLines[1].includes('viabilità, rifiuti'),
+      'observations CSV exports category names');
+check(observationLines[1].includes('sentiero.jpg'),
+      'observations CSV exports photo filenames');
+check(csv.filename({ ...session, mode: 'observations' }, new Date('2026-06-17T09:05:00'), 'final')
+      .startsWith('ipso_osservazioni_Capistrano_'),
+      'observations CSV filename carries observation kind');
+
 check(csv.hardenCSVFormula('=cmd') === "'=cmd", 'formula-looking equals text is hardened');
 check(csv.hardenCSVFormula('+cmd') === "'+cmd", 'formula-looking plus text is hardened');
 check(csv.hardenCSVFormula('-cmd') === "'-cmd", 'formula-looking minus text is hardened');

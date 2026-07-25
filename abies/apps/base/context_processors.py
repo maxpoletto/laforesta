@@ -6,7 +6,7 @@ from apps.base.models import Role
 from config import strings as S
 from config.constants import (
     FIELD_MODE, IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE,
-    IPSO_MODE_SAMPLES,
+    IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
 )
 
 
@@ -14,6 +14,7 @@ IPSO_UPLOAD_MODE_OPTIONS = (
     {'value': IPSO_MODE_MARTELLATE, 'label': S.IPSO_MODE_MARTELLATE_LABEL},
     {'value': IPSO_MODE_SAMPLES, 'label': S.IPSO_MODE_SAMPLES_LABEL},
     {'value': IPSO_MODE_FREE_SURVEY, 'label': S.IPSO_MODE_FREE_SURVEY_LABEL},
+    {'value': IPSO_MODE_OBSERVATIONS, 'label': S.IPSO_MODE_OBSERVATIONS_LABEL},
 )
 
 

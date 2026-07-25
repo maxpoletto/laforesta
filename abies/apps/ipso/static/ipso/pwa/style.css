@@ -143,10 +143,45 @@ select.big-select {
   font-weight: 500;
 }
 
-input.focus, input:focus, select:focus {
+input.focus, input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--green);
   box-shadow: 0 0 0 2px var(--green-light);
+}
+
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  border: 1px solid var(--grey-4);
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.observation-categories {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.photo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.photo-row {
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--grey-5);
+  font-size: 14px;
+  color: var(--grey-2);
 }
 
 /* D and h side by side; Numero / Gruppo row uses the same rhythm. */

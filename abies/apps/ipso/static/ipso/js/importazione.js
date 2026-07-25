@@ -26,14 +26,17 @@ import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-m
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_ACC_M, FIELD_D_CM, FIELD_DATE,
-  FIELD_ERROR_SUMMARY, FIELD_ERRORS,
+  FIELD_ERROR_SUMMARY, FIELD_ERRORS, FIELD_CATEGORIES,
   FIELD_H_M, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_LAT, FIELD_LON,
   FIELD_MODE, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NUMBER, FIELD_OPERATOR,
-  FIELD_PARCEL, FIELD_RECEIVED_AT, FIELD_RECORD_DATE, FIELD_REFERENCE_VERSION,
+  FIELD_PARCEL, FIELD_PHOTO_COUNT, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
+  FIELD_REFERENCE_VERSION,
   FIELD_REFERENCE_VERSION_LABEL, FIELD_SAMPLE_AREA_ID, FIELD_SEQ,
   FIELD_SESSION_ID, FIELD_SPECIES, FIELD_STATE, FIELD_STATE_LABEL,
-  FIELD_SURVEY_ID, FIELD_TARGET_LABEL, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
-  IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
+  FIELD_SURVEY_ID, FIELD_TARGET_LABEL, FIELD_TEXT,
+  FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
+  IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS,
+  IPSO_MODE_SAMPLES,
   IPSO_REFERENCE_LEGACY_CONVERTED,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED,
   MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_ADMIN, ROLE_READER, ROWS,
@@ -75,6 +78,11 @@ const IMPORT_CONFIG = {
     confirm: S.IPSO_IMPORT_FREE_SURVEY_CONFIRM,
     requiresTarget: true,
   },
+  [IPSO_MODE_OBSERVATIONS]: {
+    url: id => `/api/ipso/uploads/${id}/import-observations/`,
+    confirm: S.IPSO_IMPORT_OBSERVATIONS_CONFIRM,
+    requiresTarget: false,
+  },
 };
 
 function mutationBody(action, body = {}) {
@@ -99,6 +107,21 @@ const PREVIEW_COLUMNS = [
   S.COL_SPECIES, S.COL_NUMBER, S.COL_D_CM, S.COL_H_M, S.COL_LAT, S.COL_LON,
   S.IPSO_COL_ACCURACY,
 ];
+const OBSERVATION_PREVIEW_COLUMNS = [
+  S.IPSO_COL_SEQ, S.COL_DATE, S.COL_TEXT, S.COL_OBSERVATION_CATEGORIES,
+  S.COL_PHOTO_COUNT, S.COL_LAT, S.COL_LON, S.IPSO_COL_ACCURACY,
+];
+const OBSERVATION_PREVIEW_COLUMN_DEFS = {
+  [S.IPSO_COL_SEQ]: { label: S.IPSO_COL_SEQ, type: 'number', width: '70px', className: 'num', formatter: intValue },
+  [S.COL_DATE]: { label: S.COL_DATE, width: '110px' },
+  [S.COL_TEXT]: { label: S.COL_TEXT, width: '260px' },
+  [S.COL_OBSERVATION_CATEGORIES]: { label: S.COL_OBSERVATION_CATEGORIES, width: '170px' },
+  [S.COL_PHOTO_COUNT]: { label: S.COL_PHOTO_COUNT, type: 'number', width: '80px', className: 'num', formatter: intValue },
+  [S.COL_LAT]: { label: S.COL_LAT, type: 'number', width: '115px', formatter: coordValue },
+  [S.COL_LON]: { label: S.COL_LON, type: 'number', width: '115px', formatter: coordValue },
+  [S.IPSO_COL_ACCURACY]: { label: S.IPSO_COL_ACCURACY, type: 'number', width: '80px', className: 'num', formatter: intValue },
+};
+
 const PREVIEW_COLUMN_DEFS = {
   [S.IPSO_COL_SEQ]: { label: S.IPSO_COL_SEQ, type: 'number', width: '70px', className: 'num', formatter: intValue },
   [S.COL_DATE]: { label: S.COL_DATE, width: '110px' },
@@ -440,7 +463,9 @@ function renderDetail(data) {
   const recordsTitle = document.createElement('h3');
   recordsTitle.textContent = S.IPSO_PREVIEW_TITLE(data[RECORD_COUNT] || 0);
   detailEl.appendChild(recordsTitle);
-  detailEl.appendChild(recordsTable(data[RECORDS] || [], upload[FIELD_ID]));
+  detailEl.appendChild(recordsTable(
+    data[RECORDS] || [], upload[FIELD_ID], upload[FIELD_MODE],
+  ));
 }
 
 function isAdmin() {
@@ -557,9 +582,13 @@ function metadataGrid(items) {
   return dl;
 }
 
-function recordsTable(records, uploadId) {
+function recordsTable(records, uploadId, mode) {
   const host = document.createElement('div');
   host.className = 'ipso-record-preview';
+  if (mode === IPSO_MODE_OBSERVATIONS) {
+    observationRecordsTable(host, records);
+    return host;
+  }
   const rows = records.map(rec => [
     rec[FIELD_SEQ], rec[FIELD_DATE], rec[FIELD_PARCEL], rec[FIELD_SAMPLE_AREA_ID], rec[FIELD_SPECIES],
     rec[FIELD_NUMBER], rec[FIELD_D_CM], rec[FIELD_H_M], rec[FIELD_LAT], rec[FIELD_LON], rec[FIELD_ACC_M],
@@ -576,6 +605,24 @@ function recordsTable(records, uploadId) {
   });
   appendRecordPreviewMap(host, rows, uploadId);
   return host;
+}
+
+function observationRecordsTable(host, records) {
+  const rows = records.map(rec => [
+    rec[FIELD_SEQ], rec[FIELD_DATE], rec[FIELD_TEXT],
+    rec[FIELD_CATEGORIES], rec[FIELD_PHOTO_COUNT], rec[FIELD_LAT],
+    rec[FIELD_LON], rec[FIELD_ACC_M],
+  ]);
+  detailTable = new TableWrapper({
+    container: host,
+    digest: { columns: OBSERVATION_PREVIEW_COLUMNS, rows },
+    columnDefs: OBSERVATION_PREVIEW_COLUMN_DEFS,
+    canModify: false,
+    inlineToolbar: false,
+    sort: { column: S.IPSO_COL_SEQ, ascending: true },
+    labels: { ...S.TABLE_LABELS, empty: S.IPSO_EMPTY_RECORDS },
+    csvFormat: S.TABLE_CSV_FORMAT,
+  });
 }
 
 async function appendRecordPreviewMap(host, rows, uploadId) {
@@ -612,6 +659,7 @@ function modeLabel(mode) {
   if (mode === IPSO_MODE_MARTELLATE) return S.IPSO_MODE_MARTELLATE_LABEL;
   if (mode === IPSO_MODE_SAMPLES) return S.IPSO_MODE_SAMPLES_LABEL;
   if (mode === IPSO_MODE_FREE_SURVEY) return S.IPSO_MODE_FREE_SURVEY_LABEL;
+  if (mode === IPSO_MODE_OBSERVATIONS) return S.IPSO_MODE_OBSERVATIONS_LABEL;
   return mode || '';
 }
 

@@ -5,11 +5,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
 import shutil
 import time
 from collections import defaultdict, deque
-from datetime import timezone
+from datetime import date as date_type, timezone
 from decimal import Decimal, InvalidOperation
 from ipaddress import ip_address, ip_network
 from pathlib import Path
@@ -32,13 +33,18 @@ from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response,
 )
+from apps.base.digests import mark_stale
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
-    HypsoParamSet, ObservationCategory, Parcel, SampleArea, Species, Survey,
-    TreeSample,
+    HypsoParamSet, Observation, ObservationCategory,
+    ObservationCategoryAssignment, ObservationPhoto, Parcel, SampleArea,
+    Species, Survey, TreeSample,
     natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
+from apps.base.observation_storage import (
+    observation_photo_absolute_path, observation_photo_relative_path,
+)
 from apps.base.preserved_trees import latest_preserved_tree_samples
 from apps.base.responses import (
     row_delete, success_response, validation_error, warning_response,
@@ -56,27 +62,31 @@ from apps.piano_di_taglio.mark_import import (
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CHECKSUM,
-    FIELD_COPPICE, FIELD_DAMAGED, FIELD_CLIENT_RECORD_ID, FIELD_ERROR_SUMMARY,
+    COLUMNS, DETAIL, DIGEST_OBSERVATIONS, DUPLICATE, ERROR, FIELD_ACC_M,
+    FIELD_CHECKSUM, FIELD_COPPICE, FIELD_DAMAGED, FIELD_CLIENT_PHOTO_ID,
+    FIELD_CLIENT_RECORD_ID, FIELD_ERROR_SUMMARY,
     FIELD_ID, FIELD_NAME,
+    FIELD_CATEGORY_IDS, FIELD_CATEGORIES, FIELD_CONTENT_TYPE,
     FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
     FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_MODE_LABEL, FIELD_NOTE,
-    FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL_ID,
-    FIELD_PARCEL, FIELD_PRESERVED, FIELD_PRESSLER_COEFF, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
+    FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID,
+    FIELD_PARCEL, FIELD_PHOTO_COUNT, FIELD_PHOTOS, FIELD_PRESERVED,
+    FIELD_PRESSLER_COEFF, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
     FIELD_REASON, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
     FIELD_REGION_ID, FIELD_SEQ,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SCHEMA_VERSION,
     FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_STANDARD,
-    FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE, FIELD_TREE_ID,
-    FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT, FIELD_STATE, FIELD_STATE_LABEL,
+    FIELD_SIZE_BYTES, FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE,
+    FIELD_TEXT, FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT,
+    FIELD_STATE, FIELD_STATE_LABEL,
     FIELD_SURVEY_ID, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_PAI,
     IPSO_REF_PARCELS,
@@ -86,11 +96,15 @@ from config.constants import (
     IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_LEGACY_CONVERTED,
     IPSO_REFERENCE_VERSION_KEYS,
-    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_SURVEY,
-    IPSO_TERRENI_GEOJSON, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
+    IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_OBSERVATIONS,
+    IPSO_TARGET_SURVEY, IPSO_TERRENI_GEOJSON,
+    IPSO_WORK_PACKAGE_HARVEST_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
-    IPSO_UPLOAD_FILE_READY, IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES, MESSAGE,
+    IPSO_UPLOAD_FILE_PHOTOS_DIR, IPSO_UPLOAD_FILE_READY,
+    IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES,
+    IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD,
+    IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX, MESSAGE,
     OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
@@ -441,6 +455,7 @@ MODE_LABELS = {
     IPSO_MODE_MARTELLATE: S.IPSO_MODE_MARTELLATE_LABEL,
     IPSO_MODE_SAMPLES: S.IPSO_MODE_SAMPLES_LABEL,
     IPSO_MODE_FREE_SURVEY: S.IPSO_MODE_FREE_SURVEY_LABEL,
+    IPSO_MODE_OBSERVATIONS: S.IPSO_MODE_OBSERVATIONS_LABEL,
 }
 REFERENCE_LABELS = {
     IPSO_REFERENCE_LEGACY_CONVERTED: S.IPSO_REFERENCE_LEGACY_CONVERTED,
@@ -451,6 +466,7 @@ STAGED_UPLOAD_ARCHIVE_FILES = (
     IPSO_UPLOAD_FILE_CSV,
 )
 _SHA256_RE = re.compile(r'^[0-9a-f]{64}$')
+_CLIENT_PHOTO_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,100}$')
 
 
 @login_required
@@ -477,7 +493,7 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
     return _api_json({
         UPLOAD: _upload_metadata(upload),
         SESSION: session,
-        RECORDS: _preview_records(records),
+        RECORDS: _preview_records(records, upload.mode),
         RECORD_COUNT: len(records),
         FILE_ERROR: file_error,
         TARGETS: targets,
@@ -729,6 +745,47 @@ def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonRespo
     })
 
 
+@login_required
+@require_writer
+@require_POST
+def import_observations_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+    try:
+        body = _request_json_or_empty(request)
+    except UploadValidationError as e:
+        return validation_error([str(e)])
+
+    try:
+        with transaction.atomic():
+            upload = _get_upload(upload_id, for_update=True)
+            if upload.mode != IPSO_MODE_OBSERVATIONS:
+                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+            if upload.state != IpsoUploadState.RECEIVED:
+                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+
+            payload, file_error = _read_staged_payload(upload)
+            if file_error:
+                return _upload_validation_error(upload, [file_error])
+            imported, errors = _import_observation_records(
+                upload, payload, request.user,
+            )
+            if errors:
+                return _upload_validation_error(upload, errors)
+            if not _claim_upload_import(
+                    upload, request.user, IPSO_TARGET_OBSERVATIONS, None):
+                return _rollback_upload_not_received_response()
+            mark_stale(DIGEST_OBSERVATIONS, 'audit')
+            data = _upload_metadata(upload)
+    except IntegrityError:
+        upload = _get_upload(upload_id)
+        return _upload_validation_error(
+            upload, [S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT],
+        )
+    return success_response(request, body, extra={
+        IMPORTED: imported,
+        UPLOAD: data,
+    })
+
+
 @csrf_exempt
 @require_POST
 def upload_session(request: HttpRequest) -> JsonResponse:
@@ -743,8 +800,10 @@ def upload_session(request: HttpRequest) -> JsonResponse:
     if not _upload_authorized(request):
         return _auth_error()
     try:
-        payload = _request_json(request)
-        normalized, csv_text = _validate_upload_payload(payload, request)
+        payload, photo_files = _request_upload_payload(request)
+        normalized, csv_text, staged_photo_files = _validate_upload_payload(
+            payload, request, photo_files,
+        )
     except UploadValidationError as e:
         return _api_json({OK: False, ERROR: IPSO_ERROR_INVALID_PAYLOAD, DETAIL: str(e)}, status=422)
 
@@ -756,9 +815,13 @@ def upload_session(request: HttpRequest) -> JsonResponse:
             upload = IpsoUpload.objects.create(
                 **ipso_staging.upload_model_fields(normalized, checksum, inbox_path)
             )
-            _write_upload_files(inbox_path, normalized, checksum, csv_text)
+            _write_upload_files(
+                inbox_path, normalized, checksum, csv_text, staged_photo_files,
+            )
     except IntegrityError:
-        return _duplicate_upload_response(session_id, normalized, checksum, csv_text)
+        return _duplicate_upload_response(
+            session_id, normalized, checksum, csv_text, staged_photo_files,
+        )
 
     return _api_json({
         OK: True,
@@ -769,12 +832,16 @@ def upload_session(request: HttpRequest) -> JsonResponse:
 
 def _duplicate_upload_response(
         session_id: str, payload: dict, checksum: str, csv_text: str | None,
+        staged_photo_files: dict[str, bytes] | None = None,
 ) -> JsonResponse:
     existing = IpsoUpload.objects.filter(session_id=session_id).first()
     if existing is None:
         return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT}, status=409)
     if hmac.compare_digest(existing.checksum, checksum):
-        _write_upload_files(Path(existing.inbox_path), payload, checksum, csv_text)
+        _write_upload_files(
+            Path(existing.inbox_path), payload, checksum, csv_text,
+            staged_photo_files,
+        )
         return _api_json({
             OK: True,
             STORED_AS: existing.inbox_path,
@@ -848,6 +915,13 @@ def _staged_upload_files(upload: IpsoUpload) -> list[tuple[str, bytes]]:
         path = root / name
         if path.is_file():
             files.append((name, path.read_bytes()))
+    photo_root = root / IPSO_UPLOAD_FILE_PHOTOS_DIR
+    if photo_root.is_dir():
+        for path in sorted(photo_root.rglob('*')):
+            if not path.is_file() or path.name.endswith('.tmp'):
+                continue
+            rel = path.relative_to(root).as_posix()
+            files.append((rel, path.read_bytes()))
     return files
 
 
@@ -1026,9 +1100,11 @@ def _preview_decimal(value):
     return float(number) if number.is_finite() else value
 
 
-def _preview_records(records: list) -> list[dict]:
+def _preview_records(records: list, mode: str = '') -> list[dict]:
     if not isinstance(records, list):
         return []
+    if mode == IPSO_MODE_OBSERVATIONS:
+        return _preview_observation_records(records)
     species_ids = _int_ids(records, FIELD_SPECIES_ID)
     parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
     sample_area_ids = _int_ids(records, FIELD_SAMPLE_AREA_ID)
@@ -1065,6 +1141,44 @@ def _preview_records(records: list) -> list[dict]:
     return out
 
 
+def _preview_observation_records(records: list) -> list[dict]:
+    category_ids = set()
+    for row in records:
+        if not isinstance(row, dict):
+            continue
+        for value in row.get(FIELD_CATEGORY_IDS, []):
+            if type(value) is int:
+                category_ids.add(value)
+    categories = {
+        category.id: category.name
+        for category in ObservationCategory.objects.filter(id__in=category_ids)
+    }
+    out = []
+    for i, row in enumerate(records[:500], start=1):
+        if not isinstance(row, dict):
+            continue
+        row_category_ids = [
+            value for value in row.get(FIELD_CATEGORY_IDS, [])
+            if type(value) is int
+        ]
+        photos = row.get(FIELD_PHOTOS, [])
+        photo_count = len(photos) if isinstance(photos, list) else 0
+        out.append({
+            FIELD_SEQ: _preview_sequence(row.get(FIELD_CLIENT_RECORD_ID), i),
+            FIELD_DATE: row.get(FIELD_DATE, ''),
+            FIELD_TEXT: row.get(FIELD_TEXT, ''),
+            FIELD_CATEGORIES: ', '.join(
+                categories.get(category_id, str(category_id))
+                for category_id in row_category_ids
+            ),
+            FIELD_PHOTO_COUNT: photo_count,
+            FIELD_LAT: row.get(FIELD_LAT),
+            FIELD_LON: row.get(FIELD_LON),
+            FIELD_ACC_M: row.get(FIELD_ACC_M),
+        })
+    return out
+
+
 def _reject_reason(body: dict) -> str:
     reason = body.get(FIELD_REASON, '') if isinstance(body, dict) else ''
     return reason.strip() or S.IPSO_REJECT_DEFAULT_REASON
@@ -1077,6 +1191,8 @@ def _upload_targets(upload: IpsoUpload) -> tuple[list[dict], int | None]:
         return _survey_targets(structured=True), _suggested_survey_id(upload.work_package_id)
     if upload.mode == IPSO_MODE_FREE_SURVEY:
         return _survey_targets(structured=False), None
+    if upload.mode == IPSO_MODE_OBSERVATIONS:
+        return [], None
     return [], None
 
 
@@ -1281,6 +1397,164 @@ def _martellate_import_rows(
     return rows, errors
 
 
+def _import_observation_records(
+        upload: IpsoUpload, payload: dict, user,
+) -> tuple[int, list[str]]:
+    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
+    records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
+    if not isinstance(records, list):
+        return 0, [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
+
+    category_ids = {
+        category_id
+        for record in records if isinstance(record, dict)
+        for category_id in record.get(FIELD_CATEGORY_IDS, [])
+        if type(category_id) is int
+    }
+    categories = {
+        category.id: category
+        for category in ObservationCategory.objects.filter(id__in=category_ids)
+    }
+    session_operator = (
+        (session.get(FIELD_OPERATOR) or '').strip()
+        if isinstance(session, dict) else ''
+    )
+
+    imported = 0
+    errors = []
+    for i, record in enumerate(records, start=1):
+        if not isinstance(record, dict):
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
+            continue
+        row_categories = []
+        for category_id in record.get(FIELD_CATEGORY_IDS, []):
+            category = categories.get(category_id)
+            if category is None:
+                errors.append(
+                    S.IPSO_ERR_UNKNOWN_OBSERVATION_CATEGORY_ID.format(category_id)
+                )
+                break
+            row_categories.append(category)
+        if len(row_categories) != len(record.get(FIELD_CATEGORY_IDS, [])):
+            continue
+        photos, photo_error = _staged_observation_photos(upload, record, i)
+        if photo_error:
+            errors.append(photo_error)
+            continue
+        try:
+            row_date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
+            lat = float(record.get(FIELD_LAT))
+            lon = float(record.get(FIELD_LON))
+        except (TypeError, ValueError):
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED.format(i))
+            continue
+        observation = Observation.objects.create(
+            date=row_date,
+            text=(record.get(FIELD_TEXT) or '').strip(),
+            lat=lat,
+            lon=lon,
+            acc_m=record.get(FIELD_ACC_M),
+            operator=session_operator,
+            source='ipso',
+            upload_session_id=upload.session_id,
+            client_record_id=record.get(FIELD_CLIENT_RECORD_ID, ''),
+            import_fingerprint=_observation_import_fingerprint(
+                upload.session_id, record,
+            ),
+            created_by=user,
+        )
+        ObservationCategoryAssignment.objects.bulk_create([
+            ObservationCategoryAssignment(
+                observation=observation, category=category,
+            )
+            for category in row_categories
+        ])
+        for photo, content in photos:
+            _store_observation_photo(observation, photo, content)
+        imported += 1
+    return imported, errors
+
+
+def _observation_import_fingerprint(session_id: str, record: dict) -> str:
+    raw = json.dumps({
+        FIELD_SESSION_ID: session_id,
+        FIELD_CLIENT_RECORD_ID: record.get(FIELD_CLIENT_RECORD_ID),
+        FIELD_DATE: record.get(FIELD_DATE),
+        FIELD_TEXT: record.get(FIELD_TEXT),
+        FIELD_CATEGORY_IDS: record.get(FIELD_CATEGORY_IDS, []),
+        FIELD_LAT: record.get(FIELD_LAT),
+        FIELD_LON: record.get(FIELD_LON),
+        FIELD_ACC_M: record.get(FIELD_ACC_M),
+        FIELD_PHOTOS: [
+            photo.get(FIELD_CHECKSUM)
+            for photo in record.get(FIELD_PHOTOS, [])
+            if isinstance(photo, dict)
+        ],
+    }, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    return f'v1:{hashlib.sha256(raw.encode()).hexdigest()}'
+
+
+def _staged_observation_photos(
+        upload: IpsoUpload, record: dict, index: int,
+) -> tuple[list[tuple[dict, bytes]], str | None]:
+    photos = []
+    root = Path(upload.inbox_path) / IPSO_UPLOAD_FILE_PHOTOS_DIR
+    for photo in record.get(FIELD_PHOTOS, []):
+        client_photo_id = photo.get(FIELD_CLIENT_PHOTO_ID, '')
+        path = root / client_photo_id
+        try:
+            content = path.read_bytes()
+        except FileNotFoundError:
+            return [], S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format(client_photo_id)
+        checksum = hashlib.sha256(content).hexdigest()
+        expected = photo.get(FIELD_CHECKSUM, '')
+        if not hmac.compare_digest(checksum, expected):
+            return [], S.IPSO_ERR_UPLOAD_PHOTO_CHECKSUM.format(client_photo_id)
+        photos.append((photo, content))
+    return photos, None
+
+
+def _store_observation_photo(
+        observation: Observation, photo: dict, content: bytes,
+) -> None:
+    checksum = photo[FIELD_CHECKSUM]
+    relative_path = observation_photo_relative_path(
+        observation.id,
+        checksum,
+        original_filename=photo.get(FIELD_ORIGINAL_FILENAME, ''),
+        content_type=photo.get(FIELD_CONTENT_TYPE, ''),
+    )
+    absolute_path = observation_photo_absolute_path(relative_path)
+    _atomic_write_observation_photo(absolute_path, content)
+    ObservationPhoto.objects.create(
+        observation=observation,
+        file_path=relative_path,
+        content_type=photo.get(FIELD_CONTENT_TYPE, ''),
+        size_bytes=len(content),
+        checksum=checksum,
+        original_filename=photo.get(FIELD_ORIGINAL_FILENAME, ''),
+    )
+
+
+def _atomic_write_observation_photo(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.tmp')
+    with tmp.open('wb') as f:
+        f.write(content)
+        f.flush()
+        os.fsync(f.fileno())
+    tmp.replace(path)
+    _fsync_dir(path.parent)
+
+
+def _fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _configured_ipso_secret() -> str:
     return str(getattr(settings, 'IPSO_SECRET', '') or '').strip()
 
@@ -1349,14 +1623,13 @@ def _request_from_trusted_proxy(remote_addr: str) -> bool:
 
 
 def _upload_too_large(request: HttpRequest) -> bool:
-    max_bytes = _setting_int('IPSO_UPLOAD_MAX_BYTES', 2 * 1024 * 1024)
+    max_bytes = _setting_int('IPSO_UPLOAD_MAX_BYTES', 25 * 1024 * 1024)
     if max_bytes <= 0:
         return False
     content_length = request.META.get('CONTENT_LENGTH')
     if content_length:
         try:
-            if int(content_length) > max_bytes:
-                return True
+            return int(content_length) > max_bytes
         except ValueError:
             pass
     try:
@@ -1370,6 +1643,59 @@ def _setting_int(name: str, default: int) -> int:
         return int(getattr(settings, name, default))
     except (TypeError, ValueError):
         return default
+
+
+def _request_upload_payload(request: HttpRequest) -> tuple[dict, dict[str, dict]]:
+    content_type = (request.content_type or '').split(';', 1)[0].strip().lower()
+    if content_type == 'multipart/form-data':
+        return _request_multipart_payload(request)
+    return _request_json(request), {}
+
+
+def _request_multipart_payload(request: HttpRequest) -> tuple[dict, dict[str, dict]]:
+    payload_text = request.POST.get(IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD)
+    if not payload_text:
+        raise UploadValidationError(
+            S.IPSO_ERR_FIELD_REQUIRED.format(IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD)
+        )
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as e:
+        raise UploadValidationError(S.IPSO_ERR_JSON_MALFORMED) from e
+    if not isinstance(payload, dict):
+        raise UploadValidationError(S.IPSO_ERR_PAYLOAD_OBJECT)
+    return payload, _multipart_photo_files(request)
+
+
+def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
+    files = {}
+    for field_name, uploaded_files in request.FILES.lists():
+        if not field_name.startswith(IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX):
+            continue
+        client_photo_id = field_name[len(IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX):]
+        if not _CLIENT_PHOTO_ID_RE.match(client_photo_id):
+            raise UploadValidationError(
+                S.IPSO_ERR_FIELD_STRING.format(FIELD_CLIENT_PHOTO_ID)
+            )
+        if client_photo_id in files:
+            raise UploadValidationError(
+                S.IPSO_ERR_FIELD_STRING.format(FIELD_CLIENT_PHOTO_ID)
+            )
+        if len(uploaded_files) != 1:
+            raise UploadValidationError(
+                S.IPSO_ERR_FIELD_STRING.format(FIELD_CLIENT_PHOTO_ID)
+            )
+        uploaded = uploaded_files[0]
+        content = b''.join(uploaded.chunks())
+        checksum = hashlib.sha256(content).hexdigest()
+        files[client_photo_id] = {
+            'content': content,
+            FIELD_CHECKSUM: checksum,
+            FIELD_CONTENT_TYPE: uploaded.content_type or '',
+            FIELD_ORIGINAL_FILENAME: uploaded.name or '',
+            FIELD_SIZE_BYTES: len(content),
+        }
+    return files
 
 
 def _request_json(request: HttpRequest) -> dict:
@@ -1388,7 +1714,10 @@ def _request_json_or_empty(request: HttpRequest) -> dict:
     return _request_json(request)
 
 
-def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict, str | None]:
+def _validate_upload_payload(
+        payload: dict, request: HttpRequest,
+        photo_files: dict[str, dict] | None = None,
+) -> tuple[dict, str | None, dict[str, bytes]]:
     session = _dict(payload, SESSION)
     records = _list(payload, RECORDS)
     if not records:
@@ -1409,8 +1738,15 @@ def _validate_upload_payload(payload: dict, request: HttpRequest) -> tuple[dict,
         _normalize_record(normalized_session[FIELD_MODE], i, row)
         for i, row in enumerate(records, start=1)
     ]
+    staged_photo_files = _attach_photo_files(
+        normalized_records, photo_files or {},
+    )
     _validate_record_ids(normalized_session[FIELD_MODE], normalized_records)
-    return {SESSION: normalized_session, RECORDS: normalized_records}, csv_text
+    return (
+        {SESSION: normalized_session, RECORDS: normalized_records},
+        csv_text,
+        staged_photo_files,
+    )
 
 
 def _normalize_session(session: dict) -> dict:
@@ -1446,6 +1782,8 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     date = _str(row, FIELD_DATE)
     if not _DATE_RE.match(date):
         raise UploadValidationError(S.IPSO_ERR_RECORD_DATE_INVALID.format(index))
+    if mode == IPSO_MODE_OBSERVATIONS:
+        return _normalize_observation_record(index, row, date)
 
     d_cm = _int(row, FIELD_D_CM)
     if d_cm is not None and d_cm <= 0:
@@ -1520,7 +1858,131 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     return normalized
 
 
+def _normalize_observation_record(index: int, row: dict, date: str) -> dict:
+    text = _str(row, FIELD_TEXT)
+    lat = _opt_coord_float(row, FIELD_LAT)
+    lon = _opt_coord_float(row, FIELD_LON)
+    if lat is None or lon is None:
+        raise UploadValidationError(
+            S.IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED.format(index)
+        )
+    return {
+        FIELD_CLIENT_RECORD_ID: _str(row, FIELD_CLIENT_RECORD_ID),
+        FIELD_DATE: date,
+        FIELD_REGION_ID: _opt_int(row, FIELD_REGION_ID),
+        FIELD_TEXT: text,
+        FIELD_CATEGORY_IDS: _int_list(row, FIELD_CATEGORY_IDS, index),
+        FIELD_LAT: lat,
+        FIELD_LON: lon,
+        FIELD_ACC_M: _opt_int(row, FIELD_ACC_M),
+        FIELD_PHOTOS: _normalize_observation_photos(index, row),
+    }
+
+
+def _int_list(row: dict, key: str, index: int) -> list[int]:
+    raw = row.get(key, [])
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or any(type(value) is not int for value in raw):
+        raise UploadValidationError(
+            S.IPSO_ERR_RECORD_CATEGORY_IDS_INVALID.format(index)
+        )
+    return raw
+
+
+def _normalize_observation_photos(index: int, row: dict) -> list[dict]:
+    raw = row.get(FIELD_PHOTOS, [])
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise UploadValidationError(S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index))
+    photos = []
+    seen = set()
+    for photo in raw:
+        if not isinstance(photo, dict):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
+        client_photo_id = _str(photo, FIELD_CLIENT_PHOTO_ID)
+        if not _CLIENT_PHOTO_ID_RE.match(client_photo_id):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
+        if client_photo_id in seen:
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
+        seen.add(client_photo_id)
+        size_bytes = _opt_int(photo, FIELD_SIZE_BYTES)
+        if size_bytes is not None and size_bytes < 0:
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
+        checksum = _opt_str(photo, FIELD_CHECKSUM)
+        if checksum and not _SHA256_RE.match(checksum):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
+        out = {
+            FIELD_CLIENT_PHOTO_ID: client_photo_id,
+            FIELD_CONTENT_TYPE: _opt_str(photo, FIELD_CONTENT_TYPE),
+            FIELD_SIZE_BYTES: size_bytes or 0,
+            FIELD_ORIGINAL_FILENAME: _opt_str(photo, FIELD_ORIGINAL_FILENAME),
+        }
+        if checksum:
+            out[FIELD_CHECKSUM] = checksum
+        photos.append(out)
+    return photos
+
+
+def _attach_photo_files(
+        records: list[dict], photo_files: dict[str, dict],
+) -> dict[str, bytes]:
+    staged = {}
+    for record in records:
+        for photo in record.get(FIELD_PHOTOS, []):
+            client_photo_id = photo[FIELD_CLIENT_PHOTO_ID]
+            info = photo_files.get(client_photo_id)
+            if info is None:
+                if photo.get(FIELD_CHECKSUM):
+                    continue
+                raise UploadValidationError(
+                    S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format(client_photo_id)
+                )
+            photo[FIELD_CHECKSUM] = info[FIELD_CHECKSUM]
+            photo[FIELD_CONTENT_TYPE] = (
+                photo.get(FIELD_CONTENT_TYPE) or info[FIELD_CONTENT_TYPE]
+            )
+            photo[FIELD_ORIGINAL_FILENAME] = (
+                photo.get(FIELD_ORIGINAL_FILENAME) or info[FIELD_ORIGINAL_FILENAME]
+            )
+            photo[FIELD_SIZE_BYTES] = info[FIELD_SIZE_BYTES]
+            staged[client_photo_id] = info['content']
+    return staged
+
+
+def _validate_observation_category_ids(records: list[dict]) -> None:
+    category_ids = {
+        category_id
+        for record in records
+        for category_id in record.get(FIELD_CATEGORY_IDS, [])
+    }
+    valid_ids = set(
+        ObservationCategory.objects
+        .filter(id__in=category_ids)
+        .values_list('id', flat=True)
+    )
+    missing = category_ids - valid_ids
+    if missing:
+        raise UploadValidationError(
+            S.IPSO_ERR_UNKNOWN_OBSERVATION_CATEGORY_ID.format(min(missing))
+        )
+
+
 def _validate_record_ids(mode: str, records: list[dict]) -> None:
+    if mode == IPSO_MODE_OBSERVATIONS:
+        _validate_observation_category_ids(records)
+        return
     species_ids = {r[FIELD_SPECIES_ID] for r in records}
     parcel_ids = {r[FIELD_PARCEL_ID] for r in records}
     sample_area_ids = {
@@ -1571,8 +2033,11 @@ def _upload_inbox_path(session_id: str) -> Path:
 
 def _write_upload_files(
         session_dir: Path, payload: dict, checksum: str, csv_text: str | None,
+        staged_photo_files: dict[str, bytes] | None = None,
 ) -> Path:
-    return ipso_staging.write_upload_files(session_dir, payload, checksum, csv_text)
+    return ipso_staging.write_upload_files(
+        session_dir, payload, checksum, csv_text, staged_photo_files,
+    )
 
 
 def _dict(payload: dict, key: str) -> dict:
