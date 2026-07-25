@@ -123,9 +123,10 @@ The upload body contains:
 
 Supported modes are:
 
-- `martellate`
-- `samples`
-- `pai`
+- `martellate` — marked trees for a harvest-plan item;
+- `samples` — predefined/grid-based tree surveys;
+- `free_survey` — free/unstructured tree surveys;
+- `pai` — preserved trees.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,
@@ -138,9 +139,19 @@ item. A logged-in Abies user can view upload metadata and previews. Import or
 rejection requires writer permission, and the import endpoints perform the final
 mode-specific validation against the selected target. Martellate rows must fit
 the selected harvest-plan item scope: exact parcel for parcel items, or same
-region for region-wide items. Sample rows must fit the selected survey grid; if
-the session records the survey chosen in Ipso, selecting another survey is only
-accepted when it uses the same grid.
+region for region-wide items. Predefined sample rows must fit the selected
+survey grid; if the session records the survey chosen in Ipso, selecting
+another survey is only accepted when it uses the same grid. Free-survey rows
+must be imported into an unstructured survey, where the import creates one
+`Sample(sample_area=NULL)` for the session.
+
+For `samples` and `free_survey` imports, validation errors block immediately.
+After validation and before writing, Abies computes non-blocking warnings for
+rows whose GPS coordinates fall in a different parcel from the submitted
+parcel, and for rows with `h_measured=false`. The import page shows these
+warnings in a standard proceed/abort modal. Proceeding resubmits with explicit
+confirmation; the server recomputes warnings and then writes. The submitted
+parcel remains authoritative because GPS can be wrong under tree cover.
 
 Duplicate uploads with the same session ID and checksum are idempotent. A second
 upload with the same session ID but different content marks the staged upload as
@@ -160,14 +171,20 @@ supplied.
   Ipso requires it before save/upload and checks the current `reference.json`
   preserved-tree list; Abies rechecks on upload/import and the database unique
   constraint is the final backstop.
-- Sampled trees must have a positive integer. Ipso requires it before
-  save/upload, rejects duplicates in the same sample area for the current upload,
-  and checks the current Abies max for that survey/sample area. The Abies
-  upload/import paths recheck that the value is present and that the sample area
-  belongs to the selected survey/parcel. They do not impose a plain
-  `(sample area, number)` uniqueness rule because coppice shoots are represented
-  in Abies as separate rows by `shoot`; the current Ipso sample UI does not
-  record multiple shoots for one number.
+- Predefined sampled trees must have a positive integer. Ipso requires it
+  before save/upload, rejects duplicates in the same sample area for the
+  current upload, and checks the current Abies max for that survey/sample
+  area. The Abies upload/import paths recheck that the value is present and
+  that the sample area belongs to the selected survey/parcel. They do not
+  impose a plain `(sample area, number)` uniqueness rule because coppice shoots
+  are represented in Abies as separate rows by `shoot`; the current Ipso
+  sample UI does not record multiple shoots for one number.
+- Free-survey ordinary rows may omit `number`. On import, Abies assigns the
+  next sample-local number within the selected unstructured survey. If a free
+  row supplies a number, it must be positive and unused in that survey.
+  Free-survey rows for preserved trees require a submitted positive number;
+  Abies stores that value as the parcel-scoped `preserved_number` and assigns
+  the row's sample-local `number` separately.
 
 If `reference.json` is stale, Ipso may propose an outdated next number. Import
 code must still preserve the submitted number exactly, and mode-specific server
@@ -192,6 +209,7 @@ Abies writer permission required:
 - `POST /api/ipso/uploads/<id>/reject/`
 - `POST /api/ipso/uploads/<id>/import-martellate/`
 - `POST /api/ipso/uploads/<id>/import-samples/`
+- `POST /api/ipso/uploads/<id>/import-free-survey/`
 - `POST /api/ipso/uploads/<id>/import-pai/`
 
 Abies admin permission required:

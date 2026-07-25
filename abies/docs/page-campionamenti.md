@@ -231,7 +231,11 @@ the modal's default date is used.
 
 Optional columns: `Data` (→ `sample.date`), `PAI` (bool), `H_measured` (bool),
 `Lat`, `Lon`, `Acc_m`, `Operatore`, and `Note`. Blank `H_measured` is false.
-If either `Lat` or `Lon` is present, both must be present. `PAI=true` stores a
+If either `Lat` or `Lon` is present, both must be present. After validation,
+rows with `H_measured=false` generate a non-blocking warning. Rows with both
+coordinates also generate a warning if the point falls in a different parcel
+from the submitted `Compresa`/`Particella`; after confirmation, the submitted
+parcel remains authoritative. `PAI=true` stores a
 parcel-scoped `tree_sample.preserved_number`, using `Albero` as the preserved
 number. If the preserved identity `(parcel_id, preserved_number)` already
 exists, the import reuses that `tree_id`; otherwise it creates a new preserved
@@ -258,9 +262,12 @@ Flow:
    `tree` per ordinary row. Coppice rows with the same `Albero` in the same
    free import share the same `tree`; preserved rows reuse the stable preserved
    identity as described above.
-5. Writes `tree_sample`. `PAI=true` stores a non-null
+5. If warnings are present, the modal shows them with proceed/abort controls.
+   Proceeding resubmits with confirmation; validation and warnings are
+   recomputed before the write.
+6. Writes `tree_sample`. `PAI=true` stores a non-null
    `tree_sample.preserved_number`. `Fustaia=false` sets `tree.coppice=true`.
-6. Transactional. Reports success counts and a per-row error list.
+7. Transactional. Reports success counts and a per-row error list.
 
 The Compresa+Particella+Area saggio referenced by each structured row must
 already exist in the survey's grid; the schema-level trigger (see
