@@ -2136,11 +2136,14 @@ class TestCoppiceProp:
         assert n_per_ha == pytest.approx(28.0)
         assert n_total == pytest.approx(224.0)
 
-    def test_calculate_stumps_missing_parcel(self, clear_caches):
-        """Raises for a parcel with no sample areas."""
+    def test_calculate_stumps_no_coppice_returns_zero(self, clear_caches):
+        """A ceduo parcel with no coppice trees yields zero stumps, not an error.
+
+        Mirrors real parcels (e.g. Capistrano/8a) reclassified to Ceduo whose
+        sample plots recorded only fustaia standards and no chestnut stumps.
+        """
         ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
-        with pytest.raises(ValueError, match="Nessuna area di saggio"):
-            calculate_stumps(ceduo_df, 'Test', 'Z', 10.0)
+        assert calculate_stumps(ceduo_df, 'Test', 'Z', 10.0) == (0.0, 0.0)
 
     def test_render_prop_coppice_output(self, particelle_df, clear_caches):
         """Output includes standard prop fields plus Ceppaie."""
@@ -2150,6 +2153,24 @@ class TestCoppiceProp:
         assert 'Ceduo' in result.snippet
         assert 'Ceppaie:</strong> 224' in result.snippet
         assert 'Ceppaie / ha:</strong> 28' in result.snippet
+
+    def test_render_prop_coppice_omits_ceppaie_when_zero(self, particelle_df,
+                                                         clear_caches):
+        """Ceppaie rows are omitted entirely when a ceduo parcel has no stumps."""
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        no_coppice = ceduo_df[ceduo_df[COL_PARTICELLA] != 'F']
+        result = render_prop_coppice(
+            particelle_df, 'Test', 'F', no_coppice, HTMLSnippetFormatter())
+        assert 'Ceduo' in result.snippet
+        assert 'Ceppaie' not in result.snippet
+
+    def test_render_prop_coppice_missing_parcel_raises(self, particelle_df,
+                                                       clear_caches):
+        """A parcel absent from particelle.csv still fails clearly."""
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        with pytest.raises(ValueError, match="non trovata"):
+            render_prop_coppice(
+                particelle_df, 'Test', 'Z', ceduo_df, HTMLSnippetFormatter())
 
     def test_render_prop_coppice_rejects_fustaia(self, particelle_df, clear_caches):
         """Raises ValueError if the parcel is not Ceduo."""

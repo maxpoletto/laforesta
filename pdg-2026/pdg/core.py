@@ -679,14 +679,16 @@ def calculate_stumps(trees_df: pd.DataFrame, compresa: str, particella: str,
         trees_df: ceduo-only tree DataFrame (from load_trees(ceduo=True))
 
     Returns:
-        (stumps_per_ha, stumps_total)
+        (stumps_per_ha, stumps_total). Both zero when the parcel has no coppice
+        trees (e.g. a ceduo parcel whose sample plots recorded only fustaia
+        standards): there are no stumps to count.
     """
     parcel_trees = trees_df[(trees_df[COL_COMPRESA] == compresa) &
                             (trees_df[COL_PARTICELLA] == particella)]
+    if parcel_trees.empty:
+        return 0.0, 0.0
     n_sample_areas = parcel_trees.drop_duplicates(
         subset=[COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO]).shape[0]
-    if n_sample_areas == 0:
-        raise ValueError(f"Nessuna area di saggio per particella {compresa}/{particella}")
     sampled_area_ha = n_sample_areas * SAMPLE_AREA_HA
     n_per_ha = len(parcel_trees) / sampled_area_ha
     n_total = n_per_ha * area_ha
@@ -704,10 +706,11 @@ def render_prop_coppice(particelle_df: pd.DataFrame, compresa: str, particella: 
     short_fields, paragraph_fields = _prop_fields(row)
     n_per_ha, n_total = calculate_stumps(
         trees_df, compresa, particella, row[COL_AREA_PARCEL])
-    short_fields.extend([
-        ('Ceppaie', fmt_num(n_total, 0)),
-        ('Ceppaie / ha', fmt_num(n_per_ha, 0)),
-    ])
+    if n_total > 0:
+        short_fields.extend([
+            ('Ceppaie', fmt_num(n_total, 0)),
+            ('Ceppaie / ha', fmt_num(n_per_ha, 0)),
+        ])
     return RenderResult(snippet=formatter.format_prop(short_fields, paragraph_fields))
 
 
