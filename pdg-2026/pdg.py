@@ -42,6 +42,7 @@ from pdg.core import (
     OPT_X_MAX, OPT_Y_MAX,
     OPT_ANNO_INIZIO, OPT_ANNO_FINE, OPT_INTERVALLO, OPT_INTERVALLO_ANNO,
     OPT_MORTALITA, OPT_PRUDENZA, OPT_RIDUZIONE, OPT_VOLUME_OBIETTIVO, OPT_CALENDARIO, OPT_ORDINE, OPT_PARTICELLE_MIN, OPT_ANNO_ETA,
+    OPT_PRELIEVO_COMPLETO,
     parse_gap_overrides,
     OPT_COL_PRIMA_DOPO, OPT_PARTICELLE, OPT_ADIACENZE, OPT_EQUAZIONI,
     read_past_harvests, parcel_data,
@@ -162,6 +163,7 @@ def parse_plan_params(keyword: str, params: dict,
         OPT_ORDINE: params.get(OPT_ORDINE, ORDINE_VOL_HA),
         OPT_PARTICELLE_MIN: int(params.get(OPT_PARTICELLE_MIN, DEFAULT_PARTICELLE_MIN)),
         OPT_ANNO_ETA: int(params.get(OPT_ANNO_ETA, DEFAULT_ANNO_ETA)),
+        OPT_PRELIEVO_COMPLETO: _bool_opt(params, OPT_PRELIEVO_COMPLETO, False),
     }
     if options[OPT_ORDINE] not in VALID_ORDINE:
         raise ValueError(f"@@{keyword}: ordine='{options[OPT_ORDINE]}' "

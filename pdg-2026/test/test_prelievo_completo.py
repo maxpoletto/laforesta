@@ -4,6 +4,7 @@ See docs/prelievo-completo.md for the design.
 """
 
 from pdg.computation import COL_COMPRESA, COL_PARTICELLA
+from pdg.core import OPT_PRELIEVO_COMPLETO, plan_events
 from pdg.simulation import (
     COL_HARVEST, COL_YEAR, place_debts, schedule_harvests,
     schedule_harvests_complete,
@@ -185,3 +186,29 @@ class TestScheduleHarvestsComplete:
         a = schedule_harvests_complete(data_all, rules=harvest_rules, **STARVED)
         b = schedule_harvests_complete(data_all, rules=harvest_rules, **STARVED)
         assert a == b
+
+
+class TestDirectiveOption:
+    """prelievo_completo reaches the scheduler and keys the plan cache."""
+
+    def test_option_name(self):
+        assert OPT_PRELIEVO_COMPLETO == 'prelievo_completo'
+
+    def test_default_matches_plain_scheduling(self, data_all, harvest_rules):
+        events = plan_events(data_all, rules=harvest_rules, **STARVED)
+        assert cut_parcels(events) == {('Test', 'B'), ('Test', 'C'),
+                                       ('Test', 'E')}
+
+    def test_complete_covers_every_eligible_parcel(self, data_all,
+                                                   harvest_rules):
+        events = plan_events(data_all, rules=harvest_rules,
+                             complete=True, **STARVED)
+        assert {('Test', 'A'), ('Test', 'D')} <= cut_parcels(events)
+
+    def test_cache_distinguishes_complete(self, data_all, harvest_rules):
+        plain = plan_events(data_all, rules=harvest_rules, **STARVED)
+        full = plan_events(data_all, rules=harvest_rules,
+                           complete=True, **STARVED)
+        assert plain is not full
+        assert plan_events(data_all, rules=harvest_rules,
+                           complete=True, **STARVED) is full

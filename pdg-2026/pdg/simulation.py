@@ -321,6 +321,7 @@ def schedule_harvests(
     age_year: int | None = None,
     eligibility: Eligibility | None = None,
     forced: dict[int, list[tuple[str, str]]] | None = None,
+    diagnostics: list[str] | None = None,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -343,6 +344,9 @@ def schedule_harvests(
             Their volume is excluded from the year total, so they cannot
             displace a parcel the loop scheduled.  A parcel still inside its
             rest period, or one the rules decline, is skipped.
+        diagnostics: when given, per-year shortfall messages are appended to it
+            instead of printed, so a caller running the simulation more than
+            once can report only the final run.
 
     Returns list of dicts, one per (year, parcel) harvest event, with keys:
         year, Compresa, Particella, harvest, volume_before, volume_after, _species_shares
@@ -482,10 +486,14 @@ def schedule_harvests(
         n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
         n_total = len(parcel_priority)
         if year_total < target_volume:
-            print(f"  @@piano_di_taglio anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
-                  f"raggiunto {fmt_num(year_total, 0)} m³ "
-                  f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
-                  f"{n_no_harvest} non idonee, {n_total} totali)")
+            msg = (f"  @@piano_di_taglio anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
+                   f"raggiunto {fmt_num(year_total, 0)} m³ "
+                   f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
+                   f"{n_no_harvest} non idonee, {n_total} totali)")
+            if diagnostics is None:
+                print(msg)
+            else:
+                diagnostics.append(msg)
 
         # Growth step
         weight = sim[COL_WEIGHT].values.copy()  # type: ignore[reportGeneralTypeIssues]
@@ -543,6 +551,20 @@ def place_debts(eligibility: Eligibility, committed: set[tuple[str, str]],
     return placements
 
 
+def _report_recoveries(placements: dict[tuple[str, str], int],
+                       debt_years: dict[tuple[str, str], int],
+                       events: list[dict]) -> None:
+    """Name the parcels prelievo_completo added, and when they fell due."""
+    harvests = {(e[COL_COMPRESA], e[COL_PARTICELLA], e[COL_YEAR]): e[COL_HARVEST]
+                for e in events}
+    for (region, parcel), year in sorted(placements.items(),
+                                         key=lambda kv: (kv[1], kv[0])):
+        harvest = harvests.get((region, parcel, year))
+        if harvest is not None:
+            print(f"  @@piano_di_taglio anno {year}: recupero {region}/{parcel} "
+                  f"({fmt_num(harvest, 0)} m³, debito {debt_years[(region, parcel)]})")
+
+
 def schedule_harvests_complete(data: ParcelData,
                                past_harvests: pd.DataFrame | None,
                                year_range: tuple[int, int],
@@ -563,6 +585,7 @@ def schedule_harvests_complete(data: ParcelData,
     """
     natsort_key = natsort_keygen()
     placements: dict[tuple[str, str], int] = {}
+    debt_years: dict[tuple[str, str], int] = {}   # for the recovery report
     first_year, last_year = year_range
 
     for _ in range(len(data.parcels) + 1):
@@ -572,9 +595,12 @@ def schedule_harvests_complete(data: ParcelData,
             forced.setdefault(year, []).append(key)
 
         eligibility: Eligibility = {}
+        # Held back rather than printed: only the run that converges is real.
+        diagnostics: list[str] = []
         events = schedule_harvests(
             data, past_harvests, year_range, min_gap, target_volume,
-            eligibility=eligibility, forced=forced, **kwargs)
+            eligibility=eligibility, forced=forced, diagnostics=diagnostics,
+            **kwargs)
 
         committed = {(e[COL_COMPRESA], e[COL_PARTICELLA]) for e in events}
         totals = {y: 0.0 for y in range(first_year, last_year + 1)}
@@ -583,7 +609,12 @@ def schedule_harvests_complete(data: ParcelData,
 
         new = place_debts(eligibility, committed, totals)
         if not new:
+            for msg in diagnostics:
+                print(msg)
+            _report_recoveries(placements, debt_years, events)
             return events
+        for key in new:
+            debt_years[key] = min(eligibility[key])
         placements.update(new)
 
     raise RuntimeError(

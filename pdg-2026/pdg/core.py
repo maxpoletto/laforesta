@@ -43,7 +43,8 @@ from pdg.simulation import (
     COL_SPECIES_SHARES, COL_WEIGHT,
     ORDINE_VOL_HA,
     ParcelHarvest, TreeSelectionFunc, select_from_bottom,
-    growth_per_group, schedule_harvests, total_harvests,
+    growth_per_group, schedule_harvests, schedule_harvests_complete,
+    total_harvests,
 )
 
 # =============================================================================
@@ -128,6 +129,7 @@ OPT_RIDUZIONE = 'riduzione'
 OPT_VOLUME_OBIETTIVO = 'volume_obiettivo'
 OPT_ORDINE = 'ordine'
 OPT_PARTICELLE_MIN = 'particelle_min'
+OPT_PRELIEVO_COMPLETO = 'prelievo_completo'
 OPT_CALENDARIO = 'calendario'
 OPT_ANNO_ETA = 'anno_eta'
 # tpdt column toggles
@@ -997,6 +999,7 @@ def plan_events(
     particelle_min: int = 0,
     gap_overrides: dict[int, int] | None = None,
     age_year: int | None = None,
+    complete: bool = False,
 ) -> list[dict]:
     """Memoizing front-end to schedule_harvests (same signature).
 
@@ -1004,21 +1007,26 @@ def plan_events(
     describe the same plan, so the year-by-year simulation runs only once.
     Calls that request a volume_log always run the simulation (the log is a
     side effect the cache cannot replay).
+
+    complete: when True, extend the plan so no parcel the rules permit to be
+    cut is left uncut (see docs/prelievo-completo.md).
     """
     params = (year_range, min_gap, target_volume, mortality, rules,
               tree_selection, prudence, ordine, particelle_min,
               tuple(sorted(gap_overrides.items())) if gap_overrides else None,
-              age_year)
+              age_year, complete)
     if volume_log is None:
         for cached_data, cached_past, cached_params, events in plan_cache:
             if (cached_data is data and cached_past is past_harvests
                     and cached_params == params):
                 return events
-    events = schedule_harvests(
+    runner = schedule_harvests_complete if complete else schedule_harvests
+    events = runner(
         data, past_harvests, year_range, min_gap, target_volume,
-        mortality, rules, tree_selection, volume_log=volume_log,
-        prudence=prudence, ordine=ordine, particelle_min=particelle_min,
-        gap_overrides=gap_overrides, age_year=age_year)
+        mortality=mortality, rules=rules, tree_selection=tree_selection,
+        volume_log=volume_log, prudence=prudence, ordine=ordine,
+        particelle_min=particelle_min, gap_overrides=gap_overrides,
+        age_year=age_year)
     if volume_log is None:
         plan_cache.append((data, past_harvests, params, events))
     return events
@@ -1038,6 +1046,7 @@ def _plan_kwargs(options: dict) -> dict:
         'particelle_min': options.get(OPT_PARTICELLE_MIN, 0),
         'gap_overrides': options.get(OPT_INTERVALLO_ANNO),
         'age_year': options.get(OPT_ANNO_ETA),
+        'complete': options.get(OPT_PRELIEVO_COMPLETO, False),
     }
 
 
@@ -1195,6 +1204,7 @@ def calculate_harvest_plan(
     particelle_min: int = 0,
     gap_overrides: dict[int, int] | None = None,
     age_year: int | None = None,
+    complete: bool = False,
 ) -> pd.DataFrame:
     """Compute harvest schedule table grouped by year and optional columns.
 
@@ -1205,7 +1215,7 @@ def calculate_harvest_plan(
         data, past_harvests, year_range, min_gap, target_volume,
         mortality, rules, tree_selection, volume_log=volume_log,
         prudence=prudence, ordine=ordine, particelle_min=particelle_min,
-        gap_overrides=gap_overrides, age_year=age_year)
+        gap_overrides=gap_overrides, age_year=age_year, complete=complete)
     if not events:
         return pd.DataFrame()
 
