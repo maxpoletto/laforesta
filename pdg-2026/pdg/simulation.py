@@ -320,6 +320,7 @@ def schedule_harvests(
     gap_overrides: dict[int, int] | None = None,
     age_year: int | None = None,
     eligibility: Eligibility | None = None,
+    forced: dict[int, list[tuple[str, str]]] | None = None,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -337,6 +338,11 @@ def schedule_harvests(
             Collecting it requires evaluating parcels past the year's target,
             so the loop no longer stops early; the parcels actually cut are
             unchanged.
+        forced: {year: [(compresa, particella)]} harvests to commit after the
+            year's ordinary loop, regardless of whether the target was met.
+            Their volume is excluded from the year total, so they cannot
+            displace a parcel the loop scheduled.  A parcel still inside its
+            rest period, or one the rules decline, is skipped.
 
     Returns list of dicts, one per (year, parcel) harvest event, with keys:
         year, Compresa, Particella, harvest, volume_before, volume_after, _species_shares
@@ -462,6 +468,16 @@ def schedule_harvests(
                 target_met = True
                 if eligibility is None:
                     break
+
+        # Recovery harvests (prelievo_completo).  Excluded from year_total, so
+        # the ordinary loop above is unaffected by them, and applied before the
+        # growth step so the removed trees do not grow.
+        for region, parcel in (forced or {}).get(y, ()):
+            if last_harvest.get((region, parcel), 0) > y - effective_gap:
+                continue
+            result = try_harvest(region, parcel)
+            if result is not None and result.harvest > 0:
+                commit(region, parcel, result, y)
 
         n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
         n_total = len(parcel_priority)
