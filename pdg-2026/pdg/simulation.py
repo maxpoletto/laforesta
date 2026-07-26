@@ -505,6 +505,44 @@ def schedule_harvests(
     return events
 
 
+def place_debts(eligibility: Eligibility, committed: set[tuple[str, str]],
+                totals: dict[int, float]) -> dict[tuple[str, str], int]:
+    """Assign every eligible-but-uncut parcel to a year, levelling the load.
+
+    A debt is a parcel the rules would have let the plan cut in some year but
+    that the plan never cut.  Debts are settled in the order they were
+    incurred — earliest debt year first, largest harvest first among debts of
+    the same year — and each goes to the eligible year currently carrying the
+    least volume, ties to the earliest.  The debt size is read at the year the
+    debt was incurred, not at the year chosen, so it does not depend on the
+    placement being decided.  Both orderings are total, so the result is
+    deterministic.
+
+    Args:
+        eligibility: (compresa, particella) -> {year: harvest volume}
+        committed: parcels the plan already cuts
+        totals: year -> volume already scheduled in that year
+
+    Returns:
+        (compresa, particella) -> chosen year, for debts only.
+    """
+    natsort_key = natsort_keygen()
+
+    def drain_order(key: tuple[str, str]) -> tuple:
+        by_year = eligibility[key]
+        debt_year = min(by_year)
+        return (debt_year, -by_year[debt_year], key[0], natsort_key(key[1]))
+
+    load = dict(totals)
+    placements: dict[tuple[str, str], int] = {}
+    for key in sorted((k for k in eligibility if k not in committed),
+                      key=drain_order):
+        year = min(eligibility[key], key=lambda y: (load.get(y, 0.0), y))
+        placements[key] = year
+        load[year] = load.get(year, 0.0) + eligibility[key][year]
+    return placements
+
+
 @dataclass
 class ParcelHarvest:
     """Plan totals for one parcel, accumulated over all its events."""

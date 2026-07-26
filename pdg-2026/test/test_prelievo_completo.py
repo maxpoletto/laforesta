@@ -4,7 +4,9 @@ See docs/prelievo-completo.md for the design.
 """
 
 from pdg.computation import COL_COMPRESA, COL_PARTICELLA
-from pdg.simulation import COL_HARVEST, COL_YEAR, schedule_harvests
+from pdg.simulation import (
+    COL_HARVEST, COL_YEAR, place_debts, schedule_harvests,
+)
 
 # Starves parcels A and D: five eligible parcels, three years, a target so
 # small that one parcel fills it, and a rest period longer than the plan.
@@ -88,3 +90,52 @@ class TestForcedHarvests:
         full = schedule_harvests(data_all, rules=harvest_rules,
                                  forced=forced, **STARVED)
         assert full == base
+
+
+class TestPlaceDebts:
+    """Debts are assigned to years deterministically, levelling the load."""
+
+    def test_picks_the_lowest_total_eligible_year(self):
+        eligibility = {('R', 'p'): {2030: 100.0, 2031: 100.0}}
+        assert place_debts(eligibility, set(), {2030: 500.0, 2031: 200.0}) == \
+            {('R', 'p'): 2031}
+
+    def test_ties_go_to_the_earliest_year(self):
+        eligibility = {('R', 'p'): {2030: 10.0, 2031: 10.0}}
+        assert place_debts(eligibility, set(), {2030: 100.0, 2031: 100.0}) == \
+            {('R', 'p'): 2030}
+
+    def test_committed_parcels_are_not_debts(self):
+        eligibility = {('R', 'p'): {2030: 10.0}}
+        assert place_debts(eligibility, {('R', 'p')}, {2030: 0.0}) == {}
+
+    def test_largest_debt_of_a_year_is_placed_first(self):
+        """Both come due in 2030; the big one picks the emptier year."""
+        eligibility = {
+            ('R', 'big'): {2030: 100.0, 2031: 100.0},
+            ('R', 'small'): {2030: 10.0, 2031: 10.0},
+        }
+        out = place_debts(eligibility, set(), {2030: 50.0, 2031: 0.0})
+        assert out == {('R', 'big'): 2031, ('R', 'small'): 2030}
+
+    def test_earlier_debt_year_is_settled_first(self):
+        eligibility = {
+            ('R', 'late'): {2031: 100.0},
+            ('R', 'early'): {2030: 10.0, 2031: 10.0},
+        }
+        out = place_debts(eligibility, set(), {2030: 20.0, 2031: 0.0})
+        assert out == {('R', 'early'): 2031, ('R', 'late'): 2031}
+
+    def test_result_is_independent_of_input_order(self):
+        a = {('R', 'x'): {2030: 5.0, 2031: 5.0},
+             ('R', 'y'): {2030: 5.0, 2031: 5.0}}
+        b = dict(reversed(list(a.items())))
+        totals = {2030: 0.0, 2031: 0.0}
+        assert place_debts(a, set(), totals) == place_debts(b, set(), totals)
+
+    def test_parcel_names_sort_naturally(self):
+        """Tie-break uses natural order: p2 before p10."""
+        eligibility = {('R', 'p10'): {2030: 5.0, 2031: 5.0},
+                       ('R', 'p2'): {2030: 5.0, 2031: 5.0}}
+        out = place_debts(eligibility, set(), {2030: 0.0, 2031: 0.0})
+        assert out == {('R', 'p2'): 2030, ('R', 'p10'): 2031}
