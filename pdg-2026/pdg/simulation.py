@@ -64,6 +64,10 @@ COL_SPECIES_SHARES = '_species_shares'
 # Type: takes mature harvestable trees, returns their indices in harvest order
 TreeSelectionFunc = Callable[[pd.DataFrame], pd.Index]
 
+# Per-parcel record of what the rules would have allowed, by year:
+# (compresa, particella) -> {year: harvest volume}
+Eligibility = dict[tuple[str, str], dict[int, float]]
+
 
 def select_from_bottom(trees: pd.DataFrame) -> pd.Index:
     """Thinning from below: smallest mature trees first."""
@@ -315,6 +319,7 @@ def schedule_harvests(
     particelle_min: int = 0,
     gap_overrides: dict[int, int] | None = None,
     age_year: int | None = None,
+    eligibility: Eligibility | None = None,
 ) -> list[dict]:
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
@@ -327,6 +332,11 @@ def schedule_harvests(
         age_year: Year the parcel ages refer to; each parcel's age in
             simulation year y is its age + (y - age_year).  None treats the
             ages as valid in the first simulated year.
+        eligibility: when given, records {(compresa, particella): {year:
+            harvest}} for every parcel the rules would have allowed to be cut.
+            Collecting it requires evaluating parcels past the year's target,
+            so the loop no longer stops early; the parcels actually cut are
+            unchanged.
 
     Returns list of dicts, one per (year, parcel) harvest event, with keys:
         year, Compresa, Particella, harvest, volume_before, volume_after, _species_shares
@@ -376,6 +386,29 @@ def schedule_harvests(
     events = []
     diam_growth_arr = None
 
+    def try_harvest(region: str, parcel: str) -> HarvestResult | None:
+        """Evaluate a harvest for one parcel without committing it."""
+        mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
+        trees = sim[mask]
+        return harvest_parcel(trees, sim_parcels[(region, parcel)], rules,
+                              tree_selection, weight=trees[COL_WEIGHT],  # type: ignore[reportGeneralTypeIssues]
+                              prudence=prudence)
+
+    def commit(region: str, parcel: str, result: HarvestResult, year: int) -> None:
+        """Remove the harvested trees and record the plan event."""
+        sim.drop(result.harvested_indices, inplace=True)  # type: ignore[reportGeneralTypeIssues]
+        events.append({
+            COL_YEAR: year,
+            COL_COMPRESA: region,
+            COL_PARTICELLA: parcel,
+            COL_HARVEST: result.harvest,
+            COL_N_TREES: result.n_trees,
+            COL_VOLUME_BEFORE: result.volume_before,
+            COL_VOLUME_AFTER: result.volume_before - result.harvest,
+            COL_SPECIES_SHARES: result.species_shares,
+        })
+        last_harvest[(region, parcel)] = year
+
     for y in range(first_year, last_year + 1):
         if volume_log is not None:
             volume_log[y] = snapshot_volumes(sim)
@@ -400,44 +433,35 @@ def schedule_harvests(
                 for (r, p), vol_ha in parcel_vols.items()]
         parcel_priority.sort()
 
+        # Min-gap threshold for this year (per-year override takes precedence)
+        effective_gap = gap_overrides.get(y, min_gap) if gap_overrides else min_gap
         year_total = 0.0
         year_parcels = 0
         n_gap_skip = 0
         n_no_harvest = 0
+        target_met = False
         for *_, region, parcel in parcel_priority:
-            # Min-gap check (per-year override takes precedence)
-            effective_gap = gap_overrides.get(y, min_gap) if gap_overrides else min_gap
             if last_harvest.get((region, parcel), 0) > y - effective_gap:
                 n_gap_skip += 1
                 continue
 
-            parcel_mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
-            parcel_trees = sim[parcel_mask]
-            result = harvest_parcel(
-                parcel_trees, sim_parcels[(region, parcel)],  # type: ignore[reportGeneralTypeIssues]
-                rules, tree_selection, weight=parcel_trees[COL_WEIGHT],  # type: ignore[reportGeneralTypeIssues]
-                prudence=prudence)
+            result = try_harvest(region, parcel)
             if result is None or result.harvest == 0:
                 n_no_harvest += 1
                 continue
 
-            sim.drop(result.harvested_indices, inplace=True)  # type: ignore[reportGeneralTypeIssues]
+            if eligibility is not None:
+                eligibility.setdefault((region, parcel), {})[y] = result.harvest
+            if target_met:
+                continue
 
-            events.append({
-                COL_YEAR: y,
-                COL_COMPRESA: region,
-                COL_PARTICELLA: parcel,
-                COL_HARVEST: result.harvest,
-                COL_N_TREES: result.n_trees,
-                COL_VOLUME_BEFORE: result.volume_before,
-                COL_VOLUME_AFTER: result.volume_before - result.harvest,
-                COL_SPECIES_SHARES: result.species_shares,
-            })
-            last_harvest[(region, parcel)] = y
+            commit(region, parcel, result, y)
             year_total += result.harvest
             year_parcels += 1
             if year_total >= target_volume and year_parcels >= particelle_min:
-                break
+                target_met = True
+                if eligibility is None:
+                    break
 
         n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
         n_total = len(parcel_priority)
