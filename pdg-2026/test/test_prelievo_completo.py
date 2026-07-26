@@ -6,6 +6,7 @@ See docs/prelievo-completo.md for the design.
 from pdg.computation import COL_COMPRESA, COL_PARTICELLA
 from pdg.simulation import (
     COL_HARVEST, COL_YEAR, place_debts, schedule_harvests,
+    schedule_harvests_complete,
 )
 
 # Starves parcels A and D: five eligible parcels, three years, a target so
@@ -139,3 +140,48 @@ class TestPlaceDebts:
                        ('R', 'p2'): {2030: 5.0, 2031: 5.0}}
         out = place_debts(eligibility, set(), {2030: 0.0, 2031: 0.0})
         assert out == {('R', 'p2'): 2030, ('R', 'p10'): 2031}
+
+
+class TestScheduleHarvestsComplete:
+    """No rules-eligible parcel is left uncut."""
+
+    def test_covers_every_eligible_parcel(self, data_all, harvest_rules):
+        eligibility = {}
+        base = schedule_harvests(data_all, rules=harvest_rules,
+                                 eligibility=eligibility, **STARVED)
+        ever_eligible = set(eligibility)
+        assert ever_eligible - cut_parcels(base), "fixture no longer starves"
+
+        full = schedule_harvests_complete(data_all, rules=harvest_rules,
+                                          **STARVED)
+        assert ever_eligible <= cut_parcels(full)
+
+    def test_is_additive(self, data_all, harvest_rules):
+        """The base schedule survives; recovery only appends."""
+        base = schedule_harvests(data_all, rules=harvest_rules, **STARVED)
+        full = schedule_harvests_complete(data_all, rules=harvest_rules,
+                                          **STARVED)
+        assert all(e in full for e in base)
+        assert len(full) > len(base)
+
+    def test_respects_the_rest_period(self, data_all, harvest_rules):
+        full = schedule_harvests_complete(data_all, rules=harvest_rules,
+                                          **STARVED)
+        last = {}
+        for e in sorted(full, key=lambda e: e[COL_YEAR]):
+            key = (e[COL_COMPRESA], e[COL_PARTICELLA])
+            if key in last:
+                assert e[COL_YEAR] - last[key] >= 10
+            last[key] = e[COL_YEAR]
+
+    def test_no_change_when_nothing_is_starved(self, data_all, harvest_rules):
+        """A target large enough to cut everything leaves the plan alone."""
+        kw = dict(past_harvests=None, year_range=(2026, 2027), min_gap=10,
+                  target_volume=1e9, rules=harvest_rules)
+        assert schedule_harvests_complete(data_all, **kw) == \
+            schedule_harvests(data_all, **kw)
+
+    def test_is_deterministic(self, data_all, harvest_rules):
+        a = schedule_harvests_complete(data_all, rules=harvest_rules, **STARVED)
+        b = schedule_harvests_complete(data_all, rules=harvest_rules, **STARVED)
+        assert a == b

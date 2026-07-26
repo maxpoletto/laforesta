@@ -543,6 +543,53 @@ def place_debts(eligibility: Eligibility, committed: set[tuple[str, str]],
     return placements
 
 
+def schedule_harvests_complete(data: ParcelData,
+                               past_harvests: pd.DataFrame | None,
+                               year_range: tuple[int, int],
+                               min_gap: int,
+                               target_volume: float,
+                               **kwargs) -> list[dict]:
+    """schedule_harvests, extended to leave no eligible parcel uncut.
+
+    Runs the ordinary simulation, collects the parcels the rules would have
+    allowed it to cut but that the annual target kept it from reaching, places
+    each one, and re-runs with those harvests forced.  Repeats until nothing
+    is left over: a recovered parcel rejoins the ordinary pool once its rest
+    period expires, so it can displace another parcel and create a fresh debt.
+    Each round settles at least one parcel, which bounds the rounds by the
+    number of parcels.
+
+    Accepts every other keyword of schedule_harvests.
+    """
+    natsort_key = natsort_keygen()
+    placements: dict[tuple[str, str], int] = {}
+    first_year, last_year = year_range
+
+    for _ in range(len(data.parcels) + 1):
+        forced: dict[int, list[tuple[str, str]]] = {}
+        for key, year in sorted(placements.items(),
+                                key=lambda kv: (kv[0][0], natsort_key(kv[0][1]))):
+            forced.setdefault(year, []).append(key)
+
+        eligibility: Eligibility = {}
+        events = schedule_harvests(
+            data, past_harvests, year_range, min_gap, target_volume,
+            eligibility=eligibility, forced=forced, **kwargs)
+
+        committed = {(e[COL_COMPRESA], e[COL_PARTICELLA]) for e in events}
+        totals = {y: 0.0 for y in range(first_year, last_year + 1)}
+        for e in events:
+            totals[e[COL_YEAR]] += e[COL_HARVEST]
+
+        new = place_debts(eligibility, committed, totals)
+        if not new:
+            return events
+        placements.update(new)
+
+    raise RuntimeError(
+        "prelievo_completo: impossibile programmare tutte le particelle idonee")
+
+
 @dataclass
 class ParcelHarvest:
     """Plan totals for one parcel, accumulated over all its events."""
