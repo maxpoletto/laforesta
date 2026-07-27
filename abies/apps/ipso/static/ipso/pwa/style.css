@@ -170,6 +170,27 @@ textarea {
   gap: 4px;
 }
 
+.photo-input-actions {
+  display: flex;
+  gap: 8px;
+}
+.photo-input-actions .file-action {
+  flex: 1;
+  position: relative;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+.file-action input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
 .photo-list {
   display: flex;
   flex-direction: column;
@@ -629,6 +650,36 @@ button {
 .tree-table td.tree-delete {
   padding: 2px 4px;
   text-align: center;
+}
+.observation-table td {
+  white-space: normal;
+}
+.observation-table .observation-card-cell {
+  padding: 8px;
+}
+.observation-delete {
+  width: 52px;
+  padding: 2px 4px;
+  text-align: center;
+  vertical-align: top;
+}
+.observation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.observation-card-title {
+  overflow-wrap: anywhere;
+}
+.observation-card-meta {
+  display: flex;
+  gap: 6px;
+  color: var(--grey-2);
+  font-size: 13px;
+}
+.observation-card-key {
+  color: var(--grey-3);
+  flex: 0 0 auto;
 }
 .tree-delete-btn {
   width: 44px;

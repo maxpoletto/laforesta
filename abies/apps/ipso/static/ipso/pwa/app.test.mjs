@@ -10,6 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
   `showResumeModal, prefillNumber, currentRecord, renderTreesTable, ` +
+  `renderObservationsTable, onObservationPhotosPicked, ` +
   `wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
   `restoreCachedBootResources, ` +
@@ -195,6 +196,7 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     IPSO_REF_SAMPLE_AREAS: 'sample_areas',
     IPSO_REF_PAI: 'pai',
     IPSO_REF_PRESERVED_TREES: 'preserved_trees',
+    IPSO_REF_OBSERVATION_CATEGORIES: 'observation_categories',
     RECORDS: 'records',
     FIELD_SURVEY_ID: 'survey_id',
     FIELD_SAMPLE_GRID_ID: 'sample_grid_id',
@@ -204,6 +206,15 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     FIELD_PARCEL_ID: 'parcel_id',
     FIELD_SPECIES_ID: 'species_id',
     FIELD_CSV_TEXT: 'csv_text',
+    FIELD_CLIENT_PHOTO_ID: 'client_photo_id',
+    FIELD_CONTENT_TYPE: 'content_type',
+    FIELD_SIZE_BYTES: 'size_bytes',
+    FIELD_ORIGINAL_FILENAME: 'original_filename',
+    FIELD_TEXT: 'text',
+    FIELD_CATEGORIES: 'categories',
+    FIELD_CATEGORY_IDS: 'category_ids',
+    FIELD_PHOTOS: 'photos',
+    FIELD_DATE: 'date',
     FIELD_COPPICE: 'coppice',
     FIELD_PRESERVED: 'preserved',
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
@@ -236,6 +247,7 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
       MARTELLATE: 'martellate',
       SAMPLES: 'samples',
       FREE_SURVEY: 'free_survey',
+      OBSERVATIONS: 'observations',
       get(id) { events.push(['modeGet', id]); return modes[id] || modes.martellate; },
       defaultMode() { return modes.martellate; },
       all() {
@@ -258,6 +270,7 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
       STATUS_EXPORTED: 'exported',
       STATUS_ABANDONED: 'abandoned',
       UPLOAD_STATUS_LOCAL_ONLY: 'local_only',
+      uuid() { return `uuid-${events.length}`; },
       async openDb() { events.push('openDb'); return {}; },
       async getCachedBootResources() {
         events.push('getCachedBootResources');
@@ -290,6 +303,9 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
         events.push('buildPayload');
         throw new Error('validation failed');
       },
+    },
+    IpsoFormat: {
+      fmtCoord(value) { return Number(value).toFixed(6); },
     },
     ipso: {
       lookup(ipsometrica, compresa, specie) {
@@ -325,6 +341,7 @@ function referenceFixture(version = 'cached') {
     ipsometrica: {},
     sampling: { surveys: [], sample_areas: [] },
     pai: { preserved_trees: [] },
+    observation_categories: [],
   };
 }
 
@@ -914,6 +931,59 @@ const session = {
   check(!events.includes('addTree'), 'onSave does not persist a duplicate number');
   check(elements.get('toast').textContent === 'duplicate 7',
         'onSave reports the duplicate number immediately');
+}
+
+
+// Observation photo inputs share the same ingestion path. Gallery selection
+// may include multiple files; camera capture usually contributes one at a time.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.session = { ...session, mode: 'observations' };
+  app.State.observationPhotos = [];
+  const input = {
+    files: [
+      { name: 'galleria.jpg', type: 'image/jpeg', size: 7 },
+      { name: 'camera.png', type: 'image/png', size: 9 },
+    ],
+    value: 'selected',
+  };
+
+  app.onObservationPhotosPicked({ target: input });
+
+  check(app.State.observationPhotos.length === 2,
+        'observation photo picker stores all selected files');
+  check(app.State.observationPhotos[0].original_filename === 'galleria.jpg',
+        'observation photo picker records original filenames');
+  check(input.value === '', 'observation photo picker resets the file input');
+}
+
+// Observation data rows render as wrapped cards instead of narrow table columns.
+{
+  const { context, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.session = { ...session, mode: 'observations' };
+
+  app.renderObservationsTable([{
+    id: 77,
+    seq: 1,
+    text: 'testo molto lungo dell\'osservazione',
+    categories: ['viabilità', 'rifiuti'],
+    photos: [{ original_filename: 'foto.jpg' }],
+    lat: 38.123456,
+    lon: 16.654321,
+  }]);
+
+  const table = elements.get('data-trees-table');
+  const tbody = table.children[0];
+  const row = tbody.children[0];
+  const card = row.children[0].children[0];
+  check(table.className === 'data-table observation-table',
+        'observation data view switches to card table styling');
+  check(card.className === 'observation-card',
+        'observation data view renders a card per row');
+  check(card.children[0].textContent.includes('testo molto lungo'),
+        'observation data card shows wrapped text as the primary content');
 }
 
 // The data-table delete button is wired to onDeleteTree and refreshes the view.

@@ -61,6 +61,8 @@ const S = {
   REC_OBSERVATION_TEXT: 'Descrizione',
   REC_OBSERVATION_CATEGORIES: 'Categorie',
   REC_OBSERVATION_PHOTOS: 'Foto',
+  REC_OBSERVATION_PHOTOS_GALLERY: 'Foto da galleria',
+  REC_OBSERVATION_PHOTOS_CAMERA: 'Scatta foto',
   REC_OBSERVATION_ADD_PHOTOS: 'Aggiungi foto',
   REC_OBSERVATION_NO_CATEGORIES: 'Nessuna categoria disponibile.',
 

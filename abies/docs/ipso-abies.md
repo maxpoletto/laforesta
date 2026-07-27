@@ -130,7 +130,8 @@ Supported modes are:
 - `samples` — predefined/grid-based tree surveys;
 - `free_survey` — free/unstructured tree surveys;
 - `observations` — point observations with text, categories, GPS, and
-  optional photos.
+  optional photos. The recording form has separate controls for selecting
+  existing gallery photos and opening the camera.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,

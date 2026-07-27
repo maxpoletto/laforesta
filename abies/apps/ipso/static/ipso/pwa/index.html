@@ -132,10 +132,19 @@
           <legend class="lbl" id="lbl-observation-categories"></legend>
           <div id="in-observation-categories" class="check-list"></div>
         </fieldset>
-        <label class="field">
+        <div class="field">
           <span class="lbl" id="lbl-observation-photos"></span>
-          <input id="in-observation-photos" type="file" accept="image/*" capture="environment" multiple>
-        </label>
+          <div class="photo-input-actions">
+            <label class="btn-secondary file-action" for="in-observation-photos-gallery">
+              <span id="lbl-observation-photos-gallery"></span>
+              <input id="in-observation-photos-gallery" type="file" accept="image/*" multiple>
+            </label>
+            <label class="btn-secondary file-action" for="in-observation-photos-camera">
+              <span id="lbl-observation-photos-camera"></span>
+              <input id="in-observation-photos-camera" type="file" accept="image/*" capture="environment">
+            </label>
+          </div>
+        </div>
         <div id="observation-photo-list" class="photo-list"></div>
       </div>
 

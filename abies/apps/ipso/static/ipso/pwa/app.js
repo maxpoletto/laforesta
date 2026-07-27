@@ -76,6 +76,10 @@ async function boot() {
     S.REC_OBSERVATION_CATEGORIES;
   document.getElementById('lbl-observation-photos').textContent =
     S.REC_OBSERVATION_PHOTOS;
+  document.getElementById('lbl-observation-photos-gallery').textContent =
+    S.REC_OBSERVATION_PHOTOS_GALLERY;
+  document.getElementById('lbl-observation-photos-camera').textContent =
+    S.REC_OBSERVATION_PHOTOS_CAMERA;
   document.getElementById('btn-save').textContent = S.REC_SAVE;
   document.getElementById('btn-rec-map').textContent = S.REC_MAP;
   document.getElementById('btn-view-data').textContent = S.REC_VIEW_DATA;
@@ -747,7 +751,10 @@ function wireRecording() {
   document.getElementById('in-h-measured').addEventListener('change', onHeightMeasuredToggle);
   document.getElementById('in-preserved').addEventListener('change', onPreservedToggle);
   document.getElementById('in-observation-text').addEventListener('input', updateSaveEnabled);
-  document.getElementById('in-observation-photos').addEventListener('change', onObservationPhotosPicked);
+  document.getElementById('in-observation-photos-gallery')
+    .addEventListener('change', onObservationPhotosPicked);
+  document.getElementById('in-observation-photos-camera')
+    .addEventListener('change', onObservationPhotosPicked);
   document.getElementById('in-observation-categories').addEventListener('change', updateSaveEnabled);
 
   // Particella select: sticky-override transitions. The sentinel option
@@ -1318,8 +1325,10 @@ function recomputeAutoH() {
 function resetObservationFields() {
   const text = document.getElementById('in-observation-text');
   if (text) text.value = '';
-  const photoInput = document.getElementById('in-observation-photos');
-  if (photoInput) photoInput.value = '';
+  for (const id of ['in-observation-photos-gallery', 'in-observation-photos-camera']) {
+    const photoInput = document.getElementById(id);
+    if (photoInput) photoInput.value = '';
+  }
   State.observationPhotos = [];
   renderObservationPhotoList();
   for (const checkbox of document.querySelectorAll(
@@ -2000,49 +2009,26 @@ function sampleAreaTextForTree(tree) {
 
 function renderObservationsTable(rows) {
   const tbl = document.getElementById('data-trees-table');
+  tbl.className = 'data-table observation-table';
   tbl.replaceChildren();
   if (!rows.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 6;
+    td.colSpan = 2;
     td.className = 'empty';
     td.textContent = S.DATA_EMPTY_OBSERVATIONS;
     tr.appendChild(td);
     tbl.appendChild(tr);
     return;
   }
-  const thead = document.createElement('thead');
-  const trh = document.createElement('tr');
-  for (const label of [
-    '#', S.DATA_COL_TEXT, S.DATA_COL_CATEGORIES,
-    S.DATA_COL_PHOTOS, S.DATA_COL_COORDS, '',
-  ]) {
-    const th = document.createElement('th');
-    th.textContent = label;
-    trh.appendChild(th);
-  }
-  thead.appendChild(trh);
-  tbl.appendChild(thead);
   const tbody = document.createElement('tbody');
   for (const row of rows) {
     const tr = document.createElement('tr');
-    const photos = Array.isArray(row[FIELD_PHOTOS]) ? row[FIELD_PHOTOS] : [];
-    const values = [
-      row.seq,
-      row[FIELD_TEXT] || '',
-      Array.isArray(row[FIELD_CATEGORIES]) ? row[FIELD_CATEGORIES].join(', ') : '',
-      photos.length,
-      row.lat == null || row.lon == null
-        ? ''
-        : IpsoFormat.fmtCoord(row.lat) + ' ' + IpsoFormat.fmtCoord(row.lon),
-    ];
-    for (const value of values) {
-      const td = document.createElement('td');
-      td.textContent = value == null ? '' : String(value);
-      tr.appendChild(td);
-    }
+    const cardTd = document.createElement('td');
+    cardTd.className = 'observation-card-cell';
+    cardTd.appendChild(observationDataCard(row));
     const deleteTd = document.createElement('td');
-    deleteTd.className = 'tree-delete';
+    deleteTd.className = 'tree-delete observation-delete';
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'tree-delete-btn';
     deleteBtn.type = 'button';
@@ -2051,14 +2037,51 @@ function renderObservationsTable(rows) {
     deleteBtn.appendChild(trashIcon());
     deleteBtn.addEventListener('click', () => onDeleteTree(row.id));
     deleteTd.appendChild(deleteBtn);
+    tr.appendChild(cardTd);
     tr.appendChild(deleteTd);
     tbody.appendChild(tr);
   }
   tbl.appendChild(tbody);
 }
 
+function observationDataCard(row) {
+  const card = document.createElement('div');
+  card.className = 'observation-card';
+  const title = document.createElement('div');
+  title.className = 'observation-card-title';
+  title.textContent = row[FIELD_TEXT] || S.DATA_EMPTY_OBSERVATIONS;
+  card.appendChild(title);
+
+  const photos = Array.isArray(row[FIELD_PHOTOS]) ? row[FIELD_PHOTOS] : [];
+  const categories = Array.isArray(row[FIELD_CATEGORIES])
+    ? row[FIELD_CATEGORIES].join(', ') : '';
+  const coords = row.lat == null || row.lon == null
+    ? '' : IpsoFormat.fmtCoord(row.lat) + ' ' + IpsoFormat.fmtCoord(row.lon);
+  const meta = [
+    ['#', row.seq],
+    [S.DATA_COL_CATEGORIES, categories],
+    [S.DATA_COL_PHOTOS, photos.length],
+    [S.DATA_COL_COORDS, coords],
+  ];
+  for (const [label, value] of meta) {
+    if (value == null || value === '') continue;
+    const line = document.createElement('div');
+    line.className = 'observation-card-meta';
+    const key = document.createElement('span');
+    key.className = 'observation-card-key';
+    key.textContent = label;
+    const val = document.createElement('span');
+    val.textContent = String(value);
+    line.appendChild(key);
+    line.appendChild(val);
+    card.appendChild(line);
+  }
+  return card;
+}
+
 function renderTreesTable(trees) {
   const tbl = document.getElementById('data-trees-table');
+  tbl.className = 'data-table tree-table';
   tbl.replaceChildren();
   if (!trees.length) {
     const tr = document.createElement('tr');
