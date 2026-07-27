@@ -101,18 +101,20 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 
         <section class="bosco-sidebar-section" data-mode-panel="4" hidden>
           <h2>Osservazioni</h2>
-          <div class="bosco-list-heading">Categorie</div>
-          <div class="bosco-scroll-list" data-target="observation-categories"></div>
-          <div class="bosco-list-actions">
-            <button type="button" class="btn" data-action="show-all-observation-categories">Tutte</button>
-            <button type="button" class="btn" data-action="hide-all-observation-categories">Nessuna</button>
-          </div>
-          <div class="bosco-list-heading">Anni</div>
-          <div class="bosco-date-row bosco-observation-date-row">
-            <label for="bosco-observation-year-from">Da</label>
-            <select id="bosco-observation-year-from" data-role="observation-year-from"></select>
-            <label for="bosco-observation-year-to">A</label>
-            <select id="bosco-observation-year-to" data-role="observation-year-to"></select>
+          <div data-role="observation-controls">
+            <div class="bosco-list-heading">Categorie</div>
+            <div class="bosco-scroll-list" data-target="observation-categories"></div>
+            <div class="bosco-list-actions">
+              <button type="button" class="btn" data-action="show-all-observation-categories">Tutte</button>
+              <button type="button" class="btn" data-action="hide-all-observation-categories">Nessuna</button>
+            </div>
+            <div class="bosco-list-heading">Anni</div>
+            <div class="bosco-date-row bosco-observation-date-row">
+              <label for="bosco-observation-year-from">Da</label>
+              <select id="bosco-observation-year-from" data-role="observation-year-from"></select>
+              <label for="bosco-observation-year-to">A</label>
+              <select id="bosco-observation-year-to" data-role="observation-year-to"></select>
+            </div>
           </div>
           <p class="bosco-hint" data-target="observation-summary"></p>
         </section>

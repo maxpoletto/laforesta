@@ -82,8 +82,9 @@ import {
 } from './bosco-production.js';
 import { E_HARVEST, Q_AGE, Q_ALTITUDE, Q_EVI, Q_NDMI, Q_NDVI } from './bosco-metrics.js';
 import {
-  attributeObservationParcels, buildObservations, filterObservations,
-  normalizeObservationYearRange, observationCategoryItems, observationYears,
+  attributeObservationParcels, buildObservationCategories, buildObservations,
+  filterObservations, normalizeObservationYearRange, observationCategoryItems,
+  observationYears,
 } from './bosco-observations.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
@@ -221,6 +222,7 @@ let productionMonthly = null;
 let productionChart = null;
 let paiParcelsHost = null;
 let paiSpeciesHost = null;
+let observationControls = null;
 let observationCategoriesHost = null;
 let observationYearFromInput = null;
 let observationYearToInput = null;
@@ -376,6 +378,7 @@ function mountPage(el, params) {
   productionMonthly = el.querySelector('[data-role="production-monthly"]');
   paiParcelsHost = el.querySelector('[data-target="pai-parcels"]');
   paiSpeciesHost = el.querySelector('[data-target="pai-species"]');
+  observationControls = el.querySelector('[data-role="observation-controls"]');
   observationCategoriesHost = el.querySelector('[data-target="observation-categories"]');
   observationYearFromInput = el.querySelector('[data-role="observation-year-from"]');
   observationYearToInput = el.querySelector('[data-role="observation-year-to"]');
@@ -414,7 +417,8 @@ function destroyPage() {
   productionHost = productionCanvas = productionSummary = productionLink = null;
   productionPerHa = productionMonthly = null;
   destroyProductionChart();
-  paiParcelsHost = paiSpeciesHost = observationCategoriesHost = null;
+  paiParcelsHost = paiSpeciesHost = observationControls = null;
+  observationCategoriesHost = null;
   observationYearFromInput = observationYearToInput = observationSummary = null;
   detailSections = {};
   parcelsData = futureData = prelieviData = dendrometryData = null;
@@ -2354,19 +2358,33 @@ function renderObservationsMode() {
 
   const region = regionById.get(currentState.regionId)?.name || '';
   const allObservations = regionObservations(currentState.regionId, region);
-  const categoryItems = observationCategoryItems(allObservations);
+  if (!allObservations.length) {
+    if (observationControls) observationControls.hidden = true;
+    if (observationCategoriesHost) observationCategoriesHost.replaceChildren();
+    renderObservationYearSelect(observationYearFromInput, [], null);
+    renderObservationYearSelect(observationYearToInput, [], null);
+    clearObservationMarkers();
+    setObservationSummary(0, 0);
+    return;
+  }
+  if (observationControls) observationControls.hidden = false;
   const years = observationYears(allObservations);
   const yearRange = normalizeObservationYearRange(
     currentState.observationYearFrom, currentState.observationYearTo, years,
+  );
+  const yearScopedObservations = filterObservations(allObservations, {
+    yearFrom: yearRange.from,
+    yearTo: yearRange.to,
+  });
+  const categoryItems = observationCategoryItems(
+    yearScopedObservations, buildObservationCategories(observationsData),
   );
   renderObservationCategoryCheckboxes(categoryItems, currentState.observationCategoryIds);
   renderObservationYearSelect(observationYearFromInput, years, yearRange.from);
   renderObservationYearSelect(observationYearToInput, years, yearRange.to);
 
-  const observations = filterObservations(allObservations, {
+  const observations = filterObservations(yearScopedObservations, {
     categoryIds: currentState.observationCategoryIds,
-    yearFrom: yearRange.from,
-    yearTo: yearRange.to,
   });
   renderObservationMarkers(observations);
   setObservationSummary(observations.length, allObservations.length);
@@ -2780,7 +2798,18 @@ function canonicalizeObservationParams(params, state) {
   let changed = false;
   const region = regionById.get(state.regionId)?.name || '';
   const allObservations = regionObservations(state.regionId, region);
-  const categoryIds = observationCategoryItems(allObservations).map(item => item.id);
+  if (!allObservations.length) {
+    if (!params.has('oc') && !params.has('oy1') && !params.has('oy2')) {
+      return false;
+    }
+    params.delete('oc');
+    params.delete('oy1');
+    params.delete('oy2');
+    return true;
+  }
+  const categoryIds = observationCategoryItems(
+    allObservations, buildObservationCategories(observationsData),
+  ).map(item => item.id);
   changed = canonicalizeOptionalIdParam(
     params, 'oc', state.observationCategoryIds, categoryIds,
   ) || changed;

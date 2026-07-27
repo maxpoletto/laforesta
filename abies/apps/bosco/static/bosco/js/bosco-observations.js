@@ -1,7 +1,7 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID,
-  ROWS, VERSION,
+  COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_NAME,
+  FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID, ROWS, VERSION,
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 import { findContainingParcel, parcelNames } from '../../base/js/geo.js';
@@ -66,8 +66,20 @@ export function filterObservations(
   });
 }
 
-export function observationCategoryItems(observations) {
+export function buildObservationCategories(digest) {
+  const rows = Array.isArray(digest?.[FIELD_CATEGORIES])
+    ? digest[FIELD_CATEGORIES] : [];
+  return rows.map(row => ({
+    id: toNumber(row?.[FIELD_ID], null),
+    name: String(row?.[FIELD_NAME] || ''),
+  })).filter(item => Number.isInteger(item.id) && item.name);
+}
+
+export function observationCategoryItems(observations, categories = []) {
   const byId = new Map();
+  for (const category of categories) {
+    byId.set(category.id, { id: category.id, name: category.name, count: 0 });
+  }
   for (const obs of observations) {
     for (const [idx, id] of obs.categoryIds.entries()) {
       const name = obs.categoryNames[idx] || String(id);
@@ -80,8 +92,13 @@ export function observationCategoryItems(observations) {
 }
 
 export function observationYears(observations) {
-  return [...new Set(observations.map(obs => obs.year).filter(Number.isInteger))]
-    .sort((a, b) => a - b);
+  const observed = observations.map(obs => obs.year).filter(Number.isInteger);
+  if (!observed.length) return [];
+  const first = Math.min(...observed);
+  const last = Math.max(...observed);
+  const years = [];
+  for (let year = first; year <= last; year += 1) years.push(year);
+  return years;
 }
 
 export function normalizeObservationYearRange(yearFrom, yearTo, years) {

@@ -19,8 +19,8 @@ const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 const O = await import(staticModule('bosco/js/bosco-observations.js'));
 const S = await import(staticModule('base/js/strings.js'));
 const {
-  COLUMNS, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID,
-  ROWS, VERSION,
+  COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_NAME,
+  FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID, ROWS, VERSION,
 } = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
@@ -44,6 +44,12 @@ const digest = {
   [COLUMNS]: [ROW_ID, VERSION, FIELD_REGION_ID, FIELD_CATEGORY_IDS,
     S.COL_DATE, S.COL_TEXT, S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M,
     S.COL_OPERATOR, S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT],
+  [FIELD_CATEGORIES]: [
+    { [FIELD_ID]: 13, [FIELD_NAME]: 'incendio' },
+    { [FIELD_ID]: 12, [FIELD_NAME]: 'fitosanitario' },
+    { [FIELD_ID]: 11, [FIELD_NAME]: 'rifiuti' },
+    { [FIELD_ID]: 10, [FIELD_NAME]: 'viabilità' },
+  ],
   [ROWS]: [
     [1, 1, 1, [10, 11], '2026-07-25', 'Frana sul sentiero', 38.5, 16.3, 4,
       'Mario', 'viabilità, rifiuti', 2],
@@ -98,12 +104,23 @@ assertEqual(attributed.map(o => [o.region, o.parcel]), [
   ['Capistrano', '1'], ['Serra', '2'], ['', ''], ['Capistrano', '1'],
 ], 'attributeObservationParcels: region/parcel from geometry');
 
-assertEqual(O.observationCategoryItems(attributed), [
+const categories = O.buildObservationCategories(digest);
+assertEqual(categories, [
+  { id: 13, name: 'incendio' },
+  { id: 12, name: 'fitosanitario' },
+  { id: 11, name: 'rifiuti' },
+  { id: 10, name: 'viabilità' },
+], 'buildObservationCategories: active categories from digest metadata');
+assertEqual(O.observationCategoryItems(attributed, categories), [
   { id: 12, name: 'fitosanitario', count: 1 },
+  { id: 13, name: 'incendio', count: 0 },
   { id: 11, name: 'rifiuti', count: 2 },
   { id: 10, name: 'viabilità', count: 2 },
-], 'observationCategoryItems: sorted counts');
+], 'observationCategoryItems: sorted counts including zero categories');
 assertEqual(O.observationYears(attributed), [2025, 2026], 'observationYears: sorted years');
+assertEqual(O.observationYears([{ year: 2024 }, { year: 2026 }]),
+            [2024, 2025, 2026],
+            'observationYears: includes years between first and last observation');
 assertEqual(O.normalizeObservationYearRange(null, null, [2025, 2026]), { from: 2025, to: 2026 },
             'normalizeObservationYearRange: defaults');
 assertEqual(O.normalizeObservationYearRange(2026, 2025, [2025, 2026]), { from: 2025, to: 2026 },

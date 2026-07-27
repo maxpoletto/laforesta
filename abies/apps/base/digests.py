@@ -37,9 +37,9 @@ from config.constants import (
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
     DIGEST_PARCELS,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
-    DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS,
-    FIELD_FIRST_DATE, FIELD_LAST_DATE, FIELD_NUMBER, FIELD_PHOTO_COUNT,
-    FIELD_REGION_ID,
+    DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORIES,
+    FIELD_CATEGORY_IDS, FIELD_FIRST_DATE, FIELD_ID, FIELD_LAST_DATE,
+    FIELD_NAME, FIELD_NUMBER, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
     ROW_ID, VERSION,
@@ -1300,8 +1300,16 @@ def build_observation_record(observation) -> list:
 
 
 def generate_observations() -> None:
-    from apps.base.models import Observation
+    from apps.base.models import Observation, ObservationCategory
 
+    categories = [
+        {FIELD_ID: category.id, FIELD_NAME: category.name}
+        for category in (
+            ObservationCategory.objects
+            .filter(active=True)
+            .order_by('sort_order', 'name', 'id')
+        )
+    ]
     rows = [
         build_observation_record(observation)
         for observation in (
@@ -1312,7 +1320,11 @@ def generate_observations() -> None:
         )
     ]
     _write_gzip_json(
-        {'columns': OBSERVATION_COLUMNS, 'rows': rows},
+        {
+            'columns': OBSERVATION_COLUMNS,
+            'rows': rows,
+            FIELD_CATEGORIES: categories,
+        },
         _dest(DIGEST_OBSERVATIONS),
     )
     logger.info('%s.json.gz: %s rows', DIGEST_OBSERVATIONS, len(rows))

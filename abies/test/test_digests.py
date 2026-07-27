@@ -39,8 +39,8 @@ from config.constants import (
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION,
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY_POINTS,
-    DIGEST_PRESERVED_TREES, FIELD_CATEGORY_IDS, FIELD_PHOTO_COUNT,
-    FIELD_REGION_ID, ROWS,
+    DIGEST_PRESERVED_TREES, FIELD_CATEGORIES, FIELD_CATEGORY_IDS,
+    FIELD_ID, FIELD_NAME, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROWS,
     ROW_ID, VERSION,
 )
 
@@ -427,6 +427,11 @@ class TestGenerateBoscoDigests:
             S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_OPERATOR,
             S.COL_OBSERVATION_CATEGORIES, FIELD_PHOTO_COUNT,
         ]
+        digest_categories = {
+            row[FIELD_ID]: row[FIELD_NAME] for row in data[FIELD_CATEGORIES]
+        }
+        assert digest_categories[cat1.id] == 'rifiuti-test'
+        assert digest_categories[cat2.id] == 'viabilita-test'
 
     def test_future_production_active_highforest_only(
             self, parcels, regions, eclasses, tmp_path, settings,

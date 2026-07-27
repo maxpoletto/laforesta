@@ -124,8 +124,13 @@ hosts (top to bottom):
 
 - **Osservazioni**
 
-  Scrollable category list with counts, `Tutte` / `Nessuna` buttons, and two
-  year selectors (`Da`, `A`) for year-granularity filtering. The map shows
+  Scrollable category list with in-scope counts, `Tutte` / `Nessuna` buttons,
+  and two year selectors (`Da`, `A`) for year-granularity filtering. The
+  category list includes all active observation categories, including zero-count
+  categories. Year selectors include every year from the first to the last
+  observation in the selected region. If the selected region has no
+  observations, Bosco hides these controls and shows only `Nessuna
+  osservazione.` The map shows
   dark-green point markers for observations assigned to the currently selected
   region. Parcel geometry is used only to enrich points with a parcel name when
   the coordinate falls inside a known parcel.
@@ -368,7 +373,8 @@ mode-switch.
   operator, and photo count. Invalidated on observation imports/writes.
 
   Columns: `row_id`, `version`, `region_id`, `category_ids`, `Data`, `Testo`,
-  `Lat`, `Lon`, `Acc_m`, `Operatore`, `Categorie`, `photo_count`. Photo
+  `Lat`, `Lon`, `Acc_m`, `Operatore`, `Categorie`, `photo_count`. The digest
+  also includes active observation categories as top-level metadata. Photo
   payloads are not in
   the digest; the click modal loads observation details/photos from the
   per-row Bosco API. Filtered client-side by the selected region, `oc=`, and
