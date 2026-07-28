@@ -196,7 +196,7 @@ check(
   Store.nextSeqAfterRows([]) === 1,
   'nextSeqAfterRows starts fresh sessions at one',
 );
-check(Store.SCHEMA_VERSION === 7, 'schema v7 identifies canonical-ID session and tree rows');
+check(Store.SCHEMA_VERSION === 8, 'schema v8 includes observation support');
 check(
   Store.isResumableStatus(Store.STATUS_OPEN) &&
     Store.isResumableStatus(Store.STATUS_PENDING_UPLOAD) &&
