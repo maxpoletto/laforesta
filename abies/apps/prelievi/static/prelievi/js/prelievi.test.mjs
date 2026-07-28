@@ -205,16 +205,15 @@ function buildPrelieviTemplate() {
   ]));
 
   const [ha, ba] = section('a');
-  ba.appendChild(el('select', { dataset: { role: 'breakdown-select' } }));
+  ba.appendChild(el('select', { dataset: { role: 'year-breakdown-select' } }));
   ba.appendChild(el('label', { className: 'chart-month-toggle' }, [
     el('input', { dataset: { role: 'month-toggle' }, type: 'checkbox' }),
   ]));
   ba.appendChild(el('canvas', { dataset: { target: 'chart-a' } }));
+  ba.appendChild(el('select', { dataset: { role: 'parcel-breakdown-select' } }));
+  ba.appendChild(el('canvas', { dataset: { target: 'chart-b' } }));
   frag.append(ha, ba);
 
-  const [hb, bb] = section('b');
-  bb.appendChild(el('canvas', { dataset: { target: 'chart-b' } }));
-  frag.append(hb, bb);
 
   const [hi, bi] = section('i');
   bi.dataset.target = 'table-host';
@@ -297,11 +296,12 @@ const speciesDigest = {
 
 const chartColMap = {
   [S.COL_DATE]: 0, [S.COL_REGION]: 1, [S.COL_PARCEL]: 2,
-  Abete: 3, Faggio: 4, [S.COL_QUINTALS]: 5,
+  Abete: 3, Faggio: 4, [S.COL_QUINTALS]: 5, [S.COL_CREW]: 6,
+  [S.COL_TYPE]: 7, 'Tractor One': 8,
 };
 const chartRows = [
-  ['2020-01-01', 'A', '1', 10, 0, 10],
-  ['2020-01-02', 'A', '2', 0, 5, 5],
+  ['2020-01-01', 'A', '1', 10, 0, 10, 'Crew A', 'Taglio', 10],
+  ['2020-01-02', 'A', '2', 0, 5, 5, 'Crew B', 'Taglio', 0],
 ];
 const allChartSpecies = ['Abete', 'Castagno', 'Faggio'];
 let speciesChart = PrelieviCharts.aggregateTimeSeries(
@@ -338,6 +338,24 @@ speciesChart = PrelieviCharts.aggregateSpeciesByParcel(
 eq(speciesChart.datasets.map(d => [d.label, d.backgroundColor]),
    [['Abete', '#2e7d32'], ['Faggio', '#144b99']],
    'aggregateSpeciesByParcel keeps species colors stable across omitted species');
+let parcelChart = PrelieviCharts.aggregateParcelSeries(
+  chartRows, chartColMap, 'total', ['Abete', 'Faggio'], ['Tractor One'], allChartSpecies,
+);
+eq(parcelChart.datasets.map(d => [d.label, d.data]),
+   [['Totale', [10, 5]]],
+   'aggregateParcelSeries total groups quintals by parcel');
+parcelChart = PrelieviCharts.aggregateParcelSeries(
+  chartRows, chartColMap, 'squadra', ['Abete', 'Faggio'], ['Tractor One'], allChartSpecies,
+);
+eq(parcelChart.datasets.map(d => [d.label, d.data]),
+   [['Crew A', [10, 0]], ['Crew B', [0, 5]]],
+   'aggregateParcelSeries team breakdown groups row totals by parcel');
+parcelChart = PrelieviCharts.aggregateParcelSeries(
+  chartRows, chartColMap, 'trattore', ['Abete', 'Faggio'], ['Tractor One'], allChartSpecies,
+);
+eq(parcelChart.datasets.map(d => [d.label, d.data]),
+   [['Tractor One', [10]]],
+   'aggregateParcelSeries tractor breakdown pivots tractor columns by parcel');
 
 const digest = {
   columns: [
@@ -477,9 +495,9 @@ eq(filteredIds(), [], 'region and parcel URL filters are both enforced');
 prelievi.onQueryChange({ c: 'bad', pa: '-1' });
 eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
 
-prelievi.onQueryChange({ o: 'b' });
+prelievi.onQueryChange({ o: 'a', pb: 'specie' });
 eq(chartInstances.at(-1).data.datasets.map(d => d.label), ['Abete', 'Abete Rosso'],
-   'species-by-parcel chart excludes tractor columns');
+   'per-parcel species chart excludes tractor columns');
 
 const castagnoDigest = {
   columns: [...digest.columns.slice(0, -1), 'Castagno', 'Castagno %', digest.columns.at(-1)],

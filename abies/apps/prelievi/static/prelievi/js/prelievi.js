@@ -28,7 +28,7 @@ import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
 import { matchesSearch, searchTerms } from '../../base/js/table.js';
 import {
-  aggregateTimeSeries, aggregateSpeciesByParcel,
+  aggregateTimeSeries, aggregateParcelSeries,
 } from './charts.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import {
@@ -51,8 +51,8 @@ const BOSCO_PATH = '/bosco';
 const DEFAULT_TABLE_SORT = { column: S.COL_DATE, ascending: false };
 
 // Collapsible sections, keyed by the single-char token used in the URL `o`
-// parameter ('a' = Produzione chart, 'b' = Specie-per-particella chart,
-// 'i' = Interventi table).
+// parameter ('a' = Riassunto charts, 'b' = Calendario, 'i' = Interventi
+// table).
 const SECTION_KEYS = ['a', 'b', 'i'];
 const DEFAULT_OPEN = 'i';                 // default when `o` param is absent
 
@@ -83,22 +83,14 @@ let colMap = {};
 const sections = {
   a: {
     open: false, dirty: true,
-    canvas: null, instance: null, header: null, body: null,
-    breakdown: 'total', byMonth: false,
-    render: () => _renderChart(sections.a),
-    aggregate: () => aggregateTimeSeries(
-      _getFilteredRows(), colMap,
-      sections.a.breakdown, sections.a.byMonth,
-      speciesCols, tractorCols, speciesNames,
-    ),
+    header: null, body: null,
+    yearCanvas: null, yearInstance: null, yearBreakdown: 'total', byMonth: false,
+    parcelCanvas: null, parcelInstance: null, parcelBreakdown: 'total',
+    render: () => _renderSummarySection(),
   },
   b: {
     open: false, dirty: true,
-    canvas: null, instance: null, header: null, body: null,
-    render: () => _renderChart(sections.b),
-    aggregate: () => aggregateSpeciesByParcel(
-      _getFilteredRows(), colMap, speciesCols, speciesNames,
-    ),
+    header: null, body: null,
   },
   i: {
     open: true,
@@ -289,6 +281,7 @@ function readParams(params) {
     // and means "all sections closed".
     o: params.o !== undefined ? params.o : DEFAULT_OPEN,
     b: params.b || 'total',
+    pb: params.pb || 'total',
     m: params.m === '1',
   };
 }
@@ -336,13 +329,19 @@ function applyParams(params) {
     }
   }
 
-  // Chart A configuration.
+  // Summary chart configuration.
   const a = sections.a;
   if (a.body) {
-    if (a.breakdown !== p.b) {
-      a.breakdown = p.b;
-      const sel = a.body.querySelector('select');
+    if (a.yearBreakdown !== p.b) {
+      a.yearBreakdown = p.b;
+      const sel = a.body.querySelector('[data-role="year-breakdown-select"]');
       if (sel) sel.value = p.b;
+      a.dirty = true;
+    }
+    if (a.parcelBreakdown !== p.pb) {
+      a.parcelBreakdown = p.pb;
+      const sel = a.body.querySelector('[data-role="parcel-breakdown-select"]');
+      if (sel) sel.value = p.pb;
       a.dirty = true;
     }
     if (a.byMonth !== p.m) {
@@ -390,8 +389,9 @@ function syncURL() {
   const openKeys = SECTION_KEYS.filter(k => sections[k].open).join('');
   if (openKeys !== DEFAULT_OPEN) params.set('o', openKeys);
 
-  // Chart A config: only serialize non-default values.
-  if (sections.a.breakdown !== 'total') params.set('b', sections.a.breakdown);
+  // Summary chart config: only serialize non-default values.
+  if (sections.a.yearBreakdown !== 'total') params.set('b', sections.a.yearBreakdown);
+  if (sections.a.parcelBreakdown !== 'total') params.set('pb', sections.a.parcelBreakdown);
   if (sections.a.byMonth) params.set('m', '1');
 
   navigateWithParams(PAGE_PATH, params);
@@ -467,17 +467,39 @@ function _updateCharts() {
   }
 }
 
-/** Render a chart section from its (filtered) aggregation output. */
-function _renderChart(s) {
-  if (!s.canvas) return;
-  s.instance = renderStackedBar(s.canvas, s.aggregate(), s.instance);
+function _renderSummarySection() {
+  const s = sections.a;
+  const rows = _getFilteredRows();
+  if (s.yearCanvas) {
+    s.yearInstance = renderStackedBar(
+      s.yearCanvas,
+      aggregateTimeSeries(
+        rows, colMap, s.yearBreakdown, s.byMonth,
+        speciesCols, tractorCols, speciesNames,
+      ),
+      s.yearInstance,
+    );
+  }
+  if (s.parcelCanvas) {
+    s.parcelInstance = renderStackedBar(
+      s.parcelCanvas,
+      aggregateParcelSeries(
+        rows, colMap, s.parcelBreakdown, speciesCols, tractorCols, speciesNames,
+      ),
+      s.parcelInstance,
+    );
+  }
   s.dirty = false;
 }
 
 function _destroyCharts() {
+  const summary = sections.a;
+  for (const key of ['yearInstance', 'parcelInstance']) {
+    if (summary[key]) { summary[key].destroy(); summary[key] = null; }
+  }
+  summary.yearCanvas = null;
+  summary.parcelCanvas = null;
   for (const s of Object.values(sections)) {
-    if (s.instance) { s.instance.destroy(); s.instance = null; }
-    s.canvas = null;
     s.header = null;
     s.body = null;
     s.dirty = true;
@@ -522,7 +544,8 @@ function buildPage(el, data, p) {
   });
 
   // Wire collapsible sections.
-  sections.a.breakdown = p.b;
+  sections.a.yearBreakdown = p.b;
+  sections.a.parcelBreakdown = p.pb;
   sections.a.byMonth = p.m;
   for (const key of SECTION_KEYS) {
     const s = sections[key];
@@ -540,14 +563,24 @@ function buildPage(el, data, p) {
     }
   }
 
-  // Chart A: wire breakdown select and month toggle.
+  // Summary charts: wire breakdown selects and month toggle.
   const a = sections.a;
-  a.canvas = el.querySelector('[data-target="chart-a"]');
-  const breakdownSel = el.querySelector('[data-role="breakdown-select"]');
-  if (breakdownSel) {
-    breakdownSel.value = a.breakdown;
-    breakdownSel.addEventListener('change', () => {
-      a.breakdown = breakdownSel.value;
+  a.yearCanvas = el.querySelector('[data-target="chart-a"]');
+  a.parcelCanvas = el.querySelector('[data-target="chart-b"]');
+  const yearBreakdownSel = el.querySelector('[data-role="year-breakdown-select"]');
+  if (yearBreakdownSel) {
+    yearBreakdownSel.value = a.yearBreakdown;
+    yearBreakdownSel.addEventListener('change', () => {
+      a.yearBreakdown = yearBreakdownSel.value;
+      a.render();
+      syncURL();
+    });
+  }
+  const parcelBreakdownSel = el.querySelector('[data-role="parcel-breakdown-select"]');
+  if (parcelBreakdownSel) {
+    parcelBreakdownSel.value = a.parcelBreakdown;
+    parcelBreakdownSel.addEventListener('change', () => {
+      a.parcelBreakdown = parcelBreakdownSel.value;
       a.render();
       syncURL();
     });
@@ -561,9 +594,6 @@ function buildPage(el, data, p) {
       syncURL();
     });
   }
-
-  // Chart B.
-  sections.b.canvas = el.querySelector('[data-target="chart-b"]');
 }
 
 // ---------------------------------------------------------------------------

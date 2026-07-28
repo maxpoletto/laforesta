@@ -111,6 +111,13 @@ export const ERR_REPORTS_EMPTY = 'Nessuna produzione nel mese selezionato.';
 // Charts
 export const CHART_TOTAL = 'Totale';
 export const CHART_OTHER = 'Altro';
+export const PRELIEVI_SECTION_SUMMARY = 'Riassunto';
+export const PRELIEVI_SECTION_CALENDAR = 'Calendario';
+export const PRELIEVI_SECTION_HARVESTS = 'Interventi';
+export const PRELIEVI_CHART_BY_YEAR = 'Per Anno';
+export const PRELIEVI_CHART_BY_PARCEL = 'Per Particella';
+export const PRELIEVI_CHART_MONTHS = 'Mesi';
+export const PRELIEVI_RESET_FILTERS = 'Azzera filtri';
 
 // Prelievi columns
 export const COL_DATE = 'Data';

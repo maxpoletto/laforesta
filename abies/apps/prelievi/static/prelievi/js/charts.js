@@ -63,49 +63,120 @@ function _dimFn(breakdown, colMap) {
 }
 
 /**
- * Aggregate species by parcel (stacked bar: parcels on x, species as stacks).
+ * Aggregate production by parcel, optionally broken down by a dimension.
  *
  * @param {any[][]} rows
  * @param {Object} colMap
+ * @param {string} breakdown — 'total'|'squadra'|'tipo'|'specie'|'trattore'
  * @param {string[]} speciesCols
+ * @param {string[]} tractorCols
+ * @param {string[]} allSpeciesNames
  * @returns {{ labels: string[], datasets: ... }}
  */
-export function aggregateSpeciesByParcel(rows, colMap, speciesCols, allSpeciesNames = speciesCols) {
+export function aggregateParcelSeries(
+  rows, colMap, breakdown, speciesCols, tractorCols, allSpeciesNames = speciesCols,
+) {
   const parcelIdx = colMap[S.COL_PARCEL];
   const regionIdx = colMap[S.COL_REGION];
-  const parcels = {};
+  const qIdx = colMap[S.COL_QUINTALS];
 
-  for (const row of rows) {
-    const key = `${row[regionIdx]}/${row[parcelIdx]}`;
-    if (!parcels[key]) parcels[key] = {};
-    for (const sp of speciesCols) {
-      parcels[key][sp] = (parcels[key][sp] || 0) + (row[colMap[sp]] || 0);
-    }
+  const byColumns = { specie: speciesCols, trattore: tractorCols }[breakdown];
+  if (byColumns) {
+    const speciesUniverse = breakdown === 'specie' ? allSpeciesNames : null;
+    return _aggregateColumnsByParcel(
+      rows, regionIdx, parcelIdx, colMap, byColumns, speciesUniverse,
+    );
   }
 
-  const entries = Object.entries(parcels)
-    .map(([name, sps]) => ({ name, total: _sum(Object.values(sps)), sps }))
-    .filter(p => p.total > 0)
-    .sort((a, b) => b.total - a.total);
-
-  const active = speciesCols.filter(sp =>
-    entries.some(p => (p.sps[sp] || 0) > 0),
+  return _aggregateRowsByParcel(
+    rows, regionIdx, parcelIdx, qIdx, _parcelDimFn(breakdown, colMap),
   );
+}
 
-  const colors = chartSpeciesColorMap(active, allSpeciesNames);
-  return {
-    labels: entries.map(p => p.name),
-    datasets: [...colors.keys()].map((sp, i) => ({
-      label: sp,
-      data: entries.map(p => _r1(p.sps[sp] || 0)),
-      backgroundColor: colors.get(sp) || chartSeriesColor(i),
-    })),
-  };
+/** Backward-compatible species-only wrapper. */
+export function aggregateSpeciesByParcel(rows, colMap, speciesCols, allSpeciesNames = speciesCols) {
+  return aggregateParcelSeries(rows, colMap, 'specie', speciesCols, [], allSpeciesNames);
 }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+function _parcelDimFn(breakdown, colMap) {
+  if (breakdown === 'total') return () => S.CHART_TOTAL;
+  const idx = colMap[{ squadra: S.COL_CREW, tipo: S.COL_TYPE }[breakdown]];
+  return row => row[idx] || '?';
+}
+
+function _aggregateRowsByParcel(rows, regionIdx, parcelIdx, qIdx, dimFn) {
+  const parcels = {};
+  for (const row of rows) {
+    const key = `${row[regionIdx]}/${row[parcelIdx]}`;
+    const dim = dimFn(row);
+    if (!parcels[key]) parcels[key] = {};
+    parcels[key][dim] = (parcels[key][dim] || 0) + (row[qIdx] || 0);
+  }
+  return _parcelDatasets(parcels);
+}
+
+function _aggregateColumnsByParcel(
+  rows, regionIdx, parcelIdx, colMap, colNames, speciesUniverse = null,
+) {
+  const parcels = {};
+  for (const row of rows) {
+    const key = `${row[regionIdx]}/${row[parcelIdx]}`;
+    if (!parcels[key]) parcels[key] = {};
+    for (const name of colNames) {
+      parcels[key][name] = (parcels[key][name] || 0) + (row[colMap[name]] || 0);
+    }
+  }
+  return _parcelDatasets(parcels, speciesUniverse);
+}
+
+function _parcelDatasets(parcels, speciesUniverse = null) {
+  const entries = Object.entries(parcels)
+    .map(([name, dims]) => ({ name, total: _sum(Object.values(dims)), dims }))
+    .filter(p => p.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  let dims = _topParcelDims(entries);
+  if (!speciesUniverse && dims.length > MAX_SERIES) {
+    dims = _collapseParcelOthers(entries, dims);
+  }
+
+  const colors = speciesUniverse ? chartSpeciesColorMap(dims, speciesUniverse) : null;
+  const datasetNames = colors ? [...colors.keys()] : dims;
+  return {
+    labels: entries.map(p => p.name),
+    datasets: datasetNames.map((dim, i) => ({
+      label: dim,
+      data: entries.map(p => _r1(p.dims[dim] || 0)),
+      backgroundColor: colors?.get(dim) || chartSeriesColor(i),
+    })),
+  };
+}
+
+function _topParcelDims(entries) {
+  const totals = {};
+  for (const entry of entries) {
+    for (const [dim, value] of Object.entries(entry.dims)) {
+      totals[dim] = (totals[dim] || 0) + value;
+    }
+  }
+  return Object.entries(totals).sort((a, b) => b[1] - a[1]).map(d => d[0]);
+}
+
+function _collapseParcelOthers(entries, dims) {
+  const keep = new Set(dims.slice(0, MAX_SERIES - 1));
+  for (const entry of entries) {
+    let other = 0;
+    for (const [dim, val] of Object.entries(entry.dims)) {
+      if (!keep.has(dim)) { other += val; delete entry.dims[dim]; }
+    }
+    if (other > 0) entry.dims[S.CHART_OTHER] = other;
+  }
+  return [...dims.slice(0, MAX_SERIES - 1), S.CHART_OTHER];
+}
 
 /** Aggregate rows by time bucket, with a row → category function. */
 function _aggregateByBucket(rows, dateIdx, qIdx, bucket, byMonth, dimFn) {

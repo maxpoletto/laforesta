@@ -18,7 +18,7 @@ render context.
     <input type="text" class="table-search" id="prelievi-search"
            placeholder="{{ S.SEARCH_PLACEHOLDER }}">
     <button type="button" class="btn"
-            data-action="reset-filters">Azzera filtri</button>
+            data-action="reset-filters">{{ S.PRELIEVI_RESET_FILTERS }}</button>
     <button type="button" class="btn btn-export ms-auto"
             data-action="export-csv">{{ S.EXPORT }}</button>
     {% if user.can_modify %}
@@ -29,31 +29,45 @@ render context.
     {% endif %}
   </div>
 
-  {% include "base/_partials/_collapsible_header.html" with section="a" title="Produzione" %}
+  {% include "base/_partials/_collapsible_header.html" with section="a" title=S.PRELIEVI_SECTION_SUMMARY %}
   <div class="collapsible-body" data-section="a">
-    <div class="chart-controls">
-      <select data-role="breakdown-select">
-        <option value="total">Totale</option>
-        <option value="compresa">Compresa</option>
-        <option value="particella">Particella</option>
-        <option value="squadra">Squadra</option>
-        <option value="specie">Specie</option>
-        <option value="trattore">Trattore</option>
-        <option value="tipo">Tipo</option>
-      </select>
-      <label class="chart-month-toggle">
-        <input type="checkbox" data-role="month-toggle"> Mesi
-      </label>
+    <div class="prelievi-summary-grid">
+      <section class="prelievi-chart-panel">
+        <h2 class="prelievi-chart-title">{{ S.PRELIEVI_CHART_BY_YEAR }}</h2>
+        <div class="chart-controls">
+          <select data-role="year-breakdown-select">
+            <option value="total">{{ S.CHART_TOTAL }}</option>
+            <option value="compresa">{{ S.COL_REGION }}</option>
+            <option value="particella">{{ S.COL_PARCEL }}</option>
+            <option value="squadra">{{ S.COL_CREW }}</option>
+            <option value="specie">{{ S.COL_SPECIES }}</option>
+            <option value="trattore">{{ S.LABEL_TRACTOR_NAME }}</option>
+            <option value="tipo">{{ S.COL_TYPE }}</option>
+          </select>
+          <label class="chart-month-toggle">
+            <input type="checkbox" data-role="month-toggle"> {{ S.PRELIEVI_CHART_MONTHS }}
+          </label>
+        </div>
+        <div class="chart-container"><canvas data-target="chart-a"></canvas></div>
+      </section>
+      <section class="prelievi-chart-panel">
+        <h2 class="prelievi-chart-title">{{ S.PRELIEVI_CHART_BY_PARCEL }}</h2>
+        <div class="chart-controls">
+          <select data-role="parcel-breakdown-select">
+            <option value="total">{{ S.CHART_TOTAL }}</option>
+            <option value="squadra">{{ S.COL_CREW }}</option>
+            <option value="specie">{{ S.COL_SPECIES }}</option>
+            <option value="trattore">{{ S.LABEL_TRACTOR_NAME }}</option>
+            <option value="tipo">{{ S.COL_TYPE }}</option>
+          </select>
+        </div>
+        <div class="chart-container"><canvas data-target="chart-b"></canvas></div>
+      </section>
     </div>
-    <div class="chart-container"><canvas data-target="chart-a"></canvas></div>
   </div>
 
-  {% include "base/_partials/_collapsible_header.html" with section="b" title="Specie per particella" %}
-  <div class="collapsible-body" data-section="b">
-    <div class="chart-container"><canvas data-target="chart-b"></canvas></div>
-  </div>
 
-  {% include "base/_partials/_collapsible_header.html" with section="i" title="Interventi" %}
+  {% include "base/_partials/_collapsible_header.html" with section="i" title=S.PRELIEVI_SECTION_HARVESTS %}
   <div class="collapsible-body" data-section="i" data-target="table-host">
   </div>
 </template>

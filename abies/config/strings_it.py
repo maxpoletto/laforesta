@@ -750,6 +750,15 @@ COL_WORKSITE = 'Cantiere'
 
 APP_BASE = 'Base'
 APP_PRELIEVI = 'Prelievi'
+
+# Prelievi page sections/charts.
+PRELIEVI_SECTION_SUMMARY = 'Riassunto'
+PRELIEVI_SECTION_CALENDAR = 'Calendario'
+PRELIEVI_SECTION_HARVESTS = 'Interventi'
+PRELIEVI_CHART_BY_YEAR = 'Per Anno'
+PRELIEVI_CHART_BY_PARCEL = 'Per Particella'
+PRELIEVI_CHART_MONTHS = 'Mesi'
+PRELIEVI_RESET_FILTERS = 'Azzera filtri'
 APP_SQUADRE = 'Squadre'
 APP_BOSCO = 'Bosco'
 APP_CAMPIONAMENTI = 'Rilevamenti'
