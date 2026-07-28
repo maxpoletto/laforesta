@@ -1112,6 +1112,68 @@ class TestPrelievoMassimo:
         assert np.isclose(area_limit, 25.0 * 20 / 100)
 
 
+class TestLimitiGiovaniArea:
+    """giovani_solo_area: below 60 years only the basal-area limit applies."""
+
+    def test_young_stand_has_no_volume_limit(self):
+        """Age < 60: the volume floor no longer vetoes the harvest."""
+        from pdg.harvest_rules import max_harvest
+        # 300 m3/ha is below 120% of 350, so the standard rules give vol=0
+        vol_limit, area_limit = max_harvest('A', 45, 300.0, 25.0,
+                                            giovani_solo_area=True)
+        assert vol_limit == math.inf
+        assert np.isclose(area_limit, 25.0 * 20 / 100)
+
+    def test_perticaia_uses_the_15_percent_band(self):
+        """Age < 30 keeps its own basal-area percentage."""
+        from pdg.harvest_rules import max_harvest
+        vol_limit, area_limit = max_harvest('A', 20, 300.0, 25.0,
+                                            giovani_solo_area=True)
+        assert vol_limit == math.inf
+        assert np.isclose(area_limit, 25.0 * 15 / 100)
+
+    def test_mature_stand_is_unaffected(self):
+        """Age >= 60 follows the provvigione limits either way."""
+        from pdg.harvest_rules import max_harvest
+        standard = max_harvest('A', 80, 700.0, 40.0)
+        variant = max_harvest('A', 80, 700.0, 40.0, giovani_solo_area=True)
+        assert standard == variant
+        assert np.isclose(variant[0], 700.0 * 25 / 100)
+        assert variant[1] == math.inf
+
+    def test_mature_stand_below_floor_still_blocked(self):
+        """The floor must keep protecting understocked mature stands."""
+        from pdg.harvest_rules import max_harvest
+        vol_limit, _ = max_harvest('A', 80, 100.0, 10.0,
+                                   giovani_solo_area=True)
+        assert vol_limit == 0.0
+
+    def test_ceduo_still_returns_zero(self):
+        from pdg.harvest_rules import max_harvest
+        assert max_harvest('F', 20, 400.0, 30.0, giovani_solo_area=True) == \
+            (0.0, 0.0)
+
+    def test_default_is_the_standard_rules(self):
+        """Omitting the flag must not change anything."""
+        from pdg.harvest_rules import max_harvest
+        for age in (20, 45, 80):
+            assert max_harvest('A', age, 300.0, 25.0) == \
+                max_harvest('A', age, 300.0, 25.0, giovani_solo_area=False)
+
+    def test_rule_sets_registry(self):
+        """The command-line flag values map to callable rule sets."""
+        from pdg.harvest_rules import (
+            LIMITI_GIOVANI_AREA, LIMITI_GIOVANI_ENTRAMBI, RULE_SETS,
+            max_harvest,
+        )
+        assert RULE_SETS[LIMITI_GIOVANI_ENTRAMBI] is max_harvest
+        entrambi = RULE_SETS[LIMITI_GIOVANI_ENTRAMBI]('A', 45, 300.0, 25.0)
+        area = RULE_SETS[LIMITI_GIOVANI_AREA]('A', 45, 300.0, 25.0)
+        assert entrambi[0] == 0.0
+        assert area[0] == math.inf
+        assert np.isclose(entrambi[1], area[1])
+
+
 def _harvest_stats(area_ha=1.0, sf=1.0):
     """Build ParcelStats for harvest_parcel tests."""
     return ParcelStats(area_ha=area_ha, sector='A', age=60, governo='Fustaia',

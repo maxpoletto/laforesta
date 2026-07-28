@@ -15,7 +15,9 @@ from typing import cast
 from natsort import natsort_keygen
 import pandas as pd
 
-from pdg.harvest_rules import max_harvest
+from pdg.harvest_rules import (
+    LIMITI_GIOVANI_ENTRAMBI, RULE_SETS, HarvestRulesFunc, max_harvest,
+)
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_GENERE,
     COL_D_CM, COL_H_M, COL_V_M3, COL_PRESSLER, COL_L10_MM,
@@ -269,7 +271,8 @@ def process_template(template_text: str, data_dir: Path,
                      output_dir: Path,
                      format_type: str,
                      template_dir: Path | None = None,
-                     log_simulazione: bool = False) -> str:
+                     log_simulazione: bool = False,
+                     rules: HarvestRulesFunc = max_harvest) -> str:
     """
     Process template by substituting @@directives with generated content.
 
@@ -280,6 +283,8 @@ def process_template(template_text: str, data_dir: Path,
         output_dir: Where to save generated graphs
         format_type: 'html' or 'tex'
         template_dir: Directory containing template files (for @@particelle modello)
+        log_simulazione: Write a per-parcel volume log for each @@piano_di_taglio
+        rules: Harvest rule set applied to every plan directive
 
     Returns:
         Processed template text
@@ -459,7 +464,7 @@ def process_template(template_text: str, data_dir: Path,
                     plan_data = parcel_data(alberi_files, trees_df,
                                             particelle_df, [], [], [])
                     result = render_harvest_table(plan_data, past_harvests,
-                                              max_harvest, formatter,
+                                              rules, formatter,
                                               comprese=comprese,
                                               particelle=particelle,
                                               **options, **plan_options)
@@ -486,7 +491,7 @@ def process_template(template_text: str, data_dir: Path,
                                          "non sono confrontabili")
                     volume_log = {} if log_simulazione else None
                     result = render_harvest_plan(data, past_harvests,
-                                               max_harvest,
+                                               rules,
                                                formatter,
                                                volume_log=volume_log,
                                                **options, **plan_options)
@@ -708,7 +713,8 @@ def run_report(args):
 
     processed = process_template(template_text, Path(args.dati), args.particelle,
                                  output_dir, args.formato, Path(args.input).parent,
-                                 log_simulazione=args.log_simulazione)
+                                 log_simulazione=args.log_simulazione,
+                                 rules=RULE_SETS[args.limiti_giovani])
     output_file = output_dir / Path(args.input).name
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
@@ -840,6 +846,13 @@ Modalità di utilizzo:
     opt_group.add_argument('--separatore-decimale', choices=['punto', 'virgola'],
                            default='virgola',
                            help='Separatore decimale: punto (default) o virgola')
+    opt_group.add_argument('--limiti-giovani', choices=sorted(RULE_SETS),
+                           default=LIMITI_GIOVANI_ENTRAMBI,
+                           help='Limiti di prelievo per le fustaie sotto i 60 anni: '
+                                "'entrambi' (provvigione e area basimetrica, default) "
+                                "oppure 'area' (solo area basimetrica). "
+                                'Le fustaie più vecchie seguono i limiti di '
+                                'provvigione in entrambi i casi.')
 
     args = parser.parse_args()
 
