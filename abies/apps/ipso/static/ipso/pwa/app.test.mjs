@@ -13,8 +13,9 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `renderObservationsTable, onObservationPhotosPicked, ` +
   `wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
-  `restoreCachedBootResources, ` +
-  `refreshBootResources, loadBearerToken, bearerHeaders };\n`;
+  `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
+  `registerServiceWorker, watchServiceWorkerUpdates, activatePendingAppUpdate, ` +
+  `loadBearerToken, bearerHeaders };\n`;
 
 let pass = 0;
 const failures = [];
@@ -88,7 +89,7 @@ class MockElement {
   }
 }
 
-function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
+function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = null } = {}) {
   const events = [];
   const elements = new Map();
   const buttons = [];
@@ -100,6 +101,7 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
   element('modal-resume').className = 'hidden';
   element('banner-reference').className = 'banner hidden';
   element('banner-storage').className = 'banner hidden';
+  element('btn-app-update').className = 'hidden';
   element('resume-title');
   element('resume-body');
   element('resume-list');
@@ -127,6 +129,8 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     },
   };
   const strings = new Proxy({
+    APP_UPDATE: 'Aggiorna app',
+    APP_UPDATING: 'Aggiornamento…',
     MODE_MARTELLATE: 'Martellate',
     MODE_SAMPLES: 'Rilevamenti predefiniti',
     MODE_FREE_SURVEYS: 'Rilevamenti liberi',
@@ -220,12 +224,15 @@ function makeHarness({ storedToken = 'test-token', hash = '' } = {}) {
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
     window: {
       AbiesGeoReady: Promise.resolve(),
-      location: { hash, pathname: '/ipso/', search: '' },
+      location: {
+        hash, pathname: '/ipso/', search: '',
+        reload() { events.push('reload'); },
+      },
       history: { replaceState(_state, _title, url) { events.push(['replaceState', url]); } },
       addEventListener() {},
       confirm() { events.push('confirm'); return true; },
     },
-    navigator: {},
+    navigator: serviceWorker ? { serviceWorker } : {},
     localStorage: {
       getItem(key) { return localValues.get(key) || ''; },
       setItem(key, value) { localValues.set(key, value); },
@@ -485,6 +492,86 @@ const session = {
   check(record.species_id === 10, 'record captures canonical species ID');
   check(record.specie === 'Abete' && record.particella === '1',
         'record retains names for display and CSV export');
+}
+
+// A waiting service worker is exposed as an explicit footer update action.
+{
+  const workerMessages = [];
+  const waiting = {
+    postMessage(message) { workerMessages.push(message); },
+  };
+  const registration = {
+    waiting,
+    async update() {},
+    addEventListener() {},
+  };
+  const swListeners = {};
+  const serviceWorker = {
+    controller: {},
+    async register(url, options) {
+      eq([url, options.updateViaCache], ['./sw.js', 'none'],
+         'service worker registration bypasses the browser cache');
+      return registration;
+    },
+    addEventListener(type, handler) { swListeners[type] = handler; },
+  };
+  const { context, elements, events } = makeHarness({ serviceWorker });
+  const app = context.__ipsoAppTest;
+  app.wireAppUpdateButton();
+  app.registerServiceWorker();
+  await Promise.resolve();
+
+  const button = elements.get('btn-app-update');
+  check(!button.classList.contains('hidden'),
+        'waiting service worker shows the update button');
+  check(button.textContent === 'Aggiorna app',
+        'update button uses the localized label');
+  await button.click();
+  eq(workerMessages, [{ type: 'SKIP_WAITING' }],
+     'update button asks the waiting worker to activate');
+  check(button.disabled, 'update button is disabled while activation is pending');
+  check(button.textContent === 'Aggiornamento…',
+        'update button switches to the localized pending label');
+  swListeners.controllerchange();
+  check(events.includes('reload'),
+        'controllerchange reloads the page into the new shell');
+}
+
+// Installing workers only expose the update action once they reach installed.
+{
+  const workerListeners = {};
+  const installing = {
+    state: 'installing',
+    addEventListener(type, handler) { workerListeners[type] = handler; },
+  };
+  const registrationListeners = {};
+  const registration = {
+    waiting: null,
+    installing: null,
+    async update() {},
+    addEventListener(type, handler) { registrationListeners[type] = handler; },
+  };
+  const serviceWorker = {
+    controller: {},
+    async register() { return registration; },
+    addEventListener() {},
+  };
+  const { context, elements } = makeHarness({ serviceWorker });
+  const app = context.__ipsoAppTest;
+  app.wireAppUpdateButton();
+  app.registerServiceWorker();
+  await Promise.resolve();
+
+  const button = elements.get('btn-app-update');
+  check(button.classList.contains('hidden'),
+        'installing service worker does not show the update button');
+  registration.installing = installing;
+  registrationListeners.updatefound();
+  installing.state = 'installed';
+  registration.waiting = installing;
+  workerListeners.statechange();
+  check(!button.classList.contains('hidden'),
+        'installed service worker shows the update button');
 }
 
 // Cached protected resources are validated and restored before network work.

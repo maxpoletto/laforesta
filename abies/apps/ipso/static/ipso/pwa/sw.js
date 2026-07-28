@@ -1,9 +1,9 @@
 // ipso service worker — offline shell, cache-first.
 //
 // Update safety: when a new SW is installed, it sits in `waiting` until the
-// app is fully closed. No skipWaiting, no clients.claim(). An operator who
-// started a session on version N completes it on version N; the new version
-// only activates after a clean app exit.
+// app is fully closed or the operator explicitly presses the in-app update
+// button. An operator who started a session on version N completes it on
+// version N unless they deliberately request the new version.
 'use strict';
 
 // APP_VERSION lives in version.js, shared with the page.
@@ -57,7 +57,13 @@ self.addEventListener('install', (e) => {
       SHELL.map((url) => new Request(url, { cache: 'no-cache' }))
     ))
   );
-  // Deliberately do NOT call self.skipWaiting() — see header note.
+  // Deliberately do NOT call self.skipWaiting() here — see header note.
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (e) => {
@@ -68,6 +74,7 @@ self.addEventListener('activate', (e) => {
         .filter((n) => n.startsWith(CACHE_PREFIX) && n !== CACHE)
         .map((n) => caches.delete(n))
     );
+    await self.clients.claim();
   })());
 });
 

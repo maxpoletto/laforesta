@@ -4,6 +4,8 @@
 
 const S = {
   APP_TITLE: 'Ipso',
+  APP_UPDATE: 'Aggiorna app',
+  APP_UPDATING: 'Aggiornamento…',
 
   // Mode select screen
   MODE_TITLE: 'Ipso',

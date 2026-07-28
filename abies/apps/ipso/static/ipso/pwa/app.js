@@ -41,11 +41,109 @@ const State = {
   direction: null,
   heading: null,
   bootReady: false,    // true once controls are wired and may be refreshed
+  appUpdateRegistration: null, // SW registration with a waiting update
 };
 
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+
+function wireAppUpdateButton() {
+  const button = document.getElementById('btn-app-update');
+  if (!button) return;
+  button.textContent = S.APP_UPDATE;
+  button.addEventListener('click', activatePendingAppUpdate);
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  let reloadPending = false;
+  if (navigator.serviceWorker.addEventListener) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadPending) return;
+      reloadPending = true;
+      window.location.reload();
+    });
+  }
+
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(
+    (registration) => {
+      watchServiceWorkerUpdates(registration);
+      requestServiceWorkerUpdate(registration);
+      wireServiceWorkerUpdateChecks(registration);
+    }
+  ).catch(() => {
+    // Quietly ignore; the app works without one (just no offline).
+  });
+}
+
+function requestServiceWorkerUpdate(registration) {
+  if (registration && registration.update) {
+    registration.update().catch(() => {});
+  }
+}
+
+function wireServiceWorkerUpdateChecks(registration) {
+  window.addEventListener('focus', () => {
+    requestServiceWorkerUpdate(registration);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      requestServiceWorkerUpdate(registration);
+    }
+  });
+}
+
+function watchServiceWorkerUpdates(registration) {
+  if (registration.waiting && navigator.serviceWorker.controller) {
+    showAppUpdateButton(registration);
+  }
+  if (!registration.addEventListener) return;
+
+  registration.addEventListener('updatefound', () => {
+    const worker = registration.installing;
+    if (!worker || !worker.addEventListener) return;
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+        showAppUpdateButton(registration);
+      }
+    });
+  });
+}
+
+function showAppUpdateButton(registration) {
+  State.appUpdateRegistration = registration;
+  const button = document.getElementById('btn-app-update');
+  if (!button) return;
+  button.disabled = false;
+  button.textContent = S.APP_UPDATE;
+  button.classList.remove('hidden');
+}
+
+function hideAppUpdateButton() {
+  State.appUpdateRegistration = null;
+  const button = document.getElementById('btn-app-update');
+  if (!button) return;
+  button.disabled = false;
+  button.textContent = S.APP_UPDATE;
+  button.classList.add('hidden');
+}
+
+function activatePendingAppUpdate() {
+  const registration = State.appUpdateRegistration;
+  const worker = registration && registration.waiting;
+  if (!worker || !worker.postMessage) {
+    hideAppUpdateButton();
+    return;
+  }
+  const button = document.getElementById('btn-app-update');
+  if (button) {
+    button.disabled = true;
+    button.textContent = S.APP_UPDATING;
+  }
+  worker.postMessage({ type: 'SKIP_WAITING' });
+}
 
 async function boot() {
   if (!window.AbiesGeoReady) throw new Error(S.ERROR_GEO_UNAVAILABLE);
@@ -54,6 +152,7 @@ async function boot() {
   setMode(IpsoModes.MARTELLATE);
   document.getElementById('footer-version').textContent =
     'v' + APP_VERSION;
+  wireAppUpdateButton();
   document.getElementById('mode-title').textContent = S.MODE_TITLE;
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
@@ -102,13 +201,7 @@ async function boot() {
   document.getElementById('btn-new-session').textContent = S.DONE_NEW;
 
   // Register service worker but never block the UI on it.
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(
-      (registration) => registration.update().catch(() => {})
-    ).catch(() => {
-      // Quietly ignore; the app works without one (just no offline).
-    });
-  }
+  registerServiceWorker();
 
   // Open durable local state before touching the network. This keeps saved
   // sessions and the last-good reference bundle reachable after a reload or

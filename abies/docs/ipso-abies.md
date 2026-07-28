@@ -54,6 +54,15 @@ validated reference bundle and parcel features in its IndexedDB `meta` store.
 This avoids putting bearer-protected responses in a shared HTTP cache while
 still supporting an offline cold start.
 
+Shell updates are versioned by `APP_VERSION` in `version.js`. The page registers
+the service worker with `updateViaCache: 'none'` and asks it to check for
+updates on boot and whenever the installed app returns to the foreground. A
+newly installed worker remains in `waiting` until either the app is fully closed
+or the operator presses the footer `Aggiorna app` button, which is shown only
+when a waiting worker exists. Pressing the button sends the worker an explicit
+activation message and reloads the page once the new worker controls it, keeping
+version switches visible and operator-driven.
+
 Protected reference endpoints require the shared bearer:
 
 - `/ipso/reference.json`
