@@ -69,6 +69,7 @@ function pathAndSearch(url) {
  * Render the page for the current URL.
  */
 function render() {
+  if (!contentEl) contentEl = document.getElementById('content');
   const { domain, params } = parseURL();
 
   if (domain === currentDomain && currentPage) {

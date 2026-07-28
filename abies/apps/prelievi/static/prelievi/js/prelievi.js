@@ -30,6 +30,7 @@ import { matchesSearch, searchTerms } from '../../base/js/table.js';
 import {
   aggregateTimeSeries, aggregateParcelSeries,
 } from './charts.js';
+import { buildHarvestCalendar, calendarSearchText } from './calendar.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import {
   applyTableState, createPage, navigateWithParams, readTableState,
@@ -90,7 +91,8 @@ const sections = {
   },
   b: {
     open: false, dirty: true,
-    header: null, body: null,
+    header: null, body: null, host: null,
+    render: () => _renderCalendarSection(),
   },
   i: {
     open: true,
@@ -492,6 +494,89 @@ function _renderSummarySection() {
   s.dirty = false;
 }
 
+function _renderCalendarSection() {
+  const s = sections.b;
+  if (!s.host) return;
+  s.host.replaceChildren();
+  const calendar = buildHarvestCalendar(_getFilteredRows(), colMap);
+  if (!calendar.periods.length || !calendar.regions.length) {
+    const empty = document.createElement('p');
+    empty.className = 'prelievi-calendar-empty';
+    empty.textContent = S.PRELIEVI_CALENDAR_EMPTY;
+    s.host.appendChild(empty);
+    s.dirty = false;
+    return;
+  }
+
+  const tableEl = document.createElement('table');
+  tableEl.className = 'prelievi-calendar-table';
+  tableEl.appendChild(calendarHeader(calendar.periods));
+  tableEl.appendChild(calendarBody(calendar));
+  tableEl.addEventListener('click', onCalendarClick);
+  s.host.appendChild(tableEl);
+  s.dirty = false;
+}
+
+function calendarHeader(periods) {
+  const thead = document.createElement('thead');
+  const tr = document.createElement('tr');
+  const corner = document.createElement('th');
+  corner.className = 'corner';
+  tr.appendChild(corner);
+  for (const period of periods) {
+    const th = document.createElement('th');
+    th.textContent = period;
+    tr.appendChild(th);
+  }
+  thead.appendChild(tr);
+  return thead;
+}
+
+function calendarBody(calendar) {
+  const tbody = document.createElement('tbody');
+  for (const region of calendar.regions) {
+    const regionRow = document.createElement('tr');
+    regionRow.className = 'prelievi-calendar-region';
+    const regionCell = document.createElement('td');
+    regionCell.colSpan = calendar.periods.length + 1;
+    regionCell.textContent = region.name;
+    regionRow.appendChild(regionCell);
+    tbody.appendChild(regionRow);
+
+    for (const parcel of region.parcels) {
+      const tr = document.createElement('tr');
+      const label = document.createElement('td');
+      label.className = 'prelievi-calendar-parcel';
+      label.textContent = parcel.parcel;
+      tr.appendChild(label);
+
+      for (const period of calendar.periods) {
+        const td = document.createElement('td');
+        td.className = 'prelievi-calendar-cell';
+        const count = parcel.cells.get(period) || 0;
+        if (count > 0) {
+          td.classList.add('active');
+          td.dataset.period = period;
+          td.dataset.region = region.name;
+          td.dataset.parcel = parcel.parcel;
+          td.title = `${region.name} ${parcel.parcel} — ${period}`;
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+  }
+  return tbody;
+}
+
+function onCalendarClick(e) {
+  const cell = e.target.closest('.prelievi-calendar-cell.active');
+  if (!cell || !table) return;
+  table.setSearchText(calendarSearchText(table.getSearchText(), cell.dataset));
+  syncURL();
+  _updateCharts();
+}
+
 function _destroyCharts() {
   const summary = sections.a;
   for (const key of ['yearInstance', 'parcelInstance']) {
@@ -499,6 +584,7 @@ function _destroyCharts() {
   }
   summary.yearCanvas = null;
   summary.parcelCanvas = null;
+  sections.b.host = null;
   for (const s of Object.values(sections)) {
     s.header = null;
     s.body = null;
@@ -594,6 +680,7 @@ function buildPage(el, data, p) {
       syncURL();
     });
   }
+  sections.b.host = el.querySelector('[data-target="calendar-host"]');
 }
 
 // ---------------------------------------------------------------------------

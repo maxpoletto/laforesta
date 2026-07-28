@@ -106,6 +106,95 @@
 
 .chart-container { height: 350px; }
 
+/* --- Calendar section ----------------------------------------------------- */
+
+.prelievi-calendar-wrap {
+  overflow: auto;
+  max-height: 65vh;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.prelievi-calendar-table {
+  border: 0;
+  width: auto;
+  min-width: 100%;
+  table-layout: fixed;
+  font-size: 0.75rem;
+}
+
+.prelievi-calendar-table th,
+.prelievi-calendar-table td {
+  padding: 0;
+  text-align: center;
+  border-color: #ccc;
+}
+
+.prelievi-calendar-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  min-width: 54px;
+  padding: 4px 2px;
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+.prelievi-calendar-table .corner {
+  left: 0;
+  z-index: 4;
+}
+
+.prelievi-calendar-region td {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  padding: 3px 6px;
+  background: #e0e0e0;
+  font-weight: 600;
+  text-align: left;
+}
+
+.prelievi-calendar-parcel {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 120px;
+  padding: 0 6px !important;
+  background: #f0f0f0;
+  white-space: nowrap;
+  text-align: left !important;
+}
+
+.prelievi-calendar-cell {
+  min-width: 54px;
+  height: 22px;
+}
+
+.prelievi-calendar-cell.active {
+  background: var(--color-bosco-green);
+  cursor: pointer;
+}
+
+.prelievi-calendar-cell.active:hover {
+  filter: brightness(0.9);
+}
+
+.prelievi-calendar-table tbody tr:nth-child(even)
+  .prelievi-calendar-cell:not(.active) {
+  background: #fafafa;
+}
+
+.prelievi-calendar-table tbody tr:nth-child(even) .prelievi-calendar-parcel {
+  background: #fafafa;
+}
+
+.prelievi-calendar-empty {
+  margin: 0;
+  padding: 0.75rem;
+  color: #666;
+}
+
 /* --- Table column headers ------------------------------------------------ */
 
 /* Allow species/tractor column headers to wrap onto two lines.

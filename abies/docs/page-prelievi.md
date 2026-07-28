@@ -9,23 +9,32 @@ A top filter bar hosts a double-ended year slider (`Anni`, see
 "Esporta" export. Below it sit three collapsible sections, separated by the
 standard dark-green 4px rule:
 
-1. **Produzione** — stacked bar chart of total quintals over time, with a
-   per-chart pull-down selector for the breakdown dimension (Totale /
-   Compresa / Particella / Squadra / Specie / Trattore / Tipo) and a
-   "mesi" checkbox that toggles between year-granularity and
-   month-granularity buckets. When the category count exceeds 12, the
-   tail is collapsed into an "Altro" series.
-2. **Specie per particella** — stacked bar chart with `<compresa>/<particella>`
-   on the x-axis and one species stack per bar, sorted by total.
+1. **Riassunto** — two stacked bar charts:
+   - **Per Anno**, with total quintals over time. It has a pull-down selector
+     for the breakdown dimension (Totale / Compresa / Particella / Squadra /
+     Specie / Trattore / Tipo) and a "mesi" checkbox that toggles between
+     year-granularity and month-granularity buckets.
+   - **Per Particella**, with `<compresa>/<particella>` on the x-axis, sorted
+     by total. It has a pull-down selector for Totale / Squadra / Specie /
+     Trattore / Tipo.
+   When a chart category count exceeds 12, the tail is collapsed into an
+   "Altro" series.
+2. **Calendario** — a CDT-style grid with parcels on the y-axis, grouped by
+   compresa, and harvest months (`YYYY-MM`) on the x-axis. A dark-green cell
+   marks every parcel/month combination with at least one harvest row in the
+   currently filtered dataset. Clicking a populated cell writes a filter such
+   as `2019-06 Compresa:Fabrizia Particella:14b` into the search box, further
+   restricting the charts, calendar, and table to that month and parcel while
+   preserving unrelated search terms such as `squadra:zaffino`.
 3. **Interventi** — harvest-operations in a sortable-table, as in UI Design
    Patterns > Tabular Data.
 
-Sections 1 and 2 are collapsed by default; section 3 is open. Chart
-sections render lazily (only when first opened) and re-render whenever
-active filter set changes.
+Sections 1 and 2 are collapsed by default; section 3 is open. Summary charts
+and the calendar render lazily (only when first opened) and re-render whenever
+the active filter set changes.
 
 The full dataset is served as a single compressed JSON digest. All filtering (by
-year and search box) is client-side and affects both charts and table.
+year and search box) is client-side and affects the charts, calendar, and table.
 
 Table columns are:
 Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Volume (m³), Note,
@@ -95,13 +104,15 @@ Bottom-of-form button layout.
   - Sort order: `so=0/1` (ascending/descending)
   - Filter: `f=...` (URL-encoded sortable-table search string).
   - Open collapsible sections: `o=...`, a concatenation of single-char
-    tokens identifying which sections are expanded. Tokens: `a` =
-    Produzione chart, `b` = Specie-per-particella chart, `i` = Interventi
-    (the table itself). Absent means the default (`i` only). An explicit
-    empty value (`?o=`) means all sections collapsed.
-  - Production chart breakdown: `b=total|compresa|particella|squadra|specie|trattore|tipo`
+    tokens identifying which sections are expanded. Tokens: `a` = Riassunto,
+    `b` = Calendario, `i` = Interventi (the table itself). Absent means the
+    default (`i` only). An explicit empty value (`?o=`) means all sections
+    collapsed.
+  - Per Anno chart breakdown: `b=total|compresa|particella|squadra|specie|trattore|tipo`
     (absent = `total`).
-  - Production chart monthly granularity: `m=1` (absent = year granularity).
+  - Per Particella chart breakdown: `pb=total|squadra|specie|trattore|tipo`
+    (absent = `total`).
+  - Per Anno chart monthly granularity: `m=1` (absent = year granularity).
 
 ## Data tables
 

@@ -108,7 +108,9 @@ class MockElement {
   }
   matches(sel) {
     if (sel.startsWith('#')) return this.id === sel.slice(1);
-    if (sel.startsWith('.')) return this.classList.contains(sel.slice(1));
+    if (sel.startsWith('.')) {
+      return sel.slice(1).split('.').every(cls => this.classList.contains(cls));
+    }
     const attr = sel.match(/^\[([^=\]]+)(?:="([^"]*)")?\](?:\.([A-Za-z0-9_-]+))?$/);
     if (attr) {
       const [, rawName, expected, cls] = attr;
@@ -214,6 +216,9 @@ function buildPrelieviTemplate() {
   ba.appendChild(el('canvas', { dataset: { target: 'chart-b' } }));
   frag.append(ha, ba);
 
+  const [hb, bb] = section('b');
+  bb.appendChild(el('div', { className: 'prelievi-calendar-wrap', dataset: { target: 'calendar-host' } }));
+  frag.append(hb, bb);
 
   const [hi, bi] = section('i');
   bi.dataset.target = 'table-host';
@@ -273,7 +278,20 @@ class MockSortableTable {
 const chartInstances = [];
 let browserConfirmCalls = 0;
 globalThis.confirm = () => { browserConfirmCalls += 1; return false; };
+const browserLocation = { origin: 'http://localhost', pathname: '/prelievi', search: '' };
+globalThis.location = browserLocation;
+globalThis.history = {
+  replaceState(_state, _title, url) { updateLocation(url); },
+  pushState(_state, _title, url) { updateLocation(url); },
+};
+function updateLocation(url) {
+  const parsed = new URL(url, browserLocation.origin);
+  browserLocation.pathname = parsed.pathname;
+  browserLocation.search = parsed.search;
+}
 globalThis.window = {
+  location: browserLocation,
+  history: globalThis.history,
   SortableTable: MockSortableTable,
   Chart: class {
     constructor(_canvas, opts) {
@@ -289,6 +307,7 @@ globalThis.window = {
 
 const S = await import(staticModule('base/js/strings.js'));
 const PrelieviCharts = await import(staticModule('prelievi/js/charts.js'));
+const PrelieviCalendar = await import(staticModule('prelievi/js/calendar.js'));
 const speciesDigest = {
   columns: [ROW_ID, S.COL_NAME],
   rows: [[1, 'Abete'], [2, 'Abete Rosso'], [3, 'Castagno']],
@@ -370,6 +389,23 @@ const digest = {
     [3, 1, 20, 203, '2022-05-10', 'B', '3', 'Crew', 'Taglio', 30, 3, '', 30, 50, 150, 50, 0],
   ],
 };
+const calendarData = PrelieviCalendar.buildHarvestCalendar(digest.rows, {
+  [S.COL_DATE]: digest.columns.indexOf(S.COL_DATE),
+  [S.COL_REGION]: digest.columns.indexOf(S.COL_REGION),
+  [S.COL_PARCEL]: digest.columns.indexOf(S.COL_PARCEL),
+});
+eq(calendarData.periods, ['2020-03', '2021-04', '2022-05'],
+   'buildHarvestCalendar uses monthly buckets from filtered harvest rows');
+eq(calendarData.regions.map(region => [
+  region.name, region.parcels.map(parcel => parcel.parcel),
+]), [['A', ['1', '2']], ['B', ['3']]],
+   'buildHarvestCalendar groups parcels by region');
+eq(PrelieviCalendar.calendarSearchText(
+  'squadra:zaffino 2018-01 Compresa:Serra Particella:1',
+  { period: '2019-06', region: 'Fabrizia', parcel: '14b' },
+), 'squadra:zaffino 2019-06 Compresa:Fabrizia Particella:14b',
+   'calendarSearchText replaces prior calendar filters and preserves other terms');
+
 let prelieviDigest = digest;
 let prelieviLastModified = 'v1';
 
@@ -494,6 +530,14 @@ eq(filteredIds(), [], 'region and parcel URL filters are both enforced');
 
 prelievi.onQueryChange({ c: 'bad', pa: '-1' });
 eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
+
+prelievi.onQueryChange({ o: 'b' });
+let activeCalendarCells = contentEl.querySelectorAll('.prelievi-calendar-cell.active');
+eq(activeCalendarCells.map(cell => cell.dataset.period), ['2020-03', '2021-04', '2022-05'],
+   'calendar section renders one active month cell per filtered harvest');
+activeCalendarCells.find(cell => cell.dataset.period === '2021-04').click();
+eq(filteredIds(), [2],
+   'clicking a calendar cell filters the table by month, region, and parcel');
 
 prelievi.onQueryChange({ o: 'a', pb: 'specie' });
 eq(chartInstances.at(-1).data.datasets.map(d => d.label), ['Abete', 'Abete Rosso'],

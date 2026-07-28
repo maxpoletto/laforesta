@@ -66,6 +66,10 @@ render context.
     </div>
   </div>
 
+  {% include "base/_partials/_collapsible_header.html" with section="b" title=S.PRELIEVI_SECTION_CALENDAR %}
+  <div class="collapsible-body" data-section="b">
+    <div class="prelievi-calendar-wrap" data-target="calendar-host"></div>
+  </div>
 
   {% include "base/_partials/_collapsible_header.html" with section="i" title=S.PRELIEVI_SECTION_HARVESTS %}
   <div class="collapsible-body" data-section="i" data-target="table-host">

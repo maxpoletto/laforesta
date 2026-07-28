@@ -118,6 +118,7 @@ export const PRELIEVI_CHART_BY_YEAR = 'Per Anno';
 export const PRELIEVI_CHART_BY_PARCEL = 'Per Particella';
 export const PRELIEVI_CHART_MONTHS = 'Mesi';
 export const PRELIEVI_RESET_FILTERS = 'Azzera filtri';
+export const PRELIEVI_CALENDAR_EMPTY = 'Nessun prelievo nel filtro corrente.';
 
 // Prelievi columns
 export const COL_DATE = 'Data';
