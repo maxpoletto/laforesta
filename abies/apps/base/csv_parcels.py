@@ -30,12 +30,14 @@ PARCEL_CSV_REQUIRED = [
 PARCEL_CSV_OPTIONAL = [
     S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION, S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX,
     S.CSV_COL_ASPECT, S.CSV_COL_GRADE_PCT, S.CSV_COL_VEG_DESC, S.CSV_COL_GEO_DESC,
-    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
+    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_HARVEST_MECHANISM,
+    S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
 ]
 PARCEL_UPDATE_FIELDS = [
     'eclass', 'area_ha', 'ave_age', 'location_name', 'altitude_min_m',
     'altitude_max_m', 'aspect', 'grade_pct', 'desc_veg', 'desc_geo',
-    'cutting_plan', 'intervention_interval', 'standards_per_ha',
+    'cutting_plan', 'harvest_mechanism', 'intervention_interval',
+    'standards_per_ha',
 ]
 
 
@@ -133,6 +135,8 @@ def validate_rows(reader, idx: ParcelIndexes):
             'desc_veg': (row.get(S.CSV_COL_VEG_DESC) or '').strip(),
             'desc_geo': (row.get(S.CSV_COL_GEO_DESC) or '').strip(),
             'cutting_plan': (row.get(S.CSV_COL_CUTTING_PLAN) or '').strip(),
+            'harvest_mechanism': (
+                row.get(S.CSV_COL_HARVEST_MECHANISM) or '').strip(),
             **optional_ints,
         })
     return parsed, errors

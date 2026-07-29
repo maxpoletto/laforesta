@@ -449,6 +449,7 @@ class Parcel(TimestampedModel):
     desc_veg = models.TextField(blank=True)
     desc_geo = models.TextField(blank=True)
     cutting_plan = models.TextField(blank=True)
+    harvest_mechanism = models.CharField(max_length=200, blank=True)
     intervention_interval = models.IntegerField(null=True, blank=True)
     standards_per_ha = models.IntegerField(null=True, blank=True)
     history = HistoricalRecords()

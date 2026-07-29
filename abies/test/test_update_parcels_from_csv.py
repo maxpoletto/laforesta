@@ -19,7 +19,8 @@ HEADER = ','.join([
     S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE, S.CSV_COL_LOCATION,
     S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
     S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
-    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
+    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_HARVEST_MECHANISM,
+    S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
 ])
 
 
@@ -31,7 +32,7 @@ def _write_csv(path, rows):
 def test_update_parcels_from_csv_dry_run_does_not_write(tmp_path, parcels):
     csv_path = tmp_path / 'particelle.csv'
     _write_csv(csv_path, [
-        'Capistrano,A,1,11.5,45,Costa,700,900,N,10,Geo,Veg,Piano,,',
+        'Capistrano,A,1,11.5,45,Costa,700,900,N,10,Geo,Veg,Piano,Strascico,,',
     ])
     out = StringIO()
 
@@ -48,7 +49,7 @@ def test_update_parcels_from_csv_apply_updates_existing_rows(
         tmp_path, parcels, settings):
     csv_path = tmp_path / 'particelle.csv'
     _write_csv(csv_path, [
-        'Capistrano,A,1,11.5,45,Costa,700,900,N,10,Geo,Veg,Piano,,',
+        'Capistrano,A,1,11.5,45,Costa,700,900,N,10,Geo,Veg,Piano,Strascico,,',
     ])
     out = StringIO()
 
@@ -67,6 +68,7 @@ def test_update_parcels_from_csv_apply_updates_existing_rows(
     assert parcels[0].desc_geo == 'Geo'
     assert parcels[0].desc_veg == 'Veg'
     assert parcels[0].cutting_plan == 'Piano'
+    assert parcels[0].harvest_mechanism == 'Strascico'
     assert parcels[0].version == 2
     assert DigestStatus.objects.get(name=DIGEST_PARCELS).stale is False
     with gzip.open(settings.DIGEST_DIR / f'{DIGEST_PARCELS}.json.gz', 'rt') as fh:
@@ -80,7 +82,7 @@ def test_update_parcels_from_csv_apply_updates_existing_rows(
 def test_update_parcels_from_csv_apply_regenerates_digest_when_unchanged(
         tmp_path, parcels):
     csv_path = tmp_path / 'particelle.csv'
-    _write_csv(csv_path, [','.join(['Capistrano', 'A', '1', '10.5'] + [''] * 11)])
+    _write_csv(csv_path, [','.join(['Capistrano', 'A', '1', '10.5'] + [''] * 12)])
     out = StringIO()
 
     call_command('update_parcels_from_csv', csv_path, '--apply', stdout=out)
@@ -94,7 +96,7 @@ def test_update_parcels_from_csv_apply_regenerates_digest_when_unchanged(
 def test_update_parcels_from_csv_refuses_missing_parcels(tmp_path, parcels):
     csv_path = tmp_path / 'particelle.csv'
     _write_csv(csv_path, [
-        'Capistrano,A,missing,11.5,45,Costa,700,900,N,10,Geo,Veg,Piano,,',
+        'Capistrano,A,missing,11.5,45,Costa,700,900,N,10,Geo,Veg,Piano,Strascico,,',
     ])
 
     with pytest.raises(CommandError, match='not found in the DB'):
@@ -113,7 +115,7 @@ def test_update_parcels_from_csv_updates_coppice_metadata(
     )
     csv_path = tmp_path / 'particelle.csv'
     _write_csv(csv_path, [
-        'Capistrano,F,C1,1.0,,Ceduo,,,,,Geo,Veg,Piano ceduo,20,80',
+        'Capistrano,F,C1,1.0,,Ceduo,,,,,Geo,Veg,Piano ceduo,Strascico ceduo,20,80',
     ])
 
     call_command('update_parcels_from_csv', csv_path, '--apply')
@@ -122,3 +124,4 @@ def test_update_parcels_from_csv_updates_coppice_metadata(
     assert parcel.intervention_interval == 20
     assert parcel.standards_per_ha == 80
     assert parcel.cutting_plan == 'Piano ceduo'
+    assert parcel.harvest_mechanism == 'Strascico ceduo'

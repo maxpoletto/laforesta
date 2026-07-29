@@ -80,7 +80,9 @@ import {
   aggregateProduction, harvestYear, pickProductionYear, prelieviUrlForScope,
   productionDeltaByParcel, productionYears,
 } from './bosco-production.js';
-import { E_HARVEST, Q_AGE, Q_ALTITUDE, Q_EVI, Q_NDMI, Q_NDVI } from './bosco-metrics.js';
+import {
+  E_HARVEST, Q_AGE, Q_ALTITUDE, Q_AVG_GRADE, Q_EVI, Q_NDMI, Q_NDVI,
+} from './bosco-metrics.js';
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
   filterObservations, normalizeObservationYearRange, observationCategoryItems,
@@ -1491,7 +1493,7 @@ function metricDisplay(metricId, value) {
 }
 
 function wholeNumberMetric(metricId) {
-  return [Q_AGE, Q_ALTITUDE].includes(String(metricId));
+  return [Q_AGE, Q_ALTITUDE, Q_AVG_GRADE].includes(String(metricId));
 }
 
 function fmtRoundedInt(value) {
@@ -1513,6 +1515,7 @@ function characteristicTooltipLabel(metricId) {
     [Q_FUTURE_HARVEST]: S.BOSCO_METRIC_FUTURE_HARVEST,
     [Q_AGE]: S.BOSCO_METRIC_AGE,
     [Q_ALTITUDE]: S.BOSCO_METRIC_ALTITUDE,
+    [Q_AVG_GRADE]: S.BOSCO_METRIC_AVG_GRADE,
     [Q_NDVI]: 'NDVI',
     [Q_NDMI]: 'NDMI',
     [Q_EVI]: 'EVI',
@@ -1772,12 +1775,14 @@ function renderParcelMetadata(entry) {
   appendMetadataField(S.COL_ASPECT, entry.aspect);
   appendMetadataField(S.COL_GRADE_PCT, fmtRoundedInt(entry.gradePct));
   if (entry.coppice === true) {
+    appendMetadataField(S.COL_STUMPS_PER_HA, fmtRoundedInt(entry.stumpsPerHa));
     appendMetadataField(S.COL_INTERVENTION_INTERVAL, fmtRoundedInt(entry.interventionInterval));
     appendMetadataField(S.COL_STANDARDS_PER_HA, fmtRoundedInt(entry.standardsPerHa));
   }
   appendMetadataField(S.COL_DESC_VEG, entry.descVeg, true);
   appendMetadataField(S.COL_DESC_GEO, entry.descGeo, true);
   appendMetadataField(S.COL_CUTTING_PLAN, entry.cuttingPlan, true);
+  appendMetadataField(S.COL_HARVEST_MECHANISM, entry.harvestMechanism, true);
 }
 
 

@@ -321,6 +321,7 @@ class TestGenerateBoscoDigests:
         p.desc_veg = 'Descrizione vegetazione'
         p.desc_geo = 'Descrizione geologia'
         p.cutting_plan = 'Piano selettivo'
+        p.harvest_mechanism = 'Strascico con trattori'
         p.save()
 
         generate_parcels()
@@ -330,7 +331,8 @@ class TestGenerateBoscoDigests:
 
         for col in (VERSION, COL_REGION_ID, COL_COPPICE, S.COL_AREA_CAD_HA,
                     S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO,
-                    S.COL_CUTTING_PLAN, S.COL_INTERVENTION_INTERVAL,
+                    S.COL_CUTTING_PLAN, S.COL_HARVEST_MECHANISM,
+                    S.COL_STUMPS_PER_HA, S.COL_INTERVENTION_INTERVAL,
                     S.COL_STANDARDS_PER_HA):
             assert col in cols
         assert row[cols.index(VERSION)] == 1
@@ -340,8 +342,56 @@ class TestGenerateBoscoDigests:
         assert row[cols.index(S.COL_DESC_VEG)] == 'Descrizione vegetazione'
         assert row[cols.index(S.COL_DESC_GEO)] == 'Descrizione geologia'
         assert row[cols.index(S.COL_CUTTING_PLAN)] == 'Piano selettivo'
+        assert row[cols.index(S.COL_HARVEST_MECHANISM)] == 'Strascico con trattori'
+        assert row[cols.index(S.COL_STUMPS_PER_HA)] is None
         assert row[cols.index(S.COL_INTERVENTION_INTERVAL)] is None
         assert row[cols.index(S.COL_STANDARDS_PER_HA)] is None
+
+    def test_parcels_include_coppice_stumps_per_ha(
+            self, regions, eclasses, species, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('1.00'), intervention_interval=18,
+            standards_per_ha=75,
+        )
+        grid = SampleGrid.objects.create(name='Grid')
+        survey = Survey.objects.create(name='Survey', sample_grid=grid, active=True)
+        area1 = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcel, number='1', lat=0, lon=0, r_m=20,
+        )
+        area2 = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcel, number='2', lat=0, lon=0, r_m=20,
+        )
+        sample1 = Sample.objects.create(
+            survey=survey, sample_area=area1, date=date(2026, 1, 1),
+        )
+        sample2 = Sample.objects.create(
+            survey=survey, sample_area=area2, date=date(2026, 1, 2),
+        )
+
+        for number, coppice in ((1, True), (2, True), (3, False)):
+            tree = Tree.objects.create(species=species[0], coppice=coppice)
+            TreeSample.objects.create(
+                sample=sample1, tree=tree, parcel=parcel, number=number,
+                d_cm=20, h_m=10,
+            )
+        tree = Tree.objects.create(species=species[0], coppice=False)
+        TreeSample.objects.create(
+            sample=sample2, tree=tree, parcel=parcel, number=1,
+            d_cm=20, h_m=10,
+        )
+
+        generate_parcels()
+        data = self._read(tmp_path, 'parcels')
+        cols = data[COLUMNS]
+        row = next(r for r in data[ROWS] if r[0] == parcel.id)
+        sampled_area_ha = math.pi * 20 * 20 / 10000
+
+        assert math.isclose(
+            row[cols.index(S.COL_STUMPS_PER_HA)],
+            round(2 / sampled_area_ha, 6),
+        )
 
     def test_preserved_trees_digest(self, parcels, species, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path

@@ -333,16 +333,25 @@ PARCEL_COLUMNS = [
     S.COL_LOCATION,
     S.COL_ALT_MIN, S.COL_ALT_MAX, S.COL_ASPECT, S.COL_GRADE_PCT,
     S.COL_TYPE, S.COL_DESC_VEG, S.COL_DESC_GEO, S.COL_CUTTING_PLAN,
+    S.COL_HARVEST_MECHANISM, S.COL_STUMPS_PER_HA,
     S.COL_INTERVENTION_INTERVAL, S.COL_STANDARDS_PER_HA,
 ]
 
 
-def build_parcel_record(p) -> list:
+_STUMPS_UNSET = object()
+
+
+def build_parcel_record(p, *, stumps_per_ha=_STUMPS_UNSET) -> list:
     """Build one row of the `parcels` digest.
 
     `Parcel` does not use TimestampedModel/history, but it still carries
     `version` so metadata edits can use the standard optimistic-lock contract.
     """
+    if not p.eclass.coppice:
+        stumps_per_ha = None
+    elif stumps_per_ha is _STUMPS_UNSET:
+        stumps_per_ha = _coppice_stumps_per_ha().get(p.id)
+
     # The geometric/cadastral area columns intentionally share the model
     # value until a separate cadastral source is available.
     return [
@@ -351,16 +360,53 @@ def build_parcel_record(p) -> list:
         p.location_name,
         p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
         S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,
-        p.desc_veg, p.desc_geo, p.cutting_plan,
-        p.intervention_interval, p.standards_per_ha,
+        p.desc_veg, p.desc_geo, p.cutting_plan, p.harvest_mechanism,
+        stumps_per_ha, p.intervention_interval, p.standards_per_ha,
     ]
+
+
+def _coppice_stumps_per_ha() -> dict[int, float]:
+    """Coppice-tree count per hectare by parcel for Bosco details.
+
+    Mirrors `pdg-2026` stump calculation: count coppice tree rows and divide
+    by the combined area of the structured sample plots where those coppice
+    rows were observed. Sample plots with only high-forest standards do not
+    enter the denominator.
+    """
+    from apps.base.models import TreeSample
+
+    survey_ids = active_or_default_survey_ids()
+    if not survey_ids:
+        return {}
+
+    counts: dict[int, int] = {}
+    sample_areas: dict[int, dict[int, float]] = {}
+    qs = (TreeSample.objects
+          .filter(sample__survey_id__in=survey_ids,
+                  sample__sample_area_id__isnull=False,
+                  tree__coppice=True)
+          .select_related('sample__sample_area'))
+    for ts in qs:
+        sample = ts.sample
+        area = sample.sample_area
+        parcel_id = area.parcel_id
+        counts[parcel_id] = counts.get(parcel_id, 0) + 1
+        sample_areas.setdefault(parcel_id, {})[sample.id] = sample_area_ha(area)
+
+    out = {}
+    for parcel_id, count in counts.items():
+        sampled_area = sum(sample_areas.get(parcel_id, {}).values())
+        if sampled_area > 0:
+            out[parcel_id] = round(count / sampled_area, 6)
+    return out
 
 
 def generate_parcels() -> None:
     from apps.base.models import Parcel
 
+    stumps_by_parcel = _coppice_stumps_per_ha()
     rows = [
-        build_parcel_record(p)
+        build_parcel_record(p, stumps_per_ha=stumps_by_parcel.get(p.id))
         for p in Parcel.objects.select_related('region', 'eclass')
                        .order_by('region__name', 'name')
     ]
@@ -508,6 +554,7 @@ def _audit_configs() -> list:
             'grade_pct': S.COL_GRADE_PCT, 'desc_veg': S.COL_DESC_VEG,
             'desc_geo': S.COL_DESC_GEO,
             'cutting_plan': S.COL_CUTTING_PLAN,
+            'harvest_mechanism': S.COL_HARVEST_MECHANISM,
             'intervention_interval': S.COL_INTERVENTION_INTERVAL,
             'standards_per_ha': S.COL_STANDARDS_PER_HA,
         }),

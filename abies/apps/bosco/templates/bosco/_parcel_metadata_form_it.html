@@ -86,6 +86,15 @@
       </div>
     </div>
 
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_parcel_harvest_mechanism">{{ S.COL_HARVEST_MECHANISM }}</label>
+        <input type="text" id="id_parcel_harvest_mechanism"
+               name="harvest_mechanism" maxlength="200"
+               value="{{ values.harvest_mechanism }}">
+      </div>
+    </div>
+
     <div class="form-row narrow" data-target="coppice-metadata-fields"
          {% if not is_coppice %}hidden{% endif %}>
       <div class="form-group">

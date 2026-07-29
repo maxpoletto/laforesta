@@ -214,7 +214,10 @@ def test_parcel_metadata_export_region(reader_client, parcels):
     parcels[0].desc_geo = 'Stazione test'
     parcels[0].desc_veg = 'Soprassuolo test'
     parcels[0].cutting_plan = 'Diradamento test'
-    parcels[0].save(update_fields=['desc_geo', 'desc_veg', 'cutting_plan'])
+    parcels[0].harvest_mechanism = 'Strascico con trattori'
+    parcels[0].save(update_fields=[
+        'desc_geo', 'desc_veg', 'cutting_plan', 'harvest_mechanism',
+    ])
 
     resp = reader_client.get(
         f'/api/bosco/parcels/export/?region_id={parcels[0].region_id}',
@@ -229,7 +232,8 @@ def test_parcel_metadata_export_region(reader_client, parcels):
         S.CSV_COL_GOVERNANCE, S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE,
         S.CSV_COL_LOCATION, S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX,
         S.CSV_COL_ASPECT, S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC,
-        S.CSV_COL_VEG_DESC, S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL,
+        S.CSV_COL_VEG_DESC, S.CSV_COL_CUTTING_PLAN,
+        S.CSV_COL_HARVEST_MECHANISM, S.CSV_COL_INTERVAL,
         S.CSV_COL_STANDARDS,
     ]
     rows = list(reader)
@@ -239,6 +243,7 @@ def test_parcel_metadata_export_region(reader_client, parcels):
     assert rows[0][S.CSV_COL_GEO_DESC] == 'Stazione test'
     assert rows[0][S.CSV_COL_VEG_DESC] == 'Soprassuolo test'
     assert rows[0][S.CSV_COL_CUTTING_PLAN] == 'Diradamento test'
+    assert rows[0][S.CSV_COL_HARVEST_MECHANISM] == 'Strascico con trattori'
     assert rows[0][S.CSV_COL_INTERVAL] == ''
     assert rows[0][S.CSV_COL_STANDARDS] == ''
 
@@ -285,6 +290,7 @@ def test_parcel_metadata_form_writer_access(writer_client, parcels):
     assert 'Comparto' in html
     assert 'A — Fustaia' in html
     assert 'name="cutting_plan"' in html
+    assert 'name="harvest_mechanism"' in html
     assert 'name="intervention_interval"' in html
     assert 'name="standards_per_ha"' in html
     assert 'data-target="coppice-metadata-fields"' in html
@@ -315,6 +321,7 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
         'aspect': 'NE', 'grade_pct': '35',
         'desc_veg': 'Abete e faggio.', 'desc_geo': 'Calcare.',
         'cutting_plan': 'Diradamento selettivo.',
+        'harvest_mechanism': 'Strascico con trattori',
         FIELD_NONCE: 'parcel-metadata-save',
     }
 
@@ -333,6 +340,7 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     assert parcel.desc_veg == 'Abete e faggio.'
     assert parcel.desc_geo == 'Calcare.'
     assert parcel.cutting_plan == 'Diradamento selettivo.'
+    assert parcel.harvest_mechanism == 'Strascico con trattori'
     assert parcel.intervention_interval is None
     assert parcel.standards_per_ha is None
     assert parcel.version == 2
@@ -357,6 +365,7 @@ def test_parcel_metadata_save_updates_coppice_fields(writer_client, regions, ecl
         'altitude_min_m': '', 'altitude_max_m': '',
         'aspect': '', 'grade_pct': '', 'desc_veg': '', 'desc_geo': '',
         'cutting_plan': 'Taglio di ceduo.',
+        'harvest_mechanism': 'Verricello',
         'intervention_interval': '12', 'standards_per_ha': '30',
         FIELD_NONCE: 'parcel-coppice-save',
     }
@@ -367,6 +376,7 @@ def test_parcel_metadata_save_updates_coppice_fields(writer_client, regions, ecl
     assert resp.status_code == 200
     parcel.refresh_from_db()
     assert parcel.cutting_plan == 'Taglio di ceduo.'
+    assert parcel.harvest_mechanism == 'Verricello'
     assert parcel.intervention_interval == 12
     assert parcel.standards_per_ha == 30
 

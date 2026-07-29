@@ -111,9 +111,9 @@ to built-in defaults.
 
 `particelle.csv` defines parcels and links them to regions and eclasses.
 References must already exist in the loaded reference tables. Optional
-metadata columns include `Piano del taglio`, `Intervallo`, and `Matricine`.
-`Intervallo` and `Matricine` must be blank for high-forest parcels and
-non-blank for coppice parcels.
+metadata columns include `Piano del taglio`, `Sistema di esbosco`,
+`Intervallo`, and `Matricine`. `Intervallo` and `Matricine` must be blank
+for high-forest parcels and non-blank for coppice parcels.
 
 `sample_grids.csv`, `surveys.csv`, and `harvest_plans.csv` define named
 containers. Their child files refer to them by name.

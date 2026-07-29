@@ -60,12 +60,13 @@ hosts (top to bottom):
 
 - **Caratteristiche**
 
-  Pull-down with a subset of the  features from the "Visualizza caratteristiche"
+  Pull-down with a subset of the features from the "Visualizza caratteristiche"
   part of Boscoscopio:
   - Caratteristiche
     - Età media (a)
     - Governo
     - Alt. media (m)
+    - Pendenza media (%)
   - Produzione
     - Prelievo storico
     - Prelievo previsto
@@ -341,10 +342,13 @@ mode-switch.
   `Coppice`, `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`,
   `Alt. min. (m)`, `Alt. max. (m)`, `Esposizione`, `Pendenza (%)`, `Tipo`
   (alto fusto / ceduo), `Soprassuolo`, `Stazione`, `Piano dei tagli`,
-  `Intervallo interventi`, `Matricine / ha`. `row_id` = `parcel.id`;
+  `Sistema di esbosco`, `Ceppaie / ha`, `Intervallo interventi`,
+  `Matricine / ha`. `row_id` = `parcel.id`;
   `Coppice` is the stable boolean from `parcel.eclass.coppice`; `Tipo` is
-  its localized display label.  `version` participates in optimistic locking
-  for parcel metadata edits.
+  its localized display label. `Ceppaie / ha` is materialized from the
+  active/default structured dendrometric survey's coppice tree rows. `version`
+  participates
+  in optimistic locking for parcel metadata edits.
 
 - **`species.json`** — shared with Campionamenti and Piano di taglio.
   Used here for color-coded species swatches in the PAI mode lists

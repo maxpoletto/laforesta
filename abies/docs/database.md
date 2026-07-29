@@ -63,17 +63,18 @@ audited and the contract that keeps that coverage complete.
   area_ha:decimal, ave_age:int nullable, location_name:string,
   altitude_min_m:int nullable, altitude_max_m:int nullable, aspect:string,
   grade_pct:int nullable, desc_veg:string, desc_geo:string,
-  cutting_plan:string, intervention_interval:int nullable,
-  standards_per_ha:int nullable)
+  cutting_plan:string, harvest_mechanism:string,
+  intervention_interval:int nullable, standards_per_ha:int nullable)
   - Represents a forest parcel. `name` is typically an alphanumeric string like
     "11" or "2a".
   - `area_ha` is surface area in hectares.
   - `ave_age` is the stated (official) average age of trees in the parcel. It
     may differ from the computed average of the age of sampled trees.
-  - altitudes are in meters.
+  - altitudes are in meters; `grade_pct` is the parcel's average slope.
   - `desc_veg` and `desc_geo` are strings that describe the vegetative and
     geologic state of the parcel, respectively. `cutting_plan` describes the
-    applicable cutting prescription.
+    applicable cutting prescription, and `harvest_mechanism` describes the
+    expected extraction system.
   - `intervention_interval` and `standards_per_ha` apply only to coppice
     parcels. SQLite triggers enforce that both are NULL for high-forest
     parcels and both are non-NULL for coppice parcel writes.

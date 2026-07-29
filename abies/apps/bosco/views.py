@@ -67,6 +67,7 @@ FIELD_GRADE_PCT = 'grade_pct'
 FIELD_DESC_VEG = 'desc_veg'
 FIELD_DESC_GEO = 'desc_geo'
 FIELD_CUTTING_PLAN = 'cutting_plan'
+FIELD_HARVEST_MECHANISM = 'harvest_mechanism'
 FIELD_INTERVENTION_INTERVAL = 'intervention_interval'
 FIELD_STANDARDS_PER_HA = 'standards_per_ha'
 
@@ -76,6 +77,7 @@ PARCEL_METADATA_TEXT_FIELDS = {
     FIELD_DESC_VEG: (S.LABEL_BOSCO_VEG_DESC, None),
     FIELD_DESC_GEO: (S.LABEL_BOSCO_GEO_DESC, None),
     FIELD_CUTTING_PLAN: (S.LABEL_BOSCO_CUTTING_PLAN, None),
+    FIELD_HARVEST_MECHANISM: (S.LABEL_BOSCO_HARVEST_MECHANISM, 200),
 }
 
 PARCEL_EXPORT_COLUMNS = [
@@ -84,7 +86,8 @@ PARCEL_EXPORT_COLUMNS = [
     S.CSV_COL_LOCATION,
     S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
     S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
-    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
+    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_HARVEST_MECHANISM,
+    S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
 ]
 _SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
 
@@ -440,6 +443,7 @@ def _parcel_export_row(parcel, decimal_sep: str):
         parcel.desc_geo,
         parcel.desc_veg,
         parcel.cutting_plan,
+        parcel.harvest_mechanism,
         parcel.intervention_interval,
         parcel.standards_per_ha,
     ]
@@ -508,6 +512,7 @@ def _parcel_metadata_form_values(parcel, values: dict | None = None):
         (FIELD_DESC_VEG, parcel.desc_veg),
         (FIELD_DESC_GEO, parcel.desc_geo),
         (FIELD_CUTTING_PLAN, parcel.cutting_plan),
+        (FIELD_HARVEST_MECHANISM, parcel.harvest_mechanism),
         (FIELD_INTERVENTION_INTERVAL, parcel.intervention_interval),
         (FIELD_STANDARDS_PER_HA, parcel.standards_per_ha),
     )
@@ -545,6 +550,8 @@ def _parse_parcel_metadata_body(body: dict):
         FIELD_DESC_VEG: _text_value(body, FIELD_DESC_VEG, errors),
         FIELD_DESC_GEO: _text_value(body, FIELD_DESC_GEO, errors),
         FIELD_CUTTING_PLAN: _text_value(body, FIELD_CUTTING_PLAN, errors),
+        FIELD_HARVEST_MECHANISM: _text_value(
+            body, FIELD_HARVEST_MECHANISM, errors),
         FIELD_INTERVENTION_INTERVAL: _optional_int(
             body, FIELD_INTERVENTION_INTERVAL, S.COL_INTERVENTION_INTERVAL, errors,
         ),

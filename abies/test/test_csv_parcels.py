@@ -146,9 +146,9 @@ def test_apply_does_not_update_existing(regions, eclasses):
 @pytest.mark.django_db
 def test_coppice_metadata_imported(regions, eclasses):
     reader = _reader(
-        f'{HEADER},{S.CSV_COL_CUTTING_PLAN},{S.CSV_COL_INTERVAL},'
-        f'{S.CSV_COL_STANDARDS}\n'
-        f'{regions[0].name},F,7,12.5,40,Taglio ceduo,18,75\n'
+        f'{HEADER},{S.CSV_COL_CUTTING_PLAN},{S.CSV_COL_HARVEST_MECHANISM},'
+        f'{S.CSV_COL_INTERVAL},{S.CSV_COL_STANDARDS}\n'
+        f'{regions[0].name},F,7,12.5,40,Taglio ceduo,Verricello,18,75\n'
     )
 
     parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
@@ -156,6 +156,7 @@ def test_coppice_metadata_imported(regions, eclasses):
     csv_parcels.apply(parsed)
     p = Parcel.objects.get(name='7', region=regions[0])
     assert p.cutting_plan == 'Taglio ceduo'
+    assert p.harvest_mechanism == 'Verricello'
     assert p.intervention_interval == 18
     assert p.standards_per_ha == 75
 

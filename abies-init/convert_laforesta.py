@@ -47,6 +47,7 @@ SURVEY_LUCA_DATE = '2025-12-01'
 PRESSLER_DEFAULT = '2'
 ACTIVE_CREW_YEAR = 2026
 EXTRA_CREWS = ['Zaffino-Santaguida']
+DEFAULT_HARVEST_MECHANISM = 'Strascico con trattori'
 
 # Legacy hard-coded eclass rule: comparti A–E are high forest (fustaia,
 # non-coppice); comparto F is coppice (ceduo).
@@ -121,6 +122,7 @@ COL_GRADE_PCT = 'Pendenza %'
 COL_GEO_DESC = 'Stazione'       # geological station
 COL_VEG_DESC = 'Soprassuolo'    # vegetation description
 COL_CUTTING_PLAN = 'Piano del taglio'
+COL_HARVEST_MECHANISM = 'Sistema di esbosco'
 COL_INTERVAL = 'Intervallo'
 COL_STANDARDS = 'Matricine'
 COL_GRID = 'Griglia'
@@ -352,7 +354,8 @@ def _convert_parcels(parcels: list[dict], out_dir: Path) -> int:
     header = [
         COL_REGION, COL_CLASS, COL_PARCEL, COL_AREA_HA, COL_AVE_AGE, COL_LOCATION,
         COL_ALT_MIN, COL_ALT_MAX, COL_ASPECT, COL_GRADE_PCT, COL_GEO_DESC,
-        COL_VEG_DESC, COL_CUTTING_PLAN, COL_INTERVAL, COL_STANDARDS,
+        COL_VEG_DESC, COL_CUTTING_PLAN, COL_HARVEST_MECHANISM,
+        COL_INTERVAL, COL_STANDARDS,
     ]
     rows = [[_parcel_cell(r, c) for c in header] for r in parcels]
     return _write(out_dir / OUT_PARCELS, header, rows)
@@ -362,6 +365,8 @@ def _parcel_cell(row: dict, col: str) -> str:
     if col in (COL_INTERVAL, COL_STANDARDS):
         if (row.get(COL_CLASS) or '').strip() != COPPICE_COMPARTO:
             return ''
+    if col == COL_HARVEST_MECHANISM:
+        return (row.get(col) or DEFAULT_HARVEST_MECHANISM).strip()
     source = LEGACY_COL_INTERVAL if col == COL_INTERVAL else col
     return (row.get(source) or '').strip()
 

@@ -9,6 +9,7 @@ import {
   CHARACTERISTIC_METRIC_IDS,
   Q_AGE,
   Q_ALTITUDE,
+  Q_AVG_GRADE,
   Q_FUTURE_HARVEST,
   Q_HISTORICAL_HARVEST,
   Q_TYPE,
@@ -20,6 +21,7 @@ export {
   CHARACTERISTIC_METRIC_IDS,
   Q_AGE,
   Q_ALTITUDE,
+  Q_AVG_GRADE,
   Q_FUTURE_HARVEST,
   Q_HISTORICAL_HARVEST,
   Q_TYPE,
@@ -66,6 +68,8 @@ export function buildParcelEntries(digest) {
       descVeg: row[c[S.COL_DESC_VEG]] || '',
       descGeo: row[c[S.COL_DESC_GEO]] || '',
       cuttingPlan: row[c[S.COL_CUTTING_PLAN]] || '',
+      harvestMechanism: row[c[S.COL_HARVEST_MECHANISM]] || '',
+      stumpsPerHa: toNumber(row[c[S.COL_STUMPS_PER_HA]]),
       interventionInterval: toNumber(row[c[S.COL_INTERVENTION_INTERVAL]]),
       standardsPerHa: toNumber(row[c[S.COL_STANDARDS_PER_HA]]),
       altitudeMean: altMin !== null && altMax !== null ? (altMin + altMax) / 2 : null,
@@ -100,6 +104,7 @@ export function metricValue(entry, metricId, { historical = new Map(), future = 
   if (metricId === Q_AGE) value = entry.aveAge;
   else if (metricId === Q_TYPE) return entry.type;
   else if (metricId === Q_ALTITUDE) value = entry.altitudeMean;
+  else if (metricId === Q_AVG_GRADE) value = entry.gradePct;
   else if (metricId === Q_HISTORICAL_HARVEST) value = historical.get(entry.key) || 0;
   else if (metricId === Q_FUTURE_HARVEST) value = future.get(entry.id) || 0;
   if (value == null) return null;

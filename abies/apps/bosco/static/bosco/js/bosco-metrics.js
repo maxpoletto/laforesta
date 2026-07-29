@@ -9,6 +9,7 @@ export const Q_FUTURE_HARVEST = '5';
 export const Q_NDVI = '6';
 export const Q_NDMI = '7';
 export const Q_EVI = '8';
+export const Q_AVG_GRADE = '9';
 
 export const E_NDVI = '1';
 export const E_NDMI = '2';
@@ -19,6 +20,7 @@ export const CHARACTERISTIC_METRICS = {
   [Q_AGE]: { kind: 'continuous', unit: 'a' },
   [Q_TYPE]: { kind: 'type' },
   [Q_ALTITUDE]: { kind: 'continuous', unit: 'm' },
+  [Q_AVG_GRADE]: { kind: 'continuous', unit: '%' },
   [Q_HISTORICAL_HARVEST]: { kind: 'continuous', unit: 'q', harvest: true },
   [Q_FUTURE_HARVEST]: { kind: 'continuous', unit: 'm³', harvest: true },
   [Q_NDVI]: { kind: 'satellite', layer: 'ndvi' },
