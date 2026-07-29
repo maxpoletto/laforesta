@@ -16,7 +16,8 @@ from apps.base.models import (
 from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCEL_DENDROMETRY,
+    COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
+    DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CURRENT_PASSWORD,
     FIELD_DEFAULT_LANDING_PAGE, FIELD_DENSITY, FIELD_EMAIL, FIELD_FIRST_NAME,
@@ -577,6 +578,7 @@ class TestObservationCategories:
         assert category.active is True
         assert resp.json()[PATCHES][0][DATA_ID] == IPSO_REF_OBSERVATION_CATEGORIES
         assert resp.json()[PATCHES][0][RECORD] == [category.id, 'incendio', 40, True]
+        assert DigestStatus.objects.get(name=DIGEST_OBSERVATIONS).stale is True
         assert DigestStatus.objects.get(name='audit').stale is True
 
     def test_save_update(self, admin_client, db):
@@ -597,6 +599,8 @@ class TestObservationCategories:
         assert category.sort_order == 15
         assert category.active is False
         assert category.version == 2
+        assert DigestStatus.objects.get(name=DIGEST_OBSERVATIONS).stale is True
+        assert DigestStatus.objects.get(name='audit').stale is True
 
     def test_duplicate_name_rejected_case_insensitive(self, admin_client, db):
         ObservationCategory.objects.create(name='incendio', sort_order=40)

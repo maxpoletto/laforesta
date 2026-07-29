@@ -34,7 +34,7 @@ from apps.base.models import (
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
-    DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
+    DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
     DIGEST_PARCEL_DENDROMETRY_POINTS,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COMMON_NAME,
     FIELD_COUNTS,
@@ -276,7 +276,7 @@ def observation_categories_save(request):
     return save_model_response(
         request, body, model=ObservationCategory,
         data_id=IPSO_REF_OBSERVATION_CATEGORIES, values=parsed,
-        row_fn=_observation_category_row, stale=('audit',),
+        row_fn=_observation_category_row, stale=(DIGEST_OBSERVATIONS, 'audit'),
         unique_field=FIELD_NAME, unique_value=name,
         unique_error=S.ERR_OBSERVATION_CATEGORY_NAME_DUPLICATE,
         unique_case_insensitive=True,
