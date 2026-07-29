@@ -48,17 +48,17 @@ const digest = {
     { [FIELD_ID]: 13, [FIELD_NAME]: 'incendio' },
     { [FIELD_ID]: 12, [FIELD_NAME]: 'fitosanitario' },
     { [FIELD_ID]: 11, [FIELD_NAME]: 'rifiuti' },
-    { [FIELD_ID]: 10, [FIELD_NAME]: 'viabilità' },
+    { [FIELD_ID]: 10, [FIELD_NAME]: 'viabilità, interna' },
   ],
   [ROWS]: [
     [1, 1, 1, [10, 11], '2026-07-25', 'Frana sul sentiero', 38.5, 16.3, 4,
-      'Mario', 'viabilità, rifiuti', 2],
+      'Mario', ['viabilità, interna', 'rifiuti'], 2],
     [2, 1, 2, [12], '2025-05-10', 'Chioma secca', 38.7, 16.6, '', '',
-      'fitosanitario', 0],
+      ['fitosanitario'], 0],
     [3, 1, 1, [10], '2026-01-03', 'Fuori particella', 39.0, 17.0, 7,
-      'Mario', 'viabilità', 0],
+      'Mario', ['viabilità, interna'], 0],
     [4, 1, null, [11], '2026-01-04', 'Storica in particella', 38.4, 16.2,
-      '', '', 'rifiuti', 0],
+      '', '', ['rifiuti'], 0],
     [5, 1, 1, [], 'bad', 'Ignorata', '', 16.9, '', '', '', 0],
   ],
 };
@@ -79,7 +79,7 @@ assertEqual({
   id: 1,
   regionId: 1,
   categoryIds: [10, 11],
-  categoryNames: ['viabilità', 'rifiuti'],
+  categoryNames: ['viabilità, interna', 'rifiuti'],
   year: 2026,
   text: 'Frana sul sentiero',
   accM: 4,
@@ -109,13 +109,13 @@ assertEqual(categories, [
   { id: 13, name: 'incendio' },
   { id: 12, name: 'fitosanitario' },
   { id: 11, name: 'rifiuti' },
-  { id: 10, name: 'viabilità' },
+  { id: 10, name: 'viabilità, interna' },
 ], 'buildObservationCategories: active categories from digest metadata');
 assertEqual(O.observationCategoryItems(attributed, categories), [
   { id: 12, name: 'fitosanitario', count: 1 },
   { id: 13, name: 'incendio', count: 0 },
   { id: 11, name: 'rifiuti', count: 2 },
-  { id: 10, name: 'viabilità', count: 2 },
+  { id: 10, name: 'viabilità, interna', count: 2 },
 ], 'observationCategoryItems: sorted counts including zero categories');
 assertEqual(O.observationYears(attributed), [2025, 2026], 'observationYears: sorted years');
 assertEqual(O.observationYears([{ year: 2024 }, { year: 2026 }]),

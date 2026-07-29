@@ -399,7 +399,7 @@ class TestGenerateBoscoDigests:
     def test_observations_digest(self, db, parcels, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         cat1 = ObservationCategory.objects.create(name='rifiuti-test', sort_order=20)
-        cat2 = ObservationCategory.objects.create(name='viabilita-test', sort_order=10)
+        cat2 = ObservationCategory.objects.create(name='viabilita, test', sort_order=10)
         obs = Observation.objects.create(
             date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
             region=parcels[0].region, acc_m=4, operator='Mario',
@@ -419,7 +419,7 @@ class TestGenerateBoscoDigests:
             obs.id, obs.version, parcels[0].region_id, [cat2.id, cat1.id],
             '2026-07-25',
             'Frana sul sentiero', 38.5, 16.3, 4, 'Mario',
-            'viabilita-test, rifiuti-test', 1,
+            ['viabilita, test', 'rifiuti-test'], 1,
         ]]
         assert cols == [
             ROW_ID, VERSION, FIELD_REGION_ID, FIELD_CATEGORY_IDS,
@@ -431,7 +431,7 @@ class TestGenerateBoscoDigests:
             row[FIELD_ID]: row[FIELD_NAME] for row in data[FIELD_CATEGORIES]
         }
         assert digest_categories[cat1.id] == 'rifiuti-test'
-        assert digest_categories[cat2.id] == 'viabilita-test'
+        assert digest_categories[cat2.id] == 'viabilita, test'
 
     def test_future_production_active_highforest_only(
             self, parcels, regions, eclasses, tmp_path, settings,

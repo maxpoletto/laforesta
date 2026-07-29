@@ -1290,7 +1290,7 @@ def build_observation_record(observation) -> list:
         key=lambda c: (c.sort_order, c.name, c.id),
     )
     category_ids = [category.id for category in categories]
-    category_names = ', '.join(category.name for category in categories)
+    category_names = [category.name for category in categories]
     return [
         observation.id, observation.version, observation.region_id, category_ids,
         observation.date.isoformat(), observation.text, observation.lat,
