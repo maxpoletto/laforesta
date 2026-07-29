@@ -74,15 +74,21 @@ assertEqual(entries[1].altitudeMean, null, 'buildParcelEntries: missing altitude
 const unorderedParcels = {
   [COLUMNS]: [ROW_ID, VERSION, COL_REGION_ID, S.COL_REGION, S.COL_PARCEL],
   [ROWS]: [
-    [12, 0, 1, 'Capistrano', '10'],
+    [15, 0, 1, 'Capistrano', '10b'],
+    [12, 0, 1, 'Capistrano', '10a'],
     [10, 0, 1, 'Capistrano', '1'],
-    [13, 0, 1, 'Capistrano', '10a'],
-    [11, 0, 1, 'Capistrano', '2'],
+    [16, 0, 1, 'Capistrano', '11'],
+    [11, 0, 1, 'Capistrano', '2a'],
+    [13, 0, 1, 'Capistrano', '3'],
+    [14, 0, 1, 'Capistrano', '9'],
+    [17, 0, 1, 'Capistrano', '2b'],
   ],
 };
-assertEqual(B.buildParcelEntries(unorderedParcels).map(e => e.parcel), ['1', '2', '10', '10a'],
+assertEqual(B.buildParcelEntries(unorderedParcels).map(e => e.parcel),
+            ['1', '2a', '2b', '3', '9', '10a', '10b', '11'],
             'buildParcelEntries: natural parcel sort');
-assertEqual(B.compareParcelNames('10', '2') > 0, true, 'compareParcelNames: numeric chunks');
+assertEqual(B.compareParcelNames('10a', '2b') > 0, true,
+            'compareParcelNames: numeric chunks');
 
 const prelievi = {
   [COLUMNS]: [ROW_ID, S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_QUINTALS],

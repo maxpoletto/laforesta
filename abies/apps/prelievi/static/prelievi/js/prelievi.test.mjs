@@ -410,6 +410,21 @@ eq(calendarData.regions.map(region => [
   region.name, region.parcels.map(parcel => parcel.parcel),
 ]), [['A', ['1', '2']], ['B', ['3']]],
    'buildHarvestCalendar groups parcels by region');
+const unorderedCalendarRows = ['10b', '10a', '1', '11', '2a', '3', '9', '2b'].map((parcel, i) => {
+  const row = [];
+  row[digest.columns.indexOf(S.COL_DATE)] = `2024-01-${String(i + 1).padStart(2, '0')}`;
+  row[digest.columns.indexOf(S.COL_REGION)] = 'Serra';
+  row[digest.columns.indexOf(S.COL_PARCEL)] = parcel;
+  return row;
+});
+const unorderedCalendar = PrelieviCalendar.buildHarvestCalendar(unorderedCalendarRows, {
+  [S.COL_DATE]: digest.columns.indexOf(S.COL_DATE),
+  [S.COL_REGION]: digest.columns.indexOf(S.COL_REGION),
+  [S.COL_PARCEL]: digest.columns.indexOf(S.COL_PARCEL),
+});
+eq(unorderedCalendar.regions[0].parcels.map(parcel => parcel.parcel),
+   ['1', '2a', '2b', '3', '9', '10a', '10b', '11'],
+   'buildHarvestCalendar sorts parcel rows in natural parcel order');
 eq(PrelieviCalendar.calendarSearchText(
   'squadra:zaffino data:2018-01 compresa:Serra particella:1',
   { period: '2019', region: 'Fabrizia', parcel: '14b' },

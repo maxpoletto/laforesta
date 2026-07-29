@@ -17,6 +17,7 @@ import {
   makeNumberParser, parseDecimal, fmtDecimal, fmtCoord, fmtMass,
 } from './format.js';
 import { matchesSearch, searchTerms } from './table.js';
+import { compareNaturalLabels, compareParcelNames } from './natural-sort.js';
 
 let pass = 0;
 const failures = [];
@@ -35,6 +36,20 @@ function eqNum(actual, expected, msg) {
 function eqStr(actual, expected, msg) {
   check(actual === expected, `${msg}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 }
+
+function eqJSON(actual, expected, msg) {
+  const a = JSON.stringify(actual);
+  const e = JSON.stringify(expected);
+  check(a === e, `${msg}: expected ${e}, got ${a}`);
+}
+
+// --- Natural sorting -------------------------------------------------------
+const parcelNames = ['10b', '2b', '1', '11', '2a', '10a', '9', '3'];
+eqJSON([...parcelNames].sort(compareParcelNames),
+       ['1', '2a', '2b', '3', '9', '10a', '10b', '11'],
+       'compareParcelNames orders numeric parcel labels naturally');
+check(compareNaturalLabels('Serra 10', 'Serra 2') > 0,
+      'compareNaturalLabels orders embedded numeric chunks');
 
 // --- Italian: comma is the decimal separator, dot accepted leniently --------
 const it = makeNumberParser('it');

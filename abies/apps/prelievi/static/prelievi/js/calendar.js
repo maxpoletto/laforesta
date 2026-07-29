@@ -4,6 +4,7 @@
 
 import * as S from '../../base/js/strings.js';
 import { monthBucket, yearBucket } from '../../base/js/charts.js';
+import { compareNaturalLabels, compareParcelNames } from '../../base/js/natural-sort.js';
 
 export function buildHarvestCalendar(rows, colMap, byMonth = false) {
   const dateIdx = colMap[S.COL_DATE];
@@ -29,11 +30,11 @@ export function buildHarvestCalendar(rows, colMap, byMonth = false) {
 
   const sortedPeriods = [...periods].sort();
   const regions = [...byRegion.entries()]
-    .sort(([a], [b]) => naturalSort(a, b))
+    .sort(([a], [b]) => compareNaturalLabels(a, b))
     .map(([name, parcels]) => ({
       name,
       parcels: [...parcels.entries()]
-        .sort(([a], [b]) => naturalSort(a, b))
+        .sort(([a], [b]) => compareParcelNames(a, b))
         .map(([parcel, cells]) => ({ parcel, cells })),
     }));
 
@@ -86,8 +87,4 @@ function quoteCriterion(value) {
 
 function cleanLabel(value) {
   return String(value ?? '').trim();
-}
-
-function naturalSort(a, b) {
-  return String(a).localeCompare(String(b), S.LOCALE, { numeric: true });
 }
