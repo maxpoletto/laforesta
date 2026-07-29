@@ -473,6 +473,7 @@ def _audit_configs() -> list:
         }),
         (Observation, S.TABLE_OBSERVATION, {
             'date': S.COL_DATE,
+            'region_id': S.COL_REGION,
             'text': S.COL_TEXT,
             'lat': S.COL_LAT,
             'lon': S.COL_LON,

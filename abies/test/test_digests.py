@@ -805,6 +805,25 @@ class TestGenerateAudit:
         assert any(f'{S.COL_DESC_VEG}: Vegetazione audit' in (r[6] or '')
                    for r in rows)
 
+    def test_observation_audit_includes_region_context(
+            self, parcels, settings, tmp_path):
+        settings.DIGEST_DIR = tmp_path
+        observation = Observation.objects.create(
+            date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
+            region=parcels[0].region,
+        )
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        rows = [r for r in data[ROWS]
+                if r[3] == S.TABLE_OBSERVATION and r[4] == S.AUDIT_INSERT]
+        assert any(
+            f'{S.COL_REGION}: {observation.region}' in (r[6] or '')
+            for r in rows
+        )
+
     def test_domain_model_inserts_appear(self, db, settings, tmp_path):
         """Inserts into formerly-missing domain models surface in the audit."""
         settings.DIGEST_DIR = tmp_path
