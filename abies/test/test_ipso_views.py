@@ -55,6 +55,9 @@ from config.constants import (
 )
 
 
+JPEG_BYTES = b'\xff\xd8\xffphoto-bytes'
+
+
 def _body(resp) -> bytes:
     return b''.join(resp.streaming_content)
 
@@ -704,7 +707,7 @@ def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
 
     resp = _post_multipart_upload(Client(), payload, {
         'photo:photo-1': SimpleUploadedFile(
-            'sentiero.jpg', b'photo-bytes', content_type='image/jpeg',
+            'sentiero.jpg', JPEG_BYTES, content_type='image/jpeg',
         ),
     })
 
@@ -714,13 +717,13 @@ def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
     assert upload.record_count == 1
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
     photo = staged[RECORDS][0][FIELD_PHOTOS][0]
-    assert photo[FIELD_CHECKSUM] == hashlib.sha256(b'photo-bytes').hexdigest()
-    assert photo[FIELD_SIZE_BYTES] == len(b'photo-bytes')
+    assert photo[FIELD_CHECKSUM] == hashlib.sha256(JPEG_BYTES).hexdigest()
+    assert photo[FIELD_SIZE_BYTES] == len(JPEG_BYTES)
     assert photo[FIELD_ORIGINAL_FILENAME] == 'sentiero.jpg'
     staged_photo = (
         Path(upload.inbox_path) / IPSO_UPLOAD_FILE_PHOTOS_DIR / 'photo-1'
     )
-    assert staged_photo.read_bytes() == b'photo-bytes'
+    assert staged_photo.read_bytes() == JPEG_BYTES
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -748,6 +751,37 @@ def test_upload_rejects_observation_missing_photo(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_observation_photo_with_unsafe_content_type(
+        db, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        session_id='76767676-7676-4767-8767-767676767676',
+        record_overrides={
+            FIELD_PHOTOS: [{
+                FIELD_CLIENT_PHOTO_ID: 'photo-1',
+                FIELD_ORIGINAL_FILENAME: 'payload.html',
+            }],
+        },
+    )
+
+    resp = _post_multipart_upload(Client(), payload, {
+        'photo:photo-1': SimpleUploadedFile(
+            'payload.html', b'<script>alert(1)</script>',
+            content_type='text/html',
+        ),
+    })
+
+    assert resp.status_code == 422
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
+    assert resp.json()[DETAIL] == (
+        S.IPSO_ERR_UPLOAD_PHOTO_UNSUPPORTED.format('photo-1')
+    )
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_import_observation_upload_creates_observations_and_photos(
         writer_client, parcels, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -767,7 +801,7 @@ def test_import_observation_upload_creates_observations_and_photos(
     )
     assert _post_multipart_upload(Client(), payload, {
         'photo:photo-1': SimpleUploadedFile(
-            'sentiero.jpg', b'photo-bytes', content_type='image/jpeg',
+            'sentiero.jpg', JPEG_BYTES, content_type='image/jpeg',
         ),
     }).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
@@ -792,9 +826,9 @@ def test_import_observation_upload_creates_observations_and_photos(
     assert list(observation.categories.values_list('name', flat=True)) == ['viabilità']
     photo = ObservationPhoto.objects.get(observation=observation)
     assert photo.content_type == 'image/jpeg'
-    assert photo.size_bytes == len(b'photo-bytes')
+    assert photo.size_bytes == len(JPEG_BYTES)
     assert photo.original_filename == 'sentiero.jpg'
-    assert (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes() == b'photo-bytes'
+    assert (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes() == JPEG_BYTES
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -848,7 +882,7 @@ def test_import_observation_upload_rejects_without_partial_write(
     payload[RECORDS].append(invalid)
     assert _post_multipart_upload(Client(), payload, {
         'photo:photo-1': SimpleUploadedFile(
-            'sentiero.jpg', b'photo-bytes', content_type='image/jpeg',
+            'sentiero.jpg', JPEG_BYTES, content_type='image/jpeg',
         ),
     }).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])

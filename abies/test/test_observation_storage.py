@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from apps.base.observation_storage import (
-    observation_photo_absolute_path, observation_photo_relative_path,
+    normalize_observation_photo_content_type, observation_photo_absolute_path,
+    observation_photo_relative_path, sniff_observation_photo_content_type,
 )
 
 
@@ -43,3 +44,38 @@ def test_observation_photo_absolute_path_rejects_unsafe_relative_paths():
     for path in ('/tmp/photo.jpg', '../photo.jpg', '12/../../photo.jpg'):
         with pytest.raises(ValueError):
             observation_photo_absolute_path(path)
+
+
+def test_normalize_observation_photo_content_type_accepts_matching_rasters():
+    assert normalize_observation_photo_content_type(
+        'image/jpeg', b'\xff\xd8\xffjpeg',
+    ) == 'image/jpeg'
+    assert normalize_observation_photo_content_type(
+        'image/png; charset=binary', b'\x89PNG\r\n\x1a\nrest',
+    ) == 'image/png'
+    assert normalize_observation_photo_content_type(
+        'image/webp', b'RIFF1234WEBPrest',
+    ) == 'image/webp'
+    assert normalize_observation_photo_content_type(
+        'image/gif', b'GIF89arest',
+    ) == 'image/gif'
+    assert normalize_observation_photo_content_type(
+        'image/heic', b'\x00\x00\x00\x18ftypheic\x00\x00\x00\x00heic',
+    ) == 'image/heic'
+
+
+def test_normalize_observation_photo_content_type_rejects_active_content():
+    assert normalize_observation_photo_content_type(
+        'text/html', b'<script>alert(1)</script>',
+    ) is None
+    assert normalize_observation_photo_content_type(
+        'image/svg+xml', b'<svg></svg>',
+    ) is None
+    assert normalize_observation_photo_content_type(
+        'image/jpeg', b'<html></html>',
+    ) is None
+
+
+def test_sniff_observation_photo_content_type_infers_supported_raster():
+    assert sniff_observation_photo_content_type(b'\xff\xd8\xffjpeg') == 'image/jpeg'
+    assert sniff_observation_photo_content_type(b'<html></html>') is None

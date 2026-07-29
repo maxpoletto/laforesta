@@ -16,9 +16,71 @@ _CONTENT_TYPE_EXTENSIONS = {
     'image/heic': '.heic',
     'image/heif': '.heif',
 }
+_CONTENT_TYPE_ALIASES = {
+    'image/jpg': 'image/jpeg',
+}
+_HEIF_BRANDS = {
+    b'heic', b'heix', b'hevc', b'hevx', b'heim', b'heis',
+    b'hevm', b'hevs', b'mif1', b'msf1',
+}
 _FILENAME_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif',
 }
+
+
+def normalize_observation_photo_content_type(
+        content_type: str, content: bytes | None = None,
+) -> str | None:
+    """Return a safe raster content type when the upload is acceptable."""
+    normalized = _normalize_content_type_label(content_type)
+    if normalized not in _CONTENT_TYPE_EXTENSIONS:
+        return None
+    if content is not None and not _content_matches_type(normalized, content):
+        return None
+    return normalized
+
+
+def sniff_observation_photo_content_type(content: bytes) -> str | None:
+    """Infer a supported raster content type from file signatures."""
+    for content_type in _CONTENT_TYPE_EXTENSIONS:
+        if _content_matches_type(content_type, content):
+            return content_type
+    return None
+
+
+def _normalize_content_type_label(content_type: str) -> str:
+    normalized = str(content_type or '').split(';', 1)[0].strip().lower()
+    return _CONTENT_TYPE_ALIASES.get(normalized, normalized)
+
+
+def _content_matches_type(content_type: str, content: bytes) -> bool:
+    if content_type == 'image/jpeg':
+        return content.startswith(b'\xff\xd8\xff')
+    if content_type == 'image/png':
+        return content.startswith(b'\x89PNG\r\n\x1a\n')
+    if content_type == 'image/webp':
+        return (
+            len(content) >= 12
+            and content.startswith(b'RIFF')
+            and content[8:12] == b'WEBP'
+        )
+    if content_type == 'image/gif':
+        return content.startswith((b'GIF87a', b'GIF89a'))
+    if content_type in {'image/heic', 'image/heif'}:
+        return _content_is_heif(content)
+    return False
+
+
+def _content_is_heif(content: bytes) -> bool:
+    if len(content) < 12 or content[4:8] != b'ftyp':
+        return False
+    brands = {content[8:12]}
+    compatible = content[16:40]
+    brands.update(
+        compatible[i:i + 4]
+        for i in range(0, len(compatible) - 3, 4)
+    )
+    return bool(brands & _HEIF_BRANDS)
 
 
 def observation_photo_relative_path(

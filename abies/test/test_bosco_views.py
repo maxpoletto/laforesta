@@ -147,7 +147,8 @@ def test_observation_detail_and_photo_reader_access(
 
     assert resp.status_code == 200
     assert resp['Content-Type'] == 'image/jpeg'
-    assert resp['Cache-Control'] == 'no-cache'
+    assert resp['Cache-Control'] == 'no-store'
+    assert resp['X-Content-Type-Options'] == 'nosniff'
     assert b''.join(resp.streaming_content) == b'jpg'
 
 
@@ -164,6 +165,29 @@ def test_observation_photo_missing_file_404(reader_client, tmp_path, settings):
     resp = reader_client.get(f'/api/bosco/observations/photos/{photo.id}/')
 
     assert resp.status_code == 404
+
+
+def test_observation_photo_unsafe_content_type_downloads_attachment(
+        reader_client, tmp_path, settings):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Frana sul sentiero', lat=38.5, lon=16.3,
+    )
+    photo_path = tmp_path / str(observation.id) / 'payload.html'
+    photo_path.parent.mkdir(parents=True)
+    photo_path.write_text('<script>alert(1)</script>')
+    photo = ObservationPhoto.objects.create(
+        observation=observation, file_path=f'{observation.id}/payload.html',
+        content_type='text/html', size_bytes=25, checksum='b' * 64,
+    )
+
+    resp = reader_client.get(f'/api/bosco/observations/photos/{photo.id}/')
+
+    assert resp.status_code == 200
+    assert resp['Content-Type'] == 'application/octet-stream'
+    assert resp['Content-Disposition'] == 'attachment'
+    assert resp['Cache-Control'] == 'no-store'
+    assert resp['X-Content-Type-Options'] == 'nosniff'
 
 
 @pytest.mark.parametrize('path', [

@@ -23,13 +23,15 @@ from apps.base.digests import (
     build_parcel_record, build_preserved_tree_record, mark_stale, serve_digest,
 )
 from apps.base.http import (
-    CACHE_NO_CACHE, apply_cache_control, conditional_file_response, not_modified_response,
+    CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
+    conditional_file_response, not_modified_response,
 )
 from apps.base.models import (
     Eclass, Observation, ObservationPhoto, Parcel, Region, Sample, Species,
     Survey, Tree, TreeSample, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.observation_storage import normalize_observation_photo_content_type
 from apps.base.preserved_trees import (
     PRESERVED_IMPORT_SURVEY_NAME, latest_preserved_tree_samples,
     next_preserved_number, preserved_number_exists,
@@ -227,10 +229,16 @@ def observation_photo(request, photo_id: int):
         raise Http404 from exc
     if not path.is_file():
         raise Http404
-    return conditional_file_response(
-        request, path, content_type=photo.content_type or 'application/octet-stream',
-        cache_control=CACHE_NO_CACHE,
+    content_type = normalize_observation_photo_content_type(photo.content_type)
+    response = conditional_file_response(
+        request, path,
+        content_type=content_type or 'application/octet-stream',
+        cache_control=CACHE_NO_STORE,
     )
+    response['X-Content-Type-Options'] = 'nosniff'
+    if content_type is None:
+        response['Content-Disposition'] = 'attachment'
+    return response
 
 
 def _observation_photo_metadata(photo: ObservationPhoto) -> dict:

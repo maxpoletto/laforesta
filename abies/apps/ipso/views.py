@@ -44,7 +44,8 @@ from apps.base.models import (
 )
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.observation_storage import (
-    observation_photo_absolute_path, observation_photo_relative_path,
+    normalize_observation_photo_content_type, observation_photo_absolute_path,
+    observation_photo_relative_path, sniff_observation_photo_content_type,
 )
 from apps.base.preserved_trees import latest_preserved_tree_samples
 from apps.base.responses import (
@@ -1582,6 +1583,12 @@ def _staged_observation_photos(
         expected = photo.get(FIELD_CHECKSUM, '')
         if not hmac.compare_digest(checksum, expected):
             return [], S.IPSO_ERR_UPLOAD_PHOTO_CHECKSUM.format(client_photo_id)
+        content_type = normalize_observation_photo_content_type(
+            photo.get(FIELD_CONTENT_TYPE, ''), content,
+        ) or sniff_observation_photo_content_type(content)
+        if content_type is None:
+            return [], S.IPSO_ERR_UPLOAD_PHOTO_UNSUPPORTED.format(client_photo_id)
+        photo[FIELD_CONTENT_TYPE] = content_type
         photos.append((photo, content))
     return photos, None
 
@@ -1760,10 +1767,17 @@ def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
         uploaded = uploaded_files[0]
         content = b''.join(uploaded.chunks())
         checksum = hashlib.sha256(content).hexdigest()
+        content_type = normalize_observation_photo_content_type(
+            uploaded.content_type or '', content,
+        )
+        if content_type is None:
+            raise UploadValidationError(
+                S.IPSO_ERR_UPLOAD_PHOTO_UNSUPPORTED.format(client_photo_id)
+            )
         files[client_photo_id] = {
             'content': content,
             FIELD_CHECKSUM: checksum,
-            FIELD_CONTENT_TYPE: uploaded.content_type or '',
+            FIELD_CONTENT_TYPE: content_type,
             FIELD_ORIGINAL_FILENAME: uploaded.name or '',
             FIELD_SIZE_BYTES: len(content),
         }
@@ -2022,9 +2036,7 @@ def _attach_photo_files(
                     S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format(client_photo_id)
                 )
             photo[FIELD_CHECKSUM] = info[FIELD_CHECKSUM]
-            photo[FIELD_CONTENT_TYPE] = (
-                photo.get(FIELD_CONTENT_TYPE) or info[FIELD_CONTENT_TYPE]
-            )
+            photo[FIELD_CONTENT_TYPE] = info[FIELD_CONTENT_TYPE]
             photo[FIELD_ORIGINAL_FILENAME] = (
                 photo.get(FIELD_ORIGINAL_FILENAME) or info[FIELD_ORIGINAL_FILENAME]
             )
