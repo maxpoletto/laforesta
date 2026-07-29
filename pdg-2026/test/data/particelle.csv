@@ -1,7 +1,7 @@
-Compresa,Particella,CP,Area (ha),Comparto,Governo,Età media,Località,Altitudine min,Altitudine max,Esposizione,Pendenza %,Stazione,Soprassuolo,Piano del taglio,Note
-Test,A,Test-A,10.0,A,Fustaia,60,Loc A,800,900,N,10,Stazione A,Fustaia di test,Taglio A,
-Test,B,Test-B,10.0,A,Fustaia,70,Loc B,850,950,E,15,Stazione B,Fustaia di test,Taglio B,
-Test,C,Test-C,10.0,A,Fustaia,80,Loc C,900,1000,S,20,Stazione C,Fustaia di test,Taglio C,
-Test,D,Test-D,10.0,A,Fustaia,20,Loc D,750,850,W,12,Stazione D,Fustaia di test,Taglio D,
-Test,E,Test-E,10.0,A,Fustaia,45,Loc E,780,880,NE,18,Stazione E,Fustaia di test,Taglio E,
-Test,F,Test-F,8.0,F,Ceduo,15,Loc F,700,800,N,10,Stazione F,Ceduo di castagno,Taglio ceduo,
+Compresa,Particella,CP,Area (ha),Comparto,Governo,Età media,Località,Altitudine min,Altitudine max,Esposizione,Pendenza %,Stazione,Soprassuolo,Piano del taglio,Sistema di esbosco,Note
+Test,A,Test-A,10.0,A,Fustaia,60,Loc A,800,900,N,10,Stazione A,Fustaia di test,Taglio A,Strascico con trattori.,
+Test,B,Test-B,10.0,A,Fustaia,70,Loc B,850,950,E,15,Stazione B,Fustaia di test,Taglio B,Strascico con trattori.,
+Test,C,Test-C,10.0,A,Fustaia,80,Loc C,900,1000,S,20,Stazione C,Fustaia di test,Taglio C,Strascico con trattori.,
+Test,D,Test-D,10.0,A,Fustaia,20,Loc D,750,850,W,12,Stazione D,Fustaia di test,Taglio D,Strascico con trattori.,
+Test,E,Test-E,10.0,A,Fustaia,45,Loc E,780,880,NE,18,Stazione E,Fustaia di test,Taglio E,Strascico con trattori.,
+Test,F,Test-F,8.0,F,Ceduo,15,Loc F,700,800,N,10,Stazione F,Ceduo di castagno,Taglio ceduo,Strascico con trattori.,

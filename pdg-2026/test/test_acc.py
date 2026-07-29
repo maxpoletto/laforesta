@@ -64,7 +64,7 @@ from pdg.core import (
     plan_events, plan_cache,
     calculate_volumes, calculate_stock_table, calculate_harvest_table,
     calculate_harvest_plan, calculate_diameter_class_data,
-    calculate_stumps, render_prop_coppice,
+    calculate_stumps, render_prop, render_prop_coppice,
     ROW_TOTAL,
 )
 from pdg.formatters import HTMLSnippetFormatter
@@ -2262,6 +2262,23 @@ class TestCoppiceProp:
             particelle_df, 'Test', 'F', no_coppice, HTMLSnippetFormatter())
         assert 'Ceduo' in result.snippet
         assert 'Ceppaie' not in result.snippet
+
+    def test_render_prop_includes_sistema_esbosco(self, particelle_df,
+                                                  clear_caches):
+        """The extraction system appears after the harvest plan."""
+        result = render_prop(particelle_df, 'Test', 'A', HTMLSnippetFormatter())
+        assert 'Sistema di esbosco' in result.snippet
+        assert 'Strascico con trattori' in result.snippet
+        assert (result.snippet.index('Piano del taglio')
+                < result.snippet.index('Sistema di esbosco'))
+
+    def test_render_prop_coppice_includes_sistema_esbosco(self, particelle_df,
+                                                          clear_caches):
+        """Coppice parcels carry the same field."""
+        ceduo_df = load_trees(["alberi.csv"], TEST_DATA_DIR, ceduo=True)
+        result = render_prop_coppice(
+            particelle_df, 'Test', 'F', ceduo_df, HTMLSnippetFormatter())
+        assert 'Sistema di esbosco' in result.snippet
 
     def test_render_prop_coppice_missing_parcel_raises(self, particelle_df,
                                                        clear_caches):

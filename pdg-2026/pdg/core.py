@@ -15,6 +15,7 @@ from pdg.computation import (
     COL_CD_CM, COL_SCALE, COL_AREA_SAGGIO, COL_PRESSLER, COL_L10_MM,
     COL_AREA_PARCEL, COL_COMPARTO, COL_GOVERNO, GOV_FUSTAIA, GOV_CEDUO,
     COL_ESPOSIZIONE, COL_STAZIONE, COL_SOPRASSUOLO, COL_PIANO_TAGLIO,
+    COL_SISTEMA_ESBOSCO,
     COL_ALT_MIN, COL_ALT_MAX, COL_LOCALITA, COL_ETA_MEDIA,
     GROUP_COLS_ALIGN,
     ParcelData, ParcelStats,
@@ -661,6 +662,7 @@ def _prop_fields(row: pd.Series) -> tuple[list, list]:
         (COL_STAZIONE, row[COL_STAZIONE]),
         (COL_SOPRASSUOLO, row[COL_SOPRASSUOLO]),
         (COL_PIANO_TAGLIO, row[COL_PIANO_TAGLIO]),
+        (COL_SISTEMA_ESBOSCO, row[COL_SISTEMA_ESBOSCO]),
     ]
     return short_fields, paragraph_fields
 
