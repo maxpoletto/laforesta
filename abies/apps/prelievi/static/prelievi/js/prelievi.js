@@ -90,7 +90,7 @@ const sections = {
     render: () => _renderSummarySection(),
   },
   b: {
-    open: false, dirty: true,
+    open: false, dirty: true, byMonth: false,
     header: null, body: null, host: null,
     render: () => _renderCalendarSection(),
   },
@@ -285,6 +285,7 @@ function readParams(params) {
     b: params.b || 'total',
     pb: params.pb || 'total',
     m: params.m === '1',
+    cm: params.cm === '1',
   };
 }
 
@@ -354,6 +355,14 @@ function applyParams(params) {
     }
   }
 
+  const bSection = sections.b;
+  if (bSection.body && bSection.byMonth !== p.cm) {
+    bSection.byMonth = p.cm;
+    const cb = bSection.body.querySelector('[data-role="calendar-month-toggle"]');
+    if (cb) cb.checked = p.cm;
+    bSection.dirty = true;
+  }
+
   if (table) table.setExternalFilter(pageFilter());
   _updateCharts();
 
@@ -395,6 +404,7 @@ function syncURL() {
   if (sections.a.yearBreakdown !== 'total') params.set('b', sections.a.yearBreakdown);
   if (sections.a.parcelBreakdown !== 'total') params.set('pb', sections.a.parcelBreakdown);
   if (sections.a.byMonth) params.set('m', '1');
+  if (sections.b.byMonth) params.set('cm', '1');
 
   navigateWithParams(PAGE_PATH, params);
 }
@@ -498,7 +508,7 @@ function _renderCalendarSection() {
   const s = sections.b;
   if (!s.host) return;
   s.host.replaceChildren();
-  const calendar = buildHarvestCalendar(_getFilteredRows(), colMap);
+  const calendar = buildHarvestCalendar(_getFilteredRows(), colMap, s.byMonth);
   if (!calendar.periods.length || !calendar.regions.length) {
     const empty = document.createElement('p');
     empty.className = 'prelievi-calendar-empty';
@@ -633,6 +643,7 @@ function buildPage(el, data, p) {
   sections.a.yearBreakdown = p.b;
   sections.a.parcelBreakdown = p.pb;
   sections.a.byMonth = p.m;
+  sections.b.byMonth = p.cm;
   for (const key of SECTION_KEYS) {
     const s = sections[key];
     s.open = p.o.includes(key);
@@ -677,6 +688,15 @@ function buildPage(el, data, p) {
     monthCb.addEventListener('change', () => {
       a.byMonth = monthCb.checked;
       a.render();
+      syncURL();
+    });
+  }
+  const calendarMonthCb = el.querySelector('[data-role="calendar-month-toggle"]');
+  if (calendarMonthCb) {
+    calendarMonthCb.checked = sections.b.byMonth;
+    calendarMonthCb.addEventListener('change', () => {
+      sections.b.byMonth = calendarMonthCb.checked;
+      sections.b.render();
       syncURL();
     });
   }

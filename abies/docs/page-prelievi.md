@@ -11,21 +11,23 @@ standard dark-green 4px rule:
 
 1. **Riassunto** — two stacked bar charts:
    - **Per Anno**, with total quintals over time. It has a pull-down selector
-     for the breakdown dimension (Totale / Compresa / Particella / Squadra /
-     Specie / Trattore / Tipo) and a "mesi" checkbox that toggles between
+     for the breakdown dimension: (Totale), Compresa, Particella, Squadra,
+     Specie, Trattore, Tipo. It also has a "Per mese" checkbox that toggles between
      year-granularity and month-granularity buckets.
    - **Per Particella**, with `<compresa>/<particella>` on the x-axis, sorted
-     by total. It has a pull-down selector for Totale / Squadra / Specie /
-     Trattore / Tipo.
+     by total. It has a pull-down selector for (Totale), Squadra, Specie,
+     Trattore, Tipo.
    When a chart category count exceeds 12, the tail is collapsed into an
    "Altro" series.
 2. **Calendario** — a CDT-style grid with parcels on the y-axis, grouped by
-   compresa, and harvest months (`YYYY-MM`) on the x-axis. A dark-green cell
-   marks every parcel/month combination with at least one harvest row in the
-   currently filtered dataset. Clicking a populated cell writes a filter such
-   as `2019-06 Compresa:Fabrizia Particella:14b` into the search box, further
-   restricting the charts, calendar, and table to that month and parcel while
-   preserving unrelated search terms such as `squadra:zaffino`.
+   compresa, and harvest years (`YYYY`) on the x-axis by default. A "Per mese"
+   checkbox switches the x-axis to harvest months (`YYYY-MM`). A dark-green
+   cell marks every parcel/period combination with at least one harvest row in
+   the currently filtered dataset. Clicking a populated cell writes a column
+   filter such as `data:2019 compresa:Fabrizia particella:14b` or
+   `data:2019-06 compresa:Fabrizia particella:14b` into the search box,
+   further restricting the charts, calendar, and table to that period and
+   parcel while preserving unrelated search terms such as `squadra:zaffino`.
 3. **Interventi** — harvest-operations in a sortable-table, as in UI Design
    Patterns > Tabular Data.
 
@@ -113,6 +115,7 @@ Bottom-of-form button layout.
   - Per Particella chart breakdown: `pb=total|squadra|specie|trattore|tipo`
     (absent = `total`).
   - Per Anno chart monthly granularity: `m=1` (absent = year granularity).
+  - Calendar monthly granularity: `cm=1` (absent = year granularity).
 
 ## Data tables
 

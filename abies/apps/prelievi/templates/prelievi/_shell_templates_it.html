@@ -36,7 +36,7 @@ render context.
         <h2 class="prelievi-chart-title">{{ S.PRELIEVI_CHART_BY_YEAR }}</h2>
         <div class="chart-controls">
           <select data-role="year-breakdown-select">
-            <option value="total">{{ S.CHART_TOTAL }}</option>
+            <option value="total">{{ S.CHART_TOTAL_OPTION }}</option>
             <option value="compresa">{{ S.COL_REGION }}</option>
             <option value="particella">{{ S.COL_PARCEL }}</option>
             <option value="squadra">{{ S.COL_CREW }}</option>
@@ -54,7 +54,7 @@ render context.
         <h2 class="prelievi-chart-title">{{ S.PRELIEVI_CHART_BY_PARCEL }}</h2>
         <div class="chart-controls">
           <select data-role="parcel-breakdown-select">
-            <option value="total">{{ S.CHART_TOTAL }}</option>
+            <option value="total">{{ S.CHART_TOTAL_OPTION }}</option>
             <option value="squadra">{{ S.COL_CREW }}</option>
             <option value="specie">{{ S.COL_SPECIES }}</option>
             <option value="trattore">{{ S.LABEL_TRACTOR_NAME }}</option>
@@ -68,6 +68,11 @@ render context.
 
   {% include "base/_partials/_collapsible_header.html" with section="b" title=S.PRELIEVI_SECTION_CALENDAR %}
   <div class="collapsible-body" data-section="b">
+    <div class="chart-controls">
+      <label class="chart-month-toggle">
+        <input type="checkbox" data-role="calendar-month-toggle"> {{ S.PRELIEVI_CHART_MONTHS }}
+      </label>
+    </div>
     <div class="prelievi-calendar-wrap" data-target="calendar-host"></div>
   </div>
 

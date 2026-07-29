@@ -217,6 +217,9 @@ function buildPrelieviTemplate() {
   frag.append(ha, ba);
 
   const [hb, bb] = section('b');
+  bb.appendChild(el('label', { className: 'chart-month-toggle' }, [
+    el('input', { dataset: { role: 'calendar-month-toggle' }, type: 'checkbox' }),
+  ]));
   bb.appendChild(el('div', { className: 'prelievi-calendar-wrap', dataset: { target: 'calendar-host' } }));
   frag.append(hb, bb);
 
@@ -394,16 +397,23 @@ const calendarData = PrelieviCalendar.buildHarvestCalendar(digest.rows, {
   [S.COL_REGION]: digest.columns.indexOf(S.COL_REGION),
   [S.COL_PARCEL]: digest.columns.indexOf(S.COL_PARCEL),
 });
-eq(calendarData.periods, ['2020-03', '2021-04', '2022-05'],
-   'buildHarvestCalendar uses monthly buckets from filtered harvest rows');
+eq(calendarData.periods, ['2020', '2021', '2022'],
+   'buildHarvestCalendar defaults to yearly buckets from filtered harvest rows');
+const calendarMonthData = PrelieviCalendar.buildHarvestCalendar(digest.rows, {
+  [S.COL_DATE]: digest.columns.indexOf(S.COL_DATE),
+  [S.COL_REGION]: digest.columns.indexOf(S.COL_REGION),
+  [S.COL_PARCEL]: digest.columns.indexOf(S.COL_PARCEL),
+}, true);
+eq(calendarMonthData.periods, ['2020-03', '2021-04', '2022-05'],
+   'buildHarvestCalendar supports monthly buckets when requested');
 eq(calendarData.regions.map(region => [
   region.name, region.parcels.map(parcel => parcel.parcel),
 ]), [['A', ['1', '2']], ['B', ['3']]],
    'buildHarvestCalendar groups parcels by region');
 eq(PrelieviCalendar.calendarSearchText(
-  'squadra:zaffino 2018-01 Compresa:Serra Particella:1',
-  { period: '2019-06', region: 'Fabrizia', parcel: '14b' },
-), 'squadra:zaffino 2019-06 Compresa:Fabrizia Particella:14b',
+  'squadra:zaffino data:2018-01 compresa:Serra particella:1',
+  { period: '2019', region: 'Fabrizia', parcel: '14b' },
+), 'squadra:zaffino data:2019 compresa:Fabrizia particella:14b',
    'calendarSearchText replaces prior calendar filters and preserves other terms');
 
 let prelieviDigest = digest;
@@ -533,12 +543,30 @@ eq(filteredIds(), [1, 2, 3], 'invalid URL filter ids are ignored');
 
 prelievi.onQueryChange({ o: 'b' });
 let activeCalendarCells = contentEl.querySelectorAll('.prelievi-calendar-cell.active');
-eq(activeCalendarCells.map(cell => cell.dataset.period), ['2020-03', '2021-04', '2022-05'],
-   'calendar section renders one active month cell per filtered harvest');
-activeCalendarCells.find(cell => cell.dataset.period === '2021-04').click();
-eq(filteredIds(), [2],
-   'clicking a calendar cell filters the table by month, region, and parcel');
+eq(activeCalendarCells.map(cell => cell.dataset.period), ['2020', '2021', '2022'],
+   'calendar section renders yearly cells by default');
+let calendarToggle = contentEl.querySelectorAll('input')
+  .find(input => input.dataset.role === 'calendar-month-toggle');
+eq(calendarToggle.checked, false,
+   'calendar month toggle defaults to yearly granularity');
 
+prelievi.onQueryChange({ o: 'b', cm: '1' });
+calendarToggle = contentEl.querySelectorAll('input')
+  .find(input => input.dataset.role === 'calendar-month-toggle');
+eq(calendarToggle.checked, true,
+   'calendar month toggle reflects cm=1');
+activeCalendarCells = contentEl.querySelectorAll('.prelievi-calendar-cell.active');
+eq(activeCalendarCells.map(cell => cell.dataset.period), ['2020-03', '2021-04', '2022-05'],
+   'calendar section renders monthly cells when cm=1');
+
+prelievi.onQueryChange({ o: 'b' });
+activeCalendarCells = contentEl.querySelectorAll('.prelievi-calendar-cell.active');
+activeCalendarCells.find(cell => cell.dataset.period === '2021').click();
+eq(filteredIds(), [2],
+   'clicking a calendar cell filters the table by year, region, and parcel');
+eq(new URLSearchParams(location.search).get('f'),
+   'data:2021 compresa:A particella:2',
+   'calendar cell click writes data, region, and parcel terms to the URL search');
 prelievi.onQueryChange({ o: 'a', pb: 'specie' });
 eq(chartInstances.at(-1).data.datasets.map(d => d.label), ['Abete', 'Abete Rosso'],
    'per-parcel species chart excludes tractor columns');

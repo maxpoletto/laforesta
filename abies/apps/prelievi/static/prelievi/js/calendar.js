@@ -3,17 +3,18 @@
  */
 
 import * as S from '../../base/js/strings.js';
-import { monthBucket } from '../../base/js/charts.js';
+import { monthBucket, yearBucket } from '../../base/js/charts.js';
 
-export function buildHarvestCalendar(rows, colMap) {
+export function buildHarvestCalendar(rows, colMap, byMonth = false) {
   const dateIdx = colMap[S.COL_DATE];
   const regionIdx = colMap[S.COL_REGION];
   const parcelIdx = colMap[S.COL_PARCEL];
+  const bucket = byMonth ? monthBucket : yearBucket;
   const periods = new Set();
   const byRegion = new Map();
 
   for (const row of rows || []) {
-    const period = monthBucket(row?.[dateIdx]);
+    const period = bucket(row?.[dateIdx]);
     const region = cleanLabel(row?.[regionIdx]);
     const parcel = cleanLabel(row?.[parcelIdx]);
     if (!period || !region || !parcel) continue;
@@ -43,7 +44,7 @@ export function calendarSearchText(current, { period, region, parcel }) {
   const base = displaySearchTerms(current).filter(term => !isCalendarFilterTerm(term));
   return [
     ...base,
-    period,
+    columnTerm(S.COL_DATE, period),
     columnTerm(S.COL_REGION, region),
     columnTerm(S.COL_PARCEL, parcel),
   ].filter(Boolean).join(' ');
@@ -69,13 +70,13 @@ function displaySearchTerms(text) {
 
 function isCalendarFilterTerm(term) {
   const clean = String(term || '').trim().toLowerCase();
-  return /^\d{4}(?:-\d{2})?$/.test(clean)
+  return clean.startsWith(`${S.COL_DATE.toLowerCase()}:`)
     || clean.startsWith(`${S.COL_REGION.toLowerCase()}:`)
     || clean.startsWith(`${S.COL_PARCEL.toLowerCase()}:`);
 }
 
 function columnTerm(column, value) {
-  return `${column}:${quoteCriterion(value)}`;
+  return `${column.toLowerCase()}:${quoteCriterion(value)}`;
 }
 
 function quoteCriterion(value) {

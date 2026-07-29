@@ -751,13 +751,18 @@ COL_WORKSITE = 'Cantiere'
 APP_BASE = 'Base'
 APP_PRELIEVI = 'Prelievi'
 
+# Shared chart labels.
+CHART_TOTAL = 'Totale'
+CHART_TOTAL_OPTION = '(Totale)'
+CHART_OTHER = 'Altro'
+
 # Prelievi page sections/charts.
 PRELIEVI_SECTION_SUMMARY = 'Riassunto'
 PRELIEVI_SECTION_CALENDAR = 'Calendario'
 PRELIEVI_SECTION_HARVESTS = 'Interventi'
 PRELIEVI_CHART_BY_YEAR = 'Per Anno'
 PRELIEVI_CHART_BY_PARCEL = 'Per Particella'
-PRELIEVI_CHART_MONTHS = 'Mesi'
+PRELIEVI_CHART_MONTHS = 'Per mese'
 PRELIEVI_RESET_FILTERS = 'Azzera filtri'
 APP_SQUADRE = 'Squadre'
 APP_BOSCO = 'Bosco'
