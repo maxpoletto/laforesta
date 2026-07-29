@@ -26,7 +26,7 @@
 
 \newif\ifincludesections \includesectionstrue
 \newcommand{\maybeinput}[1]{\ifincludesections \input{#1} \fi}
-\newcommand{\pubdate}{27.07.2026}
+\newcommand{\pubdate}{03.08.2026}
 \begin{document}
 
 \begin{titlepage}
@@ -161,7 +161,9 @@ Il prelievo massimo volumetrico è quindi dato dalla seguente tabella:
     \end{tabular}
 \end{center}
 
-Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una determinata percentuale dell'area basimetrica, $g$, secondo la seguente tabella:
+Nelle fustaie fino a 60 anni di età, dove si opera con tagli intercalari e
+sfollamenti, il prelievo è limitato dall'area basimetrica $g$, secondo la
+seguente tabella:
 
 \begin{center}
     \small
@@ -175,18 +177,50 @@ Inoltre, per fustaie fino a 60 anni di età, il prelievo non può superare una d
     \end{tabular}
 \end{center}
 
-Per ottemperare a questi duplici requisiti, si procede con una simulazione albero per albero basata sulle piante campionate. Per ogni particella~$p$ di area $a$~(ha):
+Le prescrizioni regionali non chiariscono esplicitamente se i due limiti debbano
+intendersi cumulativi o alternativi. La differenza è rilevante solo nelle
+fustaie giovani: in questi soprassuoli la provvigione è spesso inferiore al
+minimo di classe, e una lettura cumulativa precluderebbe ogni intervento, mentre
+sfollamenti e diradamenti sono necessari per indirizzare la selezione verso i
+soggetti meglio conformati (sezione~\ref{sec:metodo}). Si è pertanto adottata la
+lettura alternativa, applicando in questi casi il solo limite di area
+basimetrica, che resta osservato integralmente.
+
+Nel presente piano ricadono in questa condizione le particelle Fabrizia 11c e
+Capistrano 12b, 13, 15, 16b e 17b, le cui provvigioni sono riportate nella
+sezione~\ref{sec:provvigione}.
+
+Per ottemperare ai requisiti appena illustrati, si procede con una simulazione
+albero per albero basata sulle piante campionate. Per ogni particella~$p$ di
+area $a$~(ha):
 
 \begin{enumerate}
-\item Si calcola il volume totale $v$ (m$^3$) delle piante mature (vedere sezione~\ref{sec:note-volumi}) e l'area basimetrica totale $g$ (m$^2$) delle stesse.
+\item Si calcola il volume totale $v$ (m$^3$) delle piante mature (vedere
+sezione~\ref{sec:note-volumi}) e l'area basimetrica totale $g$ (m$^2$) delle
+stesse.
 
-\item In base alla classe economica di $p$ e alla provvigione $v/a$, dalle prime due tabelle sopra si ricava il prelievo massimo percentuale $pp_{\max}$, e si pone il prelievo massimo assoluto $V_{\max} = v \cdot pp_{\max}/100$.
+\item In base alla classe economica di $p$ e alla provvigione $v/a$, dalle prime
+due tabelle sopra si ricava il prelievo massimo percentuale $pp_{\max}$, e si
+pone il prelievo massimo assoluto $V_{\max} = v \cdot pp_{\max}/100$. Per le
+fustaie di età media inferiore a 60 anni, il limite volumetrico non si applica:
+si pone quindi $V_{\max} = \infty$.
 
-\item In base all'età media di $p$, dalla terza tabella si ricava il limite percentuale di area basimetrica $gp_{\max}$, e si pone il limite assoluto $G_{\max} = g \cdot gp_{\max}/100$.
+\item In base all'età media di $p$, dalla terza tabella si ricava il limite
+percentuale di area basimetrica $gp_{\max}$, e si pone il limite assoluto
+$G_{\max} = g \cdot gp_{\max}/100$. Per le particelle di età media pari o
+superiore a 60 anni il limite di area basimetrica non si applica: si pone quindi
+$G_{\max} = \infty$.
 
-\item Le piante mature campionate si ordinano per classe diametrica crescente (dai 20~cm in su), in modo da simulare un taglio colturale dal basso volto a rafforzare le piante di maggiori dimensioni.
+\item Le piante mature campionate si ordinano per classe diametrica crescente
+(dai 20~cm in su), in modo da simulare un taglio colturale dal basso volto a
+rafforzare le piante di maggiori dimensioni.
 
-\item Si scorrono le piante nell'ordine stabilito, accumulando il volume e l'area basimetrica (scalati per $s$, come sopra nella sezione~\ref{sec:note-volumi}) di ciascun albero $b$. Per ogni albero $b$, se l'aggiunta di $b$ non farebbe superare né $V_{\max}$ né $G_{\max}$, lo si include nel prelievo; altrimenti la simulazione si arresta. Il volume accumulato al termine costituisce il prelievo massimo per la particella.
+\item Si scorrono le piante nell'ordine stabilito, accumulando il volume e
+l'area basimetrica (scalati per $s$, come sopra nella
+sezione~\ref{sec:note-volumi}) di ciascun albero $b$. Per ogni albero $b$, se
+l'aggiunta di $b$ non farebbe superare né $V_{\max}$ né $G_{\max}$, lo si
+include nel prelievo; altrimenti la simulazione si arresta. Il volume accumulato
+al termine costituisce il prelievo massimo per la particella.
 \end{enumerate}
 
 \subsection{Calcolo degli incrementi}
@@ -265,6 +299,7 @@ La simulazione richiede i seguenti parametri:
 \item un \emph{volume obiettivo} annuo $V_o$ (m$^3$), che rappresenta il prelievo complessivo desiderato dall'azienda in un dato anno, sempre che le condizioni di produttività del bosco lo permettano;
 \item un \emph{intervallo minimo} $t$ (anni) tra due interventi successivi sulla stessa particella;
 \item un tasso di \emph{mortalità} annuo $m$ (\%), applicato uniformemente a tutte le piante. In assenza di precisi dati stazionali, si adotta un tasso del 1\%~\cite{lacasia:2025}.
+\item un \emph{coefficiente di prudenza} $c$ (\%), che riduce cautelativamente i limiti di prelievo ricavati secondo la sezione~\ref{sec:note-ripresa}: i limiti effettivamente applicati nella simulazione sono $V_{\max}\cdot c/100$ e $G_{\max}\cdot c/100$. Nel presente piano si adotta $c = 80\%$.
 \end{itemize}
 
 \subsubsection{Tabella di crescita}
@@ -279,7 +314,7 @@ Per ogni anno dell'orizzonte di simulazione:
     \item \textbf{Selezione e taglio.} Per ciascuna particella, nell'ordine stabilito:
     \begin{itemize}
         \item Se l'ultimo intervento è avvenuto meno di $t$ anni prima, la particella viene esclusa.
-        \item Altrimenti, si simula un taglio colturale dal basso secondo le regole descritte nella sezione~\ref{sec:note-ripresa}, applicando i medesimi vincoli di volume e area basimetrica. Gli alberi prelevati vengono rimossi dalla simulazione.
+        \item Altrimenti, si simula un taglio colturale dal basso secondo le regole descritte nella sezione~\ref{sec:note-ripresa}. Gli alberi prelevati vengono rimossi dalla simulazione.
         \item Il volume prelevato si accumula nel totale annuo; quando questo raggiunge $V_o$, non si interviene in ulteriori particelle nell'anno corrente.
     \end{itemize}
 
