@@ -69,15 +69,16 @@ def max_harvest(comparto: str, eta_media: int,
     return 0.0, 0.0
 
 
-# Harvest rule sets selectable from the command line.  'entrambi' applies both
-# the volume and basal-area limits to young stands; 'area' applies only the
-# basal-area limit.  Module-level singletons, so pdg.core.plan_events can key
-# its cache on the rules object.
-LIMITI_GIOVANI_ENTRAMBI = 'entrambi'
+# Harvest rule sets selectable from the command line.  'area_volume' applies
+# both the volume and basal-area limits to young stands; 'area' applies only
+# the basal-area limit.  Module-level singletons, so pdg.core.plan_events can
+# key its cache on the rules object.
+LIMITI_GIOVANI_AREA_VOLUME = 'area_volume'
 LIMITI_GIOVANI_AREA = 'area'
+LIMITI_GIOVANI_DEFAULT = LIMITI_GIOVANI_AREA
 
 RULE_SETS: dict[str, HarvestRulesFunc] = {
-    LIMITI_GIOVANI_ENTRAMBI: max_harvest,
+    LIMITI_GIOVANI_AREA_VOLUME: max_harvest,
     LIMITI_GIOVANI_AREA: partial(max_harvest, giovani_solo_area=True),
 }
 

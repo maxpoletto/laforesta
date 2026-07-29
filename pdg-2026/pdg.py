@@ -16,7 +16,7 @@ from natsort import natsort_keygen
 import pandas as pd
 
 from pdg.harvest_rules import (
-    LIMITI_GIOVANI_ENTRAMBI, RULE_SETS, HarvestRulesFunc, max_harvest,
+    LIMITI_GIOVANI_DEFAULT, RULE_SETS, HarvestRulesFunc, max_harvest,
 )
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_GENERE,
@@ -847,10 +847,10 @@ Modalità di utilizzo:
                            default='virgola',
                            help='Separatore decimale: punto (default) o virgola')
     opt_group.add_argument('--limiti-giovani', choices=sorted(RULE_SETS),
-                           default=LIMITI_GIOVANI_ENTRAMBI,
+                           default=LIMITI_GIOVANI_DEFAULT,
                            help='Limiti di prelievo per le fustaie sotto i 60 anni: '
-                                "'entrambi' (provvigione e area basimetrica, default) "
-                                "oppure 'area' (solo area basimetrica). "
+                                "'area' (solo area basimetrica, default) oppure "
+                                "'area_volume' (area basimetrica e provvigione). "
                                 'Le fustaie più vecchie seguono i limiti di '
                                 'provvigione in entrambi i casi.')
 

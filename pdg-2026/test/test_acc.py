@@ -1163,15 +1163,23 @@ class TestLimitiGiovaniArea:
     def test_rule_sets_registry(self):
         """The command-line flag values map to callable rule sets."""
         from pdg.harvest_rules import (
-            LIMITI_GIOVANI_AREA, LIMITI_GIOVANI_ENTRAMBI, RULE_SETS,
-            max_harvest,
+            LIMITI_GIOVANI_AREA, LIMITI_GIOVANI_AREA_VOLUME,
+            LIMITI_GIOVANI_DEFAULT, RULE_SETS, max_harvest,
         )
-        assert RULE_SETS[LIMITI_GIOVANI_ENTRAMBI] is max_harvest
-        entrambi = RULE_SETS[LIMITI_GIOVANI_ENTRAMBI]('A', 45, 300.0, 25.0)
+        assert RULE_SETS[LIMITI_GIOVANI_AREA_VOLUME] is max_harvest
+        both = RULE_SETS[LIMITI_GIOVANI_AREA_VOLUME]('A', 45, 300.0, 25.0)
         area = RULE_SETS[LIMITI_GIOVANI_AREA]('A', 45, 300.0, 25.0)
-        assert entrambi[0] == 0.0
+        assert both[0] == 0.0
         assert area[0] == math.inf
-        assert np.isclose(entrambi[1], area[1])
+        assert np.isclose(both[1], area[1])
+
+    def test_default_rule_set_is_area_only(self):
+        """The command line defaults to the basal-area-only rules."""
+        from pdg.harvest_rules import (
+            LIMITI_GIOVANI_AREA, LIMITI_GIOVANI_DEFAULT, RULE_SETS,
+        )
+        assert LIMITI_GIOVANI_DEFAULT == LIMITI_GIOVANI_AREA
+        assert RULE_SETS[LIMITI_GIOVANI_DEFAULT]('A', 45, 300.0, 25.0)[0] == math.inf
 
 
 def _harvest_stats(area_ha=1.0, sf=1.0):
