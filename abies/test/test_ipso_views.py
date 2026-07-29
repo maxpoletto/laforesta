@@ -822,6 +822,56 @@ def test_import_observation_upload_rejects_missing_region(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_import_observation_upload_rejects_without_partial_write(
+        writer_client, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    settings.OBSERVATION_MEDIA_DIR = tmp_path / 'observation-media'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        session_id='71717171-7171-4717-8717-717171717171',
+        record_overrides={
+            FIELD_PHOTOS: [{
+                FIELD_CLIENT_PHOTO_ID: 'photo-1',
+                FIELD_CONTENT_TYPE: '',
+                FIELD_SIZE_BYTES: 0,
+                FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+            }],
+        },
+    )
+    del payload[SESSION][FIELD_REGION_ID]
+    invalid = dict(payload[RECORDS][0])
+    invalid[FIELD_CLIENT_RECORD_ID] = 'obs-2'
+    invalid[FIELD_TEXT] = 'osservazione senza compresa'
+    invalid[FIELD_PHOTOS] = []
+    del invalid[FIELD_REGION_ID]
+    payload[RECORDS].append(invalid)
+    assert _post_multipart_upload(Client(), payload, {
+        'photo:photo-1': SimpleUploadedFile(
+            'sentiero.jpg', b'photo-bytes', content_type='image/jpeg',
+        ),
+    }).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+
+    resp = writer_client.post(
+        reverse('ipso-upload-import-observations', args=[upload.id]),
+        data=json.dumps({FIELD_NONCE: 'import-observation-no-partial-nonce'}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()[MESSAGE] == (
+        S.IPSO_ERR_IMPORT_RECORD_REGION_NOT_FOUND.format(2)
+    )
+    assert Observation.objects.count() == 0
+    assert ObservationPhoto.objects.count() == 0
+    assert not settings.OBSERVATION_MEDIA_DIR.exists()
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+    assert upload.error_summary == resp.json()[MESSAGE]
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_upload_detail_previews_observation_records(
         writer_client, parcels, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'

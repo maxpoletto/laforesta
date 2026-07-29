@@ -10,6 +10,7 @@ import re
 import shutil
 import time
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from datetime import date as date_type, timezone
 from decimal import Decimal, InvalidOperation
 from ipaddress import ip_address, ip_network
@@ -123,6 +124,22 @@ ASSET_CONTENT_TYPES = {
     '.png': 'image/png',
     '.webmanifest': 'application/manifest+json',
 }
+
+
+@dataclass(frozen=True)
+class ObservationImportRow:
+    date: date_type
+    text: str
+    lat: float
+    lon: float
+    region: Region
+    acc_m: int | None
+    operator: str
+    categories: list[ObservationCategory]
+    client_record_id: str
+    fingerprint: str
+    photos: list[tuple[dict, bytes]]
+
 
 ASSET_FILES = {
     'app.js',
@@ -765,11 +782,12 @@ def import_observations_upload(request: HttpRequest, upload_id: int) -> JsonResp
             payload, file_error = _read_staged_payload(upload)
             if file_error:
                 return _upload_validation_error(upload, [file_error])
-            imported, errors = _import_observation_records(
-                upload, payload, request.user,
-            )
+            rows, errors = _observation_import_rows(upload, payload)
             if errors:
                 return _upload_validation_error(upload, errors)
+            imported = _apply_observation_import_rows(
+                upload, rows, request.user,
+            )
             if not _claim_upload_import(
                     upload, request.user, IPSO_TARGET_OBSERVATIONS, None):
                 return _rollback_upload_not_received_response()
@@ -1397,13 +1415,13 @@ def _martellate_import_rows(
     return rows, errors
 
 
-def _import_observation_records(
-        upload: IpsoUpload, payload: dict, user,
-) -> tuple[int, list[str]]:
+def _observation_import_rows(
+        upload: IpsoUpload, payload: dict,
+) -> tuple[list[ObservationImportRow], list[str]]:
     session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
     records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
     if not isinstance(records, list):
-        return 0, [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
+        return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
 
     category_ids = {
         category_id
@@ -1435,7 +1453,8 @@ def _import_observation_records(
         if isinstance(session, dict) else ''
     )
 
-    imported = 0
+    rows = []
+    fingerprints = set()
     errors = []
     for i, record in enumerate(records, start=1):
         if not isinstance(record, dict):
@@ -1470,7 +1489,12 @@ def _import_observation_records(
         except (TypeError, ValueError):
             errors.append(S.IPSO_ERR_IMPORT_RECORD_COORDS_REQUIRED.format(i))
             continue
-        observation = Observation.objects.create(
+        fingerprint = _observation_import_fingerprint(upload.session_id, record)
+        if fingerprint in fingerprints:
+            errors.append(S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT)
+            continue
+        fingerprints.add(fingerprint)
+        rows.append(ObservationImportRow(
             date=row_date,
             text=(record.get(FIELD_TEXT) or '').strip(),
             lat=lat,
@@ -1478,24 +1502,49 @@ def _import_observation_records(
             region=region,
             acc_m=record.get(FIELD_ACC_M),
             operator=session_operator,
+            categories=row_categories,
+            client_record_id=record.get(FIELD_CLIENT_RECORD_ID, ''),
+            fingerprint=fingerprint,
+            photos=photos,
+        ))
+    if fingerprints and Observation.objects.filter(
+            import_fingerprint__in=fingerprints,
+    ).exists():
+        errors.append(S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT)
+    if errors:
+        return [], errors
+    return rows, []
+
+
+def _apply_observation_import_rows(
+        upload: IpsoUpload, rows: list[ObservationImportRow], user,
+) -> int:
+    imported = 0
+    for row in rows:
+        observation = Observation.objects.create(
+            date=row.date,
+            text=row.text,
+            lat=row.lat,
+            lon=row.lon,
+            region=row.region,
+            acc_m=row.acc_m,
+            operator=row.operator,
             source='ipso',
             upload_session_id=upload.session_id,
-            client_record_id=record.get(FIELD_CLIENT_RECORD_ID, ''),
-            import_fingerprint=_observation_import_fingerprint(
-                upload.session_id, record,
-            ),
+            client_record_id=row.client_record_id,
+            import_fingerprint=row.fingerprint,
             created_by=user,
         )
         ObservationCategoryAssignment.objects.bulk_create([
             ObservationCategoryAssignment(
                 observation=observation, category=category,
             )
-            for category in row_categories
+            for category in row.categories
         ])
-        for photo, content in photos:
+        for photo, content in row.photos:
             _store_observation_photo(observation, photo, content)
         imported += 1
-    return imported, errors
+    return imported
 
 
 def _observation_import_fingerprint(session_id: str, record: dict) -> str:
