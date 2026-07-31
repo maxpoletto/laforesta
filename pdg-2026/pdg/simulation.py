@@ -281,7 +281,9 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     tree_vol = mature[COL_V_M3] * tree_n
     tree_basal = basal_area_m2(mature[COL_D_CM]) * tree_n
 
-    # Select trees in harvest order, accumulate until limits
+    # Take trees in harvest order, skipping any that would breach a limit.
+    # Thinning from below never skips (every later tree is larger still), but
+    # any other order would otherwise lose a whole parcel to one oversized stem.
     vol_limit = vol_limit_ha * stats.area_ha * prudence / 100
     area_limit = area_limit_ha * stats.area_ha * prudence / 100
     ordered_idx = selection_fn(mature)  # type: ignore[reportGeneralTypeIssues]
@@ -290,7 +292,7 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     for idx in ordered_idx:
         tv, ta = tree_vol[idx], tree_basal[idx]
         if cum_vol + tv > vol_limit or cum_area + ta > area_limit:
-            break
+            continue
         cum_vol += tv
         cum_area += ta
         cum_n += tree_n[idx]

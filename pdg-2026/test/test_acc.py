@@ -1220,6 +1220,34 @@ class TestHarvestParcelLimits:
         assert np.isclose(result.volume_before, 3.8)  # 0.3+0.5+1.0+2.0
         assert np.isclose(result.harvest, 0.8)         # 0.3+0.5
 
+    def test_oversized_tree_is_skipped_not_terminal(self):
+        """A tree that does not fit is skipped; later ones still count.
+
+        Ascending order hides this — everything after a too-big tree is bigger
+        still — so the order here puts the oversized tree first.
+        """
+        trees = _harvest_trees(**{
+            COL_D_CM: [50.0, 25.0, 30.0],
+            COL_V_M3: [2.0, 0.3, 0.5],
+        })
+        largest_first = lambda t: t.sort_values(COL_D_CM, ascending=False).index
+        # Limit 1.0 m³: D=50 (2.0) cannot fit, but D=25 and D=30 fit after it
+        result = harvest_parcel(trees, _harvest_stats(),
+            lambda *a: (1.0, math.inf), largest_first)
+        assert result is not None
+        assert np.isclose(result.harvest, 0.8)
+
+    def test_skipping_does_not_change_ascending_order(self):
+        """Thinning from below is unaffected: nothing after a reject can fit."""
+        trees = _harvest_trees(**{
+            COL_D_CM: [25.0, 30.0, 40.0, 50.0],
+            COL_V_M3: [0.3, 0.5, 1.0, 2.0],
+        })
+        result = harvest_parcel(trees, _harvest_stats(),
+            lambda *a: (1.0, math.inf), select_from_bottom)
+        assert result is not None
+        assert np.isclose(result.harvest, 0.8)
+
     def test_area_limit_stops_harvest(self):
         """Basal area limit should stop harvest before all trees taken."""
         trees = _harvest_trees(**{
