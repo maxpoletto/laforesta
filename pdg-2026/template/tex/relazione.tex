@@ -87,7 +87,7 @@ La relazione si articola in 9 parti.
 \item La parte~\ref{sec:piano} presenta un piano di tagli aggiornato, redatto tenendo conto degli incrementi secondo i criteri descritti nella parte~\ref{sec:note-metodologia} e il metodo di gestione descritto nella parte~\ref{sec:metodo}.
 \item La parte~\ref{sec:ceduo} risponde al punto 4 della richiesta: espone il piano di regolarizzazione dei cedui di castagno.
 
-\item La parte~\ref{sec:particelle}, infine, risponde ai punti 5 e 6 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre la provvigione e la ripresa totali, suddivise per specie.
+\item La parte~\ref{sec:particelle}, infine, risponde ai punti 5--7 della richiesta. Per ogni particella, indica le necessità colturali dei soprassuoli, descrive gli interventi colturali da eseguire, e fornisce, per ogni specie e classe diametrica, il numero di alberi per ettaro, il volume e l'area basimetrica per ettaro, la distribuzione delle altezze, e gli incrementi percentuali e correnti. Espone inoltre la provvigione e la ripresa totali, suddivise per specie.
 \end{itemize}
 
 \section{Note metodologiche}
@@ -113,7 +113,7 @@ I volumi presenti in ciascuna particella $p$ sono stimati secondo la metodologia
     \item Per un qualsiasi albero di specie $f$, il volume del fusto e dei rami grossi viene calcolato usando un'equazione di previsione della forma $v = b_{f0} + b_{f1}d^2h + b_{f2}d$, dove i coefficienti $b_{fi}$ provengono dal Tabacchi. Il volume totale di tutti gli $n_f$ alberi della specie $f$ campionati nella particella $p$ è quindi dato da $v_f = b_{f0}n_f + b_{f1}\sum_{i=1}^{n_f} d_i^2h_i + b_{f2}\sum_{i=1}^{n_f} d_i$. Analogamente, il margine di errore $e_f$ della stima di questo volume complessivo è calcolato usando le matrici di varianza e i coefficienti del Tabacchi.
     \item Il volume totale degli alberi campionati è dato quindi da $v_c = \sum_{f} v_f$. Il margine di errore è calcolato prudenzialmente come $e_c = \sum_{f} e_f$: ciò presume che le piante delle diverse specie nella particella siano perfettamente correlate, nonostante le equazioni di previsione di Tabacchi siano state calibrate sulla base di campioni indipendenti.
     \item Si definisce quindi un fattore di scala $s = a / a_s$, dove~$a$ è la superficie di~$p$ e~$a_s$ è la superficie complessiva delle aree di saggio in~$p$.
-    \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore, $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti deli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:provvigione} corrispondono a $v \pm e$.
+    \item Il volume dell'intera particella viene calcolato scalando il volume stimato nelle aree di saggio, $v = s\cdot v_c$, e il margine di errore, $e = s\cdot e_c$. Pure questo margine di errore è prudenziale, nel senso che presume che tutte le superfici di una particella siano correlate tra di loro. I limiti degli intervalli fiduciari al 95\% elencati nella sezione~\ref{sec:provvigione} corrispondono a $v \pm e$.
 \end{enumerate}
 
 La provvigione  nella sezione~\ref{sec:provvigione} esclude le piante
@@ -235,7 +235,7 @@ si ha
 
 dove $d_i$ è il diametro (cm) e $c$ è il coefficiente di Pressler. Prudenzialmente si pone $c = 2$ per tutta la superficie boscata, nonostante studi svolti sull'Appennino Calabrese suggeriscano valori più alti (\cite{marziliano:2011} riscontra coefficienti di Schneider $K$ nell'intervallo $415$--$715$; analiticamente $c = K / 200$).
 
-Per ogni area assestamentale (particella o compresa) e specie, l'incremento percentuale medio $pv_j$ della classe diametrica $j$ è determinato come media ponderata sui volumi degli alberi carotati appartenenti a quella classe, come in~\cite{corona:2007}:
+Per ogni area assestamentale (particella o compresa) e specie, l'incremento percentuale medio $pv_j$ della classe diametrica $j$ è determinato come media ponderata sui volumi degli alberi carotati in quell'area e appartenenti a quella classe, come in~\cite{corona:2007}:
 
 \[ pv_j = \frac{\sum_{i=1}^{m_j} pv_{ij}v_{ij}}{\sum_{i=1}^{m_j} v_{ij}} \]
 
@@ -293,6 +293,7 @@ Il programma di tagli proposto nella relazione originale ha due difetti: per div
 Entrambe le problematiche sono state affrontate tramite una simulazione a tempo discreto ispirata al metodo matriciale di Usher~\cite{usher:1966}, comunemente usato nella modellizzazione delle dinamiche forestali. La simulazione opera su un orizzonte temporale definito (ad es.\ 2026--2040) con passo annuale, e ad ogni anno seleziona le particelle da sottoporre a taglio tenendo conto sia della crescita avvenuta sia dei vincoli normativi.
 
 \subsubsection{Parametri della simulazione}
+\label{sec:note-parametri}
 
 La simulazione richiede i seguenti parametri:
 \begin{itemize}
@@ -306,6 +307,7 @@ La simulazione richiede i seguenti parametri:
 Prima della simulazione, si costruisce una tabella di crescita a partire dagli incrementi osservati (sezione precedente). Per ogni combinazione di compresa, specie e classe diametrica, la tabella riporta l'incremento percentuale medio $pv$ e l'incremento corrente di diametro $\Delta d$. Quando per una data combinazione non sono disponibili dati diretti, si utilizza il valore della classe diametrica più vicina della stessa specie e compresa.
 
 \subsubsection{Ciclo annuale}
+\label{sec:note-ciclo}
 
 Per ogni anno dell'orizzonte di simulazione:
 
@@ -329,6 +331,27 @@ Per ogni anno dell'orizzonte di simulazione:
 \end{enumerate}
 
 Il risultato della simulazione è un programma dei tagli che indica, per ogni anno e particella, il volume prima dell'intervento, il prelievo e il volume residuo.
+
+\subsubsection{Prudenzialità della simulazione}
+
+L'ipotesi di taglio colturale dal basso menzionata nella
+sezione~\ref{sec:note-ripresa} e~\ref{sec:note-ciclo} è uguale per tutte le
+particelle, ma nella realtà, come dettagliato nella
+sezione~\ref{sec:particelle}, le modalità di intervento variano in funzione
+delle condizioni del soprassuolo.
+
+Il taglio dal basso, tuttavia, è un criterio prudenziale per il calcolo della
+ripresa: asportando le piante di minori dimensioni, che presentano il maggiore
+accrescimento percentuale, riduce la capacità di accrescimento del soprassuolo
+residuo. Nelle nostre simulazioni, una strategia diametricamente opposta, in cui
+si prelevano per prime le piante di maggiori dimensioni, produce nell'arco del
+piano una ripresa superiore di circa il 4\% e lascia al termine una provvigione
+in piedi maggiore di circa il 2\%.
+
+Coerentemente con il nostro approccio prudenziale, esemplificato anche dal
+coefficiente di prudenza $c$ alla sezione~\ref{sec:note-parametri}, abbiamo
+scelto di adottare il taglio dal basso come criterio di simulazione comune per
+tutte le particelle.
 
 \section{Curve ipsometriche e classi diametriche}
 \label{sec:ipsometrie}
