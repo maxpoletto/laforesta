@@ -10,7 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
-  `renderObservationsTable, onObservationPhotosPicked, ` +
+  `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
   `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
@@ -1092,30 +1092,34 @@ const session = {
 
 // Observation GPS captured when the observation starts remains authoritative.
 // Save-time GPS is only a fallback, and photo metadata is ignored for the
-// observation position.
+// observation position once that point has been captured.
 {
   const { context } = makeHarness();
   const app = context.__ipsoAppTest;
   app.State.session = { ...session, mode: 'observations', region_id: 1 };
   context.document.getElementById('in-observation-text').value = 'foto vecchia';
-  app.State.gps = {
-    snapshot() { return { lat: 38.0, lon: 16.0, acc_m: 4 }; },
-  };
+  app.renderGpsStatus({
+    tier: 'green',
+    age: 0,
+    fix: { lat: 38.0, lon: 16.0, acc: 4, t: 1 },
+  });
   let rec = app.currentObservationRecord();
   eq(
     { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
     { lat: 38.0, lon: 16.0, acc_m: 4 },
-    'currentObservationRecord captures initial observation GPS',
+    'renderGpsStatus captures the initial observation GPS',
   );
 
-  app.State.gps = {
-    snapshot() { return { lat: 39.0, lon: 17.0, acc_m: 2 }; },
-  };
+  app.renderGpsStatus({
+    tier: 'green',
+    age: 0,
+    fix: { lat: 39.0, lon: 17.0, acc: 2, t: 2 },
+  });
   rec = app.currentObservationRecord();
   eq(
     { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
     { lat: 38.0, lon: 16.0, acc_m: 4 },
-    'currentObservationRecord keeps initial observation GPS',
+    'renderGpsStatus does not move an existing observation GPS',
   );
 
   app.State.observationPhotos = [{ lat: 38.5, lon: 16.25 }];
@@ -1124,7 +1128,7 @@ const session = {
   eq(
     { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
     { lat: 38.0, lon: 16.0, acc_m: 4 },
-    'currentObservationRecord ignores photo coordinates and keeps device GPS',
+    'currentObservationRecord ignores photo coordinates after GPS capture',
   );
 }
 
@@ -1193,6 +1197,26 @@ const session = {
         'camera photo picker stores a photo position timestamp');
   check(app.State.pendingCameraPhotoPosition === null,
         'camera photo picker clears the pending photo GPS snapshot');
+  let rec = app.currentObservationRecord();
+  eq(
+    { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
+    { lat: 38.25, lon: 16.5, acc_m: null },
+    'first camera photo GPS seeds an otherwise missing observation position',
+  );
+
+  app.State.gps = {
+    snapshot() { return { lat: 39.25, lon: 17.5, acc_m: 3 }; },
+  };
+  app.captureCameraPhotoPosition();
+  input.files = [{ name: 'secondo.jpg', type: 'image/jpeg', size: 9 }];
+  input.value = 'selected';
+  await app.onObservationPhotosPicked({ target: input });
+  rec = app.currentObservationRecord();
+  eq(
+    { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
+    { lat: 38.25, lon: 16.5, acc_m: null },
+    'later camera photos do not move the observation position',
+  );
 }
 
 // Observation data rows render as wrapped cards instead of narrow table columns.

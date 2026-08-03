@@ -1299,7 +1299,7 @@ function renderGpsStatus(st) {
       heading: Number.isFinite(st.fix.heading) ? st.fix.heading : null,
       t: st.fix.t,
     };
-    if (isObservationMode()) {
+    if (isObservationMode() && !State.pendingObservationPosition) {
       State.pendingObservationPosition = observationPositionFromFix(st.fix);
     }
     if (State.locator) State.locator.onFix(st.fix);
@@ -1345,9 +1345,12 @@ function observationPositionFromFix(fix) {
 
 function currentObservationGpsSnapshot() {
   const gps = currentGpsSnapshot();
-  const position = observationPositionFromFix(gps);
-  if (position) State.pendingObservationPosition = position;
-  return position;
+  return observationPositionFromFix(gps);
+}
+
+function setObservationPositionFromPhotoIfMissing(position) {
+  if (State.pendingObservationPosition || !position) return;
+  State.pendingObservationPosition = observationPositionFromFix(position);
 }
 
 function cameraPhotoPositionFromFix(fix) {
@@ -1533,6 +1536,7 @@ async function onObservationPhotosPicked(e) {
     return;
   }
   const photoPosition = observationPhotoPositionForInput(input);
+  setObservationPositionFromPhotoIfMissing(photoPosition);
   State.photoProcessingCount += files.length;
   updateSaveEnabled();
   try {
