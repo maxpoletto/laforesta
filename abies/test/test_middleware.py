@@ -41,6 +41,8 @@ class TestCSPMiddleware:
         assert "default-src 'self'" in csp
         assert "base-uri 'self'" in csp
         assert "object-src 'none'" in csp
+        img_src = csp.split('img-src')[1].split(';')[0]
+        assert 'blob:' in img_src
 
     def test_blocks_inline_scripts(self, db):
         resp = Client().get('/login/')

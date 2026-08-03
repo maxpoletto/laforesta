@@ -28,7 +28,8 @@ from config.constants import (
 #   - server.arcgisonline.com          (Esri World Imagery satellite)
 #   - tile.opentopomap.org             (OpenTopoMap)
 # Any future tile source added to BASEMAPS in map-common.js needs a
-# matching entry here.
+# matching entry here. `blob:` is required for local image previews before
+# observation photos are uploaded.
 TILE_SOURCES = [
     "https://*.tile.openstreetmap.org",
     "https://server.arcgisonline.com",
@@ -39,7 +40,7 @@ CSP_POLICY = "; ".join([
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    f"img-src 'self' data: {' '.join(TILE_SOURCES)}",
+    f"img-src 'self' data: blob: {' '.join(TILE_SOURCES)}",
     "font-src 'self'",
     "connect-src 'self'",
     "base-uri 'self'",
