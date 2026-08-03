@@ -136,8 +136,16 @@ hosts (top to bottom):
   region. Parcel geometry is used only to enrich points with a parcel name when
   the coordinate falls inside a known parcel.
 
-  Clicking a dot opens a standard modal with date, text, categories, lat/lon,
-  GPS accuracy, operator, and photo thumbnails/links. Observations with an
+  Writers see a `+ Aggiungi` button. Clicking it opens the standard
+  `Nuova osservazione` modal for the current region with blank coordinates;
+  clicking a blank map point in Osservazioni mode opens the same modal with
+  lat/lon prefilled.
+
+  Clicking a dot opens a standard modal with date, region, text, categories,
+  lat/lon, GPS accuracy, operator, and photo thumbnails/links. Writers also
+  see `Modifica` and `Elimina`; editing reuses the same modal and deletion uses
+  the shared confirmation flow. Full behavior is documented in
+  `page-osservazioni.md`. Observations with an
   explicit region are shown even when their coordinates fall outside all parcel
   polygons. Legacy observations without a region are shown only when geometry
   can assign them to the current region.
