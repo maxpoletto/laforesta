@@ -140,6 +140,13 @@ assertEqual(O.filterObservations(attributed, {
 assertEqual(O.filterObservations(attributed, { categoryIds: [] }).map(o => o.id), [],
             'filterObservations: explicit empty categories means none');
 
+assertEqual(O.shouldPreviewObservationPhoto({ type: 'image/jpeg' }), true,
+            'shouldPreviewObservationPhoto: previews image MIME types');
+assertEqual(O.shouldPreviewObservationPhoto({ type: '' }), true,
+            'shouldPreviewObservationPhoto: previews picker files without MIME type');
+assertEqual(O.shouldPreviewObservationPhoto({ type: 'application/pdf' }), false,
+            'shouldPreviewObservationPhoto: rejects known non-image MIME types');
+
 console.log(`
 ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

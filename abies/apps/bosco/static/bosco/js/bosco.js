@@ -87,7 +87,7 @@ import {
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
   filterObservations, normalizeObservationYearRange, observationCategoryItems,
-  observationYears,
+  observationYears, shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
@@ -2460,7 +2460,7 @@ function wireObservationPhotoInputs(form) {
   input?.addEventListener('change', () => {
     for (const file of input.files || []) {
       const item = { id: observationPhotoClientId(), file, objectUrl: '' };
-      if (String(file.type || '').startsWith('image/')) {
+      if (shouldPreviewObservationPhoto(file)) {
         item.objectUrl = URL.createObjectURL(file);
         objectUrls.push(item.objectUrl);
       }
@@ -2485,6 +2485,7 @@ function observationPendingPhotoElement(item, photos) {
     const img = document.createElement('img');
     img.src = item.objectUrl;
     img.alt = item.file.name;
+    img.addEventListener('error', () => img.remove(), { once: true });
     media.appendChild(img);
   }
   const label = document.createElement('span');

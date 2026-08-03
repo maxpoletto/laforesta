@@ -109,6 +109,12 @@ export function normalizeObservationYearRange(yearFrom, yearTo, years) {
   return { from, to };
 }
 
+
+export function shouldPreviewObservationPhoto(file) {
+  const type = String(file?.type || '').toLowerCase();
+  return !type || type.startsWith('image/');
+}
+
 function intArray(value) {
   return Array.isArray(value) ? value.filter(v => Number.isInteger(v)) : [];
 }
