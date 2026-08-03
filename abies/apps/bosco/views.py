@@ -37,9 +37,9 @@ from apps.base.models import (
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.observation_storage import (
-    atomic_write_observation_photo, normalize_observation_photo_content_type,
-    observation_photo_absolute_path, observation_photo_relative_path,
-    sniff_observation_photo_content_type,
+    atomic_write_observation_photo, extract_observation_photo_gps,
+    normalize_observation_photo_content_type, observation_photo_absolute_path,
+    observation_photo_relative_path, sniff_observation_photo_content_type,
 )
 from apps.base.preserved_trees import (
     PRESERVED_IMPORT_SURVEY_NAME, latest_preserved_tree_samples,
@@ -590,12 +590,18 @@ def _uploaded_observation_photos(request):
             )
             continue
         seen_checksums.add(checksum)
+        gps = (
+            extract_observation_photo_gps(content)
+            if content_type == 'image/jpeg' else None
+        )
         photos.append({
             'content': content,
             FIELD_CHECKSUM: checksum,
             FIELD_CONTENT_TYPE: content_type,
             FIELD_ORIGINAL_FILENAME: filename,
             FIELD_SIZE_BYTES: len(content),
+            FIELD_LAT: gps[0] if gps else None,
+            FIELD_LON: gps[1] if gps else None,
         })
     return photos, errors
 
@@ -664,6 +670,8 @@ def _store_bosco_observation_photo(
         size_bytes=photo[FIELD_SIZE_BYTES],
         checksum=photo[FIELD_CHECKSUM],
         original_filename=photo[FIELD_ORIGINAL_FILENAME],
+        lat=photo.get(FIELD_LAT),
+        lon=photo.get(FIELD_LON),
     )
 
 

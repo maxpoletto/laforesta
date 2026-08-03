@@ -94,6 +94,10 @@ The add/edit form contains, in order:
 5. shared lat/lon entry fields plus the `Usa GPS` button when browser
    geolocation is available.
 
+When photos are added through the Bosco web form, JPEG EXIF GPS coordinates are
+read on the server and stored as per-photo metadata when present. Missing or
+malformed EXIF data is ignored and does not block the upload.
+
 Existing photos are shown in upload order. The photo section has a `+ Aggiungi`
 button that opens the browser file picker. Each existing or newly selected photo
 has a small `x` button in the upper-right corner. Removing a photo only changes

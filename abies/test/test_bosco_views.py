@@ -238,10 +238,11 @@ def test_observation_form_writer_access(writer_client, regions, parcels):
 
 
 def test_observation_save_creates_manual_observation_with_photo(
-        writer_client, writer_user, parcels, tmp_path, settings):
+        writer_client, writer_user, parcels, tmp_path, settings,
+        jpeg_with_exif_gps):
     settings.OBSERVATION_MEDIA_DIR = tmp_path
     category = ObservationCategory.objects.create(name='fitosanitario-test')
-    content = b'\xff\xd8\xffjpeg'
+    content = jpeg_with_exif_gps(38.612345, 16.412345)
     body = {
         FIELD_REGION_ID: str(parcels[0].region_id),
         FIELD_DATE: '2026-08-01',
@@ -268,6 +269,8 @@ def test_observation_save_creates_manual_observation_with_photo(
     photo = ObservationPhoto.objects.get(observation=observation)
     assert photo.content_type == 'image/jpeg'
     assert photo.original_filename == 'ramo.jpg'
+    assert photo.lat == pytest.approx(38.612345)
+    assert photo.lon == pytest.approx(16.412345)
     assert (tmp_path / photo.file_path).read_bytes() == content
     patch = resp.json()[PATCHES][0]
     assert patch[DATA_ID] == DIGEST_OBSERVATIONS

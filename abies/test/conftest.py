@@ -2,6 +2,7 @@
 
 import json
 import math
+import struct
 from datetime import date
 from decimal import Decimal
 from itertools import count
@@ -188,3 +189,60 @@ def hypso_samples(db, regions, eclasses, species):
         'survey': survey, 'region': regions[0], 'species': species[0],
         'a': a_true, 'b': b_true, 'n_abete': len(abete_diam),
     }
+
+
+@pytest.fixture
+def jpeg_with_exif_gps():
+    return _jpeg_with_exif_gps
+
+
+def _jpeg_with_exif_gps(lat=38.512345, lon=16.123455):
+    lat_ref = b'S' if lat < 0 else b'N'
+    lon_ref = b'W' if lon < 0 else b'E'
+    tiff = _gps_exif_tiff(abs(lat), abs(lon), lat_ref, lon_ref)
+    app1 = b'Exif\0\0' + tiff
+    return (
+        b'\xff\xd8'
+        + b'\xff\xe1'
+        + (len(app1) + 2).to_bytes(2, 'big')
+        + app1
+        + b'\xff\xd9'
+    )
+
+
+def _gps_exif_tiff(lat, lon, lat_ref, lon_ref):
+    gps_ifd_offset = 8 + 2 + 12 + 4
+    gps_value_offset = gps_ifd_offset + 2 + 4 * 12 + 4
+    lat_values = _tiff_rationals(_dms_rationals(lat))
+    lon_values = _tiff_rationals(_dms_rationals(lon))
+    return b''.join([
+        struct.pack('<2sHI', b'II', 42, 8),
+        struct.pack('<H', 1),
+        _tiff_entry(0x8825, 4, 1, struct.pack('<I', gps_ifd_offset)),
+        struct.pack('<I', 0),
+        struct.pack('<H', 4),
+        _tiff_entry(1, 2, 2, lat_ref + b'\0'),
+        _tiff_entry(2, 5, 3, struct.pack('<I', gps_value_offset)),
+        _tiff_entry(3, 2, 2, lon_ref + b'\0'),
+        _tiff_entry(4, 5, 3, struct.pack('<I', gps_value_offset + len(lat_values))),
+        struct.pack('<I', 0),
+        lat_values,
+        lon_values,
+    ])
+
+
+def _tiff_entry(tag, value_type, count, value):
+    return struct.pack('<HHI', tag, value_type, count) + value.ljust(4, b'\0')
+
+
+def _dms_rationals(value):
+    degrees = int(value)
+    minutes_float = (value - degrees) * 60
+    minutes = int(minutes_float)
+    seconds = round((minutes_float - minutes) * 60 * 1_000_000)
+    return [(degrees, 1), (minutes, 1), (seconds, 1_000_000)]
+
+
+def _tiff_rationals(values):
+    return b''.join(struct.pack('<II', numerator, denominator)
+                    for numerator, denominator in values)

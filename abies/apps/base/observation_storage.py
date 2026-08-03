@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import struct
 from pathlib import Path
 
 from django.conf import settings
@@ -27,6 +28,13 @@ _HEIF_BRANDS = {
 _FILENAME_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif',
 }
+_EXIF_PREFIX = b'Exif\0\0'
+_TIFF_TYPE_SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1}
+_TIFF_GPS_IFD_TAG = 0x8825
+_GPS_LAT_REF_TAG = 1
+_GPS_LAT_TAG = 2
+_GPS_LON_REF_TAG = 3
+_GPS_LON_TAG = 4
 
 
 def normalize_observation_photo_content_type(
@@ -82,6 +90,185 @@ def _content_is_heif(content: bytes) -> bool:
         for i in range(0, len(compatible) - 3, 4)
     )
     return bool(brands & _HEIF_BRANDS)
+
+
+def extract_observation_photo_gps(content: bytes) -> tuple[float, float] | None:
+    """Return JPEG EXIF GPS coordinates as ``(lat, lon)``, or ``None``.
+
+    EXIF is user-supplied metadata, so parsing is deliberately conservative:
+    malformed data, unsupported TIFF shapes, missing tags, and out-of-range
+    coordinates are treated as absent metadata rather than upload errors.
+    """
+    payload = _jpeg_exif_payload(content)
+    if payload is None:
+        return None
+    try:
+        coords = _exif_gps_coordinates(payload)
+    except (struct.error, ValueError, UnicodeDecodeError):
+        return None
+    if coords is None:
+        return None
+    lat, lon = coords
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def _jpeg_exif_payload(content: bytes) -> bytes | None:
+    if not content.startswith(b'\xff\xd8'):
+        return None
+    pos = 2
+    end = len(content)
+    while pos + 1 < end:
+        if content[pos] != 0xff:
+            return None
+        while pos < end and content[pos] == 0xff:
+            pos += 1
+        if pos >= end:
+            return None
+        marker = content[pos]
+        pos += 1
+        if marker in {0xd9, 0xda}:
+            return None
+        if marker == 0x01 or 0xd0 <= marker <= 0xd7:
+            continue
+        if pos + 2 > end:
+            return None
+        segment_len = int.from_bytes(content[pos:pos + 2], 'big')
+        if segment_len < 2:
+            return None
+        payload_start = pos + 2
+        payload_end = pos + segment_len
+        if payload_end > end:
+            return None
+        payload = content[payload_start:payload_end]
+        if marker == 0xe1 and payload.startswith(_EXIF_PREFIX):
+            return payload[len(_EXIF_PREFIX):]
+        pos = payload_end
+    return None
+
+
+def _exif_gps_coordinates(tiff: bytes) -> tuple[float, float] | None:
+    if len(tiff) < 8:
+        return None
+    byte_order = tiff[:2]
+    if byte_order == b'II':
+        endian = '<'
+    elif byte_order == b'MM':
+        endian = '>'
+    else:
+        return None
+    if _tiff_u16(tiff, 2, endian) != 42:
+        return None
+    ifd0_offset = _tiff_u32(tiff, 4, endian)
+    gps_offset = _tiff_long(tiff, ifd0_offset, _TIFF_GPS_IFD_TAG, endian)
+    if gps_offset is None:
+        return None
+
+    lat_ref = _tiff_ascii(tiff, gps_offset, _GPS_LAT_REF_TAG, endian)
+    lon_ref = _tiff_ascii(tiff, gps_offset, _GPS_LON_REF_TAG, endian)
+    lat_dms = _tiff_rationals(tiff, gps_offset, _GPS_LAT_TAG, endian, 3)
+    lon_dms = _tiff_rationals(tiff, gps_offset, _GPS_LON_TAG, endian, 3)
+    if lat_ref not in {'N', 'S'} or lon_ref not in {'E', 'W'}:
+        return None
+    if lat_dms is None or lon_dms is None:
+        return None
+
+    lat = _dms_to_decimal(lat_dms)
+    lon = _dms_to_decimal(lon_dms)
+    if lat_ref == 'S':
+        lat = -lat
+    if lon_ref == 'W':
+        lon = -lon
+    return lat, lon
+
+
+def _tiff_u16(data: bytes, offset: int, endian: str) -> int:
+    return struct.unpack_from(endian + 'H', data, offset)[0]
+
+
+def _tiff_u32(data: bytes, offset: int, endian: str) -> int:
+    return struct.unpack_from(endian + 'I', data, offset)[0]
+
+
+def _tiff_entry(data: bytes, ifd_offset: int, tag: int, endian: str):
+    if ifd_offset < 0 or ifd_offset + 2 > len(data):
+        raise ValueError('invalid IFD offset')
+    count = _tiff_u16(data, ifd_offset, endian)
+    entries_offset = ifd_offset + 2
+    entries_end = entries_offset + count * 12
+    if entries_end + 4 > len(data):
+        raise ValueError('truncated IFD')
+    for index in range(count):
+        offset = entries_offset + index * 12
+        if _tiff_u16(data, offset, endian) == tag:
+            value_type = _tiff_u16(data, offset + 2, endian)
+            value_count = _tiff_u32(data, offset + 4, endian)
+            value = _tiff_value_bytes(
+                data, offset + 8, value_type, value_count, endian,
+            )
+            return value_type, value_count, value
+    return None
+
+
+def _tiff_value_bytes(
+        data: bytes, value_offset: int, value_type: int, count: int, endian: str,
+) -> bytes:
+    type_size = _TIFF_TYPE_SIZES.get(value_type)
+    if type_size is None:
+        raise ValueError('unsupported TIFF type')
+    byte_count = type_size * count
+    if byte_count <= 4:
+        return data[value_offset:value_offset + byte_count]
+    offset = _tiff_u32(data, value_offset, endian)
+    if offset < 0 or offset + byte_count > len(data):
+        raise ValueError('invalid TIFF value offset')
+    return data[offset:offset + byte_count]
+
+
+def _tiff_long(data: bytes, ifd_offset: int, tag: int, endian: str) -> int | None:
+    entry = _tiff_entry(data, ifd_offset, tag, endian)
+    if entry is None:
+        return None
+    value_type, count, value = entry
+    if value_type != 4 or count != 1 or len(value) < 4:
+        return None
+    return struct.unpack_from(endian + 'I', value, 0)[0]
+
+
+def _tiff_ascii(data: bytes, ifd_offset: int, tag: int, endian: str) -> str | None:
+    entry = _tiff_entry(data, ifd_offset, tag, endian)
+    if entry is None:
+        return None
+    value_type, _count, value = entry
+    if value_type != 2:
+        return None
+    return value.split(b'\0', 1)[0].decode('ascii')
+
+
+def _tiff_rationals(
+        data: bytes, ifd_offset: int, tag: int, endian: str, expected: int,
+) -> list[float] | None:
+    entry = _tiff_entry(data, ifd_offset, tag, endian)
+    if entry is None:
+        return None
+    value_type, count, value = entry
+    if value_type != 5 or count != expected or len(value) < expected * 8:
+        return None
+    result = []
+    for index in range(expected):
+        numerator, denominator = struct.unpack_from(
+            endian + 'II', value, index * 8,
+        )
+        if denominator == 0:
+            raise ValueError('zero EXIF rational denominator')
+        result.append(numerator / denominator)
+    return result
+
+
+def _dms_to_decimal(values: list[float]) -> float:
+    degrees, minutes, seconds = values
+    return degrees + minutes / 60 + seconds / 3600
 
 
 def observation_photo_relative_path(

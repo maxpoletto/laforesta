@@ -3,8 +3,9 @@ from pathlib import Path
 import pytest
 
 from apps.base.observation_storage import (
-    normalize_observation_photo_content_type, observation_photo_absolute_path,
-    observation_photo_relative_path, sniff_observation_photo_content_type,
+    extract_observation_photo_gps, normalize_observation_photo_content_type,
+    observation_photo_absolute_path, observation_photo_relative_path,
+    sniff_observation_photo_content_type,
 )
 
 
@@ -79,3 +80,28 @@ def test_normalize_observation_photo_content_type_rejects_active_content():
 def test_sniff_observation_photo_content_type_infers_supported_raster():
     assert sniff_observation_photo_content_type(b'\xff\xd8\xffjpeg') == 'image/jpeg'
     assert sniff_observation_photo_content_type(b'<html></html>') is None
+
+
+def test_extract_observation_photo_gps_reads_jpeg_exif(jpeg_with_exif_gps):
+    gps = extract_observation_photo_gps(
+        jpeg_with_exif_gps(38.512345, 16.123455),
+    )
+
+    assert gps == pytest.approx((38.512345, 16.123455))
+
+
+def test_extract_observation_photo_gps_applies_south_west_refs(
+        jpeg_with_exif_gps):
+    gps = extract_observation_photo_gps(
+        jpeg_with_exif_gps(-12.5, -45.25),
+    )
+
+    assert gps == pytest.approx((-12.5, -45.25))
+
+
+def test_extract_observation_photo_gps_ignores_absent_or_bad_exif():
+    assert extract_observation_photo_gps(b'\xff\xd8\xffjpeg') is None
+    assert extract_observation_photo_gps(b'not-a-jpeg') is None
+    assert extract_observation_photo_gps(
+        b'\xff\xd8\xff\xe1\x00\x08Exif\0\0bad',
+    ) is None
