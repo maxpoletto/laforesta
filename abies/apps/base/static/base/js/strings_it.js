@@ -368,6 +368,7 @@ export const BOSCO_NO_OBSERVATION_CATEGORIES = 'Nessuna categoria.';
 export const BOSCO_OBSERVATIONS_SHOWN = (shown, total) =>
   `${shown} di ${total} osservazioni visualizzate.`;
 export const BOSCO_OBSERVATION_DETAIL_TITLE = 'Osservazione';
+export const BOSCO_OBSERVATION_CATEGORY = 'Categoria';
 export const BOSCO_OBSERVATION_NEW_TITLE = 'Nuova osservazione';
 export const BOSCO_OBSERVATION_EDIT_TITLE = 'Modifica osservazione';
 export const BOSCO_OBSERVATION_PHOTO_ADD = '+ Aggiungi';

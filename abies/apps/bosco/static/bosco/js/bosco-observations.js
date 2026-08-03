@@ -1,9 +1,11 @@
 import * as S from '../../base/js/strings.js';
 import {
   COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_NAME,
-  FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID, ROWS, VERSION,
+  FIELD_ORIGINAL_FILENAME, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
+  FIELD_SIZE_BYTES, ROW_ID, ROWS, VERSION,
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
+import { fmtInt } from '../../base/js/format.js';
 import { findContainingParcel, parcelNames } from '../../base/js/geo.js';
 
 export function buildObservations(digest) {
@@ -109,6 +111,18 @@ export function normalizeObservationYearRange(yearFrom, yearTo, years) {
   return { from, to };
 }
 
+export function observationCategoryLabel(count) {
+  return count === 1
+    ? S.BOSCO_OBSERVATION_CATEGORY
+    : S.COL_OBSERVATION_CATEGORIES;
+}
+
+export function observationPhotoTitle(photo) {
+  return [
+    photo?.[FIELD_ORIGINAL_FILENAME] || S.COL_PHOTO_COUNT,
+    photo?.[FIELD_SIZE_BYTES] ? `${fmtInt(photo[FIELD_SIZE_BYTES])} B` : '',
+  ].filter(Boolean).join(' · ');
+}
 
 export function shouldPreviewObservationPhoto(file) {
   const type = String(file?.type || '').toLowerCase();

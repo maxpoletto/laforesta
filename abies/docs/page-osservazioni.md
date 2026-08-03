@@ -73,9 +73,12 @@ Writers see a `+ Aggiungi` button. Clicking it opens the standard modal form
 blank point on the map in observations mode opens the same modal with lat/lon
 pre-filled from the clicked coordinate.
 
-Clicking an existing observation opens a standard detail modal with date, region,
-text, categories, coordinates, GPS accuracy, operator, and photo thumbnails/links.
-Writers also see `Modifica` and `Elimina`. `Modifica` opens the same form with
+Clicking an existing observation opens a standard detail modal with date and
+operator on the first row, compresa and formatted position on the second row,
+then the correctly singular/plural category label, free text, and photo
+thumbnails/links. Photo thumbnails are captioned by upload-order number;
+hovering shows filename and size. Writers also see `Modifica` and `Elimina`.
+`Modifica` opens the same form with
 title `Modifica osservazione`; in edit mode the region is a selectable pulldown.
 `Elimina` uses the shared confirmation modal and optimistic-lock delete flow.
 

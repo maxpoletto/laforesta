@@ -223,7 +223,7 @@
 
 .bosco-observation-detail {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
   gap: 6px 12px;
   margin: 0 0 14px;
 }
@@ -235,6 +235,12 @@
 
 .bosco-observation-detail dd {
   margin: 0;
+}
+
+.bosco-observation-detail-text {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .bosco-observation-photos {
@@ -266,6 +272,12 @@
   font-size: 0.82rem;
   color: #444;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .bosco-observation-detail {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
 }
 
 .bosco-observation-category-group {

@@ -11,7 +11,7 @@ import {
   FIELD_CATEGORIES, FIELD_CONTENT_TYPE, FIELD_DATE,
   FIELD_LAT, FIELD_LON, FIELD_NAME,
   FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID, FIELD_PHOTOS,
-  FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SPECIES, FIELD_TEXT,
+  FIELD_REGION_ID, FIELD_SPECIES, FIELD_TEXT,
   FIELD_URL, HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { fetchJSON, postFormData } from '../../base/js/api.js';
@@ -88,7 +88,8 @@ import {
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
   filterObservations, normalizeObservationYearRange, observationCategoryItems,
-  observationYears, shouldPreviewObservationPhoto,
+  observationCategoryLabel, observationPhotoTitle, observationYears,
+  shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
@@ -2739,16 +2740,20 @@ function renderObservationDetailModal(observation) {
   const regionName = regionById.get(observation[FIELD_REGION_ID])?.name || '';
   const rows = [
     [S.COL_DATE, observation[FIELD_DATE]],
+    [S.COL_OPERATOR, observation[FIELD_OPERATOR]],
     [S.COL_REGION, regionName],
-    [S.COL_TEXT, observation[FIELD_TEXT]],
-    [S.COL_OBSERVATION_CATEGORIES, observationCategoryText(categories)],
     positionLabelValue(
       observation[FIELD_LAT], observation[FIELD_LON], observation[FIELD_ACC_M],
     ),
-    [S.COL_OPERATOR, observation[FIELD_OPERATOR]],
+    [observationCategoryLabel(categories.length), observationCategoryText(categories)],
   ];
   for (const [label, value] of rows) observationModalRow(dl, label, value);
   frag.appendChild(dl);
+
+  const text = document.createElement('p');
+  text.className = 'bosco-observation-detail-text';
+  text.textContent = observation[FIELD_TEXT] || S.BOSCO_NO_DATA;
+  frag.appendChild(text);
 
   const photos = Array.isArray(observation[FIELD_PHOTOS]) ? observation[FIELD_PHOTOS] : [];
   if (photos.length) {
@@ -2757,7 +2762,9 @@ function renderObservationDetailModal(observation) {
     frag.appendChild(heading);
     const grid = document.createElement('div');
     grid.className = 'bosco-observation-photos';
-    for (const photo of photos) grid.appendChild(observationPhotoElement(photo));
+    photos.forEach((photo, index) => {
+      grid.appendChild(observationPhotoElement(photo, index + 1));
+    });
     frag.appendChild(grid);
   }
 
@@ -2798,12 +2805,13 @@ function observationCategoryText(names) {
   return (names || []).filter(Boolean).join(', ');
 }
 
-function observationPhotoElement(photo) {
+function observationPhotoElement(photo, caption) {
   const card = document.createElement('a');
   card.className = 'bosco-observation-photo';
   card.href = photo[FIELD_URL];
   card.target = '_blank';
   card.rel = 'noopener';
+  card.title = observationPhotoTitle(photo);
   const isImage = String(photo[FIELD_CONTENT_TYPE] || '').startsWith('image/');
   if (isImage) {
     const img = document.createElement('img');
@@ -2812,10 +2820,7 @@ function observationPhotoElement(photo) {
     card.appendChild(img);
   }
   const label = document.createElement('span');
-  label.textContent = [
-    photo[FIELD_ORIGINAL_FILENAME] || S.COL_PHOTO_COUNT,
-    photo[FIELD_SIZE_BYTES] ? `${fmtInt(photo[FIELD_SIZE_BYTES])} B` : '',
-  ].filter(Boolean).join(' · ');
+  label.textContent = String(caption);
   card.appendChild(label);
   return card;
 }

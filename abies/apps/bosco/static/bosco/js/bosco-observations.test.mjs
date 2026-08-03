@@ -20,7 +20,8 @@ const O = await import(staticModule('bosco/js/bosco-observations.js'));
 const S = await import(staticModule('base/js/strings.js'));
 const {
   COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_NAME,
-  FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROW_ID, ROWS, VERSION,
+  FIELD_ORIGINAL_FILENAME, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
+  FIELD_SIZE_BYTES, ROW_ID, ROWS, VERSION,
 } = await import(staticModule('base/js/constants.js'));
 
 let failed = 0;
@@ -146,6 +147,14 @@ assertEqual(O.shouldPreviewObservationPhoto({ type: '' }), true,
             'shouldPreviewObservationPhoto: previews picker files without MIME type');
 assertEqual(O.shouldPreviewObservationPhoto({ type: 'application/pdf' }), false,
             'shouldPreviewObservationPhoto: rejects known non-image MIME types');
+
+assertEqual(O.observationCategoryLabel(1), S.BOSCO_OBSERVATION_CATEGORY,
+            'observationCategoryLabel: singular label');
+assertEqual(O.observationCategoryLabel(2), S.COL_OBSERVATION_CATEGORIES,
+            'observationCategoryLabel: plural label');
+assertEqual(O.observationPhotoTitle({
+  [FIELD_ORIGINAL_FILENAME]: 'sentiero.jpg', [FIELD_SIZE_BYTES]: 1234,
+}), 'sentiero.jpg · 1234 B', 'observationPhotoTitle: filename and size');
 
 console.log(`
 ${passed} passed, ${failed} failed`);
