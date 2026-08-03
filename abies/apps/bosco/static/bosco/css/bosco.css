@@ -243,6 +243,39 @@
   overflow-wrap: anywhere;
 }
 
+.bosco-observation-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.bosco-observation-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #b7c3b4;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bosco-observation-choice:hover,
+.bosco-observation-choice:focus-visible {
+  border-color: #17613a;
+  background: #f2f7f1;
+}
+
+.bosco-observation-choice span {
+  color: #5c6859;
+  font-size: 0.9rem;
+}
+
 .bosco-observation-photos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -304,6 +337,20 @@
   border-radius: 50%;
   background: #fff;
   color: #143d24;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.bosco-observation-aggregate-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #143d24;
+  border-radius: 50%;
+  background: #17613a;
+  color: #fff;
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }

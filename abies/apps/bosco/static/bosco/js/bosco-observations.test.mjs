@@ -178,6 +178,15 @@ assertEqual(groupedPhotos.map(group => group.caption), ['+', '3'],
 assertEqual(groupedPhotos[0].items.map(item => item.caption), [1, 2],
             'groupObservationPhotoMapItems: keeps grouped photo numbers');
 
+const groupedMarkers = O.groupObservationMarkers([
+  { id: 1, lat: 38.0, lon: 16.0 },
+  { id: 2, lat: 38.0, lon: 16.00001 },
+  { id: 3, lat: 38.0, lon: 16.001 },
+], 5);
+assertEqual(groupedMarkers.map(group => group.observations.map(obs => obs.id)),
+            [[1, 2], [3]],
+            'groupObservationMarkers: groups overlapping observations');
+
 console.log(`
 ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

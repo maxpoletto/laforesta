@@ -160,6 +160,34 @@ export function groupObservationPhotoMapItems(items, overlapM = 5) {
   });
 }
 
+export function groupObservationMarkers(observations, overlapM = 5) {
+  const groups = [];
+  for (const observation of Array.isArray(observations) ? observations : []) {
+    const lat = coordinateNumber(observation?.lat);
+    const lon = coordinateNumber(observation?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    let group = null;
+    for (const candidate of groups) {
+      if (candidate.observations.some(existing => (
+        distanceMeters(lat, lon, existing.lat, existing.lon) <= overlapM
+      ))) {
+        group = candidate;
+        break;
+      }
+    }
+    if (!group) {
+      group = { observations: [] };
+      groups.push(group);
+    }
+    group.observations.push({ ...observation, lat, lon });
+  }
+  return groups.map(group => ({
+    lat: average(group.observations.map(observation => observation.lat)),
+    lon: average(group.observations.map(observation => observation.lon)),
+    observations: group.observations,
+  }));
+}
+
 export function observationCategoryLabel(count) {
   return count === 1
     ? S.BOSCO_OBSERVATION_CATEGORY

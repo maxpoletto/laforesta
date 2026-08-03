@@ -87,8 +87,9 @@ import {
 } from './bosco-metrics.js';
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
-  filterObservations, groupObservationPhotoMapItems, normalizeObservationYearRange,
-  observationCategoryItems, observationCategoryLabel, observationPhotoMapItems,
+  filterObservations, groupObservationMarkers, groupObservationPhotoMapItems,
+  normalizeObservationYearRange, observationCategoryItems, observationCategoryLabel,
+  observationPhotoMapItems,
   observationPhotoTitle, observationYears, shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
 
@@ -146,6 +147,7 @@ const OBSERVATION_MARKER_STYLE = {
   bubblingMouseEvents: false,
 };
 
+const OBSERVATION_OVERLAP_THRESHOLD_M = 5;
 const OBSERVATION_PHOTO_DISTANCE_THRESHOLD_M = 10;
 const OBSERVATION_PHOTO_OVERLAP_THRESHOLD_M = 5;
 const OBSERVATION_PHOTO_MAP_PADDING = [30, 30];
@@ -2688,16 +2690,35 @@ function renderObservationMarkers(observations) {
   clearObservationMarkers();
   if (!map?.leaflet) return;
   observationMarkerLayer = L.layerGroup().addTo(map.leaflet);
-  for (const observation of observations) {
-    const marker = L.circleMarker(
-      [observation.lat, observation.lon], OBSERVATION_MARKER_STYLE,
-    );
-    marker.bindTooltip(observationTooltip(observation), {
-      direction: 'top', offset: [0, -5],
-    });
-    marker.on('click', () => showObservationDetail(observation.id));
-    marker.addTo(observationMarkerLayer);
+  for (const group of groupObservationMarkers(observations, OBSERVATION_OVERLAP_THRESHOLD_M)) {
+    if (group.observations.length === 1) {
+      renderSingleObservationMarker(group.observations[0]);
+    } else {
+      renderObservationGroupMarker(group);
+    }
   }
+}
+
+function renderSingleObservationMarker(observation) {
+  const marker = L.circleMarker(
+    [observation.lat, observation.lon], OBSERVATION_MARKER_STYLE,
+  );
+  marker.bindTooltip(observationTooltip(observation), {
+    direction: 'top', offset: [0, -5],
+  });
+  marker.on('click', () => showObservationDetail(observation.id));
+  marker.addTo(observationMarkerLayer);
+}
+
+function renderObservationGroupMarker(group) {
+  const marker = L.marker([group.lat, group.lon], {
+    icon: observationGroupMarkerIcon(group.observations.length),
+  });
+  marker.bindTooltip(observationGroupTooltip(group), {
+    direction: 'top', offset: [0, -5],
+  });
+  marker.on('click', () => showObservationChooser(group.observations));
+  marker.addTo(observationMarkerLayer);
 }
 
 function clearObservationMarkers() {
@@ -2720,6 +2741,81 @@ function observationTooltip(observation) {
   ].filter(Boolean).join(' · ');
   el.append(title, meta);
   return el;
+}
+
+function observationGroupMarkerIcon(count) {
+  return L.divIcon({
+    className: 'bosco-observation-aggregate-marker',
+    html: `<span>${fmtInt(count)}</span>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
+function observationGroupTooltip(group) {
+  const el = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'parcel-tooltip-title';
+  title.textContent = S.BOSCO_OBSERVATION_GROUP_TITLE(
+    fmtInt(group.observations.length),
+  );
+  const meta = document.createElement('div');
+  meta.textContent = groupedObservationCategoryText(group.observations);
+  el.append(title, meta);
+  return el;
+}
+
+function groupedObservationCategoryText(observations) {
+  const seen = new Set();
+  const names = [];
+  for (const observation of observations) {
+    for (const name of observation.categoryNames || []) {
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      names.push(name);
+    }
+  }
+  return observationCategoryText(names);
+}
+
+function showObservationChooser(observations) {
+  const frag = document.createDocumentFragment();
+  const title = document.createElement('h2');
+  title.textContent = S.BOSCO_OBSERVATION_CHOOSER_TITLE;
+  frag.appendChild(title);
+  const list = document.createElement('div');
+  list.className = 'bosco-observation-chooser';
+  for (const observation of observations) {
+    list.appendChild(observationChoiceElement(observation));
+  }
+  frag.appendChild(list);
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'btn';
+  close.textContent = S.DISMISS;
+  close.addEventListener('click', dismissModal);
+  actions.appendChild(close);
+  frag.appendChild(actions);
+  showModal(frag);
+}
+
+function observationChoiceElement(observation) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'bosco-observation-choice';
+  button.addEventListener('click', () => showObservationDetail(observation.id));
+  const title = document.createElement('strong');
+  title.textContent = observation.text || S.BOSCO_OBSERVATION_DETAIL_TITLE;
+  const meta = document.createElement('span');
+  meta.textContent = [
+    observation.date,
+    observationCategoryText(observation.categoryNames),
+    observation.photoCount ? `${S.COL_PHOTO_COUNT}: ${fmtInt(observation.photoCount)}` : '',
+  ].filter(Boolean).join(' · ');
+  button.append(title, meta);
+  return button;
 }
 
 async function showObservationDetail(rowId) {

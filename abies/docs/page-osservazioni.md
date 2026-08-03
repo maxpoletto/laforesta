@@ -76,12 +76,17 @@ pre-filled from the clicked coordinate.
 Clicking an existing observation opens a standard detail modal with date and
 operator on the first row, compresa and formatted position on the second row,
 then the correctly singular/plural category label, free text, and photo
-thumbnails/links. Photo thumbnails are captioned by upload-order number;
-hovering shows filename and size. If any photo has its own coordinates more
-than 10 m from the observation coordinates, the modal also shows a simple
-ParcelMap section with parcel borders, the observation marker, and numbered
-photo markers matching the thumbnail captions. Writers also see `Modifica` and
-`Elimina`. `Modifica` opens the same form with
+thumbnails/links. If multiple visible observations are within 5 m, Bosco shows
+one aggregate marker; clicking it opens a chooser modal, and selecting one row
+opens the normal detail modal.
+
+Photo thumbnails are captioned by upload-order number; hovering shows filename
+and size. If any photo has its own coordinates more than 10 m from the
+observation coordinates, the modal also shows a simple ParcelMap section with
+parcel borders, the observation marker, and all geolocated photo markers. Photo
+markers match the thumbnail captions; photos within 5 m of each other are shown
+as a `+` marker whose tooltip lists the grouped photo numbers. Writers also see
+`Modifica` and `Elimina`. `Modifica` opens the same form with
 title `Modifica osservazione`; in edit mode the region is a selectable pulldown.
 `Elimina` uses the shared confirmation modal and optimistic-lock delete flow.
 
