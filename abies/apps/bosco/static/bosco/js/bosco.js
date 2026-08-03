@@ -8,13 +8,13 @@ import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
   DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
   DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_ACC_M,
-  FIELD_CATEGORIES, FIELD_CONTENT_TYPE, FIELD_DATE, FIELD_LAT,
-  FIELD_LON, FIELD_NAME, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME,
-  FIELD_PARCEL_ID, FIELD_PHOTOS,
+  FIELD_CATEGORIES, FIELD_CONTENT_TYPE, FIELD_DATE,
+  FIELD_LAT, FIELD_LON, FIELD_NAME,
+  FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID, FIELD_PHOTOS,
   FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SPECIES, FIELD_TEXT,
-  FIELD_URL, M2_PER_HA, ROWS,
+  FIELD_URL, HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
-import { fetchJSON } from '../../base/js/api.js';
+import { fetchJSON, postFormData } from '../../base/js/api.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
 import {
   renderLineChart, renderScatterChart, renderStackedBar, speciesNamesFromDigest,
@@ -27,12 +27,13 @@ import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../bas
 import { PARCEL_STYLE, ParcelMap, parcelTooltipContent } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import {
-  deleteRowWithVersion, fetchModalForm, interceptSubmit, renderModalForm,
-  showFormError,
+  deleteRowWithVersion, fetchModalForm, formSubmitControls, interceptSubmit,
+  renderModalForm, showFormError,
 } from '../../base/js/forms.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import {
-  dismiss as dismissModal, show as showModal, showError,
+  dismiss as dismissModal, onDismiss as onModalDismiss, show as showModal,
+  showError,
 } from '../../base/js/modals.js';
 import { canModify } from '../../base/js/roles.js';
 import {
@@ -110,6 +111,9 @@ const PRESERVED_URL = '/api/bosco/preserved-trees/data/';
 const OBSERVATIONS_ID = DIGEST_OBSERVATIONS;
 const OBSERVATIONS_URL = '/api/bosco/observations/data/';
 const OBSERVATION_DETAIL_URL = id => `/api/bosco/observations/${id}/detail/`;
+const OBSERVATION_FORM_URL = '/api/bosco/observations/form/';
+const OBSERVATION_SAVE_URL = '/api/bosco/observations/save/';
+const OBSERVATION_DELETE_URL = '/api/bosco/observations/delete/';
 const PAI_FORM_URL = '/api/bosco/pai/form/';
 const PAI_SAVE_URL = '/api/bosco/pai/save/';
 const PAI_DELETE_URL = '/api/bosco/pai/delete/';
@@ -592,6 +596,8 @@ function wireControls() {
     ?.addEventListener('click', () => setObservationCategoryFilter(null));
   root?.querySelector('[data-action="hide-all-observation-categories"]')
     ?.addEventListener('click', () => setObservationCategoryFilter([]));
+  root?.querySelector('[data-action="add-observation"]')
+    ?.addEventListener('click', () => showObservationForm());
 }
 
 function updateEvolutionDateParam(key, input) {
@@ -2348,6 +2354,187 @@ function paiPopup(tree) {
 }
 
 
+async function showObservationForm(rowId = null, defaults = {}) {
+  const url = rowId
+    ? `${OBSERVATION_FORM_URL}${rowId}/`
+    : observationAddFormUrl(defaults);
+  const form = await fetchModalForm(url);
+  if (!form) return;
+  wireObservationForm(form);
+}
+
+function observationAddFormUrl(defaults = {}) {
+  const params = new URLSearchParams();
+  if (currentState?.regionId) params.set(FIELD_REGION_ID, String(currentState.regionId));
+  if (defaults.lat != null) params.set(FIELD_LAT, fmtCoord(defaults.lat));
+  if (defaults.lon != null) params.set(FIELD_LON, fmtCoord(defaults.lon));
+  return params.toString() ? `${OBSERVATION_FORM_URL}?${params}` : OBSERVATION_FORM_URL;
+}
+
+function wireObservationForm(form) {
+  wireCancelButtons(form, dismissModal);
+  const latEl = form.querySelector('#id_observation_lat');
+  const lonEl = form.querySelector('#id_observation_lon');
+  mountUseLocationButton(
+    latEl, lonEl, { appendTo: form.querySelector('.bosco-observation-latlon-row') },
+  );
+  const newPhotos = wireObservationPhotoInputs(form);
+  let submitting = false;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    const body = new FormData(form);
+    body.delete(FIELD_PHOTOS);
+    for (const item of newPhotos()) {
+      body.append(FIELD_PHOTOS, item.file, item.file.name);
+    }
+    const error = validateObservationForm(body);
+    if (error) { showFormError(form, error); return; }
+
+    submitting = true;
+    const controls = formSubmitControls(form);
+    const previousDisabled = controls.map(control => control.disabled);
+    for (const control of controls) control.disabled = true;
+    try {
+      let data, status;
+      try {
+        ({ data, status } = await postFormData(OBSERVATION_SAVE_URL, body));
+      } catch {
+        showFormError(form, S.ERROR_NETWORK);
+        return;
+      }
+      if (status === 200) {
+        applyObservationResponse(data);
+        dismissModal();
+        return;
+      }
+      if (data?.status === STATUS_CONFLICT) {
+        showFormError(form, data[MESSAGE] || S.ERROR_CONFLICT);
+        applyObservationResponse(data);
+        return;
+      }
+      const html = data?.[HTML] || data?.html;
+      if (html) {
+        const newForm = renderModalForm(html);
+        if (newForm) {
+          wireObservationForm(newForm);
+          showFormError(
+            newForm, data?.[MESSAGE] || data?.message || S.ERROR_GENERIC,
+          );
+        }
+        return;
+      }
+      showFormError(form, data?.[MESSAGE] || data?.message || S.ERROR_GENERIC);
+    } finally {
+      controls.forEach((control, index) => {
+        control.disabled = previousDisabled[index];
+      });
+      submitting = false;
+    }
+  });
+}
+
+function validateObservationForm(body) {
+  if (!body.get(FIELD_DATE)) return S.ERR_DATE_REQUIRED;
+  if (!String(body.get(FIELD_TEXT) || '').trim()) {
+    return S.ERR_BOSCO_OBSERVATION_TEXT_REQUIRED;
+  }
+  if (!body.get(FIELD_LAT) || !body.get(FIELD_LON)) {
+    return S.BOSCO_LAT_LON_REQUIRED;
+  }
+  return null;
+}
+
+function wireObservationPhotoInputs(form) {
+  const input = form.querySelector('[data-role="observation-photo-input"]');
+  const list = form.querySelector('[data-role="observation-photo-list"]');
+  const add = form.querySelector('[data-action="add-observation-photo"]');
+  const photos = [];
+  const objectUrls = [];
+  list?.querySelectorAll('[data-action="remove-observation-photo"]').forEach(button => {
+    button.addEventListener('click', () => {
+      button.closest('.bosco-observation-edit-photo')?.remove();
+    });
+  });
+  add?.addEventListener('click', () => input?.click());
+  input?.addEventListener('change', () => {
+    for (const file of input.files || []) {
+      const item = { id: observationPhotoClientId(), file, objectUrl: '' };
+      if (String(file.type || '').startsWith('image/')) {
+        item.objectUrl = URL.createObjectURL(file);
+        objectUrls.push(item.objectUrl);
+      }
+      photos.push(item);
+      list?.appendChild(observationPendingPhotoElement(item, photos));
+    }
+    input.value = '';
+  });
+  onModalDismiss(() => {
+    for (const url of objectUrls) URL.revokeObjectURL(url);
+  });
+  return () => photos;
+}
+
+function observationPendingPhotoElement(item, photos) {
+  const card = document.createElement('div');
+  card.className = 'bosco-observation-edit-photo';
+  card.dataset.clientPhotoId = item.id;
+  const media = document.createElement('div');
+  media.className = 'bosco-observation-pending-photo';
+  if (item.objectUrl) {
+    const img = document.createElement('img');
+    img.src = item.objectUrl;
+    img.alt = item.file.name;
+    media.appendChild(img);
+  }
+  const label = document.createElement('span');
+  label.textContent = [
+    item.file.name || S.COL_PHOTO_COUNT,
+    item.file.size ? `${fmtInt(item.file.size)} B` : '',
+  ].filter(Boolean).join(' · ');
+  media.appendChild(label);
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'bosco-observation-remove-photo';
+  remove.textContent = '×';
+  remove.setAttribute('aria-label', S.BOSCO_OBSERVATION_PHOTO_REMOVE);
+  remove.title = S.BOSCO_OBSERVATION_PHOTO_REMOVE;
+  remove.addEventListener('click', () => {
+    const index = photos.findIndex(photo => photo.id === item.id);
+    if (index >= 0) photos.splice(index, 1);
+    card.remove();
+  });
+  card.append(media, remove);
+  return card;
+}
+
+function observationPhotoClientId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function applyObservationResponse(data) {
+  cache.applyResponseChanges(data);
+  observationsData = cache.get(OBSERVATIONS_ID);
+  renderObservationsMode();
+}
+
+function confirmDeleteObservation(rowId) {
+  showConfirmModal(S.DELETE_CONFIRM, () => deleteObservation(rowId));
+}
+
+async function deleteObservation(rowId) {
+  const deleted = await deleteRowWithVersion(
+    OBSERVATIONS_ID, rowId, OBSERVATION_DELETE_URL, {
+      confirmMessage: null,
+      onSuccess: applyObservationResponse,
+      onConflict: applyObservationResponse,
+    },
+  );
+  if (deleted) dismissModal();
+}
+
+
 function renderObservationsMode() {
   if (!map || currentState?.mode !== MODE_OBSERVATIONS) return;
   if (!observationsData) {
@@ -2542,8 +2729,10 @@ function renderObservationDetailModal(observation) {
   const categories = Array.isArray(observation[FIELD_CATEGORIES])
     ? observation[FIELD_CATEGORIES].map(row => row[FIELD_NAME]).filter(Boolean)
     : [];
+  const regionName = regionById.get(observation[FIELD_REGION_ID])?.name || '';
   const rows = [
     [S.COL_DATE, observation[FIELD_DATE]],
+    [S.COL_REGION, regionName],
     [S.COL_TEXT, observation[FIELD_TEXT]],
     [S.COL_OBSERVATION_CATEGORIES, observationCategoryText(categories)],
     [S.COL_LAT, fmtCoord(observation[FIELD_LAT])],
@@ -2573,6 +2762,19 @@ function renderObservationDetailModal(observation) {
   close.textContent = S.DISMISS;
   close.addEventListener('click', dismissModal);
   actions.appendChild(close);
+  if (canModify()) {
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn';
+    edit.textContent = S.ACTION_EDIT;
+    edit.addEventListener('click', () => showObservationForm(observation[ROW_ID]));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn btn-delete';
+    del.textContent = S.ACTION_DELETE;
+    del.addEventListener('click', () => confirmDeleteObservation(observation[ROW_ID]));
+    actions.append(edit, del);
+  }
   frag.appendChild(actions);
   showModal(frag);
 }
@@ -2701,6 +2903,10 @@ function promptNewPaiTreeAt(latlng, feature) {
 function onMapClick(latlng, feature) {
   if (currentState?.mode === MODE_PAI) {
     promptNewPaiTreeAt(latlng, feature);
+    return;
+  }
+  if (currentState?.mode === MODE_OBSERVATIONS) {
+    if (canModify()) showObservationForm(null, { lat: latlng.lat, lon: latlng.lng });
     return;
   }
   if (!feature) {

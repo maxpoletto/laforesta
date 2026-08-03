@@ -55,6 +55,23 @@ export async function postJSON(url, body) {
 }
 
 /**
+ * POST multipart form data.  Includes CSRF token.
+ *
+ * @param {string} url
+ * @param {FormData} body
+ * @returns {Promise<{data: any, status: number}>}
+ */
+export async function postFormData(url, body) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrfToken() },
+    body,
+  });
+  const data = await resp.json();
+  return { data, status: resp.status };
+}
+
+/**
  * Read a browser File/Blob as base64 so upload writes can stay on the
  * same JSON+nonce protocol as every other mutating endpoint.
  *

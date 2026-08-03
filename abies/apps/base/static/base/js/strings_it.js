@@ -367,6 +367,10 @@ export const BOSCO_NO_OBSERVATION_CATEGORIES = 'Nessuna categoria.';
 export const BOSCO_OBSERVATIONS_SHOWN = (shown, total) =>
   `${shown} di ${total} osservazioni visualizzate.`;
 export const BOSCO_OBSERVATION_DETAIL_TITLE = 'Osservazione';
+export const BOSCO_OBSERVATION_NEW_TITLE = 'Nuova osservazione';
+export const BOSCO_OBSERVATION_EDIT_TITLE = 'Modifica osservazione';
+export const BOSCO_OBSERVATION_PHOTO_ADD = '+ Aggiungi';
+export const BOSCO_OBSERVATION_PHOTO_REMOVE = 'Rimuovi foto';
 export const BOSCO_METRIC_AGE = 'Età';
 export const BOSCO_METRIC_TYPE = 'Governo';
 export const COL_GOVERNANCE = 'Governo';
@@ -558,6 +562,7 @@ export const LABEL_CLOSE_WORKSITE  = 'Chiudi cantiere';
 export const LABEL_WORKSITE_OPENED = 'Apertura cantiere';
 export const LABEL_WORKSITE_CLOSED = 'Chiusura cantiere';
 export const ERR_DATE_REQUIRED     = 'Data obbligatoria.';
+export const ERR_BOSCO_OBSERVATION_TEXT_REQUIRED = 'Descrizione obbligatoria.';
 export const SECTION_HARVESTS      = 'Prelievi';
 export const SECTION_MARK          = 'Martellate';
 export const LABEL_VOLUME_TOTAL    = 'Volume totale';

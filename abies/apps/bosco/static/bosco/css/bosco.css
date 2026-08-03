@@ -159,7 +159,8 @@
 }
 
 
-.bosco-add-pai {
+.bosco-add-pai,
+.bosco-add-observation {
   width: 100%;
   margin-top: 10px;
 }
@@ -265,6 +266,90 @@
   font-size: 0.82rem;
   color: #444;
   overflow-wrap: anywhere;
+}
+
+.bosco-observation-category-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.bosco-observation-category-group legend,
+.bosco-observation-photo-section h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #173f19;
+}
+
+.bosco-observation-category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 12px;
+}
+
+.bosco-observation-photo-section {
+  margin: 6px 0 14px;
+}
+
+.bosco-observation-edit-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bosco-observation-edit-photo {
+  position: relative;
+  min-width: 0;
+}
+
+.bosco-observation-edit-photo a,
+.bosco-observation-pending-photo {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.bosco-observation-edit-photo img {
+  display: block;
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  border: 1px solid #c9d3c7;
+  border-radius: 3px;
+  background: #eef1ec;
+}
+
+.bosco-observation-edit-photo span {
+  display: block;
+  margin-top: 4px;
+  padding-right: 18px;
+  font-size: 0.82rem;
+  color: #444;
+  overflow-wrap: anywhere;
+}
+
+.bosco-observation-remove-photo {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #9b2d2d;
+  border-radius: 50%;
+  background: #fff;
+  color: #9b2d2d;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bosco-observation-latlon-row .latlng-use-location {
+  align-self: end;
 }
 
 .bosco-detail-overlay {

@@ -135,7 +135,7 @@ export function interceptSubmit(form, postUrl, callbacks) {
   });
 }
 
-function formSubmitControls(form) {
+export function formSubmitControls(form) {
   return [
     ...form.querySelectorAll('button[type="submit"]'),
     ...form.querySelectorAll('input[type="submit"]'),
