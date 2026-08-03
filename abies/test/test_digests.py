@@ -405,7 +405,7 @@ class TestGenerateBoscoDigests:
             sample=sample, tree=kept, parcel=parcels[0], number=7,
             preserved_number=7,
             d_cm=42, h_m=Decimal('18.50'), h_measured=True,
-            lat=38.1, lon=16.2, note='nota',
+            lat=38.1, lon=16.2, acc_m=5, note='nota',
         )
         Tree.objects.create(species=species[1])
 
@@ -415,13 +415,13 @@ class TestGenerateBoscoDigests:
         assert data[ROWS] == [[
             pai.id, pai.version, kept.id, parcels[0].id, species[0].id,
             parcels[0].region.name, parcels[0].name, species[0].common_name,
-            7, '2024-09-15', 1920, 42, 18.5, True, 38.1, 16.2, 'nota',
+            7, '2024-09-15', 1920, 42, 18.5, True, 38.1, 16.2, 5, 'nota',
         ]]
         assert cols == [
             ROW_ID, VERSION, COL_TREE_ID, COL_PARCEL_ID, COL_SPECIES_ID,
             S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER,
             S.COL_DATE, S.COL_ESTIMATED_BIRTH_YEAR, S.COL_D_CM, S.COL_H_M,
-            S.COL_H_MEASURED, S.COL_LAT, S.COL_LON, S.COL_NOTE,
+            S.COL_H_MEASURED, S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_NOTE,
         ]
 
     def test_preserved_trees_digest_allows_unknown_height(self, parcels, species, tmp_path, settings):

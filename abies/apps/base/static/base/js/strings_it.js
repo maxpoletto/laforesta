@@ -357,6 +357,7 @@ export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =
 export const BOSCO_NO_HISTORICAL_HARVEST = 'Nessun prelievo storico.';
 export const BOSCO_INTERVENTIONS = (n) => `${n} interventi`;
 export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
+export const BOSCO_POSITION = 'Posizione';
 export const BOSCO_INSERT_PAI_TREE_HERE = 'Inserire un nuovo albero qui?';
 export const BOSCO_PAI_TREE_META = (parcel, number) => `${parcel} · n. ${number}`;
 export const BOSCO_NO_PAI_TREES = 'Nessuna pianta.';

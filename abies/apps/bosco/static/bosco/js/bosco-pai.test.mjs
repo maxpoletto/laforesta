@@ -43,13 +43,13 @@ const digest = {
   [COLUMNS]: [ROW_ID, VERSION, COL_TREE_ID, COL_PARCEL_ID, COL_SPECIES_ID,
     S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER, S.COL_DATE,
     S.COL_ESTIMATED_BIRTH_YEAR, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
-    S.COL_LAT, S.COL_LON, S.COL_NOTE],
+    S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_NOTE],
   [ROWS]: [
-    [1, 1, 101, 10, 5, 'Capistrano', '2', 'Abete', 7, '2024-09-15', 1920, 42, 18.5, true, 38.1, 16.1, ''],
-    [2, 1, 102, 10, 6, 'Capistrano', '2', 'Faggio', 8, '', 1930, '', '', false, 38.2, 16.2, ''],
-    [3, 1, 103, 11, 5, 'Capistrano', '10', 'Abete', 1, '', 1940, '', '', false, 38.3, 16.3, ''],
-    [4, 1, 104, 12, 7, 'Serra', '1', 'Cerro', 2, '', 1950, '', '', false, 38.4, 16.4, ''],
-    [5, 1, 105, 12, 7, 'Serra', '1', 'Cerro', 3, '', 1950, '', '', false, '', 16.4, 'ignored'],
+    [1, 1, 101, 10, 5, 'Capistrano', '2', 'Abete', 7, '2024-09-15', 1920, 42, 18.5, true, 38.1, 16.1, 4, ''],
+    [2, 1, 102, 10, 6, 'Capistrano', '2', 'Faggio', 8, '', 1930, '', '', false, 38.2, 16.2, '', ''],
+    [3, 1, 103, 11, 5, 'Capistrano', '10', 'Abete', 1, '', 1940, '', '', false, 38.3, 16.3, '', ''],
+    [4, 1, 104, 12, 7, 'Serra', '1', 'Cerro', 2, '', 1950, '', '', false, 38.4, 16.4, '', ''],
+    [5, 1, 105, 12, 7, 'Serra', '1', 'Cerro', 3, '', 1950, '', '', false, '', 16.4, '', 'ignored'],
   ],
 };
 
@@ -59,7 +59,7 @@ assertEqual(trees[0], {
   id: 1, version: 1, treeId: 101, parcelId: 10, speciesId: 5,
   region: 'Capistrano', parcel: '2', species: 'Abete', number: 7,
   date: '2024-09-15', estimatedBirthYear: 1920, dCm: 42, hM: 18.5,
-  hMeasured: true, lat: 38.1, lon: 16.1, note: '',
+  hMeasured: true, lat: 38.1, lon: 16.1, accM: 4, note: '',
 }, 'buildPreservedTrees: row object');
 
 assertEqual(P.filterPaiTrees(trees, { region: 'Capistrano' }).map(t => t.id), [1, 2, 3],

@@ -28,6 +28,7 @@ export function buildPreservedTrees(digest) {
     hMeasured: Boolean(row[c[S.COL_H_MEASURED]]),
     lat: toNumber(row[c[S.COL_LAT]], NaN),
     lon: toNumber(row[c[S.COL_LON]], NaN),
+    accM: toNumber(row[c[S.CSV_COL_ACC_M]], null),
     note: row[c[S.COL_NOTE]] || '',
   })).filter(t => Number.isFinite(t.lat) && Number.isFinite(t.lon));
 }

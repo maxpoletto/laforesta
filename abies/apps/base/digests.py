@@ -1285,7 +1285,7 @@ PRESERVED_TREE_COLUMNS = [
     ROW_ID, VERSION, COL_TREE_ID, COL_PARCEL_ID, COL_SPECIES_ID,
     S.COL_REGION, S.COL_PARCEL, S.COL_SPECIES, S.COL_NUMBER, S.COL_DATE,
     S.COL_ESTIMATED_BIRTH_YEAR, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
-    S.COL_LAT, S.COL_LON, S.COL_NOTE,
+    S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M, S.COL_NOTE,
 ]
 
 
@@ -1300,7 +1300,8 @@ def build_preserved_tree_record(ts) -> list:
         ts.parcel.region.name, ts.parcel.name, tree.species.common_name,
         ts.preserved_number, ts.sample.date.isoformat(),
         tree.estimated_birth_year if tree.estimated_birth_year is not None else '',
-        ts.d_cm, float_or_none(ts.h_m), ts.h_measured, ts.lat, ts.lon, ts.note,
+        ts.d_cm, float_or_none(ts.h_m), ts.h_measured, ts.lat, ts.lon,
+        ts.acc_m, ts.note,
     ]
 
 

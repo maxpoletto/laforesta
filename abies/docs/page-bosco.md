@@ -372,7 +372,8 @@ mode-switch.
   Columns: `row_id`, `version`, `Tree id`, `Parcel id`, `Species id`,
   `Compresa`, `Particella`, `Specie`, `Numero`, `Data`,
   `Anno di nascita stimato`, `D (cm)`, `h (m)`, `h misurata`, `Lat`, `Lon`,
-  `Note`. `h (m)` is blank for historical PAI rows whose height is unknown.
+  `Acc_m`, `Note`. `h (m)` is blank for historical PAI rows whose height
+  is unknown.
   `row_id` = `tree_sample.id`; `Numero` is the parcel-scoped
   `preserved_number`. Sorted by `(Compresa, Particella, Numero)`.
 

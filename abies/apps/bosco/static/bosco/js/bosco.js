@@ -67,6 +67,7 @@ import {
   diffColor, diffRgb, divergingDomain, interpolateRgb, monthValue, pickDate, rgbString,
   satelliteColor, satelliteDiffValue, satelliteMaskRawUrl, satelliteRawUrl, satelliteRgb, satelliteValue,
 } from './bosco-satellite.js';
+import { positionLabelValue } from './bosco-position.js';
 import {
   aggregateDendrometry, dendrometryBarChartData, dendrometryBasalAreaSum,
   dendrometryDiameterStats, dendrometryHeightPoints,
@@ -2321,8 +2322,7 @@ function paiPopup(tree) {
     [S.COL_ESTIMATED_BIRTH_YEAR, fmtInt(tree.estimatedBirthYear)],
     [S.COL_D_CM, fmtInt(tree.dCm)],
     [S.COL_H_M, tree.hM === '' || tree.hM == null ? '' : fmtDecimal2(tree.hM)],
-    [S.COL_LAT, fmtCoord(tree.lat)],
-    [S.COL_LON, fmtCoord(tree.lon)],
+    positionLabelValue(tree.lat, tree.lon, tree.accM),
     [S.COL_NOTE, tree.note],
   ];
   for (const [label, value] of rows) {
@@ -2742,9 +2742,9 @@ function renderObservationDetailModal(observation) {
     [S.COL_REGION, regionName],
     [S.COL_TEXT, observation[FIELD_TEXT]],
     [S.COL_OBSERVATION_CATEGORIES, observationCategoryText(categories)],
-    [S.COL_LAT, fmtCoord(observation[FIELD_LAT])],
-    [S.COL_LON, fmtCoord(observation[FIELD_LON])],
-    [S.IPSO_COL_ACCURACY, observation[FIELD_ACC_M] == null ? '' : fmtInt(observation[FIELD_ACC_M])],
+    positionLabelValue(
+      observation[FIELD_LAT], observation[FIELD_LON], observation[FIELD_ACC_M],
+    ),
     [S.COL_OPERATOR, observation[FIELD_OPERATOR]],
   ];
   for (const [label, value] of rows) observationModalRow(dl, label, value);
