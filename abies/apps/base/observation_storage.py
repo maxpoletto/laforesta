@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -111,6 +112,18 @@ def observation_photo_absolute_path(relative_path: str) -> Path:
     return Path(settings.OBSERVATION_MEDIA_DIR) / rel
 
 
+def atomic_write_observation_photo(path: Path, content: bytes) -> None:
+    """Durably write an observation photo under its final storage path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.tmp')
+    with tmp.open('wb') as f:
+        f.write(content)
+        f.flush()
+        os.fsync(f.fileno())
+    tmp.replace(path)
+    _fsync_dir(path.parent)
+
+
 def _photo_extension(original_filename: str, content_type: str) -> str:
     by_type = _CONTENT_TYPE_EXTENSIONS.get(content_type.lower().strip())
     if by_type:
@@ -119,3 +132,11 @@ def _photo_extension(original_filename: str, content_type: str) -> str:
     if suffix in _FILENAME_EXTENSIONS:
         return suffix
     return '.bin'
+
+
+def _fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)

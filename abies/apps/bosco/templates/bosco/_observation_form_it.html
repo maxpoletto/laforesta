@@ -1,0 +1,96 @@
+<div class="form-card">
+  <form id="bosco-observation-form" enctype="multipart/form-data">
+    <input type="hidden" name="row_id" value="{{ observation.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ version }}">
+    <input type="hidden" name="acc_m" value="{{ acc_m }}">
+
+    <h2>{% if observation %}{{ S.BOSCO_OBSERVATION_EDIT_TITLE }}{% else %}{{ S.BOSCO_OBSERVATION_NEW_TITLE }}{% endif %}</h2>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_observation_region">{{ S.COL_REGION }}</label>
+        {% if observation %}
+        <select id="id_observation_region" name="region_id" required>
+          <option value="">---</option>
+          {% for region in regions %}
+          <option value="{{ region.id }}"
+            {% if selected_region_id == region.id %}selected{% endif %}>{{ region.name }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="hidden" name="region_id" value="{{ selected_region_id }}">
+        <input type="text" id="id_observation_region" value="{{ selected_region_name }}" readonly>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label for="id_observation_date">{{ S.COL_DATE }}</label>
+        <input type="date" id="id_observation_date" name="date" required value="{{ date }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_observation_text">{{ S.COL_TEXT }}</label>
+        <textarea id="id_observation_text" name="text" rows="5" required>{{ text }}</textarea>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <fieldset class="form-group bosco-observation-category-group">
+        <legend>{{ S.COL_OBSERVATION_CATEGORIES }}</legend>
+        <div class="bosco-observation-category-list">
+          {% for category in categories %}
+          <label class="bosco-check">
+            <input type="checkbox" name="category_ids" value="{{ category.id }}"
+              {% if category.id in selected_category_ids %}checked{% endif %}>
+            <span>{{ category.name }}</span>
+          </label>
+          {% empty %}
+          <p class="bosco-hint">{{ S.BOSCO_NO_OBSERVATION_CATEGORIES }}</p>
+          {% endfor %}
+        </div>
+      </fieldset>
+    </div>
+
+    <section class="bosco-observation-photo-section">
+      <h3>{{ S.COL_PHOTO_COUNT }}</h3>
+      <div class="bosco-observation-edit-photos" data-role="observation-photo-list">
+        {% for photo in photos %}
+        <div class="bosco-observation-edit-photo" data-photo-id="{{ photo.id }}">
+          <input type="hidden" name="existing_photo_ids" value="{{ photo.id }}">
+          <a href="{{ photo.url }}" target="_blank" rel="noopener">
+            {% if photo.is_image %}
+            <img src="{{ photo.url }}" alt="{{ photo.filename }}">
+            {% endif %}
+            <span>{{ photo.filename }}</span>
+          </a>
+          <button type="button" class="bosco-observation-remove-photo"
+                  data-action="remove-observation-photo"
+                  aria-label="{{ S.BOSCO_OBSERVATION_PHOTO_REMOVE }}"
+                  title="{{ S.BOSCO_OBSERVATION_PHOTO_REMOVE }}">×</button>
+        </div>
+        {% endfor %}
+      </div>
+      <input type="file" data-role="observation-photo-input" accept="image/*" multiple hidden>
+      <button type="button" class="btn" data-action="add-observation-photo">{{ S.BOSCO_OBSERVATION_PHOTO_ADD }}</button>
+    </section>
+
+    <div class="form-row bosco-observation-latlon-row">
+      <div class="form-group">
+        <label for="id_observation_lat">{{ S.COL_LAT }}</label>
+        <input type="text" inputmode="decimal" id="id_observation_lat" name="lat"
+               required value="{{ lat }}">
+      </div>
+      <div class="form-group">
+        <label for="id_observation_lon">{{ S.COL_LON }}</label>
+        <input type="text" inputmode="decimal" id="id_observation_lon" name="lon"
+               required value="{{ lon }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
+</div>

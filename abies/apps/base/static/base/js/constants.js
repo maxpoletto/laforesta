@@ -68,6 +68,7 @@ export const FIELD_CATEGORY_IDS = 'category_ids';
 export const FIELD_CATEGORIES = 'categories';
 export const FIELD_PHOTO_COUNT = 'photo_count';
 export const FIELD_PHOTOS = 'photos';
+export const FIELD_EXISTING_PHOTO_IDS = 'existing_photo_ids';
 export const FIELD_URL = 'url';
 export const FIELD_CONTENT_TYPE = 'content_type';
 export const FIELD_SIZE_BYTES = 'size_bytes';

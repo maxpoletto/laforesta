@@ -8,12 +8,14 @@ from decimal import Decimal
 import numpy as np
 import pytest
 import rasterio
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 from rasterio.transform import from_origin
 
 from apps.base import csv_io
 from apps.base.digests import (
-    PRESERVED_TREE_COLUMNS, build_parcel_record, build_preserved_tree_record,
+    PRESERVED_TREE_COLUMNS, build_observation_record, build_parcel_record,
+    build_preserved_tree_record,
 )
 from apps.base.models import (
     DigestStatus, Observation, ObservationCategory, ObservationCategoryAssignment,
@@ -21,10 +23,13 @@ from apps.base.models import (
 )
 from config import strings as S
 from config.constants import (
-    DATA_ID, DELETES, DIGEST_PARCELS, DIGEST_PRESERVED_TREES, FIELD_ACC_M,
-    FIELD_CATEGORIES, FIELD_CLIENT_RECORD_ID, FIELD_CONTENT_TYPE, FIELD_DATE,
+    DATA_ID, DELETES, DIGEST_OBSERVATIONS, DIGEST_PARCELS,
+    DIGEST_PRESERVED_TREES, FIELD_ACC_M,
+    FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_CLIENT_RECORD_ID,
+    FIELD_CONTENT_TYPE, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_HEIGHT_PX,
-    FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+    FIELD_EXISTING_PHOTO_IDS, FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME,
+    FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID,
     FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
     FIELD_SPECIES_ID, FIELD_TAKEN_AT,
@@ -193,6 +198,208 @@ def test_observation_photo_unsafe_content_type_downloads_attachment(
     assert resp['Content-Disposition'] == 'attachment'
     assert resp['Cache-Control'] == 'no-store'
     assert resp['X-Content-Type-Options'] == 'nosniff'
+
+
+def test_observation_form_requires_writer(reader_client, regions):
+    resp = reader_client.get(
+        f'/api/bosco/observations/form/?{FIELD_REGION_ID}={regions[0].id}',
+    )
+
+    assert resp.status_code == 403
+
+
+def test_observation_form_writer_access(writer_client, regions, parcels):
+    category = ObservationCategory.objects.create(name='rifiuti-test')
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Rifiuti', lat=38.5, lon=16.3,
+        region=regions[0], acc_m=4, version=3,
+    )
+    observation.categories.add(category)
+
+    add = writer_client.get(
+        f'/api/bosco/observations/form/?{FIELD_REGION_ID}={regions[0].id}'
+        f'&{FIELD_LAT}=38.12345&{FIELD_LON}=16.12345',
+    )
+    edit = writer_client.get(
+        f'/api/bosco/observations/form/{observation.id}/',
+    )
+
+    assert add.status_code == 200
+    add_html = add.json()[HTML]
+    assert 'id="bosco-observation-form"' in add_html
+    assert f'name="region_id" value="{regions[0].id}"' in add_html
+    assert 'readonly' in add_html
+    assert 'value="38.12345' in add_html
+    assert edit.status_code == 200
+    edit_html = edit.json()[HTML]
+    assert S.BOSCO_OBSERVATION_EDIT_TITLE in edit_html
+    assert f'<select id="id_observation_region" name="region_id" required>' in edit_html
+    assert f'value="{category.id}"\n              checked' in edit_html
+
+
+def test_observation_save_creates_manual_observation_with_photo(
+        writer_client, writer_user, parcels, tmp_path, settings):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    category = ObservationCategory.objects.create(name='fitosanitario-test')
+    content = b'\xff\xd8\xffjpeg'
+    body = {
+        FIELD_REGION_ID: str(parcels[0].region_id),
+        FIELD_DATE: '2026-08-01',
+        FIELD_TEXT: 'Ramo pericolante',
+        FIELD_CATEGORY_IDS: [str(category.id)],
+        FIELD_LAT: '38,123456',
+        FIELD_LON: '16.123456',
+        FIELD_NONCE: 'observation-create',
+        FIELD_PHOTOS: _jpeg_upload('ramo.jpg', content),
+    }
+
+    resp = writer_client.post('/api/bosco/observations/save/', body)
+
+    assert resp.status_code == 200
+    observation = Observation.objects.get(text='Ramo pericolante')
+    assert observation.region == parcels[0].region
+    assert observation.date.isoformat() == '2026-08-01'
+    assert observation.lat == 38.12346
+    assert observation.lon == 16.12346
+    assert observation.source == 'bosco'
+    assert observation.created_by == writer_user
+    assert observation.operator == writer_user.username
+    assert list(observation.categories.all()) == [category]
+    photo = ObservationPhoto.objects.get(observation=observation)
+    assert photo.content_type == 'image/jpeg'
+    assert photo.original_filename == 'ramo.jpg'
+    assert (tmp_path / photo.file_path).read_bytes() == content
+    patch = resp.json()[PATCHES][0]
+    assert patch[DATA_ID] == DIGEST_OBSERVATIONS
+    assert patch[ROW_ID] == observation.id
+    assert patch[RECORD] == _observation_digest_record(observation)
+
+
+def test_observation_save_updates_categories_and_photos(
+        writer_client, regions, tmp_path, settings):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    old_category = ObservationCategory.objects.create(name='vecchia')
+    new_category = ObservationCategory.objects.create(name='nuova')
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Prima nota', lat=38.5, lon=16.3,
+        region=regions[0], acc_m=4, source='ipso', operator='Mario',
+    )
+    observation.categories.add(old_category)
+    photo1 = _stored_observation_photo(
+        tmp_path, observation, 'keep.jpg', b'\xff\xd8\xffkeep', 'a' * 64,
+    )
+    photo2 = _stored_observation_photo(
+        tmp_path, observation, 'drop.jpg', b'\xff\xd8\xffdrop', 'b' * 64,
+    )
+    body = {
+        ROW_ID: str(observation.id),
+        VERSION: str(observation.version),
+        FIELD_REGION_ID: str(regions[1].id),
+        FIELD_DATE: '2026-08-02',
+        FIELD_TEXT: 'Nota aggiornata',
+        FIELD_CATEGORY_IDS: [str(new_category.id)],
+        FIELD_EXISTING_PHOTO_IDS: [str(photo1.id)],
+        FIELD_LAT: '38.7',
+        FIELD_LON: '16.7',
+        FIELD_ACC_M: '9',
+        FIELD_NONCE: 'observation-update',
+        FIELD_PHOTOS: _jpeg_upload('new.jpg', b'\xff\xd8\xffnew'),
+    }
+
+    resp = writer_client.post('/api/bosco/observations/save/', body)
+
+    assert resp.status_code == 200
+    observation.refresh_from_db()
+    assert observation.region == regions[1]
+    assert observation.date.isoformat() == '2026-08-02'
+    assert observation.text == 'Nota aggiornata'
+    assert observation.acc_m == 9
+    assert observation.source == 'ipso'
+    assert observation.operator == 'Mario'
+    assert observation.version == 2
+    assert list(observation.categories.all()) == [new_category]
+    assert ObservationPhoto.objects.filter(id=photo1.id).exists()
+    assert not ObservationPhoto.objects.filter(id=photo2.id).exists()
+    assert ObservationPhoto.objects.filter(observation=observation).count() == 2
+    assert resp.json()[PATCHES][0][RECORD] == _observation_digest_record(observation)
+
+
+def test_observation_save_stale_edit_conflicts(writer_client, regions):
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Prima nota', lat=38.5, lon=16.3,
+        region=regions[0], version=2,
+    )
+    body = {
+        ROW_ID: str(observation.id),
+        VERSION: '1',
+        FIELD_REGION_ID: str(regions[0].id),
+        FIELD_DATE: '2026-08-02',
+        FIELD_TEXT: 'Nota aggiornata',
+        FIELD_LAT: '38.7',
+        FIELD_LON: '16.7',
+        FIELD_NONCE: 'observation-conflict',
+    }
+
+    resp = writer_client.post('/api/bosco/observations/save/', body)
+
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data[STATUS] == STATUS_CONFLICT
+    assert data[PATCHES][0][DATA_ID] == DIGEST_OBSERVATIONS
+    assert data[PATCHES][0][ROW_ID] == observation.id
+    assert data[PATCHES][0][RECORD] == _observation_digest_record(observation)
+    assert 'bosco-observation-form' in data[HTML]
+
+
+def test_observation_delete_removes_observation(writer_client, tmp_path, settings):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    observation = Observation.objects.create(
+        date='2026-07-25', text='Da eliminare', lat=38.5, lon=16.3,
+        version=3,
+    )
+    _stored_observation_photo(
+        tmp_path, observation, 'delete.jpg', b'\xff\xd8\xffdelete', 'c' * 64,
+    )
+    body = {ROW_ID: str(observation.id), VERSION: '3', FIELD_NONCE: 'obs-delete'}
+
+    resp = writer_client.post('/api/bosco/observations/delete/', body,
+                              content_type='application/json')
+
+    assert resp.status_code == 200
+    assert Observation.objects.count() == 0
+    assert ObservationPhoto.objects.count() == 0
+    assert resp.json()[DELETES] == [{
+        DATA_ID: DIGEST_OBSERVATIONS,
+        ROW_ID: observation.id,
+    }]
+
+
+def _jpeg_upload(name='photo.jpg', content=b'\xff\xd8\xffjpeg'):
+    return SimpleUploadedFile(name, content, content_type='image/jpeg')
+
+
+def _stored_observation_photo(tmp_path, observation, filename, content, checksum):
+    relative = f'{observation.id}/{filename}'
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return ObservationPhoto.objects.create(
+        observation=observation,
+        file_path=relative,
+        content_type='image/jpeg',
+        size_bytes=len(content),
+        checksum=checksum,
+        original_filename=filename,
+    )
+
+
+def _observation_digest_record(observation):
+    observation = (
+        Observation.objects.prefetch_related('categories')
+        .get(id=observation.id)
+    )
+    observation.photo_count = observation.photos.count()
+    return build_observation_record(observation)
 
 
 @pytest.mark.parametrize('path', [

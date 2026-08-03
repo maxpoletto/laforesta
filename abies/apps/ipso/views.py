@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import os
 import re
 import shutil
 import time
@@ -45,8 +44,9 @@ from apps.base.models import (
 )
 from apps.base.numparse import coord_float, to_decimal
 from apps.base.observation_storage import (
-    normalize_observation_photo_content_type, observation_photo_absolute_path,
-    observation_photo_relative_path, sniff_observation_photo_content_type,
+    atomic_write_observation_photo, normalize_observation_photo_content_type,
+    observation_photo_absolute_path, observation_photo_relative_path,
+    sniff_observation_photo_content_type,
 )
 from apps.base.preserved_trees import latest_preserved_tree_samples
 from apps.base.responses import (
@@ -1617,7 +1617,7 @@ def _store_observation_photo(
         content_type=photo.get(FIELD_CONTENT_TYPE, ''),
     )
     absolute_path = observation_photo_absolute_path(relative_path)
-    _atomic_write_observation_photo(absolute_path, content)
+    atomic_write_observation_photo(absolute_path, content)
     ObservationPhoto.objects.create(
         observation=observation,
         file_path=relative_path,
@@ -1631,25 +1631,6 @@ def _store_observation_photo(
         lon=photo.get(FIELD_LON),
         taken_at=_parse_photo_taken_at(photo.get(FIELD_TAKEN_AT, '')),
     )
-
-
-def _atomic_write_observation_photo(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + '.tmp')
-    with tmp.open('wb') as f:
-        f.write(content)
-        f.flush()
-        os.fsync(f.fileno())
-    tmp.replace(path)
-    _fsync_dir(path.parent)
-
-
-def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
 
 
 def _configured_ipso_secret() -> str:
