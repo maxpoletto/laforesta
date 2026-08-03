@@ -2334,9 +2334,15 @@ function paiPopup(tree) {
     div.append(strong, span);
     el.appendChild(div);
   }
+  const actions = document.createElement('div');
+  actions.className = 'bosco-pai-popup-actions';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'btn';
+  close.textContent = S.DISMISS;
+  close.addEventListener('click', () => map?.leaflet?.closePopup());
+  actions.appendChild(close);
   if (canModify()) {
-    const actions = document.createElement('div');
-    actions.className = 'bosco-pai-popup-actions';
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'btn';
@@ -2348,8 +2354,8 @@ function paiPopup(tree) {
     del.textContent = S.ACTION_DELETE;
     del.addEventListener('click', () => confirmDeletePai(tree.id));
     actions.append(edit, del);
-    el.appendChild(actions);
   }
+  el.appendChild(actions);
   return el;
 }
 
