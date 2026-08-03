@@ -373,6 +373,7 @@ export const BOSCO_OBSERVATION_NEW_TITLE = 'Nuova osservazione';
 export const BOSCO_OBSERVATION_EDIT_TITLE = 'Modifica osservazione';
 export const BOSCO_OBSERVATION_PHOTO_ADD = '+ Aggiungi';
 export const BOSCO_OBSERVATION_PHOTO_REMOVE = 'Rimuovi foto';
+export const BOSCO_OBSERVATION_PHOTO_MAP = 'Posizioni foto';
 export const BOSCO_METRIC_AGE = 'Età';
 export const BOSCO_METRIC_TYPE = 'Governo';
 export const COL_GOVERNANCE = 'Governo';

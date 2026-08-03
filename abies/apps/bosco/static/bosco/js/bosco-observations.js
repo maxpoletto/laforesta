@@ -1,12 +1,12 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_NAME,
-  FIELD_ORIGINAL_FILENAME, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
-  FIELD_SIZE_BYTES, ROW_ID, ROWS, VERSION,
+  COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_LAT,
+  FIELD_LON, FIELD_NAME, FIELD_ORIGINAL_FILENAME, FIELD_PHOTO_COUNT,
+  FIELD_REGION_ID, FIELD_SIZE_BYTES, ROW_ID, ROWS, VERSION,
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 import { fmtInt } from '../../base/js/format.js';
-import { findContainingParcel, parcelNames } from '../../base/js/geo.js';
+import { distanceMeters, findContainingParcel, parcelNames } from '../../base/js/geo.js';
 
 export function buildObservations(digest) {
   if (!digest) return [];
@@ -111,6 +111,20 @@ export function normalizeObservationYearRange(yearFrom, yearTo, years) {
   return { from, to };
 }
 
+export function distantObservationPhotos(observation, photos, thresholdM = 10) {
+  const obsLat = coordinateNumber(observation?.[FIELD_LAT]);
+  const obsLon = coordinateNumber(observation?.[FIELD_LON]);
+  if (!Number.isFinite(obsLat) || !Number.isFinite(obsLon)) return [];
+  return (Array.isArray(photos) ? photos : []).map((photo, index) => {
+    const lat = coordinateNumber(photo?.[FIELD_LAT]);
+    const lon = coordinateNumber(photo?.[FIELD_LON]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const distanceM = distanceMeters(obsLat, obsLon, lat, lon);
+    if (!(distanceM > thresholdM)) return null;
+    return { photo, lat, lon, distanceM, caption: index + 1 };
+  }).filter(Boolean);
+}
+
 export function observationCategoryLabel(count) {
   return count === 1
     ? S.BOSCO_OBSERVATION_CATEGORY
@@ -139,6 +153,11 @@ function categoryNameArray(value, expectedLength) {
   const names = value.split(',').map(v => v.trim()).filter(Boolean);
   if (expectedLength && names.length !== expectedLength) return names;
   return names;
+}
+
+function coordinateNumber(value) {
+  if (value == null || value === '') return NaN;
+  return Number(value);
 }
 
 function observationYear(date) {

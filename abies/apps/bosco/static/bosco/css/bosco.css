@@ -280,6 +280,34 @@
   }
 }
 
+.bosco-observation-photo-map-section h3 {
+  margin: 12px 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #173f19;
+}
+
+.bosco-observation-photo-map {
+  height: 320px;
+  border: 1px solid #888;
+  border-radius: 4px;
+  margin: 8px 0 14px;
+}
+
+.bosco-observation-photo-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #143d24;
+  border-radius: 50%;
+  background: #fff;
+  color: #143d24;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
 .bosco-observation-category-group {
   min-width: 0;
   margin: 0;

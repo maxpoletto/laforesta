@@ -18,6 +18,16 @@ export function metersToDegLng(m, lat) {
   return m / (111132.92 * Math.cos(lat * DEG_TO_RAD));
 }
 
+export function distanceMeters(lat1, lon1, lat2, lon2) {
+  const phi1 = lat1 * DEG_TO_RAD;
+  const phi2 = lat2 * DEG_TO_RAD;
+  const dPhi = (lat2 - lat1) * DEG_TO_RAD;
+  const dLambda = (lon2 - lon1) * DEG_TO_RAD;
+  const a = Math.sin(dPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  return EARTH_RADIUS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /**
  * Ray-casting point-in-ring test for a single GeoJSON linear ring
  * (array of [lng, lat] pairs).

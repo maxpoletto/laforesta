@@ -85,6 +85,11 @@ assertEqual(geo.findContainingParcel(7, 7, twoSquares) === twoSquares[1], true,
 assertEqual(geo.findContainingParcel(20, 20, twoSquares), null,
             'findContainingParcel: outside all features');
 
+assertClose(geo.distanceMeters(0, 0, 0, 0.001), 111.3, 0.5,
+            'distanceMeters: 0.001° longitude at equator');
+assertClose(geo.distanceMeters(38.0, 16.0, 38.0, 16.0), 0, 0.001,
+            'distanceMeters: identical points');
+
 geo.buildBboxIndex([multiParcel]);
 assertEqual(geo.findContainingParcel(3.5, 3.5, [multiParcel]) === multiParcel, true,
             'findContainingParcel: hits MultiPolygon component with bbox prefilter');

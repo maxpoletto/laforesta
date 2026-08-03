@@ -87,9 +87,9 @@ import {
 } from './bosco-metrics.js';
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
-  filterObservations, normalizeObservationYearRange, observationCategoryItems,
-  observationCategoryLabel, observationPhotoTitle, observationYears,
-  shouldPreviewObservationPhoto,
+  distantObservationPhotos, filterObservations, normalizeObservationYearRange,
+  observationCategoryItems, observationCategoryLabel, observationPhotoTitle,
+  observationYears, shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
@@ -145,6 +145,10 @@ const OBSERVATION_MARKER_STYLE = {
   fillOpacity: 0.9,
   bubblingMouseEvents: false,
 };
+
+const OBSERVATION_PHOTO_DISTANCE_THRESHOLD_M = 10;
+const OBSERVATION_PHOTO_MAP_PADDING = [30, 30];
+const OBSERVATION_PHOTO_MAP_MAX_ZOOM = 18;
 
 const NO_DATA_STYLE = {
   ...PARCEL_STYLE,
@@ -2768,6 +2772,13 @@ function renderObservationDetailModal(observation) {
     frag.appendChild(grid);
   }
 
+  const distantPhotos = distantObservationPhotos(
+    observation, photos, OBSERVATION_PHOTO_DISTANCE_THRESHOLD_M,
+  );
+  const photoMapHost = observationPhotoMapHost(distantPhotos);
+  if (photoMapHost) frag.appendChild(photoMapHost.section);
+  let destroyPhotoMap = () => {};
+
   const actions = document.createElement('div');
   actions.className = 'form-actions';
   const close = document.createElement('button');
@@ -2781,16 +2792,92 @@ function renderObservationDetailModal(observation) {
     edit.type = 'button';
     edit.className = 'btn';
     edit.textContent = S.ACTION_EDIT;
-    edit.addEventListener('click', () => showObservationForm(observation[ROW_ID]));
+    edit.addEventListener('click', () => {
+      destroyPhotoMap();
+      showObservationForm(observation[ROW_ID]);
+    });
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'btn btn-delete';
     del.textContent = S.ACTION_DELETE;
-    del.addEventListener('click', () => confirmDeleteObservation(observation[ROW_ID]));
+    del.addEventListener('click', () => {
+      destroyPhotoMap();
+      confirmDeleteObservation(observation[ROW_ID]);
+    });
     actions.append(edit, del);
   }
   frag.appendChild(actions);
   showModal(frag);
+  const photoMap = renderObservationPhotoMap(
+    photoMapHost?.container, observation, distantPhotos,
+  );
+  if (photoMap) {
+    let destroyed = false;
+    destroyPhotoMap = () => {
+      if (destroyed) return;
+      destroyed = true;
+      photoMap.destroy();
+    };
+    onModalDismiss(destroyPhotoMap);
+  }
+}
+
+function observationPhotoMapHost(distantPhotos) {
+  if (!distantPhotos.length || !parcelsGeo?.features?.length) return null;
+  const section = document.createElement('section');
+  section.className = 'bosco-observation-photo-map-section';
+  const heading = document.createElement('h3');
+  heading.textContent = S.BOSCO_OBSERVATION_PHOTO_MAP;
+  const container = document.createElement('div');
+  container.className = 'bosco-observation-photo-map-host';
+  section.append(heading, container);
+  return { section, container };
+}
+
+function renderObservationPhotoMap(host, observation, distantPhotos) {
+  if (!host || !distantPhotos.length || !parcelsGeo?.features?.length) return null;
+  const photoMap = new ParcelMap({
+    container: host,
+    className: 'bosco-observation-photo-map',
+    geojson: parcelsGeo,
+    basemap: currentState?.basemap,
+    tools: {},
+  });
+  const pointLayer = L.layerGroup().addTo(photoMap.leaflet);
+  const points = [];
+  const obsLatLng = [observation[FIELD_LAT], observation[FIELD_LON]];
+  L.circleMarker(obsLatLng, OBSERVATION_MARKER_STYLE)
+    .bindTooltip(S.BOSCO_OBSERVATION_DETAIL_TITLE, { direction: 'top' })
+    .addTo(pointLayer);
+  points.push(obsLatLng);
+  for (const item of distantPhotos) {
+    const latLng = [item.lat, item.lon];
+    L.marker(latLng, { icon: observationPhotoMarkerIcon(item.caption) })
+      .bindTooltip(observationPhotoMapTooltip(item), { direction: 'top' })
+      .addTo(pointLayer);
+    points.push(latLng);
+  }
+  const bounds = L.latLngBounds(points);
+  if (bounds.isValid()) {
+    photoMap.leaflet.fitBounds(bounds, {
+      padding: OBSERVATION_PHOTO_MAP_PADDING,
+      maxZoom: OBSERVATION_PHOTO_MAP_MAX_ZOOM,
+    });
+  }
+  return photoMap;
+}
+
+function observationPhotoMarkerIcon(caption) {
+  return L.divIcon({
+    className: 'bosco-observation-photo-marker',
+    html: `<span>${caption}</span>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function observationPhotoMapTooltip(item) {
+  return `${S.COL_PHOTO_COUNT} ${item.caption}: ${observationPhotoTitle(item.photo)}`;
 }
 
 function observationModalRow(parent, label, value) {
