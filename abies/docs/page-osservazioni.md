@@ -2,7 +2,7 @@
 
 ## Overview
 
-Osservazioni are geo-referenced field notes with optional categories and photos.
+Osservazioni are geo-referenced field notes with one or more categories and optional photos.
 They can enter Abies through Ipso uploads or through the Bosco observations
 layer. Final writes always happen on the Abies server; Ipso only stages upload
 payloads for later import.
@@ -13,13 +13,13 @@ Each observation stores:
 - text description;
 - region;
 - lat/lon and optional GPS accuracy;
-- zero or more observation categories;
+- one or more observation categories;
 - zero or more filesystem-backed photos.
 
 ## Ipso field capture
 
 In Ipso, Osservazioni are a field mode. The operator records observation text,
-selects categories from `reference.json`, and attaches photos. The observation
+selects one or more categories from `reference.json`, and attaches photos. The observation
 position comes from the initial device GPS fix captured when the observation
 form opens; save-time GPS is used only if that initial fix was unavailable.
 Photo EXIF GPS is ignored by design: mobile gallery/document pickers do not
@@ -51,7 +51,7 @@ The import page validates observation uploads before creating domain rows:
 - the upload must still be in the received state;
 - the payload checksum and staged photo checksums must match;
 - each record must have date, text, lat/lon, and a valid region;
-- category ids must exist;
+- at least one category id is required and all category ids must exist;
 - photo content must be a supported raster type;
 - import fingerprints must not duplicate an already imported observation.
 
@@ -89,7 +89,7 @@ The add/edit form contains, in order:
 
 1. region and date;
 2. required description text;
-3. category checkboxes;
+3. category checkboxes, with at least one category required;
 4. photo section;
 5. shared lat/lon entry fields plus the `Usa GPS` button when browser
    geolocation is available.

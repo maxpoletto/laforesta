@@ -278,6 +278,22 @@ def test_observation_save_creates_manual_observation_with_photo(
     assert patch[RECORD] == _observation_digest_record(observation)
 
 
+def test_observation_save_requires_category(writer_client, parcels):
+    body = {
+        FIELD_REGION_ID: str(parcels[0].region_id),
+        FIELD_DATE: '2026-08-01',
+        FIELD_TEXT: 'Ramo pericolante',
+        FIELD_LAT: '38.1',
+        FIELD_LON: '16.1',
+        FIELD_NONCE: 'observation-missing-category',
+    }
+
+    resp = writer_client.post('/api/bosco/observations/save/', body)
+
+    assert resp.status_code == 400
+    assert resp.json()[MESSAGE] == S.ERR_BOSCO_OBSERVATION_CATEGORIES_REQUIRED
+    assert Observation.objects.count() == 0
+
 def test_observation_save_updates_categories_and_photos(
         writer_client, regions, tmp_path, settings):
     settings.OBSERVATION_MEDIA_DIR = tmp_path
@@ -328,16 +344,19 @@ def test_observation_save_updates_categories_and_photos(
 
 
 def test_observation_save_stale_edit_conflicts(writer_client, regions):
+    category = ObservationCategory.objects.create(name='conflitto')
     observation = Observation.objects.create(
         date='2026-07-25', text='Prima nota', lat=38.5, lon=16.3,
         region=regions[0], version=2,
     )
+    observation.categories.add(category)
     body = {
         ROW_ID: str(observation.id),
         VERSION: '1',
         FIELD_REGION_ID: str(regions[0].id),
         FIELD_DATE: '2026-08-02',
         FIELD_TEXT: 'Nota aggiornata',
+        FIELD_CATEGORY_IDS: [str(category.id)],
         FIELD_LAT: '38.7',
         FIELD_LON: '16.7',
         FIELD_NONCE: 'observation-conflict',

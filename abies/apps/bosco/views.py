@@ -547,7 +547,9 @@ def _parse_observation_body(body):
         errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.CSV_COL_ACC_M))
     if not categories_ok:
         errors.append(S.ERR_BOSCO_OBSERVATION_CATEGORIES_INVALID)
-    elif category_ids:
+    elif not category_ids:
+        errors.append(S.ERR_BOSCO_OBSERVATION_CATEGORIES_REQUIRED)
+    else:
         found = set(
             ObservationCategory.objects
             .filter(id__in=category_ids)

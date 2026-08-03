@@ -1656,6 +1656,9 @@ function currentObservationRecord() {
 function validateObservation(rec) {
   const errors = [];
   if (!rec || !rec[FIELD_TEXT]) errors.push(FIELD_TEXT);
+  if (!Array.isArray(rec?.[FIELD_CATEGORY_IDS]) || !rec[FIELD_CATEGORY_IDS].length) {
+    errors.push(FIELD_CATEGORY_IDS);
+  }
   if (State.photoProcessingCount > 0) errors.push(FIELD_PHOTOS);
   if (!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) {
     errors.push('gps');

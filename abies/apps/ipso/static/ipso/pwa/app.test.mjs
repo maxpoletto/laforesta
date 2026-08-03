@@ -1068,6 +1068,28 @@ const session = {
 
 
 
+
+// Observations cannot be saved without at least one selected category.
+{
+  const { context, events } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.session = { ...session, id: 's1', status: 'open', mode: 'observations', region_id: 1 };
+  app.State.pendingObservationPosition = { lat: 38.0, lon: 16.0, acc_m: 4 };
+  context.document.getElementById('in-observation-text').value = 'sentiero';
+  context.document.querySelectorAll = (selector) =>
+    selector.includes(':checked') ? [] : [];
+  context.Store.addObservation = async () => {
+    events.push('addObservation');
+    return { seq: 1 };
+  };
+
+  await app.onSave();
+
+  check(!events.includes('addObservation'),
+        'observation save requires at least one category');
+}
+
 // Observation GPS captured when the observation starts remains authoritative.
 // Save-time GPS is only a fallback, and photo metadata is ignored for the
 // observation position.

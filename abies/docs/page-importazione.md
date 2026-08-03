@@ -78,7 +78,7 @@ Target consistency is enforced at import time:
   unstructured survey. A single uploaded session creates one
   `Sample(sample_area=NULL)`. Preserved rows store the submitted number as the
   parcel-scoped `preserved_number`.
-- `Osservazioni`: rows require text, known categories when supplied, and
+- `Osservazioni`: rows require text, at least one known category, and
   coordinates. Uploaded photo metadata such as filename and image dimensions
   must match staged photo files.
 

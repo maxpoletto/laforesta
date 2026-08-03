@@ -122,9 +122,11 @@ audited and the contract that keeps that coverage complete.
 
 - observation_category_assignment: (id:int, observation_id:int,
   category_id:int)
-  - Many-to-many join between observations and `observation_category`. Unique
-    per `(observation_id, category_id)`. Category deletion is protected while
-    assignments exist; categories should normally be deactivated instead.
+  - Many-to-many join between observations and `observation_category`. Each
+    observation must have at least one category, enforced by Abies write and
+    import validation. Rows are unique per `(observation_id, category_id)`.
+    Category deletion is protected while assignments exist; categories should
+    normally be deactivated instead.
 
 - observation_photo: (id:int, observation_id:int, file_path:string,
   content_type:string, size_bytes:int, width_px:int nullable,

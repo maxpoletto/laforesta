@@ -736,6 +736,24 @@ def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
     )
     assert staged_photo.read_bytes() == JPEG_BYTES
 
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_observation_without_category(
+        db, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        session_id='73737373-7373-4737-8737-737373737373',
+        record_overrides={FIELD_CATEGORY_IDS: []},
+    )
+
+    resp = _post_multipart_upload(Client(), payload, {})
+
+    assert resp.status_code == 422
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
+    assert resp.json()[DETAIL] == S.IPSO_ERR_RECORD_CATEGORY_REQUIRED.format(1)
+    assert IpsoUpload.objects.count() == 0
+
 
 @override_settings(IPSO_SECRET='test-token')
 def test_upload_rejects_observation_missing_photo(

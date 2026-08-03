@@ -1474,8 +1474,12 @@ def _observation_import_rows(
         if not isinstance(record, dict):
             errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
             continue
+        category_ids = record.get(FIELD_CATEGORY_IDS, [])
+        if not category_ids:
+            errors.append(S.IPSO_ERR_RECORD_CATEGORY_REQUIRED.format(i))
+            continue
         row_categories = []
-        for category_id in record.get(FIELD_CATEGORY_IDS, []):
+        for category_id in category_ids:
             category = categories.get(category_id)
             if category is None:
                 errors.append(
@@ -1483,7 +1487,7 @@ def _observation_import_rows(
                 )
                 break
             row_categories.append(category)
-        if len(row_categories) != len(record.get(FIELD_CATEGORY_IDS, [])):
+        if len(row_categories) != len(category_ids):
             continue
         region_id = record.get(FIELD_REGION_ID)
         if type(region_id) is not int:
@@ -1958,12 +1962,21 @@ def _normalize_observation_record(index: int, row: dict, date: str) -> dict:
         FIELD_DATE: date,
         FIELD_REGION_ID: _opt_int(row, FIELD_REGION_ID),
         FIELD_TEXT: text,
-        FIELD_CATEGORY_IDS: _int_list(row, FIELD_CATEGORY_IDS, index),
+        FIELD_CATEGORY_IDS: _required_observation_category_ids(row, index),
         FIELD_LAT: lat,
         FIELD_LON: lon,
         FIELD_ACC_M: _opt_int(row, FIELD_ACC_M),
         FIELD_PHOTOS: _normalize_observation_photos(index, row),
     }
+
+
+def _required_observation_category_ids(row: dict, index: int) -> list[int]:
+    category_ids = _int_list(row, FIELD_CATEGORY_IDS, index)
+    if not category_ids:
+        raise UploadValidationError(
+            S.IPSO_ERR_RECORD_CATEGORY_REQUIRED.format(index)
+        )
+    return category_ids
 
 
 def _int_list(row: dict, key: str, index: int) -> list[int]:
@@ -2067,6 +2080,11 @@ def _attach_photo_files(
 
 
 def _validate_observation_category_ids(records: list[dict]) -> None:
+    for index, record in enumerate(records, start=1):
+        if not record.get(FIELD_CATEGORY_IDS, []):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_CATEGORY_REQUIRED.format(index)
+            )
     category_ids = {
         category_id
         for record in records
