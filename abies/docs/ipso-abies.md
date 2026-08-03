@@ -131,8 +131,10 @@ The upload body contains:
 - `records`: canonical Abies IDs and measurements for the mode;
 - optional `csv_text`: the local CSV text for operator/audit recovery;
 - for observation uploads with photos, multipart file parts named
-  `photo:<client_photo_id>`. Observation location comes from Ipso's device GPS.
-  Camera-captured photos also include the device GPS snapshot captured just
+  `photo:<client_photo_id>`. Observation location comes from the device GPS
+  snapshot captured when the observation form opens, with save-time GPS used
+  only if no initial fix was available. Camera-captured photos also include
+  the device GPS snapshot captured just
   before the camera opens; gallery photos stay location-free, and photo EXIF
   GPS is ignored because mobile providers commonly strip it.
 
@@ -144,8 +146,8 @@ Supported modes are:
 - `observations` — point observations with text, categories, GPS, and
   optional photos. The recording form has separate controls for selecting
   existing gallery photos and opening the camera. Ipso ignores photo EXIF GPS;
-  the observation position is the device GPS fix captured while the
-  observation is recorded, and camera photos carry the pre-camera device GPS
+  the observation position is the initial device GPS fix captured when the
+  observation form opens, and camera photos carry the pre-camera device GPS
   snapshot as photo metadata. The photo list displays filename,
   original/upload size, and `ok`/`errore` conversion status.
 

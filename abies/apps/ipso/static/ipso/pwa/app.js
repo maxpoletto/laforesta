@@ -1637,7 +1637,7 @@ function warnIfObservationPhotosLarge() {
 }
 
 function currentObservationRecord() {
-  const gps = currentObservationGpsSnapshot() || State.pendingObservationPosition;
+  const gps = State.pendingObservationPosition || currentObservationGpsSnapshot();
   const categories = selectedObservationCategories();
   return {
     [FIELD_DATE]: State.session ? State.session.data : '',

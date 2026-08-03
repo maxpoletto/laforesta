@@ -1068,8 +1068,8 @@ const session = {
 
 
 
-// Observation GPS captured before mobile photo processing remains available
-// when save-time GPS has gone stale. Photo metadata is ignored for the
+// Observation GPS captured when the observation starts remains authoritative.
+// Save-time GPS is only a fallback, and photo metadata is ignored for the
 // observation position.
 {
   const { context } = makeHarness();
@@ -1083,7 +1083,17 @@ const session = {
   eq(
     { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
     { lat: 38.0, lon: 16.0, acc_m: 4 },
-    'currentObservationRecord captures fresh observation GPS',
+    'currentObservationRecord captures initial observation GPS',
+  );
+
+  app.State.gps = {
+    snapshot() { return { lat: 39.0, lon: 17.0, acc_m: 2 }; },
+  };
+  rec = app.currentObservationRecord();
+  eq(
+    { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
+    { lat: 38.0, lon: 16.0, acc_m: 4 },
+    'currentObservationRecord keeps initial observation GPS',
   );
 
   app.State.observationPhotos = [{ lat: 38.5, lon: 16.25 }];

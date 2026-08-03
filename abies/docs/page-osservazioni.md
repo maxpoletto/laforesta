@@ -20,9 +20,11 @@ Each observation stores:
 
 In Ipso, Osservazioni are a field mode. The operator records observation text,
 selects categories from `reference.json`, and attaches photos. The observation
-position comes from the device GPS fix held by the PWA. Photo EXIF GPS is ignored
-by design: mobile gallery/document pickers do not reliably expose original EXIF
-metadata, so Abies treats the device observation position as authoritative.
+position comes from the initial device GPS fix captured when the observation
+form opens; save-time GPS is used only if that initial fix was unavailable.
+Photo EXIF GPS is ignored by design: mobile gallery/document pickers do not
+reliably expose original EXIF metadata, so Abies treats the device observation
+position as authoritative.
 
 Ipso can attach photos from the gallery or by opening the camera. Gallery photos
 stay location-free. Camera photos carry the device GPS snapshot captured just
