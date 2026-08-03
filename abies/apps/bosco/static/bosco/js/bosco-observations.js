@@ -111,18 +111,53 @@ export function normalizeObservationYearRange(yearFrom, yearTo, years) {
   return { from, to };
 }
 
-export function distantObservationPhotos(observation, photos, thresholdM = 10) {
+export function observationPhotoMapItems(observation, photos, thresholdM = 10) {
   const obsLat = coordinateNumber(observation?.[FIELD_LAT]);
   const obsLon = coordinateNumber(observation?.[FIELD_LON]);
-  if (!Number.isFinite(obsLat) || !Number.isFinite(obsLon)) return [];
-  return (Array.isArray(photos) ? photos : []).map((photo, index) => {
+  if (!Number.isFinite(obsLat) || !Number.isFinite(obsLon)) {
+    return { items: [], hasDistant: false };
+  }
+  const items = (Array.isArray(photos) ? photos : []).map((photo, index) => {
     const lat = coordinateNumber(photo?.[FIELD_LAT]);
     const lon = coordinateNumber(photo?.[FIELD_LON]);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
     const distanceM = distanceMeters(obsLat, obsLon, lat, lon);
-    if (!(distanceM > thresholdM)) return null;
     return { photo, lat, lon, distanceM, caption: index + 1 };
   }).filter(Boolean);
+  return {
+    items,
+    hasDistant: items.some(item => item.distanceM > thresholdM),
+  };
+}
+
+export function groupObservationPhotoMapItems(items, overlapM = 5) {
+  const groups = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    let group = null;
+    for (const candidate of groups) {
+      if (candidate.items.some(existing => (
+        distanceMeters(item.lat, item.lon, existing.lat, existing.lon) <= overlapM
+      ))) {
+        group = candidate;
+        break;
+      }
+    }
+    if (!group) {
+      group = { items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+  }
+  return groups.map(group => {
+    const lat = average(group.items.map(item => item.lat));
+    const lon = average(group.items.map(item => item.lon));
+    return {
+      lat,
+      lon,
+      items: group.items,
+      caption: group.items.length > 1 ? '+' : String(group.items[0].caption),
+    };
+  });
 }
 
 export function observationCategoryLabel(count) {
@@ -158,6 +193,11 @@ function categoryNameArray(value, expectedLength) {
 function coordinateNumber(value) {
   if (value == null || value === '') return NaN;
   return Number(value);
+}
+
+function average(values) {
+  if (!values.length) return NaN;
+  return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
 function observationYear(date) {

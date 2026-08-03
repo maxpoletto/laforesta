@@ -156,15 +156,27 @@ assertEqual(O.observationPhotoTitle({
   [FIELD_ORIGINAL_FILENAME]: 'sentiero.jpg', [FIELD_SIZE_BYTES]: 1234,
 }), 'sentiero.jpg · 1234 B', 'observationPhotoTitle: filename and size');
 
-const distantPhotos = O.distantObservationPhotos({
+const photoMap = O.observationPhotoMapItems({
   [FIELD_LAT]: 38.0, [FIELD_LON]: 16.0,
 }, [
   { [FIELD_LAT]: 38.0, [FIELD_LON]: 16.0002 },
   { [FIELD_LAT]: 38.0, [FIELD_LON]: 16.00001 },
   { [FIELD_LAT]: '', [FIELD_LON]: 16.1 },
 ], 10);
-assertEqual(distantPhotos.map(item => item.caption), [1],
-            'distantObservationPhotos: keeps only photos beyond threshold');
+assertEqual(photoMap.items.map(item => item.caption), [1, 2],
+            'observationPhotoMapItems: keeps all located photos');
+assertEqual(photoMap.hasDistant, true,
+            'observationPhotoMapItems: flags photos beyond threshold');
+
+const groupedPhotos = O.groupObservationPhotoMapItems([
+  { caption: 1, lat: 38.0, lon: 16.0 },
+  { caption: 2, lat: 38.0, lon: 16.00001 },
+  { caption: 3, lat: 38.0, lon: 16.001 },
+], 5);
+assertEqual(groupedPhotos.map(group => group.caption), ['+', '3'],
+            'groupObservationPhotoMapItems: groups overlapping photos');
+assertEqual(groupedPhotos[0].items.map(item => item.caption), [1, 2],
+            'groupObservationPhotoMapItems: keeps grouped photo numbers');
 
 console.log(`
 ${passed} passed, ${failed} failed`);

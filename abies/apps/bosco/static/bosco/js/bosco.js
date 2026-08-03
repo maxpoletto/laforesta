@@ -87,9 +87,9 @@ import {
 } from './bosco-metrics.js';
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
-  distantObservationPhotos, filterObservations, normalizeObservationYearRange,
-  observationCategoryItems, observationCategoryLabel, observationPhotoTitle,
-  observationYears, shouldPreviewObservationPhoto,
+  filterObservations, groupObservationPhotoMapItems, normalizeObservationYearRange,
+  observationCategoryItems, observationCategoryLabel, observationPhotoMapItems,
+  observationPhotoTitle, observationYears, shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
@@ -147,6 +147,7 @@ const OBSERVATION_MARKER_STYLE = {
 };
 
 const OBSERVATION_PHOTO_DISTANCE_THRESHOLD_M = 10;
+const OBSERVATION_PHOTO_OVERLAP_THRESHOLD_M = 5;
 const OBSERVATION_PHOTO_MAP_PADDING = [30, 30];
 const OBSERVATION_PHOTO_MAP_MAX_ZOOM = 18;
 
@@ -2772,10 +2773,10 @@ function renderObservationDetailModal(observation) {
     frag.appendChild(grid);
   }
 
-  const distantPhotos = distantObservationPhotos(
+  const photoMap = observationPhotoMapItems(
     observation, photos, OBSERVATION_PHOTO_DISTANCE_THRESHOLD_M,
   );
-  const photoMapHost = observationPhotoMapHost(distantPhotos);
+  const photoMapHost = observationPhotoMapHost(photoMap);
   if (photoMapHost) frag.appendChild(photoMapHost.section);
   let destroyPhotoMap = () => {};
 
@@ -2808,22 +2809,22 @@ function renderObservationDetailModal(observation) {
   }
   frag.appendChild(actions);
   showModal(frag);
-  const photoMap = renderObservationPhotoMap(
-    photoMapHost?.container, observation, distantPhotos,
+  const renderedPhotoMap = renderObservationPhotoMap(
+    photoMapHost?.container, observation, photoMap.items,
   );
-  if (photoMap) {
+  if (renderedPhotoMap) {
     let destroyed = false;
     destroyPhotoMap = () => {
       if (destroyed) return;
       destroyed = true;
-      photoMap.destroy();
+      renderedPhotoMap.destroy();
     };
     onModalDismiss(destroyPhotoMap);
   }
 }
 
-function observationPhotoMapHost(distantPhotos) {
-  if (!distantPhotos.length || !parcelsGeo?.features?.length) return null;
+function observationPhotoMapHost(photoMap) {
+  if (!photoMap?.hasDistant || !parcelsGeo?.features?.length) return null;
   const section = document.createElement('section');
   section.className = 'bosco-observation-photo-map-section';
   const heading = document.createElement('h3');
@@ -2834,8 +2835,8 @@ function observationPhotoMapHost(distantPhotos) {
   return { section, container };
 }
 
-function renderObservationPhotoMap(host, observation, distantPhotos) {
-  if (!host || !distantPhotos.length || !parcelsGeo?.features?.length) return null;
+function renderObservationPhotoMap(host, observation, photos) {
+  if (!host || !photos.length || !parcelsGeo?.features?.length) return null;
   const photoMap = new ParcelMap({
     container: host,
     className: 'bosco-observation-photo-map',
@@ -2850,10 +2851,13 @@ function renderObservationPhotoMap(host, observation, distantPhotos) {
     .bindTooltip(S.BOSCO_OBSERVATION_DETAIL_TITLE, { direction: 'top' })
     .addTo(pointLayer);
   points.push(obsLatLng);
-  for (const item of distantPhotos) {
-    const latLng = [item.lat, item.lon];
-    L.marker(latLng, { icon: observationPhotoMarkerIcon(item.caption) })
-      .bindTooltip(observationPhotoMapTooltip(item), { direction: 'top' })
+  const photoGroups = groupObservationPhotoMapItems(
+    photos, OBSERVATION_PHOTO_OVERLAP_THRESHOLD_M,
+  );
+  for (const group of photoGroups) {
+    const latLng = [group.lat, group.lon];
+    L.marker(latLng, { icon: observationPhotoMarkerIcon(group.caption) })
+      .bindTooltip(observationPhotoMapTooltip(group), { direction: 'top' })
       .addTo(pointLayer);
     points.push(latLng);
   }
@@ -2876,7 +2880,12 @@ function observationPhotoMarkerIcon(caption) {
   });
 }
 
-function observationPhotoMapTooltip(item) {
+function observationPhotoMapTooltip(group) {
+  const items = group.items || [];
+  if (items.length > 1) {
+    return `${S.COL_PHOTO_COUNT}: ${items.map(item => item.caption).join(', ')}`;
+  }
+  const item = items[0];
   return `${S.COL_PHOTO_COUNT} ${item.caption}: ${observationPhotoTitle(item.photo)}`;
 }
 
