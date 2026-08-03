@@ -5,6 +5,8 @@ import subprocess
 from datetime import timedelta
 from pathlib import Path
 
+from config.constants import IPSO_UPLOAD_MAX_BYTES_DEFAULT
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -38,7 +40,7 @@ IPSO_INBOX_DIR = Path(os.environ.get(
 OBSERVATION_MEDIA_DIR = DATA_DIR / 'observation-media'
 IPSO_SECRET = os.environ.get('ABIES_IPSO_SECRET', '').strip()
 IPSO_UPLOAD_MAX_BYTES = int(os.environ.get(
-    'ABIES_IPSO_UPLOAD_MAX_BYTES', str(25 * 1024 * 1024),
+    'ABIES_IPSO_UPLOAD_MAX_BYTES', str(IPSO_UPLOAD_MAX_BYTES_DEFAULT),
 ))
 IPSO_UPLOAD_MAX_RECORDS = int(os.environ.get(
     'ABIES_IPSO_UPLOAD_MAX_RECORDS', '500',

@@ -38,6 +38,7 @@ const State = {
   mapGpsStandalone: false,
   mapPendingCenterOnFix: false,
   observationPhotos: [],
+  photoProcessingCount: 0,
   direction: null,
   heading: null,
   bootReady: false,    // true once controls are wired and may be refreshed
@@ -197,6 +198,13 @@ async function boot() {
   document.getElementById('end-title').textContent = S.END_TITLE;
   document.getElementById('end-cancel').textContent = S.REC_CANCEL;
   document.getElementById('end-confirm').textContent = S.END_CONFIRM;
+  document.getElementById('photo-position-title').textContent =
+    S.PHOTO_POSITION_TITLE;
+  document.getElementById('photo-position-current').textContent =
+    S.PHOTO_POSITION_USE_CURRENT;
+  document.getElementById('photo-position-photo').textContent =
+    S.PHOTO_POSITION_USE_PHOTO;
+  document.getElementById('photo-position-cancel').textContent = S.REC_CANCEL;
   document.getElementById('done-title').textContent = S.DONE_TITLE;
   document.getElementById('btn-new-session').textContent = S.DONE_NEW;
 
@@ -338,7 +346,8 @@ function validateReference(value) {
       !Array.isArray(sampling[IPSO_REF_SAMPLE_AREAS]) ||
       !isObject(pai) ||
       !Array.isArray(pai[IPSO_REF_PRESERVED_TREES]) ||
-      !Array.isArray(value[IPSO_REF_OBSERVATION_CATEGORIES])) {
+      !Array.isArray(value[IPSO_REF_OBSERVATION_CATEGORIES]) ||
+      (value[IPSO_REF_UPLOAD] != null && !isObject(value[IPSO_REF_UPLOAD]))) {
     throw new Error(S.ERROR_REFERENCE_INVALID);
   }
   return value;
@@ -886,6 +895,15 @@ function wireRecording() {
   document.getElementById('end-confirm').addEventListener('click', onEnd);
   document.getElementById('end-cancel').addEventListener('click', () => {
     hideModal('modal-confirm-end');
+  });
+  document.getElementById('photo-position-current').addEventListener('click', () => {
+    resolvePhotoPositionChoice('current');
+  });
+  document.getElementById('photo-position-photo').addEventListener('click', () => {
+    resolvePhotoPositionChoice('photo');
+  });
+  document.getElementById('photo-position-cancel').addEventListener('click', () => {
+    resolvePhotoPositionChoice('cancel');
   });
 
 }
@@ -1471,20 +1489,56 @@ function selectedObservationCategories() {
   return { ids, names };
 }
 
-function onObservationPhotosPicked(e) {
+async function onObservationPhotosPicked(e) {
   const files = Array.from(e.target.files || []);
-  for (const file of files) {
-    State.observationPhotos.push({
-      [FIELD_CLIENT_PHOTO_ID]: Store.uuid(),
-      [FIELD_CONTENT_TYPE]: file.type || '',
-      [FIELD_SIZE_BYTES]: Number.isInteger(file.size) ? file.size : 0,
-      [FIELD_ORIGINAL_FILENAME]: file.name || '',
-      blob: file,
-    });
-  }
   e.target.value = '';
-  renderObservationPhotoList();
+  if (!files.length) return;
+  State.photoProcessingCount += files.length;
   updateSaveEnabled();
+  try {
+    for (const file of files) {
+      const prepared = await IpsoPhotos.prepareObservationPhoto(file);
+      State.observationPhotos.push(observationPhotoRecord(prepared));
+      renderObservationPhotoList();
+    }
+    warnIfObservationPhotosLarge();
+  } catch (err) {
+    showToast(S.TOAST_PHOTO_PROCESS_ERROR(err.message || err));
+  } finally {
+    State.photoProcessingCount = Math.max(0, State.photoProcessingCount - files.length);
+    renderObservationPhotoList();
+    updateSaveEnabled();
+  }
+}
+
+function observationPhotoRecord(prepared) {
+  const metadata = prepared.metadata || {};
+  const record = {
+    [FIELD_CLIENT_PHOTO_ID]: Store.uuid(),
+    [FIELD_CONTENT_TYPE]: prepared.contentType || '',
+    [FIELD_SIZE_BYTES]: prepared.sizeBytes || 0,
+    [FIELD_WIDTH_PX]: ipsoPositiveInt(prepared[FIELD_WIDTH_PX]),
+    [FIELD_HEIGHT_PX]: ipsoPositiveInt(prepared[FIELD_HEIGHT_PX]),
+    [FIELD_ORIGINAL_SIZE_BYTES]: ipsoPositiveInt(
+      prepared[FIELD_ORIGINAL_SIZE_BYTES]
+    ),
+    [FIELD_ORIGINAL_WIDTH_PX]: ipsoPositiveInt(
+      prepared[FIELD_ORIGINAL_WIDTH_PX]
+    ),
+    [FIELD_ORIGINAL_HEIGHT_PX]: ipsoPositiveInt(
+      prepared[FIELD_ORIGINAL_HEIGHT_PX]
+    ),
+    [FIELD_CONVERSION_STATUS]: prepared[FIELD_CONVERSION_STATUS] || '',
+    [FIELD_CONVERSION_REASON]: prepared[FIELD_CONVERSION_REASON] || '',
+    [FIELD_ORIGINAL_FILENAME]: prepared.originalFilename || '',
+    blob: prepared.blob,
+  };
+  if (Number.isFinite(metadata[FIELD_LAT]) && Number.isFinite(metadata[FIELD_LON])) {
+    record[FIELD_LAT] = metadata[FIELD_LAT];
+    record[FIELD_LON] = metadata[FIELD_LON];
+  }
+  if (metadata[FIELD_TAKEN_AT]) record[FIELD_TAKEN_AT] = metadata[FIELD_TAKEN_AT];
+  return record;
 }
 
 function renderObservationPhotoList() {
@@ -1494,8 +1548,79 @@ function renderObservationPhotoList() {
   for (const photo of State.observationPhotos) {
     const row = document.createElement('div');
     row.className = 'photo-row';
-    row.textContent = photo[FIELD_ORIGINAL_FILENAME] || S.REC_OBSERVATION_PHOTOS;
+    row.textContent = [
+      photo[FIELD_ORIGINAL_FILENAME] || S.REC_OBSERVATION_PHOTOS,
+      photoSizeTransition(photo),
+      photoResolutionTransition(photo),
+      photoConversionStatus(photo),
+      IpsoPhotos.hasPhotoPosition(photo) ? S.REC_OBSERVATION_PHOTO_GPS : '',
+    ].filter(Boolean).join(' · ');
     host.appendChild(row);
+  }
+  if (State.photoProcessingCount > 0) {
+    const row = document.createElement('div');
+    row.className = 'photo-row';
+    row.textContent = S.REC_OBSERVATION_PHOTOS_PROCESSING(State.photoProcessingCount);
+    host.appendChild(row);
+  }
+}
+
+function photoSizeTransition(photo) {
+  const size = ipsoPositiveInt(photo && photo[FIELD_SIZE_BYTES]);
+  const original = ipsoPositiveInt(
+    photo && photo[FIELD_ORIGINAL_SIZE_BYTES]
+  );
+  if (!size) return '';
+  const sizeText = IpsoPhotos.formatBytes(size);
+  if (original) return `${IpsoPhotos.formatBytes(original)} → ${sizeText}`;
+  return sizeText;
+}
+
+function photoResolutionTransition(photo) {
+  const size = formatPhotoResolution(
+    photo && photo[FIELD_WIDTH_PX], photo && photo[FIELD_HEIGHT_PX]
+  );
+  const original = formatPhotoResolution(
+    photo && photo[FIELD_ORIGINAL_WIDTH_PX],
+    photo && photo[FIELD_ORIGINAL_HEIGHT_PX]
+  );
+  if (original && size) return `${original} → ${size}`;
+  return size || original;
+}
+
+function photoConversionStatus(photo) {
+  const status = photo && photo[FIELD_CONVERSION_STATUS];
+  const reason = S.REC_OBSERVATION_PHOTO_REASON(
+    photo && photo[FIELD_CONVERSION_REASON] || ''
+  );
+  if (status === PHOTO_CONVERSION_CONVERTED) return S.REC_OBSERVATION_PHOTO_CONVERTED;
+  if (status === PHOTO_CONVERSION_ORIGINAL) return S.REC_OBSERVATION_PHOTO_ORIGINAL;
+  if (status === PHOTO_CONVERSION_UNAVAILABLE) {
+    return S.REC_OBSERVATION_PHOTO_UNAVAILABLE(reason);
+  }
+  if (status === PHOTO_CONVERSION_FAILED) {
+    return S.REC_OBSERVATION_PHOTO_FAILED(reason);
+  }
+  return '';
+}
+
+function formatPhotoResolution(width, height) {
+  if (!ipsoPositiveInt(width) || !ipsoPositiveInt(height)) {
+    return '';
+  }
+  return `${width}×${height}`;
+}
+
+
+function warnIfObservationPhotosLarge() {
+  const maxBytes = upload.uploadMaxBytes(State.reference);
+  const bytes = State.observationPhotos.reduce(
+    (total, photo) => total + (photo && photo[FIELD_SIZE_BYTES] || 0), 0
+  );
+  if (bytes > maxBytes) {
+    showToast(S.TOAST_UPLOAD_SIZE_WARNING(
+      IpsoPhotos.formatBytes(bytes), IpsoPhotos.formatBytes(maxBytes)
+    ), 5000);
   }
 }
 
@@ -1519,7 +1644,11 @@ function currentObservationRecord() {
 function validateObservation(rec) {
   const errors = [];
   if (!rec || !rec[FIELD_TEXT]) errors.push(FIELD_TEXT);
-  if (!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) errors.push('gps');
+  if (State.photoProcessingCount > 0) errors.push(FIELD_PHOTOS);
+  if ((!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) &&
+      !firstPhotoPosition(rec)) {
+    errors.push('gps');
+  }
   return errors;
 }
 
@@ -1642,12 +1771,67 @@ async function onSave() {
   }
 }
 
+
+async function resolveObservationCoordinates(rec) {
+  const photo = firstPhotoPosition(rec);
+  const hasObservationPosition = Number.isFinite(rec && rec[FIELD_LAT]) &&
+    Number.isFinite(rec && rec[FIELD_LON]);
+  if (!photo) return rec;
+  if (!hasObservationPosition) return observationWithPhotoPosition(rec, photo);
+  const distance = upload.distanceMeters(
+    rec[FIELD_LAT], rec[FIELD_LON], photo[FIELD_LAT], photo[FIELD_LON]
+  );
+  if (!Number.isFinite(distance) ||
+      distance <= IpsoPhotos.PHOTO_POSITION_PROMPT_DISTANCE_M) {
+    return rec;
+  }
+  const choice = await promptPhotoPositionChoice(distance);
+  if (choice === 'photo') return observationWithPhotoPosition(rec, photo);
+  if (choice === 'current') return rec;
+  return null;
+}
+
+function observationWithPhotoPosition(rec, photo) {
+  return {
+    ...rec,
+    [FIELD_LAT]: photo[FIELD_LAT],
+    [FIELD_LON]: photo[FIELD_LON],
+    [FIELD_ACC_M]: null,
+  };
+}
+
+function firstPhotoPosition(rec) {
+  const photos = Array.isArray(rec && rec[FIELD_PHOTOS]) ? rec[FIELD_PHOTOS] : [];
+  const first = photos[0];
+  return IpsoPhotos.hasPhotoPosition(first) ? first : null;
+}
+
+let photoPositionResolver = null;
+function promptPhotoPositionChoice(distanceMeters) {
+  return new Promise((resolve) => {
+    photoPositionResolver = resolve;
+    document.getElementById('photo-position-body').textContent =
+      S.PHOTO_POSITION_BODY(Math.round(distanceMeters));
+    showModal('modal-photo-position');
+  });
+}
+
+function resolvePhotoPositionChoice(choice) {
+  hideModal('modal-photo-position');
+  const resolver = photoPositionResolver;
+  photoPositionResolver = null;
+  if (resolver) resolver(choice);
+}
+
 async function onSaveObservation() {
-  const rec = currentObservationRecord();
+  const rec = await resolveObservationCoordinates(currentObservationRecord());
+  if (!rec) return;
   const validationErrors = validateObservation(rec);
   if (validationErrors.length > 0) {
     if (validationErrors.includes('gps')) {
-      renderGpsStatus(State.gps ? State.gps.state() : { fix: null, tier: 'red' });
+      if (!firstPhotoPosition(rec)) {
+        renderGpsStatus(State.gps ? State.gps.state() : { fix: null, tier: 'red' });
+      }
     }
     return;
   }
@@ -2296,6 +2480,7 @@ function uploadFlow() {
     uploadFlowInstance = createUploadFlow({
       db: () => State.db,
       uploadToken: () => State.bearerToken,
+      uploadMaxBytes: () => upload.uploadMaxBytes(State.reference),
       stopRecording: stopRecordingSensors,
       acquireWakeLock,
       releaseWakeLock,

@@ -24,6 +24,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.cache import patch_vary_headers
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -69,6 +70,7 @@ from config.constants import (
     FIELD_CLIENT_RECORD_ID, FIELD_ERROR_SUMMARY,
     FIELD_ID, FIELD_NAME,
     FIELD_CATEGORY_IDS, FIELD_CATEGORIES, FIELD_CONTENT_TYPE,
+    FIELD_MAX_BYTES,
     FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
@@ -83,7 +85,8 @@ from config.constants import (
     FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SIZE_BYTES, FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE,
     FIELD_TEXT, FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT,
-    FIELD_STATE, FIELD_STATE_LABEL,
+    FIELD_STATE, FIELD_STATE_LABEL, FIELD_TAKEN_AT, FIELD_WIDTH_PX,
+    FIELD_HEIGHT_PX,
     FIELD_SURVEY_ID, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
@@ -91,9 +94,9 @@ from config.constants import (
     IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
     IPSO_REF_HYPSOMETRY, IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_PAI,
-    IPSO_REF_PARCELS,
+    IPSO_REF_PARCELS, IPSO_REF_UPLOAD,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
-    DATA_ID_IPSO_UPLOADS,
+    DATA_ID_IPSO_UPLOADS, IPSO_UPLOAD_MAX_BYTES_DEFAULT,
     IPSO_REF_SAMPLE_AREAS, IPSO_REF_SAMPLING, IPSO_REF_SPECIES,
     IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_LEGACY_CONVERTED,
@@ -158,6 +161,7 @@ ASSET_FILES = {
     'numpad.js',
     'palette.js',
     'parcel-locator.js',
+    'photo.js',
     'session.js',
     'store.js',
     'strings.js',
@@ -238,6 +242,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         IPSO_REF_SAMPLING: sampling,
         IPSO_REF_PAI: pai,
         IPSO_REF_OBSERVATION_CATEGORIES: _observation_category_rows(),
+        IPSO_REF_UPLOAD: _upload_limits(),
         IPSO_REF_WORK_PACKAGES: _work_packages(sampling),
     }
     payload[FIELD_REFERENCE_VERSION] = _reference_version(payload)
@@ -276,6 +281,14 @@ def _parcel_rows() -> list[dict]:
         }
         for p in parcels
     ]
+
+
+def _upload_limits() -> dict:
+    return {
+        FIELD_MAX_BYTES: _setting_int(
+            'IPSO_UPLOAD_MAX_BYTES', IPSO_UPLOAD_MAX_BYTES_DEFAULT
+        ),
+    }
 
 
 def _observation_category_rows() -> list[dict]:
@@ -1612,6 +1625,11 @@ def _store_observation_photo(
         size_bytes=len(content),
         checksum=checksum,
         original_filename=photo.get(FIELD_ORIGINAL_FILENAME, ''),
+        width_px=photo.get(FIELD_WIDTH_PX),
+        height_px=photo.get(FIELD_HEIGHT_PX),
+        lat=photo.get(FIELD_LAT),
+        lon=photo.get(FIELD_LON),
+        taken_at=_parse_photo_taken_at(photo.get(FIELD_TAKEN_AT, '')),
     )
 
 
@@ -1702,7 +1720,9 @@ def _request_from_trusted_proxy(remote_addr: str) -> bool:
 
 
 def _upload_too_large(request: HttpRequest) -> bool:
-    max_bytes = _setting_int('IPSO_UPLOAD_MAX_BYTES', 25 * 1024 * 1024)
+    max_bytes = _setting_int(
+        'IPSO_UPLOAD_MAX_BYTES', IPSO_UPLOAD_MAX_BYTES_DEFAULT
+    )
     if max_bytes <= 0:
         return False
     content_length = request.META.get('CONTENT_LENGTH')
@@ -2004,6 +2024,17 @@ def _normalize_observation_photos(index: int, row: dict) -> list[dict]:
             raise UploadValidationError(
                 S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
             )
+        width_px = _opt_int(photo, FIELD_WIDTH_PX)
+        height_px = _opt_int(photo, FIELD_HEIGHT_PX)
+        if (width_px is None) != (height_px is None):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
+        if ((width_px is not None and width_px <= 0) or
+                (height_px is not None and height_px <= 0)):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
         checksum = _opt_str(photo, FIELD_CHECKSUM)
         if checksum and not _SHA256_RE.match(checksum):
             raise UploadValidationError(
@@ -2013,8 +2044,17 @@ def _normalize_observation_photos(index: int, row: dict) -> list[dict]:
             FIELD_CLIENT_PHOTO_ID: client_photo_id,
             FIELD_CONTENT_TYPE: _opt_str(photo, FIELD_CONTENT_TYPE),
             FIELD_SIZE_BYTES: size_bytes or 0,
+            FIELD_WIDTH_PX: width_px,
+            FIELD_HEIGHT_PX: height_px,
             FIELD_ORIGINAL_FILENAME: _opt_str(photo, FIELD_ORIGINAL_FILENAME),
+            FIELD_LAT: _opt_coord_float(photo, FIELD_LAT),
+            FIELD_LON: _opt_coord_float(photo, FIELD_LON),
+            FIELD_TAKEN_AT: _opt_datetime_string(photo, FIELD_TAKEN_AT),
         }
+        if (out[FIELD_LAT] is None) != (out[FIELD_LON] is None):
+            raise UploadValidationError(
+                S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index)
+            )
         if checksum:
             out[FIELD_CHECKSUM] = checksum
         photos.append(out)
@@ -2195,6 +2235,25 @@ def _opt_coord_float(payload: dict, key: str) -> float | None:
     out = coord_float(to_decimal(value, '.'))
     if out is None:
         raise UploadValidationError(S.IPSO_ERR_FIELD_FINITE.format(key))
+    return out
+
+
+def _opt_datetime_string(payload: dict, key: str) -> str:
+    value = _opt_str(payload, key)
+    if not value:
+        return ''
+    _parse_photo_taken_at(value)
+    return value
+
+
+def _parse_photo_taken_at(value: str):
+    if not value:
+        return None
+    out = parse_datetime(value)
+    if out is None or django_timezone.is_naive(out):
+        raise UploadValidationError(
+            S.IPSO_ERR_FIELD_STRING.format(FIELD_TAKEN_AT)
+        )
     return out
 
 

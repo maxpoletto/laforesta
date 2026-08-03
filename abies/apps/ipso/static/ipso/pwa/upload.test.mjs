@@ -4,8 +4,10 @@ const require = createRequire(import.meta.url);
 const upload = require('./upload.js');
 const {
   FIELD_CATEGORY_IDS, FIELD_CLIENT_PHOTO_ID, FIELD_CONTENT_TYPE,
+  FIELD_HEIGHT_PX, FIELD_LAT, FIELD_LON, FIELD_MAX_BYTES,
   FIELD_ORIGINAL_FILENAME, FIELD_PHOTOS, FIELD_PRESERVED, FIELD_SIZE_BYTES,
-  FIELD_TEXT,
+  FIELD_TAKEN_AT, FIELD_TEXT, FIELD_WIDTH_PX,
+  IPSO_REF_UPLOAD,
 } = require('./constants.js');
 
 let pass = 0;
@@ -158,7 +160,12 @@ const observationPayload = upload.buildUploadPayload(
       [FIELD_CLIENT_PHOTO_ID]: 'photo-1',
       [FIELD_CONTENT_TYPE]: 'image/jpeg',
       [FIELD_SIZE_BYTES]: 3,
+      [FIELD_WIDTH_PX]: 20,
+      [FIELD_HEIGHT_PX]: 10,
       [FIELD_ORIGINAL_FILENAME]: 'sentiero.jpg',
+      [FIELD_LAT]: 38.51,
+      [FIELD_LON]: 16.31,
+      [FIELD_TAKEN_AT]: '2026-07-31T10:15:30Z',
       blob: new Blob(['abc'], { type: 'image/jpeg' }),
     }],
   }],
@@ -179,10 +186,40 @@ check(
   !('blob' in strippedObservationPayload.records[0][FIELD_PHOTOS][0]),
   'observations multipart wire payload strips local blobs',
 );
+const strippedPhoto = strippedObservationPayload.records[0][FIELD_PHOTOS][0];
 check(
-  strippedObservationPayload.records[0][FIELD_PHOTOS][0][FIELD_CLIENT_PHOTO_ID] === 'photo-1',
+  strippedPhoto[FIELD_CLIENT_PHOTO_ID] === 'photo-1' &&
+    strippedPhoto[FIELD_LAT] === 38.51 &&
+    strippedPhoto[FIELD_WIDTH_PX] === 20 &&
+    strippedPhoto[FIELD_HEIGHT_PX] === 10 &&
+    strippedPhoto[FIELD_TAKEN_AT] === '2026-07-31T10:15:30Z',
   'observations multipart wire payload keeps photo metadata',
 );
+check(
+  upload.uploadMaxBytes({ [IPSO_REF_UPLOAD]: { [FIELD_MAX_BYTES]: 12345 } }) === 12345,
+  'upload max bytes comes from reference upload limits',
+);
+check(
+  upload.uploadMaxBytes({}) === 30 * 1024 * 1024,
+  'upload max bytes falls back to the 30 MiB default',
+);
+const estimatedObservationBytes = upload.estimatedUploadBytes(observationPayload);
+check(
+  estimatedObservationBytes > 3,
+  'observations multipart upload estimates photo bytes plus overhead',
+);
+try {
+  await upload.uploadSession({
+    token: 't',
+    sessionId: 'session-1',
+    payload: observationPayload,
+    maxBytes: estimatedObservationBytes - 1,
+  });
+  failures.push('oversized upload preflight rejects before fetch (no error)');
+} catch (e) {
+  if (e && e.klass === 'hard:too_large') pass += 1;
+  else failures.push(`oversized upload preflight rejects before fetch (got ${e && e.klass})`);
+}
 
 const freeSurveyPayload = upload.buildUploadPayload(
   sess(upload.UPLOAD_MODE_FREE_SURVEY),

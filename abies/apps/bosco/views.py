@@ -49,7 +49,7 @@ from config.constants import (
     FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME,
     FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME,
     FIELD_PARCEL_ID, FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
-    FIELD_SPECIES_ID, FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML,
+    FIELD_SPECIES_ID, FIELD_TAKEN_AT, FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML,
     ROW_ID, VERSION,
 )
 
@@ -253,6 +253,9 @@ def _observation_photo_metadata(photo: ObservationPhoto) -> dict:
         FIELD_WIDTH_PX: photo.width_px,
         FIELD_HEIGHT_PX: photo.height_px,
         FIELD_ORIGINAL_FILENAME: photo.original_filename,
+        FIELD_LAT: photo.lat,
+        FIELD_LON: photo.lon,
+        FIELD_TAKEN_AT: photo.taken_at.isoformat() if photo.taken_at else '',
     }
 
 

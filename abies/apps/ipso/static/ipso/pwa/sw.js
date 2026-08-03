@@ -42,6 +42,7 @@ const SHELL = [
   './store.js',
   './geo.js',
   './parcel-locator.js',
+  './photo.js',
   './map.js',
   './upload.js',
   './upload-flow.js',

@@ -9,11 +9,11 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
-  `showResumeModal, prefillNumber, currentRecord, renderTreesTable, ` +
+  `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
   `renderObservationsTable, onObservationPhotosPicked, ` +
   `wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
-  `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
+  `restoreCachedBootResources, refreshBootResources, resolveObservationCoordinates, resolvePhotoPositionChoice, wireAppUpdateButton, ` +
   `registerServiceWorker, watchServiceWorkerUpdates, activatePendingAppUpdate, ` +
   `loadBearerToken, bearerHeaders };\n`;
 
@@ -98,6 +98,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     return elements.get(id);
   };
   element('modal-confirm-end');
+  element('modal-photo-position').className = 'hidden';
   element('modal-resume').className = 'hidden';
   element('banner-reference').className = 'banner hidden';
   element('banner-storage').className = 'banner hidden';
@@ -145,6 +146,16 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     TOAST_DB_OPEN_ERROR: (msg) => `db error: ${msg}`,
     TOAST_BOOT_CACHE_ERROR: (msg) => `cache error: ${msg}`,
     TOAST_REFERENCE_REQUIRED: 'reference required',
+    PHOTO_POSITION_BODY: (meters) => `distance ${meters}`,
+    REC_OBSERVATION_PHOTO_CONVERTED: 'convertita',
+    REC_OBSERVATION_PHOTO_ORIGINAL: 'originale mantenuta',
+    REC_OBSERVATION_PHOTO_UNAVAILABLE: (reason) => `non convertita: ${reason}`,
+    REC_OBSERVATION_PHOTO_FAILED: (reason) => `conversione fallita: ${reason}`,
+    REC_OBSERVATION_PHOTO_REASON: (reason) => reason,
+    TOAST_PHOTO_PROCESS_ERROR: (msg) => `photo error: ${msg}`,
+    TOAST_UPLOAD_SIZE_WARNING: (size, limit) => `upload size ${size}/${limit}`,
+    REC_OBSERVATION_PHOTO_GPS: 'GPS foto',
+    REC_OBSERVATION_PHOTOS_PROCESSING: (count) => `processing ${count}`,
     REFERENCE_OFFLINE_WARNING: 'offline reference',
     STORAGE_WARNING: 'storage warning',
     TOAST_DUPLICATE_NUMBER: (number) => `duplicate ${number}`,
@@ -201,6 +212,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     IPSO_REF_PAI: 'pai',
     IPSO_REF_PRESERVED_TREES: 'preserved_trees',
     IPSO_REF_OBSERVATION_CATEGORIES: 'observation_categories',
+    IPSO_REF_UPLOAD: 'upload',
     RECORDS: 'records',
     FIELD_SURVEY_ID: 'survey_id',
     FIELD_SAMPLE_GRID_ID: 'sample_grid_id',
@@ -213,12 +225,31 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     FIELD_CLIENT_PHOTO_ID: 'client_photo_id',
     FIELD_CONTENT_TYPE: 'content_type',
     FIELD_SIZE_BYTES: 'size_bytes',
+    FIELD_MAX_BYTES: 'max_bytes',
+    FIELD_WIDTH_PX: 'width_px',
+    FIELD_HEIGHT_PX: 'height_px',
+    FIELD_ORIGINAL_SIZE_BYTES: 'original_size_bytes',
+    FIELD_ORIGINAL_WIDTH_PX: 'original_width_px',
+    FIELD_ORIGINAL_HEIGHT_PX: 'original_height_px',
+    FIELD_CONVERSION_STATUS: 'conversion_status',
+    FIELD_CONVERSION_REASON: 'conversion_reason',
     FIELD_ORIGINAL_FILENAME: 'original_filename',
+    FIELD_TAKEN_AT: 'taken_at',
+    PHOTO_CONVERSION_CONVERTED: 'converted',
+    PHOTO_CONVERSION_ORIGINAL: 'original',
+    PHOTO_CONVERSION_UNAVAILABLE: 'unavailable',
+    PHOTO_CONVERSION_FAILED: 'failed',
+    FIELD_LAT: 'lat',
+    FIELD_LON: 'lon',
+    FIELD_ACC_M: 'acc_m',
     FIELD_TEXT: 'text',
     FIELD_CATEGORIES: 'categories',
     FIELD_CATEGORY_IDS: 'category_ids',
     FIELD_PHOTOS: 'photos',
     FIELD_DATE: 'date',
+    ipsoPositiveInt(value) {
+      return Number.isInteger(value) && value > 0 ? value : null;
+    },
     FIELD_COPPICE: 'coppice',
     FIELD_PRESERVED: 'preserved',
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX: 'sampling_survey:',
@@ -306,10 +337,35 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       formatDate: (ymd) => ymd,
     },
     upload: {
+      uploadMaxBytes() { return 30 * 1024 * 1024; },
+      distanceMeters() { return 0; },
       buildUploadPayload() {
         events.push('buildPayload');
         throw new Error('validation failed');
       },
+    },
+    IpsoPhotos: {
+      PHOTO_POSITION_PROMPT_DISTANCE_M: 100,
+      async prepareObservationPhoto(file) {
+        return {
+          blob: file,
+          metadata: file.metadata || {},
+          contentType: file.type || '',
+          sizeBytes: file.convertedSize || file.size || 0,
+          originalFilename: file.name || '',
+          width_px: file.width_px || null,
+          height_px: file.height_px || null,
+          original_size_bytes: file.size || 0,
+          original_width_px: file.original_width_px || null,
+          original_height_px: file.original_height_px || null,
+          conversion_status: file.conversion_status || 'converted',
+          conversion_reason: file.conversion_reason || '',
+        };
+      },
+      hasPhotoPosition(photo) {
+        return Number.isFinite(photo && photo.lat) && Number.isFinite(photo && photo.lon);
+      },
+      formatBytes(bytes) { return `${bytes} B`; },
     },
     IpsoFormat: {
       fmtCoord(value) { return Number(value).toFixed(6); },
@@ -1021,27 +1077,77 @@ const session = {
 }
 
 
+
+
+// Observation coordinates fall back to first-photo GPS when live GPS is absent.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const rec = await app.resolveObservationCoordinates({
+    text: 'foto vecchia', lat: null, lon: null, acc_m: null,
+    photos: [{ lat: 38.5, lon: 16.25 }],
+  });
+  eq(
+    { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
+    { lat: 38.5, lon: 16.25, acc_m: null },
+    'resolveObservationCoordinates uses first-photo GPS when observation GPS is absent',
+  );
+}
+
+// If live GPS and first-photo GPS disagree materially, the standard modal lets
+// the operator choose the photo position.
+{
+  const { context, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  context.upload.distanceMeters = () => 150;
+  const pending = app.resolveObservationCoordinates({
+    text: 'foto vecchia', lat: 38.0, lon: 16.0, acc_m: 7,
+    photos: [{ lat: 38.5, lon: 16.25 }],
+  });
+  check(!elements.get('modal-photo-position').classList.contains('hidden'),
+        'resolveObservationCoordinates opens the photo-position modal');
+  app.resolvePhotoPositionChoice('photo');
+  const rec = await pending;
+  eq(
+    { lat: rec.lat, lon: rec.lon, acc_m: rec.acc_m },
+    { lat: 38.5, lon: 16.25, acc_m: null },
+    'photo-position modal can choose first-photo GPS',
+  );
+}
+
 // Observation photo inputs share the same ingestion path. Gallery selection
 // may include multiple files; camera capture usually contributes one at a time.
 {
-  const { context } = makeHarness();
+  const { context, elements } = makeHarness();
   const app = context.__ipsoAppTest;
   app.State.session = { ...session, mode: 'observations' };
   app.State.observationPhotos = [];
   const input = {
     files: [
-      { name: 'galleria.jpg', type: 'image/jpeg', size: 7 },
+      {
+        name: 'galleria.jpg', type: 'image/jpeg', size: 7000000,
+        convertedSize: 500000, original_width_px: 4000,
+        original_height_px: 3000, width_px: 2000, height_px: 1500,
+      },
       { name: 'camera.png', type: 'image/png', size: 9 },
     ],
     value: 'selected',
   };
 
-  app.onObservationPhotosPicked({ target: input });
+  await app.onObservationPhotosPicked({ target: input });
 
   check(app.State.observationPhotos.length === 2,
         'observation photo picker stores all selected files');
   check(app.State.observationPhotos[0].original_filename === 'galleria.jpg',
         'observation photo picker records original filenames');
+  const photoRow = elements.get('observation-photo-list')
+    .children[0].textContent;
+  check(photoRow.includes('7000000 B → 500000 B'),
+        'observation photo picker displays before/after byte size');
+  check(photoRow.includes('4000×3000 → 2000×1500'),
+        'observation photo picker displays before/after resolution');
+  check(photoRow.includes('convertita'),
+        'observation photo picker displays conversion status');
   check(input.value === '', 'observation photo picker resets the file input');
 }
 

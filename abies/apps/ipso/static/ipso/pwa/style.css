@@ -540,6 +540,8 @@ button {
 }
 .modal-card h2 { margin: 0; font-size: 18px; color: var(--green-dark); }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-actions-stacked { flex-direction: column; }
+.modal-actions-stacked button { width: 100%; }
 
 #resume-list {
   list-style: none;

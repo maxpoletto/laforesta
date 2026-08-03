@@ -128,14 +128,18 @@ audited and the contract that keeps that coverage complete.
 
 - observation_photo: (id:int, observation_id:int, file_path:string,
   content_type:string, size_bytes:int, width_px:int nullable,
-  height_px:int nullable, checksum:string, original_filename:string)
+  height_px:int nullable, checksum:string, original_filename:string,
+  lat:float nullable, lon:float nullable, taken_at:datetime nullable)
   - Metadata for a photo stored on the filesystem, not in SQLite. `file_path`
     is a generated relative path under `OBSERVATION_MEDIA_DIR`
     (`data/observation-media` by default); user-provided filenames are kept
     only as display metadata and never used as storage paths.
   - `checksum` is the SHA-256 of the stored file content. `width_px` and
     `height_px` are optional because upload/import code may not always inspect
-    image dimensions.
+    image dimensions. `lat`/`lon` preserve GPS metadata extracted before client
+    compression strips EXIF; they must be null together or non-null together.
+    `taken_at` is optional and used only when the client can derive a real
+    timestamp, such as EXIF GPS time.
 
 ## Trees
 

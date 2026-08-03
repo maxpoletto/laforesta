@@ -66,6 +66,7 @@ function createUploadFlow(opts) {
         sessionId: current.sessionId,
         payload: current.payload,
         signal: ac.signal,
+        maxBytes: opts.uploadMaxBytes ? opts.uploadMaxBytes() : undefined,
       });
       await completeUpload();
     } catch (err) {

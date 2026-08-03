@@ -357,6 +357,9 @@ class ObservationPhoto(TimestampedModel):
     height_px = models.PositiveIntegerField(null=True, blank=True)
     checksum = models.CharField(max_length=64, db_index=True)
     original_filename = models.CharField(max_length=255, blank=True)
+    lat = models.FloatField(null=True, blank=True)
+    lon = models.FloatField(null=True, blank=True)
+    taken_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = S.OBSERVATION_PHOTO
@@ -378,6 +381,27 @@ class ObservationPhoto(TimestampedModel):
                     models.Q(height_px__isnull=True) | models.Q(height_px__gt=0)
                 ),
                 name='observation_photo_height_positive',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(lat__isnull=True, lon__isnull=True) |
+                    models.Q(lat__isnull=False, lon__isnull=False)
+                ),
+                name='observation_photo_lat_lon_pair',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(lat__isnull=True) |
+                    (models.Q(lat__gte=-90) & models.Q(lat__lte=90))
+                ),
+                name='observation_photo_lat_range',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(lon__isnull=True) |
+                    (models.Q(lon__gte=-180) & models.Q(lon__lte=180))
+                ),
+                name='observation_photo_lon_range',
             ),
         ]
 

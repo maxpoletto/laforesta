@@ -228,8 +228,8 @@ Adjust names and ports as needed.
    `staticfiles` directory, and proxy everything else to the loopback port used
    by the compose file. Current defaults are `127.0.0.1:8000` for prod and
    `127.0.0.1:8001` for dev. Set `X-Forwarded-Proto: https`; Django trusts that
-   header for secure-cookie behavior. Use a request-body cap at least as large
-   as the Django upload limits; 10 MB is the current deployment default.
+   header for secure-cookie behavior. Use a request-body cap aligned with the
+   Django upload limits; 30 MiB is the current Abies/Ipso deployment default.
 
    Ipso upload rate limiting needs a real client address, not the Docker bridge
    or loopback proxy address. Apache should discard any client-supplied

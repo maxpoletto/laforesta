@@ -2,7 +2,7 @@
 
 import base64
 import re
-from datetime import date as date_type
+from datetime import date as date_type, datetime, timezone
 from decimal import Decimal
 
 import numpy as np
@@ -27,7 +27,7 @@ from config.constants import (
     FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID,
     FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
-    FIELD_SPECIES_ID,
+    FIELD_SPECIES_ID, FIELD_TAKEN_AT,
     FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML, MESSAGE, PATCHES, RECORD,
     ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
@@ -112,6 +112,8 @@ def test_observation_detail_and_photo_reader_access(
         height_px=10,
         checksum='a' * 64,
         original_filename='campo.jpg',
+        lat=38.51, lon=16.31,
+        taken_at=datetime(2026, 7, 31, 10, 15, 30, tzinfo=timezone.utc),
     )
 
     detail = reader_client.get(
@@ -141,6 +143,9 @@ def test_observation_detail_and_photo_reader_access(
         FIELD_WIDTH_PX: 20,
         FIELD_HEIGHT_PX: 10,
         FIELD_ORIGINAL_FILENAME: 'campo.jpg',
+        FIELD_LAT: 38.51,
+        FIELD_LON: 16.31,
+        FIELD_TAKEN_AT: '2026-07-31T10:15:30+00:00',
     }]
 
     resp = reader_client.get(payload[FIELD_PHOTOS][0][FIELD_URL])

@@ -27,6 +27,7 @@ const IPSO_REF_SPECIES = 'species';
 const IPSO_REF_PARCELS = 'parcels';
 const IPSO_REF_HYPSOMETRY = 'ipsometrica';
 const IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories';
+const IPSO_REF_UPLOAD = 'upload';
 
 const FIELD_SESSION_ID = 'session_id';
 const FIELD_MODE = 'mode';
@@ -71,7 +72,21 @@ const FIELD_CATEGORIES = 'categories';
 const FIELD_PHOTOS = 'photos';
 const FIELD_CONTENT_TYPE = 'content_type';
 const FIELD_SIZE_BYTES = 'size_bytes';
+const FIELD_MAX_BYTES = 'max_bytes';
+const FIELD_WIDTH_PX = 'width_px';
+const FIELD_HEIGHT_PX = 'height_px';
+const FIELD_ORIGINAL_SIZE_BYTES = 'original_size_bytes';
+const FIELD_ORIGINAL_WIDTH_PX = 'original_width_px';
+const FIELD_ORIGINAL_HEIGHT_PX = 'original_height_px';
+const FIELD_CONVERSION_STATUS = 'conversion_status';
+const FIELD_CONVERSION_REASON = 'conversion_reason';
 const FIELD_ORIGINAL_FILENAME = 'original_filename';
+
+const PHOTO_CONVERSION_CONVERTED = 'converted';
+const PHOTO_CONVERSION_ORIGINAL = 'original';
+const PHOTO_CONVERSION_UNAVAILABLE = 'unavailable';
+const PHOTO_CONVERSION_FAILED = 'failed';
+const FIELD_TAKEN_AT = 'taken_at';
 
 const SESSION = 'session';
 const RECORDS = 'records';
@@ -86,6 +101,10 @@ const SAVE_COOLDOWN_MS = 300;
 const SAVE_COOLDOWN_RECHECK_MS = SAVE_COOLDOWN_MS + 20;
 
 const PRESSLER_DEFAULT = '2.00';
+
+function ipsoPositiveInt(value) {
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 
 if (typeof module !== 'undefined') {
   module.exports = {
@@ -109,6 +128,7 @@ if (typeof module !== 'undefined') {
     IPSO_REF_PARCELS,
     IPSO_REF_HYPSOMETRY,
     IPSO_REF_OBSERVATION_CATEGORIES,
+    IPSO_REF_UPLOAD,
     FIELD_SESSION_ID,
     FIELD_MODE,
     FIELD_SCHEMA_VERSION,
@@ -152,7 +172,20 @@ if (typeof module !== 'undefined') {
     FIELD_PHOTOS,
     FIELD_CONTENT_TYPE,
     FIELD_SIZE_BYTES,
+    FIELD_MAX_BYTES,
+    FIELD_WIDTH_PX,
+    FIELD_HEIGHT_PX,
+    FIELD_ORIGINAL_SIZE_BYTES,
+    FIELD_ORIGINAL_WIDTH_PX,
+    FIELD_ORIGINAL_HEIGHT_PX,
+    FIELD_CONVERSION_STATUS,
+    FIELD_CONVERSION_REASON,
     FIELD_ORIGINAL_FILENAME,
+    PHOTO_CONVERSION_CONVERTED,
+    PHOTO_CONVERSION_ORIGINAL,
+    PHOTO_CONVERSION_UNAVAILABLE,
+    PHOTO_CONVERSION_FAILED,
+    FIELD_TAKEN_AT,
     SESSION,
     RECORDS,
     IPSO_SECRET_HASH_PARAM,
@@ -164,6 +197,7 @@ if (typeof module !== 'undefined') {
     SAVE_COOLDOWN_MS,
     SAVE_COOLDOWN_RECHECK_MS,
     PRESSLER_DEFAULT,
+    ipsoPositiveInt,
   };
   Object.assign(globalThis, module.exports);
 }

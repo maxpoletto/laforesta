@@ -478,6 +478,16 @@ class TestConstraints:
                 observation=obs, file_path='1/b.jpg', content_type='image/jpeg',
                 size_bytes=10, width_px=0, checksum='c' * 64,
             )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ObservationPhoto.objects.create(
+                observation=obs, file_path='1/c.jpg', content_type='image/jpeg',
+                size_bytes=10, checksum='d' * 64, lat=38.5,
+            )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ObservationPhoto.objects.create(
+                observation=obs, file_path='1/d.jpg', content_type='image/jpeg',
+                size_bytes=10, checksum='e' * 64, lat=91, lon=16.3,
+            )
 
     def test_parcel_same_name_different_region_ok(self, parcels):
         """Parcel '1' in Capistrano and Fabrizia are distinct."""

@@ -71,9 +71,11 @@ export const FIELD_PHOTOS = 'photos';
 export const FIELD_URL = 'url';
 export const FIELD_CONTENT_TYPE = 'content_type';
 export const FIELD_SIZE_BYTES = 'size_bytes';
+export const FIELD_MAX_BYTES = 'max_bytes';
 export const FIELD_WIDTH_PX = 'width_px';
 export const FIELD_HEIGHT_PX = 'height_px';
 export const FIELD_ORIGINAL_FILENAME = 'original_filename';
+export const FIELD_TAKEN_AT = 'taken_at';
 
 // Ipso integration identifiers.
 export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
@@ -93,6 +95,7 @@ export const IPSO_REF_SAMPLING = 'sampling';
 export const IPSO_REF_PAI = 'pai';
 export const IPSO_REF_WORK_PACKAGES = 'work_packages';
 export const IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories';
+export const IPSO_REF_UPLOAD = 'upload';
 export const IPSO_REF_SAMPLE_AREA_MAX_NUMBERS = 'sample_area_max_numbers';
 
 // Role identifiers — mirror apps/base/models.py Role.TextChoices values.

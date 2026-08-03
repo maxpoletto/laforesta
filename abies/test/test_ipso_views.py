@@ -32,15 +32,15 @@ from config.constants import (
     FIELD_COMPLETED_AT, FIELD_CONTENT_TYPE, FIELD_COPPICE, FIELD_CREATED_AT,
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_ID,
-    FIELD_H_MEASURED,
+    FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_MAX_BYTES,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
     FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL,
     FIELD_PARCEL_ID, FIELD_PHOTO_COUNT, FIELD_PHOTOS, FIELD_PRESERVED,
     FIELD_PRESSLER_COEFF, FIELD_REASON, FIELD_RECORD_DATE,
     FIELD_REFERENCE_VERSION, FIELD_REGION_ID, FIELD_SAMPLE_AREA_ID,
-    FIELD_SCHEMA_VERSION, FIELD_SIZE_BYTES, FIELD_STANDARD, FIELD_TEXT,
-    FIELD_TREE_PRESERVED_ID,
+    FIELD_SCHEMA_VERSION, FIELD_SIZE_BYTES, FIELD_STANDARD, FIELD_TAKEN_AT,
+    FIELD_TEXT, FIELD_TREE_PRESERVED_ID, FIELD_WIDTH_PX,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID,
     FIELD_SURVEY_ID, FIELD_WARNINGS, FIELD_WARNINGS_CONFIRMED,
@@ -48,7 +48,7 @@ from config.constants import (
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
-    IPSO_REF_OBSERVATION_CATEGORIES, IPSO_TARGET_OBSERVATIONS,
+    IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_UPLOAD, IPSO_TARGET_OBSERVATIONS,
     IPSO_UPLOAD_FILE_PHOTOS_DIR, IPSO_UPLOAD_FILE_READY, MESSAGE,
     PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, STATUS, STATUS_WARNING,
     UPLOAD,
@@ -252,6 +252,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     data = resp.json()
     assert data['schema_version'] == 1
     assert data['reference_version']
+    assert data[IPSO_REF_UPLOAD][FIELD_MAX_BYTES] == 30 * 1024 * 1024
     assert data['species'][0]['common'] == 'Abete'
     parcel = next(p for p in data['parcels']
                   if p['compresa'] == 'Capistrano' and p['particella'] == '1')
@@ -700,7 +701,12 @@ def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
                 FIELD_CLIENT_PHOTO_ID: 'photo-1',
                 FIELD_CONTENT_TYPE: '',
                 FIELD_SIZE_BYTES: 0,
+                FIELD_WIDTH_PX: 20,
+                FIELD_HEIGHT_PX: 10,
                 FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+                FIELD_LAT: 38.51235,
+                FIELD_LON: 16.12346,
+                FIELD_TAKEN_AT: '2026-07-31T10:15:30Z',
             }],
         },
     )
@@ -719,7 +725,12 @@ def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
     photo = staged[RECORDS][0][FIELD_PHOTOS][0]
     assert photo[FIELD_CHECKSUM] == hashlib.sha256(JPEG_BYTES).hexdigest()
     assert photo[FIELD_SIZE_BYTES] == len(JPEG_BYTES)
+    assert photo[FIELD_WIDTH_PX] == 20
+    assert photo[FIELD_HEIGHT_PX] == 10
     assert photo[FIELD_ORIGINAL_FILENAME] == 'sentiero.jpg'
+    assert photo[FIELD_LAT] == 38.51235
+    assert photo[FIELD_LON] == 16.12346
+    assert photo[FIELD_TAKEN_AT] == '2026-07-31T10:15:30Z'
     staged_photo = (
         Path(upload.inbox_path) / IPSO_UPLOAD_FILE_PHOTOS_DIR / 'photo-1'
     )
@@ -738,6 +749,9 @@ def test_upload_rejects_observation_missing_photo(
             FIELD_PHOTOS: [{
                 FIELD_CLIENT_PHOTO_ID: 'photo-1',
                 FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+                FIELD_LAT: 38.51235,
+                FIELD_LON: 16.12346,
+                FIELD_TAKEN_AT: '2026-07-31T10:15:30Z',
             }],
         },
     )
@@ -747,6 +761,34 @@ def test_upload_rejects_observation_missing_photo(
     assert resp.status_code == 422
     assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert resp.json()[DETAIL] == S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format('photo-1')
+    assert IpsoUpload.objects.count() == 0
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_upload_rejects_observation_photo_with_naive_taken_at(
+        db, parcels, settings, tmp_path):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(
+        parcels[0], category,
+        session_id='79797979-7979-4797-8797-797979797979',
+        record_overrides={
+            FIELD_PHOTOS: [{
+                FIELD_CLIENT_PHOTO_ID: 'photo-1',
+                FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+                FIELD_TAKEN_AT: '2026-07-31T10:15:30',
+            }],
+        },
+    )
+
+    resp = _post_multipart_upload(Client(), payload, {
+        'photo:photo-1': SimpleUploadedFile(
+            'sentiero.jpg', JPEG_BYTES, content_type='image/jpeg',
+        ),
+    })
+
+    assert resp.status_code == 422
+    assert resp.json()[ERROR] == IPSO_ERROR_INVALID_PAYLOAD
     assert IpsoUpload.objects.count() == 0
 
 
@@ -795,7 +837,12 @@ def test_import_observation_upload_creates_observations_and_photos(
                 FIELD_CLIENT_PHOTO_ID: 'photo-1',
                 FIELD_CONTENT_TYPE: '',
                 FIELD_SIZE_BYTES: 0,
+                FIELD_WIDTH_PX: 20,
+                FIELD_HEIGHT_PX: 10,
                 FIELD_ORIGINAL_FILENAME: 'sentiero.jpg',
+                FIELD_LAT: 38.51235,
+                FIELD_LON: 16.12346,
+                FIELD_TAKEN_AT: '2026-07-31T10:15:30Z',
             }],
         },
     )
@@ -827,7 +874,12 @@ def test_import_observation_upload_creates_observations_and_photos(
     photo = ObservationPhoto.objects.get(observation=observation)
     assert photo.content_type == 'image/jpeg'
     assert photo.size_bytes == len(JPEG_BYTES)
+    assert photo.width_px == 20
+    assert photo.height_px == 10
     assert photo.original_filename == 'sentiero.jpg'
+    assert photo.lat == 38.51235
+    assert photo.lon == 16.12346
+    assert photo.taken_at == datetime(2026, 7, 31, 10, 15, 30, tzinfo=dt_timezone.utc)
     assert (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes() == JPEG_BYTES
 
 

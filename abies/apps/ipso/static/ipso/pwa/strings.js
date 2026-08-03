@@ -66,6 +66,27 @@ const S = {
   REC_OBSERVATION_PHOTOS_GALLERY: 'Foto da galleria',
   REC_OBSERVATION_PHOTOS_CAMERA: 'Scatta foto',
   REC_OBSERVATION_ADD_PHOTOS: 'Aggiungi foto',
+  REC_OBSERVATION_PHOTO_GPS: 'GPS foto',
+  REC_OBSERVATION_PHOTO_CONVERTED: 'convertita',
+  REC_OBSERVATION_PHOTO_ORIGINAL: 'originale mantenuta',
+  REC_OBSERVATION_PHOTO_UNAVAILABLE: (reason) =>
+    `non convertita${reason ? `: ${reason}` : ''}`,
+  REC_OBSERVATION_PHOTO_FAILED: (reason) =>
+    `conversione fallita${reason ? `: ${reason}` : ''}`,
+  REC_OBSERVATION_PHOTO_REASON: (reason) => ({
+    canvas_context_unavailable: 'contesto canvas non disponibile',
+    canvas_empty_blob: 'canvas.toBlob vuoto',
+    canvas_unavailable: 'canvas non disponibile',
+    image_load_failed: 'caricamento immagine fallito',
+    invalid_scale: 'scala non valida',
+    not_smaller: 'conversione non più piccola',
+    source_dimensions_missing: 'dimensioni sorgente assenti',
+    unsupported_type: 'tipo file non immagine',
+    unknown: 'errore sconosciuto',
+    url_api_unavailable: 'URL API non disponibile',
+  }[reason] || reason || ''),
+  REC_OBSERVATION_PHOTOS_PROCESSING: (n) =>
+    `Elaborazione ${n} foto…`,
   REC_OBSERVATION_NO_CATEGORIES: 'Nessuna categoria disponibile.',
 
   // Visualizza dati raccolti screen
@@ -124,6 +145,14 @@ const S = {
     `La sessione contiene ${n} osservazion${n === 1 ? 'e' : 'i'}. ` +
     `Esportare il CSV e chiudere?`,
   END_CONFIRM: 'Esporta e chiudi',
+
+  // Observation photo-position modal
+  PHOTO_POSITION_TITLE: 'Posizione osservazione',
+  PHOTO_POSITION_BODY: (m) =>
+    `La posizione della prima foto differisce dalla posizione GPS attuale di circa ${m} m. ` +
+    'Quale posizione vuoi usare?',
+  PHOTO_POSITION_USE_CURRENT: 'Usa posizione attuale',
+  PHOTO_POSITION_USE_PHOTO: 'Usa posizione foto',
 
   // Done screen
   DONE_TITLE: 'Sessione esportata',
@@ -194,6 +223,10 @@ const S = {
     `Numero ${number} già registrato in questa particella/area.`,
   TOAST_DELETE_ERROR: (detail) => `Errore eliminazione: ${detail}`,
   TOAST_EXPORT_ERROR: (detail) => `Errore esportazione: ${detail}`,
+  TOAST_PHOTO_PROCESS_ERROR: (detail) =>
+    `Errore elaborazione foto: ${detail}`,
+  TOAST_UPLOAD_SIZE_WARNING: (size, max) =>
+    `Foto selezionate: ${size}. Il limite di caricamento è ${max}.`,
   TOAST_UPLOAD_STATE_ERROR: (detail) =>
     `Errore salvataggio stato upload: ${detail}`,
   TOAST_STATE_SAVE_ERROR: (detail) => `Errore salvataggio stato: ${detail}`,
@@ -216,7 +249,7 @@ const S = {
   UPLOAD_ERROR_INVALID:
     'Il server ha rifiutato il file. Contatta lo sviluppatore.',
   UPLOAD_ERROR_TOO_LARGE:
-    'File troppo grande per il server. Contatta lo sviluppatore.',
+    'File troppo grande per il server. Riduci il numero di foto o salva solo sul telefono.',
   UPLOAD_ERROR_NETWORK: 'Errore di rete. Riprovo…',
   UPLOAD_ERROR_SERVER: 'Errore del server. Riprovo…',
   UPLOAD_ERROR_RATE_LIMITED: 'Server occupato. Riprovo…',

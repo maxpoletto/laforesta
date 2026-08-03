@@ -233,9 +233,13 @@ FIELD_PHOTOS                = 'photos'
 FIELD_URL                   = 'url'
 FIELD_CONTENT_TYPE          = 'content_type'
 FIELD_SIZE_BYTES            = 'size_bytes'
+FIELD_MAX_BYTES             = 'max_bytes'
 FIELD_WIDTH_PX              = 'width_px'
 FIELD_HEIGHT_PX             = 'height_px'
 FIELD_ORIGINAL_FILENAME     = 'original_filename'
+FIELD_TAKEN_AT              = 'taken_at'
+
+IPSO_UPLOAD_MAX_BYTES_DEFAULT = 30 * 1024 * 1024
 
 # Digest filesystem identifiers (the digest file is `<name>.json.gz`).
 DIGEST_FUTURE_PRODUCTION = 'future_production'
@@ -301,6 +305,7 @@ IPSO_REF_SAMPLING = 'sampling'
 IPSO_REF_PAI = 'pai'
 IPSO_REF_WORK_PACKAGES = 'work_packages'
 IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories'
+IPSO_REF_UPLOAD = 'upload'
 IPSO_REF_SURVEYS = 'surveys'
 IPSO_REF_SAMPLE_AREAS = 'sample_areas'
 IPSO_REF_SAMPLE_AREA_MAX_NUMBERS = 'sample_area_max_numbers'
@@ -308,7 +313,7 @@ IPSO_REF_PRESERVED_TREES = 'preserved_trees'
 IPSO_REFERENCE_VERSION_KEYS = (
     IPSO_REF_SPECIES, IPSO_REF_PARCELS, IPSO_REF_HYPSOMETRY,
     IPSO_REF_SAMPLING, IPSO_REF_PAI, IPSO_REF_WORK_PACKAGES,
-    IPSO_REF_OBSERVATION_CATEGORIES,
+    IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_UPLOAD,
 )
 
 

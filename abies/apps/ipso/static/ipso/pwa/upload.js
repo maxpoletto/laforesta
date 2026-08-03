@@ -17,6 +17,9 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
 
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
+const DEFAULT_UPLOAD_MAX_BYTES = 30 * 1024 * 1024;
+const MULTIPART_ESTIMATE_OVERHEAD_BYTES = 4096;
+const MULTIPART_ESTIMATE_PART_OVERHEAD_BYTES = 1024;
 
 // 1-based attempt number -> wait BEFORE that attempt. Attempt 0 is "no
 // wait yet", attempt N>0 picks index N-1 from the schedule (or the cap).
@@ -123,7 +126,14 @@ function observationPhotoMetadata(photos) {
       [FIELD_SIZE_BYTES]: Number.isInteger(photo && photo[FIELD_SIZE_BYTES])
         ? photo[FIELD_SIZE_BYTES]
         : blob && Number.isInteger(blob.size) ? blob.size : 0,
+      [FIELD_WIDTH_PX]: ipsoPositiveInt(photo && photo[FIELD_WIDTH_PX]),
+      [FIELD_HEIGHT_PX]: ipsoPositiveInt(photo && photo[FIELD_HEIGHT_PX]),
       [FIELD_ORIGINAL_FILENAME]: photo && photo[FIELD_ORIGINAL_FILENAME] || '',
+      [FIELD_LAT]: photo && Number.isFinite(photo[FIELD_LAT])
+        ? photo[FIELD_LAT] : null,
+      [FIELD_LON]: photo && Number.isFinite(photo[FIELD_LON])
+        ? photo[FIELD_LON] : null,
+      [FIELD_TAKEN_AT]: photo && photo[FIELD_TAKEN_AT] || '',
       blob: blob || null,
     };
   });
@@ -372,6 +382,7 @@ function parcelForName(reference, compresa, particella) {
   return row;
 }
 
+
 function uploadPayloadHasFiles(payload) {
   const records = Array.isArray(payload && payload[RECORDS])
     ? payload[RECORDS] : [];
@@ -394,6 +405,39 @@ function stripUploadPayloadFiles(payload) {
   };
 }
 
+function uploadMaxBytes(reference) {
+  const raw = reference && reference[IPSO_REF_UPLOAD] &&
+    reference[IPSO_REF_UPLOAD][FIELD_MAX_BYTES];
+  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_UPLOAD_MAX_BYTES;
+}
+
+function estimatedUploadBytes(payload) {
+  const wirePayload = stripUploadPayloadFiles(payload);
+  let total = utf8Bytes(JSON.stringify(wirePayload));
+  if (!uploadPayloadHasFiles(payload)) return total;
+  total += MULTIPART_ESTIMATE_OVERHEAD_BYTES;
+  total += utf8Bytes(IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD);
+  for (const record of payload[RECORDS] || []) {
+    for (const photo of record[FIELD_PHOTOS] || []) {
+      if (!photo || !photo.blob) continue;
+      total += MULTIPART_ESTIMATE_PART_OVERHEAD_BYTES;
+      total += utf8Bytes(IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX + photo[FIELD_CLIENT_PHOTO_ID]);
+      total += utf8Bytes(photo[FIELD_ORIGINAL_FILENAME] || 'photo');
+      total += Number.isInteger(photo[FIELD_SIZE_BYTES])
+        ? photo[FIELD_SIZE_BYTES]
+        : Number.isInteger(photo.blob.size) ? photo.blob.size : 0;
+    }
+  }
+  return total;
+}
+
+function utf8Bytes(value) {
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(String(value || '')).length;
+  }
+  return unescape(encodeURIComponent(String(value || ''))).length;
+}
+
 function multipartBody(payload) {
   const form = new FormData();
   const wirePayload = stripUploadPayloadFiles(payload);
@@ -412,8 +456,12 @@ function multipartBody(payload) {
 // Posts the canonical staged JSON payload. Resolves with { duplicate: bool } on
 // 200, throws UploadError otherwise. Caller passes signal for cancellation.
 async function uploadSession(args) {
-  const { token, sessionId, payload, signal } = args;
+  const { token, sessionId, payload, signal, maxBytes } = args;
   const hasFiles = uploadPayloadHasFiles(payload);
+  const estimatedBytes = estimatedUploadBytes(payload);
+  if (Number.isInteger(maxBytes) && maxBytes > 0 && estimatedBytes > maxBytes) {
+    throw new UploadError('hard:too_large', String(estimatedBytes));
+  }
   const headers = {
     'X-Ipso-Session-Id': sessionId,
   };
@@ -459,6 +507,7 @@ const upload = {
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
+  estimatedUploadBytes, uploadMaxBytes,
   isSupportedUploadMode, validateRecordNumbers, sampleSurveyIdFromWorkPackage,
   sampleMaxNumberForArea,
   paiNumberExists, paiMaxNumberForParcel,
