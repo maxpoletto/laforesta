@@ -229,7 +229,7 @@ def test_observation_form_writer_access(writer_client, regions, parcels):
     assert 'id="bosco-observation-form"' in add_html
     assert f'name="region_id" value="{regions[0].id}"' in add_html
     assert 'readonly' in add_html
-    assert 'value="38.12345' in add_html
+    assert 'value="38,12345' in add_html
     assert edit.status_code == 200
     edit_html = edit.json()[HTML]
     assert S.BOSCO_OBSERVATION_EDIT_TITLE in edit_html
@@ -716,11 +716,11 @@ def test_pai_form_writer_access(writer_client, regions, parcels, species):
     assert 'Capistrano 1' in html
     assert f'value="{parcels[0].id}" data-region="{regions[0].id}"\n            selected' in html
     assert re.search(
-        r'<input[^>]*id="id_pai_lat"[^>]*name="lat"[^>]*required[^>]*value="38\.12345(?:0)?"',
+        r'<input[^>]*id="id_pai_lat"[^>]*name="lat"[^>]*required[^>]*value="38,12345(?:0)?"',
         html,
     )
     assert re.search(
-        r'<input[^>]*id="id_pai_lon"[^>]*name="lon"[^>]*required[^>]*value="16\.12345(?:0)?"',
+        r'<input[^>]*id="id_pai_lon"[^>]*name="lon"[^>]*required[^>]*value="16,12345(?:0)?"',
         html,
     )
 

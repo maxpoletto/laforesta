@@ -67,12 +67,12 @@
       <div class="form-group">
         <label for="id_pai_lat">Lat</label>
         <input type="text" inputmode="decimal" id="id_pai_lat" name="lat"
-               required value="{{ lat }}">
+               required value="{{ lat|floatformat:5 }}">
       </div>
       <div class="form-group">
         <label for="id_pai_lon">Lon</label>
         <input type="text" inputmode="decimal" id="id_pai_lon" name="lon"
-               required value="{{ lon }}">
+               required value="{{ lon|floatformat:5 }}">
       </div>
     </div>
 
