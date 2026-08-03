@@ -37,6 +37,7 @@ const State = {
   mapStandalone: false,
   mapGpsStandalone: false,
   mapPendingCenterOnFix: false,
+  pendingObservationPosition: null, // GPS position captured for current observation
   observationPhotos: [],
   photoProcessingCount: 0,
   direction: null,
@@ -198,13 +199,6 @@ async function boot() {
   document.getElementById('end-title').textContent = S.END_TITLE;
   document.getElementById('end-cancel').textContent = S.REC_CANCEL;
   document.getElementById('end-confirm').textContent = S.END_CONFIRM;
-  document.getElementById('photo-position-title').textContent =
-    S.PHOTO_POSITION_TITLE;
-  document.getElementById('photo-position-current').textContent =
-    S.PHOTO_POSITION_USE_CURRENT;
-  document.getElementById('photo-position-photo').textContent =
-    S.PHOTO_POSITION_USE_PHOTO;
-  document.getElementById('photo-position-cancel').textContent = S.REC_CANCEL;
   document.getElementById('done-title').textContent = S.DONE_TITLE;
   document.getElementById('btn-new-session').textContent = S.DONE_NEW;
 
@@ -896,16 +890,6 @@ function wireRecording() {
   document.getElementById('end-cancel').addEventListener('click', () => {
     hideModal('modal-confirm-end');
   });
-  document.getElementById('photo-position-current').addEventListener('click', () => {
-    resolvePhotoPositionChoice('current');
-  });
-  document.getElementById('photo-position-photo').addEventListener('click', () => {
-    resolvePhotoPositionChoice('photo');
-  });
-  document.getElementById('photo-position-cancel').addEventListener('click', () => {
-    resolvePhotoPositionChoice('cancel');
-  });
-
 }
 
 function onPreservedToggle() {
@@ -1312,6 +1296,9 @@ function renderGpsStatus(st) {
       heading: Number.isFinite(st.fix.heading) ? st.fix.heading : null,
       t: st.fix.t,
     };
+    if (isObservationMode()) {
+      State.pendingObservationPosition = observationPositionFromFix(st.fix);
+    }
     if (State.locator) State.locator.onFix(st.fix);
     if (isSamplesMode()) refreshSampleAreaSelect();
     updateMapPosition();
@@ -1337,6 +1324,27 @@ function isLocalOnlySession(sess) {
 
 function currentGpsSnapshot() {
   return State.gps ? State.gps.snapshot() : null;
+}
+
+function observationPositionFromFix(fix) {
+  if (!fix || !Number.isFinite(fix[FIELD_LAT]) || !Number.isFinite(fix[FIELD_LON])) {
+    return null;
+  }
+  const acc = Number.isFinite(fix[FIELD_ACC_M])
+    ? fix[FIELD_ACC_M]
+    : Number.isFinite(fix.acc) ? Math.round(fix.acc) : null;
+  return {
+    [FIELD_LAT]: fix[FIELD_LAT],
+    [FIELD_LON]: fix[FIELD_LON],
+    [FIELD_ACC_M]: acc,
+  };
+}
+
+function currentObservationGpsSnapshot() {
+  const gps = currentGpsSnapshot();
+  const position = observationPositionFromFix(gps);
+  if (position) State.pendingObservationPosition = position;
+  return position;
 }
 
 // ---------------------------------------------------------------------------
@@ -1440,6 +1448,7 @@ function resetObservationFields() {
     const photoInput = document.getElementById(id);
     if (photoInput) photoInput.value = '';
   }
+  State.pendingObservationPosition = currentObservationGpsSnapshot();
   State.observationPhotos = [];
   renderObservationPhotoList();
   for (const checkbox of document.querySelectorAll(
@@ -1512,8 +1521,7 @@ async function onObservationPhotosPicked(e) {
 }
 
 function observationPhotoRecord(prepared) {
-  const metadata = prepared.metadata || {};
-  const record = {
+  return {
     [FIELD_CLIENT_PHOTO_ID]: Store.uuid(),
     [FIELD_CONTENT_TYPE]: prepared.contentType || '',
     [FIELD_SIZE_BYTES]: prepared.sizeBytes || 0,
@@ -1533,12 +1541,6 @@ function observationPhotoRecord(prepared) {
     [FIELD_ORIGINAL_FILENAME]: prepared.originalFilename || '',
     blob: prepared.blob,
   };
-  if (Number.isFinite(metadata[FIELD_LAT]) && Number.isFinite(metadata[FIELD_LON])) {
-    record[FIELD_LAT] = metadata[FIELD_LAT];
-    record[FIELD_LON] = metadata[FIELD_LON];
-  }
-  if (metadata[FIELD_TAKEN_AT]) record[FIELD_TAKEN_AT] = metadata[FIELD_TAKEN_AT];
-  return record;
 }
 
 function renderObservationPhotoList() {
@@ -1551,9 +1553,7 @@ function renderObservationPhotoList() {
     row.textContent = [
       photo[FIELD_ORIGINAL_FILENAME] || S.REC_OBSERVATION_PHOTOS,
       photoSizeTransition(photo),
-      photoResolutionTransition(photo),
-      photoConversionStatus(photo),
-      IpsoPhotos.hasPhotoPosition(photo) ? S.REC_OBSERVATION_PHOTO_GPS : '',
+      photoUploadStatus(photo),
     ].filter(Boolean).join(' · ');
     host.appendChild(row);
   }
@@ -1572,43 +1572,16 @@ function photoSizeTransition(photo) {
   );
   if (!size) return '';
   const sizeText = IpsoPhotos.formatBytes(size);
-  if (original) return `${IpsoPhotos.formatBytes(original)} → ${sizeText}`;
+  if (original) return `${IpsoPhotos.formatBytes(original)} -> ${sizeText}`;
   return sizeText;
 }
 
-function photoResolutionTransition(photo) {
-  const size = formatPhotoResolution(
-    photo && photo[FIELD_WIDTH_PX], photo && photo[FIELD_HEIGHT_PX]
-  );
-  const original = formatPhotoResolution(
-    photo && photo[FIELD_ORIGINAL_WIDTH_PX],
-    photo && photo[FIELD_ORIGINAL_HEIGHT_PX]
-  );
-  if (original && size) return `${original} → ${size}`;
-  return size || original;
-}
-
-function photoConversionStatus(photo) {
+function photoUploadStatus(photo) {
   const status = photo && photo[FIELD_CONVERSION_STATUS];
-  const reason = S.REC_OBSERVATION_PHOTO_REASON(
-    photo && photo[FIELD_CONVERSION_REASON] || ''
-  );
-  if (status === PHOTO_CONVERSION_CONVERTED) return S.REC_OBSERVATION_PHOTO_CONVERTED;
-  if (status === PHOTO_CONVERSION_ORIGINAL) return S.REC_OBSERVATION_PHOTO_ORIGINAL;
-  if (status === PHOTO_CONVERSION_UNAVAILABLE) {
-    return S.REC_OBSERVATION_PHOTO_UNAVAILABLE(reason);
-  }
-  if (status === PHOTO_CONVERSION_FAILED) {
-    return S.REC_OBSERVATION_PHOTO_FAILED(reason);
-  }
-  return '';
-}
-
-function formatPhotoResolution(width, height) {
-  if (!ipsoPositiveInt(width) || !ipsoPositiveInt(height)) {
-    return '';
-  }
-  return `${width}×${height}`;
+  return status === PHOTO_CONVERSION_FAILED ||
+    status === PHOTO_CONVERSION_UNAVAILABLE
+    ? S.REC_OBSERVATION_PHOTO_ERROR
+    : S.REC_OBSERVATION_PHOTO_OK;
 }
 
 
@@ -1625,7 +1598,7 @@ function warnIfObservationPhotosLarge() {
 }
 
 function currentObservationRecord() {
-  const gps = currentGpsSnapshot();
+  const gps = currentObservationGpsSnapshot() || State.pendingObservationPosition;
   const categories = selectedObservationCategories();
   return {
     [FIELD_DATE]: State.session ? State.session.data : '',
@@ -1645,8 +1618,7 @@ function validateObservation(rec) {
   const errors = [];
   if (!rec || !rec[FIELD_TEXT]) errors.push(FIELD_TEXT);
   if (State.photoProcessingCount > 0) errors.push(FIELD_PHOTOS);
-  if ((!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) &&
-      !firstPhotoPosition(rec)) {
+  if (!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) {
     errors.push('gps');
   }
   return errors;
@@ -1772,66 +1744,12 @@ async function onSave() {
 }
 
 
-async function resolveObservationCoordinates(rec) {
-  const photo = firstPhotoPosition(rec);
-  const hasObservationPosition = Number.isFinite(rec && rec[FIELD_LAT]) &&
-    Number.isFinite(rec && rec[FIELD_LON]);
-  if (!photo) return rec;
-  if (!hasObservationPosition) return observationWithPhotoPosition(rec, photo);
-  const distance = upload.distanceMeters(
-    rec[FIELD_LAT], rec[FIELD_LON], photo[FIELD_LAT], photo[FIELD_LON]
-  );
-  if (!Number.isFinite(distance) ||
-      distance <= IpsoPhotos.PHOTO_POSITION_PROMPT_DISTANCE_M) {
-    return rec;
-  }
-  const choice = await promptPhotoPositionChoice(distance);
-  if (choice === 'photo') return observationWithPhotoPosition(rec, photo);
-  if (choice === 'current') return rec;
-  return null;
-}
-
-function observationWithPhotoPosition(rec, photo) {
-  return {
-    ...rec,
-    [FIELD_LAT]: photo[FIELD_LAT],
-    [FIELD_LON]: photo[FIELD_LON],
-    [FIELD_ACC_M]: null,
-  };
-}
-
-function firstPhotoPosition(rec) {
-  const photos = Array.isArray(rec && rec[FIELD_PHOTOS]) ? rec[FIELD_PHOTOS] : [];
-  const first = photos[0];
-  return IpsoPhotos.hasPhotoPosition(first) ? first : null;
-}
-
-let photoPositionResolver = null;
-function promptPhotoPositionChoice(distanceMeters) {
-  return new Promise((resolve) => {
-    photoPositionResolver = resolve;
-    document.getElementById('photo-position-body').textContent =
-      S.PHOTO_POSITION_BODY(Math.round(distanceMeters));
-    showModal('modal-photo-position');
-  });
-}
-
-function resolvePhotoPositionChoice(choice) {
-  hideModal('modal-photo-position');
-  const resolver = photoPositionResolver;
-  photoPositionResolver = null;
-  if (resolver) resolver(choice);
-}
-
 async function onSaveObservation() {
-  const rec = await resolveObservationCoordinates(currentObservationRecord());
-  if (!rec) return;
+  const rec = currentObservationRecord();
   const validationErrors = validateObservation(rec);
   if (validationErrors.length > 0) {
     if (validationErrors.includes('gps')) {
-      if (!firstPhotoPosition(rec)) {
-        renderGpsStatus(State.gps ? State.gps.state() : { fix: null, tier: 'red' });
-      }
+      renderGpsStatus(State.gps ? State.gps.state() : { fix: null, tier: 'red' });
     }
     return;
   }

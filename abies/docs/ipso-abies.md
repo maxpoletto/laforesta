@@ -131,9 +131,8 @@ The upload body contains:
 - `records`: canonical Abies IDs and measurements for the mode;
 - optional `csv_text`: the local CSV text for operator/audit recovery;
 - for observation uploads with photos, multipart file parts named
-  `photo:<client_photo_id>`. Photo GPS/timestamp metadata is carried in the
-  JSON payload, so browser-side image compression may strip EXIF without losing
-  the location needed by Abies/Bosco.
+  `photo:<client_photo_id>`. Observation location comes from Ipso's device GPS;
+  photo EXIF GPS is ignored because mobile gallery providers commonly strip it.
 
 Supported modes are:
 
@@ -142,12 +141,10 @@ Supported modes are:
 - `free_survey` — free/unstructured tree surveys;
 - `observations` — point observations with text, categories, GPS, and
   optional photos. The recording form has separate controls for selecting
-  existing gallery photos and opening the camera. Ipso extracts GPS metadata
-  before compression; the photo list displays original and upload
-  size/resolution so operators can verify conversion. If the first photo and
-  live observation GPS differ by more than about 100 m, the operator chooses
-  which position is authoritative. If live GPS is absent and the first photo has
-  GPS, Ipso uses the photo position.
+  existing gallery photos and opening the camera. Ipso ignores photo EXIF GPS;
+  the observation position is the device GPS fix captured while the
+  observation is recorded. The photo list displays filename, original/upload
+  size, and `ok`/`errore` conversion status.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,

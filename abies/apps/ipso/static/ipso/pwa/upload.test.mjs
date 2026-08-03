@@ -6,7 +6,7 @@ const {
   FIELD_CATEGORY_IDS, FIELD_CLIENT_PHOTO_ID, FIELD_CONTENT_TYPE,
   FIELD_HEIGHT_PX, FIELD_LAT, FIELD_LON, FIELD_MAX_BYTES,
   FIELD_ORIGINAL_FILENAME, FIELD_PHOTOS, FIELD_PRESERVED, FIELD_SIZE_BYTES,
-  FIELD_TAKEN_AT, FIELD_TEXT, FIELD_WIDTH_PX,
+  FIELD_TEXT, FIELD_WIDTH_PX,
   IPSO_REF_UPLOAD,
 } = require('./constants.js');
 
@@ -163,9 +163,6 @@ const observationPayload = upload.buildUploadPayload(
       [FIELD_WIDTH_PX]: 20,
       [FIELD_HEIGHT_PX]: 10,
       [FIELD_ORIGINAL_FILENAME]: 'sentiero.jpg',
-      [FIELD_LAT]: 38.51,
-      [FIELD_LON]: 16.31,
-      [FIELD_TAKEN_AT]: '2026-07-31T10:15:30Z',
       blob: new Blob(['abc'], { type: 'image/jpeg' }),
     }],
   }],
@@ -189,11 +186,11 @@ check(
 const strippedPhoto = strippedObservationPayload.records[0][FIELD_PHOTOS][0];
 check(
   strippedPhoto[FIELD_CLIENT_PHOTO_ID] === 'photo-1' &&
-    strippedPhoto[FIELD_LAT] === 38.51 &&
     strippedPhoto[FIELD_WIDTH_PX] === 20 &&
     strippedPhoto[FIELD_HEIGHT_PX] === 10 &&
-    strippedPhoto[FIELD_TAKEN_AT] === '2026-07-31T10:15:30Z',
-  'observations multipart wire payload keeps photo metadata',
+    !(FIELD_LAT in strippedPhoto) &&
+    !(FIELD_LON in strippedPhoto),
+  'observations multipart wire payload keeps non-location photo metadata',
 );
 check(
   upload.uploadMaxBytes({ [IPSO_REF_UPLOAD]: { [FIELD_MAX_BYTES]: 12345 } }) === 12345,

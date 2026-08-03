@@ -129,11 +129,6 @@ function observationPhotoMetadata(photos) {
       [FIELD_WIDTH_PX]: ipsoPositiveInt(photo && photo[FIELD_WIDTH_PX]),
       [FIELD_HEIGHT_PX]: ipsoPositiveInt(photo && photo[FIELD_HEIGHT_PX]),
       [FIELD_ORIGINAL_FILENAME]: photo && photo[FIELD_ORIGINAL_FILENAME] || '',
-      [FIELD_LAT]: photo && Number.isFinite(photo[FIELD_LAT])
-        ? photo[FIELD_LAT] : null,
-      [FIELD_LON]: photo && Number.isFinite(photo[FIELD_LON])
-        ? photo[FIELD_LON] : null,
-      [FIELD_TAKEN_AT]: photo && photo[FIELD_TAKEN_AT] || '',
       blob: blob || null,
     };
   });

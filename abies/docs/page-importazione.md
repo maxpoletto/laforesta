@@ -29,8 +29,8 @@ The lower panel shows session metadata, staged-file errors if files are missing
 or corrupt, and a sortable preview of uploaded records. The preview includes
 record id, date, parcel, sample area, species, number, diameter/height,
 coordinates, and GPS accuracy when present. Observation previews show text,
-categories, photo count, coordinates, and GPS accuracy. Photo GPS and
-timestamps are preserved as structured photo metadata for imported records.
+categories, photo count, coordinates, and GPS accuracy. Ipso observation
+position comes from device GPS; Ipso ignores photo EXIF GPS.
 
 Target selectors appear only when the current user can import and the upload is
 still `received`.
@@ -76,7 +76,7 @@ Target consistency is enforced at import time:
   `Sample(sample_area=NULL)`. Preserved rows store the submitted number as the
   parcel-scoped `preserved_number`.
 - `Osservazioni`: rows require text, known categories when supplied, and
-  coordinates. Uploaded photo metadata, including optional photo GPS/timestamp,
+  coordinates. Uploaded photo metadata such as filename and image dimensions
   must match staged photo files.
 
 Rejecting an upload is available to writers and admins only while the upload is

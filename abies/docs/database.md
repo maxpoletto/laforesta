@@ -136,10 +136,9 @@ audited and the contract that keeps that coverage complete.
     only as display metadata and never used as storage paths.
   - `checksum` is the SHA-256 of the stored file content. `width_px` and
     `height_px` are optional because upload/import code may not always inspect
-    image dimensions. `lat`/`lon` preserve GPS metadata extracted before client
-    compression strips EXIF; they must be null together or non-null together.
-    `taken_at` is optional and used only when the client can derive a real
-    timestamp, such as EXIF GPS time.
+    image dimensions. `lat`/`lon` and `taken_at` are retained for structured
+    import/backward compatibility; the Ipso PWA does not populate them from
+    photo EXIF. `lat` and `lon` must be null together or non-null together.
 
 ## Trees
 
