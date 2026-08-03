@@ -24,8 +24,11 @@ position comes from the device GPS fix held by the PWA. Photo EXIF GPS is ignore
 by design: mobile gallery/document pickers do not reliably expose original EXIF
 metadata, so Abies treats the device observation position as authoritative.
 
-Ipso can attach photos from the gallery or by opening the camera. Before upload,
-the PWA attempts to resize/recompress large images and reports each file as:
+Ipso can attach photos from the gallery or by opening the camera. Gallery photos
+stay location-free. Camera photos carry the device GPS snapshot captured just
+before Ipso opens the camera app, plus a capture-position timestamp. Before
+upload, the PWA attempts to resize/recompress large images and reports each file
+as:
 
 ```
 filename · original-size -> upload-size · status

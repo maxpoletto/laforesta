@@ -1,8 +1,8 @@
 // Observation photo preparation for Ipso.
 //
 // Photos are downscaled/recompressed before upload. Photo EXIF GPS is
-// intentionally ignored: observation location comes only from the device GPS
-// fix captured by Ipso while the observation is being recorded.
+// intentionally ignored: observation and camera-photo locations come from
+// device GPS snapshots captured by Ipso.
 'use strict';
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&

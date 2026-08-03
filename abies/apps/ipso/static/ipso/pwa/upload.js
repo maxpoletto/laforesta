@@ -120,7 +120,7 @@ function observationPhotoMetadata(photos) {
     const clientId = photo && photo[FIELD_CLIENT_PHOTO_ID]
       ? String(photo[FIELD_CLIENT_PHOTO_ID])
       : String(index + 1);
-    return {
+    const metadata = {
       [FIELD_CLIENT_PHOTO_ID]: clientId,
       [FIELD_CONTENT_TYPE]: photo && photo[FIELD_CONTENT_TYPE] || blob && blob.type || '',
       [FIELD_SIZE_BYTES]: Number.isInteger(photo && photo[FIELD_SIZE_BYTES])
@@ -131,6 +131,15 @@ function observationPhotoMetadata(photos) {
       [FIELD_ORIGINAL_FILENAME]: photo && photo[FIELD_ORIGINAL_FILENAME] || '',
       blob: blob || null,
     };
+    if (Number.isFinite(photo && photo[FIELD_LAT]) &&
+        Number.isFinite(photo && photo[FIELD_LON])) {
+      metadata[FIELD_LAT] = photo[FIELD_LAT];
+      metadata[FIELD_LON] = photo[FIELD_LON];
+    }
+    if (photo && photo[FIELD_TAKEN_AT]) {
+      metadata[FIELD_TAKEN_AT] = String(photo[FIELD_TAKEN_AT]);
+    }
+    return metadata;
   });
 }
 

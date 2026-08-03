@@ -9,6 +9,7 @@
 
 
 let prefillNumberGeneration = 0;
+const OBSERVATION_CAMERA_INPUT_ID = 'in-observation-photos-camera';
 
 const State = {
   mode: null,         // current IpsoModes entry
@@ -38,6 +39,7 @@ const State = {
   mapGpsStandalone: false,
   mapPendingCenterOnFix: false,
   pendingObservationPosition: null, // GPS position captured for current observation
+  pendingCameraPhotoPosition: null, // GPS position captured before camera opens
   observationPhotos: [],
   photoProcessingCount: 0,
   direction: null,
@@ -849,8 +851,9 @@ function wireRecording() {
   document.getElementById('in-observation-text').addEventListener('input', updateSaveEnabled);
   document.getElementById('in-observation-photos-gallery')
     .addEventListener('change', onObservationPhotosPicked);
-  document.getElementById('in-observation-photos-camera')
-    .addEventListener('change', onObservationPhotosPicked);
+  const observationCameraInput = document.getElementById(OBSERVATION_CAMERA_INPUT_ID);
+  observationCameraInput.addEventListener('click', captureCameraPhotoPosition);
+  observationCameraInput.addEventListener('change', onObservationPhotosPicked);
   document.getElementById('in-observation-categories').addEventListener('change', updateSaveEnabled);
 
   // Particella select: sticky-override transitions. The sentinel option
@@ -1347,6 +1350,28 @@ function currentObservationGpsSnapshot() {
   return position;
 }
 
+function cameraPhotoPositionFromFix(fix) {
+  const position = observationPositionFromFix(fix);
+  if (!position) return null;
+  return {
+    [FIELD_LAT]: position[FIELD_LAT],
+    [FIELD_LON]: position[FIELD_LON],
+    [FIELD_TAKEN_AT]: new Date().toISOString(),
+  };
+}
+
+function captureCameraPhotoPosition() {
+  State.pendingCameraPhotoPosition =
+    cameraPhotoPositionFromFix(currentGpsSnapshot());
+}
+
+function observationPhotoPositionForInput(input) {
+  if (!input || input.id !== OBSERVATION_CAMERA_INPUT_ID) return null;
+  const position = State.pendingCameraPhotoPosition;
+  State.pendingCameraPhotoPosition = null;
+  return position;
+}
+
 // ---------------------------------------------------------------------------
 // Wake lock
 // ---------------------------------------------------------------------------
@@ -1444,11 +1469,12 @@ function recomputeAutoH() {
 function resetObservationFields() {
   const text = document.getElementById('in-observation-text');
   if (text) text.value = '';
-  for (const id of ['in-observation-photos-gallery', 'in-observation-photos-camera']) {
+  for (const id of ['in-observation-photos-gallery', OBSERVATION_CAMERA_INPUT_ID]) {
     const photoInput = document.getElementById(id);
     if (photoInput) photoInput.value = '';
   }
   State.pendingObservationPosition = currentObservationGpsSnapshot();
+  State.pendingCameraPhotoPosition = null;
   State.observationPhotos = [];
   renderObservationPhotoList();
   for (const checkbox of document.querySelectorAll(
@@ -1499,15 +1525,22 @@ function selectedObservationCategories() {
 }
 
 async function onObservationPhotosPicked(e) {
-  const files = Array.from(e.target.files || []);
-  e.target.value = '';
-  if (!files.length) return;
+  const input = e.target;
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) {
+    observationPhotoPositionForInput(input);
+    return;
+  }
+  const photoPosition = observationPhotoPositionForInput(input);
   State.photoProcessingCount += files.length;
   updateSaveEnabled();
   try {
     for (const file of files) {
       const prepared = await IpsoPhotos.prepareObservationPhoto(file);
-      State.observationPhotos.push(observationPhotoRecord(prepared));
+      State.observationPhotos.push(
+        observationPhotoRecord(prepared, photoPosition)
+      );
       renderObservationPhotoList();
     }
     warnIfObservationPhotosLarge();
@@ -1520,8 +1553,8 @@ async function onObservationPhotosPicked(e) {
   }
 }
 
-function observationPhotoRecord(prepared) {
-  return {
+function observationPhotoRecord(prepared, position) {
+  const record = {
     [FIELD_CLIENT_PHOTO_ID]: Store.uuid(),
     [FIELD_CONTENT_TYPE]: prepared.contentType || '',
     [FIELD_SIZE_BYTES]: prepared.sizeBytes || 0,
@@ -1541,6 +1574,12 @@ function observationPhotoRecord(prepared) {
     [FIELD_ORIGINAL_FILENAME]: prepared.originalFilename || '',
     blob: prepared.blob,
   };
+  if (position) {
+    record[FIELD_LAT] = position[FIELD_LAT];
+    record[FIELD_LON] = position[FIELD_LON];
+    record[FIELD_TAKEN_AT] = position[FIELD_TAKEN_AT] || '';
+  }
+  return record;
 }
 
 function renderObservationPhotoList() {

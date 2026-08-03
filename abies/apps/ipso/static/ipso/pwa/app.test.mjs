@@ -11,7 +11,7 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
   `renderObservationsTable, onObservationPhotosPicked, ` +
-  `wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
+  `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
   `registerServiceWorker, watchServiceWorkerUpdates, activatePendingAppUpdate, ` +
@@ -235,6 +235,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     FIELD_LAT: 'lat',
     FIELD_LON: 'lon',
     FIELD_ACC_M: 'acc_m',
+    FIELD_TAKEN_AT: 'taken_at',
     FIELD_TEXT: 'text',
     FIELD_CATEGORIES: 'categories',
     FIELD_CATEGORY_IDS: 'category_ids',
@@ -1126,7 +1127,40 @@ const session = {
         'observation photo picker displays before/after byte size');
   check(photoRow.includes('ok'),
         'observation photo picker displays simplified upload status');
+  check(!('lat' in app.State.observationPhotos[0]) &&
+        !('lon' in app.State.observationPhotos[0]) &&
+        !('taken_at' in app.State.observationPhotos[0]),
+        'observation photo picker leaves gallery photos location-free');
   check(input.value === '', 'observation photo picker resets the file input');
+}
+
+// Camera photos inherit the device GPS snapshot captured before the browser
+// opens the camera app.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.session = { ...session, mode: 'observations' };
+  app.State.observationPhotos = [];
+  app.State.gps = {
+    snapshot() { return { lat: 38.25, lon: 16.5, acc_m: 4 }; },
+  };
+  app.captureCameraPhotoPosition();
+
+  const input = {
+    id: 'in-observation-photos-camera',
+    files: [{ name: 'scatto.jpg', type: 'image/jpeg', size: 8 }],
+    value: 'selected',
+  };
+
+  await app.onObservationPhotosPicked({ target: input });
+
+  const photo = app.State.observationPhotos[0];
+  check(photo.lat === 38.25 && photo.lon === 16.5,
+        'camera photo picker stores pre-launch device GPS coordinates');
+  check(typeof photo.taken_at === 'string' && photo.taken_at.includes('T'),
+        'camera photo picker stores a photo position timestamp');
+  check(app.State.pendingCameraPhotoPosition === null,
+        'camera photo picker clears the pending photo GPS snapshot');
 }
 
 // Observation data rows render as wrapped cards instead of narrow table columns.
