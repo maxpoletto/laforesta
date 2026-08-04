@@ -85,8 +85,17 @@ and size. If any photo has its own coordinates more than 10 m from the
 observation coordinates, the modal also shows a simple ParcelMap section with
 parcel borders, the observation marker, and all geolocated photo markers. Photo
 markers match the thumbnail captions; photos within 5 m of each other are shown
-as a `+` marker whose tooltip lists the grouped photo numbers. Writers also see
-`Modifica` and `Elimina`. `Modifica` opens the same form with
+as a `+` marker whose tooltip lists the grouped photo numbers.
+
+The detail title row also contains `Genera PDF`. The browser downloads a report
+named `osservazione_<yyyymmdd>_<region>_<category>.pdf`. The report contains a
+`Rapporto <categoria>` title, date, compresa, formatted observation position,
+free text, photos in two columns, and an overview OSM map with only the
+observation point marked. If a photo cannot be loaded, report generation skips
+that optional image; if OSM tiles cannot be drawn, the map falls back to a
+simple parcel-geometry overview.
+
+Writers also see `Modifica` and `Elimina`. `Modifica` opens the same form with
 title `Modifica osservazione`; in edit mode the region is a selectable pulldown.
 `Elimina` uses the shared confirmation modal and optimistic-lock delete flow.
 

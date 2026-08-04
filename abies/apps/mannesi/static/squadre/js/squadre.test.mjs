@@ -18,7 +18,7 @@ process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 
 const B = await import(staticModule('squadre/js/squadre.js'));
-const { PDFDocument, buildPDF, decimalRight } = await import(staticModule('squadre/js/pdf.js'));
+const { PDFDocument, buildPDF, decimalRight } = await import(staticModule('base/js/pdf.js'));
 const S = await import(staticModule('base/js/strings.js'));
 const { ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
 

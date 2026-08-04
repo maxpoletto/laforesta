@@ -221,8 +221,20 @@
 }
 
 
-.bosco-observation-detail-title {
+.bosco-observation-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
+}
+
+.bosco-observation-detail-title {
+  margin: 0;
+}
+
+.bosco-observation-detail-pdf {
+  flex: 0 0 auto;
 }
 
 .bosco-observation-detail {

@@ -92,6 +92,7 @@ import {
   observationPhotoMapItems,
   observationPhotoTitle, observationYears, shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
+import { generateObservationPDF } from './observation-pdf.js';
 
 const CSS_URL = '/static/bosco/css/bosco.css';
 const PAGE_PATH = '/bosco';
@@ -2829,17 +2830,25 @@ async function showObservationDetail(rowId) {
 
 function renderObservationDetailModal(observation) {
   const frag = document.createDocumentFragment();
-  const title = document.createElement('h2');
-  title.className = 'bosco-observation-detail-title';
-  title.textContent = S.BOSCO_OBSERVATION_DETAIL_TITLE;
-  frag.appendChild(title);
-
-  const dl = document.createElement('dl');
-  dl.className = 'bosco-observation-detail';
   const categories = Array.isArray(observation[FIELD_CATEGORIES])
     ? observation[FIELD_CATEGORIES].map(row => row[FIELD_NAME]).filter(Boolean)
     : [];
   const regionName = regionById.get(observation[FIELD_REGION_ID])?.name || '';
+  const header = document.createElement('div');
+  header.className = 'bosco-observation-detail-header';
+  const title = document.createElement('h2');
+  title.className = 'bosco-observation-detail-title';
+  title.textContent = S.BOSCO_OBSERVATION_DETAIL_TITLE;
+  const pdf = document.createElement('button');
+  pdf.type = 'button';
+  pdf.className = 'btn btn-create bosco-observation-detail-pdf';
+  pdf.textContent = S.BOSCO_OBSERVATION_PDF;
+  pdf.addEventListener('click', () => downloadObservationPDF(pdf, observation, regionName));
+  header.append(title, pdf);
+  frag.appendChild(header);
+
+  const dl = document.createElement('dl');
+  dl.className = 'bosco-observation-detail';
   const rows = [
     [S.COL_DATE, observation[FIELD_DATE]],
     [S.COL_OPERATOR, observation[FIELD_OPERATOR]],
@@ -2996,6 +3005,17 @@ function observationModalRow(parent, label, value) {
 
 function observationCategoryText(names) {
   return (names || []).filter(Boolean).join(', ');
+}
+
+async function downloadObservationPDF(button, observation, regionName) {
+  button.disabled = true;
+  try {
+    await generateObservationPDF(observation, { regionName, parcelsGeo });
+  } catch {
+    showError(S.BOSCO_OBSERVATION_PDF_ERROR);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function observationPhotoElement(photo, caption) {

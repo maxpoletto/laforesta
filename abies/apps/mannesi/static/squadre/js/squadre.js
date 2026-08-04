@@ -22,7 +22,7 @@ import {
   FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_MONTH, FIELD_NAME,
   VERSION,
 } from '../../base/js/constants.js';
-import { decimalRight, PDFDocument } from './pdf.js';
+import { decimalRight, PDFDocument } from '../../base/js/pdf.js';
 
 const CSS_URL = '/static/squadre/css/squadre.css';
 const PAGE_PATH = '/squadre';

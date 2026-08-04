@@ -1,4 +1,4 @@
-/** Minimal PDF writer for Squadre-generated operational PDFs. */
+/** Minimal PDF writer for generated operational PDFs. */
 
 const A4 = { width: 595.28, height: 841.89 };
 
@@ -34,6 +34,8 @@ export class PDFDocument {
     this.height = landscape ? A4.width : A4.height;
     this.pages = [];
     this.current = null;
+    this.images = [];
+    this.nextImageId = 1;
     this.addPage();
   }
 
@@ -70,8 +72,26 @@ export class PDFDocument {
     this.current.push(`${num(x)} ${num(this.height - y - h)} ${num(w)} ${num(h)} re S`);
   }
 
+  addJPEGImage({ dataBase64, width, height }) {
+    const image = {
+      name: `Im${this.nextImageId++}`,
+      dataBase64,
+      width,
+      height,
+    };
+    this.images.push(image);
+    return image;
+  }
+
+  image(x, y, w, h, image) {
+    if (!image) return;
+    this.current.push(
+      `q ${num(w)} 0 0 ${num(h)} ${num(x)} ${num(this.height - y - h)} cm /${image.name} Do Q`,
+    );
+  }
+
   save(filename) {
-    const bytes = buildPDF(this.width, this.height, this.pages);
+    const bytes = buildPDF(this.width, this.height, this.pages, this.images);
     const blob = new Blob([bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -88,20 +108,37 @@ export function decimalRight(doc, commaX, { size = 10 } = {}) {
   return commaX + doc.textWidth(',0', { size });
 }
 
-export function buildPDF(width, height, pages) {
+export function buildPDF(width, height, pages, images = []) {
   const objects = [];
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');
-  const kids = pages.map((_, i) => `${5 + i * 2} 0 R`).join(' ');
+  const firstPageObject = 5 + images.length;
+  const kids = pages.map((_, i) => `${firstPageObject + i * 2} 0 R`).join(' ');
   objects.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
 
+  images.forEach(image => {
+    const stream = `${hexFromBase64(image.dataBase64)}>`;
+    objects.push(
+      `<< /Type /XObject /Subtype /Image /Width ${num(image.width)} ` +
+      `/Height ${num(image.height)} /ColorSpace /DeviceRGB /BitsPerComponent 8 ` +
+      `/Filter [/ASCIIHexDecode /DCTDecode] /Length ${stream.length} >>\n` +
+      `stream\n${stream}\nendstream`,
+    );
+  });
+
   for (let i = 0; i < pages.length; i++) {
-    const pageObj = 5 + i * 2;
+    const pageObj = firstPageObject + i * 2;
     const contentObj = pageObj + 1;
+    const xObjects = images.length
+      ? ` /XObject << ${images.map((image, index) => (
+        `/${image.name} ${5 + index} 0 R`
+      )).join(' ')} >>`
+      : '';
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(width)} ${num(height)}] ` +
-      `/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObj} 0 R >>`,
+      `/Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xObjects} >> ` +
+      `/Contents ${contentObj} 0 R >>`,
     );
     const stream = pages[i].join('\n');
     objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
@@ -120,6 +157,15 @@ export function buildPDF(width, height, pages) {
   }
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return pdf;
+}
+
+function hexFromBase64(value) {
+  const binary = atob(value || '');
+  let out = '';
+  for (let i = 0; i < binary.length; i++) {
+    out += binary.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  return out;
 }
 
 function pdfString(value) {

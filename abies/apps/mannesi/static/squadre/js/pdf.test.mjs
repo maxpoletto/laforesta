@@ -1,7 +1,12 @@
-// Tests for apps/mannesi/static/squadre/js/pdf.js.
+// Tests for apps/base/static/base/js/pdf.js.
 // Run with: node apps/mannesi/static/squadre/js/pdf.test.mjs (also part of `make test-js`).
 
-import { PDFDocument, buildPDF, decimalRight } from './pdf.js';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const pdfModule = path.resolve(here, '../../../../base/static/base/js/pdf.js');
+const { PDFDocument, buildPDF, decimalRight } = await import(pathToFileURL(pdfModule));
 
 let failed = 0;
 let passed = 0;
@@ -47,6 +52,16 @@ const reportPdf = buildPDF(reportDoc.width, reportDoc.height, reportDoc.pages);
 const headerX = numericRight - reportDoc.textWidth('Quintali', { size: 10, bold: true });
 check(reportPdf.includes(`${headerX.toFixed(2)} 553.28 Td (Quintali)`),
       'Squadre report Quintali header is right-aligned to the numeric column');
+
+const imageDoc = new PDFDocument();
+const image = imageDoc.addJPEGImage({ dataBase64: '/9j/2Q==', width: 1, height: 1 });
+imageDoc.image(10, 20, 30, 40, image);
+const imagePdf = buildPDF(imageDoc.width, imageDoc.height, imageDoc.pages, imageDoc.images);
+check(imagePdf.includes('/Subtype /Image'), 'image XObject emitted');
+check(imagePdf.includes('/Filter [/ASCIIHexDecode /DCTDecode]'),
+      'JPEG image uses ASCIIHex and DCT filters');
+check(imagePdf.includes('/Im1 Do'), 'page content draws image XObject');
+check(imagePdf.includes('ffd8ffd9>'), 'image data is emitted as ASCII hex');
 
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
