@@ -102,10 +102,6 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 
         <section class="bosco-sidebar-section" data-mode-panel="4" hidden>
           <h2>Osservazioni</h2>
-          {% if user.can_modify %}
-          <button type="button" class="btn btn-create bosco-add-observation"
-                  data-action="add-observation">+ Aggiungi</button>
-          {% endif %}
           <div data-role="observation-controls">
             <div class="bosco-list-heading">Categorie</div>
             <div class="bosco-scroll-list" data-target="observation-categories"></div>
@@ -122,6 +118,10 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             </div>
           </div>
           <p class="bosco-hint" data-target="observation-summary"></p>
+          {% if user.can_modify %}
+          <button type="button" class="btn btn-create bosco-add-observation"
+                  data-action="add-observation">+ Aggiungi</button>
+          {% endif %}
         </section>
       </div>
     </aside>
