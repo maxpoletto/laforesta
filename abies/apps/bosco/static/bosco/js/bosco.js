@@ -2830,6 +2830,7 @@ async function showObservationDetail(rowId) {
 function renderObservationDetailModal(observation) {
   const frag = document.createDocumentFragment();
   const title = document.createElement('h2');
+  title.className = 'bosco-observation-detail-title';
   title.textContent = S.BOSCO_OBSERVATION_DETAIL_TITLE;
   frag.appendChild(title);
 

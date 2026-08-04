@@ -221,6 +221,10 @@
 }
 
 
+.bosco-observation-detail-title {
+  margin-bottom: 14px;
+}
+
 .bosco-observation-detail {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
