@@ -96,6 +96,32 @@ h1 { font-size: 22px; margin: 6px 0 8px 0; }
 }
 
 /* ----------------------------------------------------------------------- */
+/* History                                                                 */
+/* ----------------------------------------------------------------------- */
+
+#screen-history { min-height: 0; }
+.history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.history-item {
+  flex: 0 0 auto;
+  min-height: 56px;
+  padding: 10px 12px;
+  text-align: left;
+  line-height: 1.25;
+}
+.history-empty {
+  margin: auto 0;
+  color: var(--grey-2);
+  text-align: center;
+}
+
+/* ----------------------------------------------------------------------- */
 /* Inputs and labels                                                       */
 /* ----------------------------------------------------------------------- */
 

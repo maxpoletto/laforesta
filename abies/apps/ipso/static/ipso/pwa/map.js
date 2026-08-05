@@ -122,11 +122,14 @@ function createOrientationMap(opts) {
     });
   }
 
-  function renderRecords(records) {
+  function renderRecords(records, options) {
     if (!recordsLayer) return;
     recordsLayer.clearLayers();
     if (!records || !records.length) return;
+    const green = !!(options && options.green);
+    const popup = !!(options && options.popup);
     for (const rec of records) {
+      if (!rec || rec.lat == null || rec.lon == null) continue;
       const lat = Number(rec && rec.lat);
       const lon = Number(rec && rec.lon);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
@@ -134,11 +137,17 @@ function createOrientationMap(opts) {
         radius: 5,
         color: '#1f5b1a',
         weight: 2,
-        fillColor: '#d6a02a',
+        fillColor: green ? '#2e8b27' : '#d6a02a',
         fillOpacity: 0.9,
       }).addTo(recordsLayer);
       const label = formatRecordLabel ? formatRecordLabel(rec) : '';
-      if (label) marker.bindTooltip(label, { sticky: true });
+      if (label && popup) {
+        const content = document.createElement('div');
+        content.textContent = label;
+        marker.bindPopup(content);
+      } else if (label) {
+        marker.bindTooltip(label, { sticky: true });
+      }
     }
   }
 
@@ -318,13 +327,30 @@ function createOrientationMap(opts) {
     return true;
   }
 
+  function fitRecords(records) {
+    if (!leaflet || !records) return false;
+    const points = records
+      .filter((record) => record && record.lat != null && record.lon != null)
+      .map((record) => [Number(record.lat), Number(record.lon)])
+      .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+    if (!points.length) return false;
+    if (points.length === 1) {
+      leaflet.setView(points[0], 18);
+      return true;
+    }
+    const bounds = L.latLngBounds(points);
+    if (!bounds.isValid()) return false;
+    leaflet.fitBounds(bounds, { padding: [24, 24], maxZoom: 18 });
+    return true;
+  }
+
   function invalidate() {
     if (leaflet) leaflet.invalidateSize({ pan: false });
   }
 
   return {
     ensure, ready, renderParcels, renderRecords, renderSampleAreas, renderPai,
-    updatePosition, updateHeading, center, invalidate,
+    updatePosition, updateHeading, center, fitRecords, invalidate,
   };
 }
 

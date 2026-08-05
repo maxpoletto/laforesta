@@ -63,10 +63,11 @@ when a waiting worker exists. Pressing the button sends the worker an explicit
 activation message and reloads the page once the new worker controls it, keeping
 version switches visible and operator-driven.
 
-Protected reference endpoints require the shared bearer:
+Protected data endpoints require the shared bearer:
 
 - `/ipso/reference.json`
 - `/ipso/terreni.geojson`
+- `/api/ipso/history/<mark|survey>/<id>/`
 
 `reference.json` contains the current Abies reference bundle used by Ipso:
 
@@ -77,7 +78,13 @@ Protected reference endpoints require the shared bearer:
 - PAI preserved-tree context;
 - active observation categories;
 - work-package options used by Ipso modes;
+- lightweight `history` metadata (kind, ID, year, label, tree count, and
+  detail URL) for marks and surveys containing trees;
 - a derived `reference_version` hash.
+
+The history metadata is deliberately excluded from `reference_version` because
+it is read-only orientation data, not field-session recording configuration.
+Tree coordinates and measurements are never included in `reference.json`.
 
 `terreni.geojson` contains parcel geometry for GPS-driven orientation and parcel
 selection in the mobile app.
@@ -99,13 +106,65 @@ open sessions remain exportable and pending uploads remain retryable or
 local-only, but recording cannot resume until reference data is available. Field
 sessions and trees remain in IndexedDB throughout.
 
-IndexedDB schema v7 captures canonical identity at the moment data is recorded:
+## Storico
+
+`Storico` is a top-level Ipso screen for locating previously marked or measured
+trees. It lists only aggregates that contain at least one tree; empty harvest
+plan items and empty surveys are not historical field work yet.
+
+A mark is the existing Abies aggregate of all `TreeMark` rows linked to one
+`HarvestPlanItem`. Its year is `HarvestPlanItem.year_planned`, and its label is:
+
+```text
+Martellata: <harvest plan> <region>/<parcel> <year> (<count> alberi)
+```
+
+For a region-wide plan item, where no single parcel exists, the scope is the
+region name alone. A survey includes all `TreeSample` rows below all of its
+`Sample` rows. Its sort year is the year of its latest sample date, and its label
+is:
+
+```text
+Rilevamento: <survey name> (<count> alberi)
+```
+
+The combined list is sorted by descending year. Marks precede surveys when the
+year is equal; labels provide the stable order within the same kind and year.
+Both structured and unstructured surveys are eligible, including inactive
+surveys, as long as they contain measurements.
+
+Selecting a row requests its `detail_url` with the shared bearer. The endpoint
+returns only the fields needed by the field map: common species name and
+canonical species ID, diameter, height, latitude, and longitude. It also returns
+both the total tree count and `mapped_tree_count`. The total includes legacy
+records without coordinates; those records cannot produce map dots.
+
+The history map reuses the standard Ipso orientation map, including parcel
+geometry, basemap chooser, `Indietro`, `Centra`, live GPS position, and heading
+arrow. It initially fits the selected tree coordinates. Historical trees use
+standard green dots; tapping one opens species, diameter in centimetres, and
+height in metres. `Centra` retains its normal meaning and returns to the current
+GPS position when a fix is available.
+
+History detail responses use `Cache-Control: no-store`, so the service worker
+does not retain bearer-protected data. After shape and identity validation, the
+PWA writes the response to an application-owned IndexedDB `meta` row keyed by
+history kind and ID. A row is usable for one hour from its successful fetch.
+At or after the one-hour boundary it is treated as expired and a network request
+is required; an expired response is not used as an offline fallback. Failed or
+invalid responses never replace a cached row.
+
+## Local IndexedDB schema
+
+IndexedDB schema v9 captures canonical identity at the moment data is recorded:
 the session stores its region and selected survey IDs, and each observation
 stores region, parcel, species, and (for sampling) sample-area IDs. Display names
 remain alongside them solely for the operator UI and CSV export. Upload payloads
 use the captured IDs directly, so later renames, deactivation, or name reuse do
 not remap an observation. Pre-v7 sessions remain uploadable through a legacy
-name-resolution fallback against their saved/current reference bundle.
+name-resolution fallback against their saved/current reference bundle. Schema
+v9 also formalizes the timestamped history-detail rows in the existing `meta`
+store; it does not alter saved session or tree records.
 
 ## Ipso -> Abies data
 
@@ -220,6 +279,7 @@ Device endpoints using the shared bearer:
 
 - `GET /ipso/reference.json`
 - `GET /ipso/terreni.geojson`
+- `GET /api/ipso/history/<mark|survey>/<id>/`
 - `POST /api/ipso/uploads/`
 
 Abies session login required:

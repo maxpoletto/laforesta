@@ -38,6 +38,10 @@ const State = {
   mapStandalone: false,
   mapGpsStandalone: false,
   mapPendingCenterOnFix: false,
+  mapHistory: false,
+  historyItem: null,
+  historyDetail: null,
+  historyLoadGeneration: 0,
   pendingObservationPosition: null, // GPS position captured for current observation
   pendingCameraPhotoPosition: null, // GPS position captured before camera opens
   observationPhotos: [],
@@ -160,6 +164,9 @@ async function boot() {
     'v' + APP_VERSION;
   wireAppUpdateButton();
   document.getElementById('mode-title').textContent = S.MODE_TITLE;
+  document.getElementById('history-title').textContent = S.HISTORY_TITLE;
+  document.getElementById('btn-mode-history').textContent = S.MODE_HISTORY;
+  document.getElementById('btn-history-back').textContent = S.MODE_BACK;
   document.getElementById('lbl-operatore').textContent = S.PRE_OPERATOR;
   document.getElementById('lbl-data').textContent = S.PRE_DATA;
   document.getElementById('lbl-compresa').textContent = S.PRE_COMPRESA;
@@ -256,6 +263,7 @@ async function boot() {
   }
 
   wireModeSelection();
+  wireHistory();
   wirePreSession();
   wireRecording();
   wireMap();
@@ -345,8 +353,46 @@ function validateReference(value) {
       !isObject(pai) ||
       !Array.isArray(pai[IPSO_REF_PRESERVED_TREES]) ||
       !Array.isArray(value[IPSO_REF_OBSERVATION_CATEGORIES]) ||
+      (value[IPSO_REF_HISTORY] != null &&
+        (!Array.isArray(value[IPSO_REF_HISTORY]) ||
+         !value[IPSO_REF_HISTORY].every(validateHistoryItem))) ||
       (value[IPSO_REF_UPLOAD] != null && !isObject(value[IPSO_REF_UPLOAD]))) {
     throw new Error(S.ERROR_REFERENCE_INVALID);
+  }
+  return value;
+}
+
+function validateHistoryItem(item) {
+  return isObject(item) &&
+    (item[FIELD_KIND] === IPSO_HISTORY_MARK ||
+     item[FIELD_KIND] === IPSO_HISTORY_SURVEY) &&
+    Number.isInteger(item.id) && item.id > 0 &&
+    Number.isInteger(item.year) && item.year >= 0 &&
+    Number.isInteger(item[FIELD_TREE_COUNT]) && item[FIELD_TREE_COUNT] >= 0 &&
+    typeof item[FIELD_LABEL] === 'string' &&
+    typeof item.detail_url === 'string' && item.detail_url.startsWith('/api/ipso/');
+}
+
+function validateHistoryDetail(value, item) {
+  const validTree = (tree) => {
+    if (!isObject(tree) || typeof tree.species !== 'string' ||
+        !Number.isInteger(tree.d_cm) ||
+        (tree.h_m != null && typeof tree.h_m !== 'string')) return false;
+    if (tree.lat == null || tree.lon == null) {
+      return tree.lat == null && tree.lon == null;
+    }
+    return Number.isFinite(tree.lat) && tree.lat >= -90 && tree.lat <= 90 &&
+      Number.isFinite(tree.lon) && tree.lon >= -180 && tree.lon <= 180;
+  };
+  if (!validateHistoryItem(value) ||
+      value[FIELD_KIND] !== item[FIELD_KIND] || value.id !== item.id ||
+      !Number.isInteger(value[FIELD_MAPPED_TREE_COUNT]) ||
+      !Array.isArray(value.trees) ||
+      value.trees.length !== value[FIELD_TREE_COUNT] ||
+      !value.trees.every(validTree) ||
+      value.trees.filter((tree) => tree.lat != null).length !==
+        value[FIELD_MAPPED_TREE_COUNT]) {
+    throw new Error(S.HISTORY_INVALID);
   }
   return value;
 }
@@ -734,7 +780,10 @@ function uploadDoneBody(sess, n) {
 }
 
 function showModeScreen() {
+  State.historyLoadGeneration += 1;
   State.session = null;
+  State.historyItem = null;
+  State.historyDetail = null;
   State.lastGroup = '';
   State.locator = null;
   State.override = null;
@@ -770,6 +819,84 @@ function wireModeSelection() {
       else enterPreSession(mode.id);
     });
   }
+}
+
+function wireHistory() {
+  document.getElementById('btn-mode-history').addEventListener('click', showHistoryScreen);
+  document.getElementById('btn-history-back').addEventListener('click', showModeScreen);
+}
+
+function showHistoryScreen() {
+  State.session = null;
+  State.historyItem = null;
+  State.historyDetail = null;
+  const list = document.getElementById('history-list');
+  list.replaceChildren();
+  const rows = State.reference && Array.isArray(State.reference[IPSO_REF_HISTORY])
+    ? State.reference[IPSO_REF_HISTORY] : [];
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = S.HISTORY_EMPTY;
+    list.appendChild(empty);
+  } else {
+    for (const item of rows) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn-secondary history-item';
+      button.textContent = item[FIELD_LABEL];
+      button.addEventListener('click', () => openHistoryItem(item, button));
+      list.appendChild(button);
+    }
+  }
+  document.getElementById('sub-status').textContent = S.HISTORY_TITLE;
+  showScreen('screen-history');
+}
+
+async function openHistoryItem(item, button) {
+  const generation = ++State.historyLoadGeneration;
+  const oldText = button.textContent;
+  button.disabled = true;
+  button.textContent = S.HISTORY_LOADING;
+  try {
+    const detail = await loadHistoryDetail(item);
+    if (generation !== State.historyLoadGeneration) return;
+    State.historyItem = item;
+    State.historyDetail = detail;
+    await enterMapScreen('screen-history', { history: true });
+  } catch (e) {
+    const message = navigator.onLine === false ? S.HISTORY_NETWORK_REQUIRED : e.message;
+    showToast(S.TOAST_HISTORY_LOAD_ERROR(message));
+  } finally {
+    button.disabled = false;
+    button.textContent = oldText;
+  }
+}
+
+async function loadHistoryDetail(item) {
+  let cached = null;
+  try {
+    cached = await Store.getCachedHistoryDetail(
+      State.db, item[FIELD_KIND], item.id, HISTORY_CACHE_TTL_MS
+    );
+    if (cached) return validateHistoryDetail(cached, item);
+  } catch (_) {
+    // A missing/corrupt cache row should not prevent an online refresh.
+  }
+  const response = await fetch(item.detail_url, {
+    cache: 'no-store',
+    headers: bearerHeaders(),
+  });
+  if (!response.ok) throw new Error(S.ERROR_HTTP_STATUS(response.status));
+  const detail = validateHistoryDetail(await response.json(), item);
+  try {
+    await Store.cacheHistoryDetail(
+      State.db, item[FIELD_KIND], item.id, detail
+    );
+  } catch (e) {
+    showToast(S.TOAST_BOOT_CACHE_ERROR(e.message));
+  }
+  return detail;
 }
 
 function wirePreSession() {
@@ -1923,8 +2050,9 @@ function downloadFinal(sess, trees, reference) {
 
 async function enterMapScreen(returnScreen, options) {
   const standalone = !!(options && options.standalone);
-  if (!State.session && !standalone) return;
-  if (standalone && (!State.terreni || !State.terreni.length)) {
+  const history = !!(options && options.history);
+  if (!State.session && !standalone && !history) return;
+  if (standalone && !history && (!State.terreni || !State.terreni.length)) {
     showToast(S.MAP_UNAVAILABLE);
     return;
   }
@@ -1933,10 +2061,11 @@ async function enterMapScreen(returnScreen, options) {
     return;
   }
   State.mapReturnScreen = returnScreen || 'screen-rec';
-  State.mapStandalone = standalone;
-  if (standalone && !State.gps) State.lastFix = null;
-  State.mapPendingCenterOnFix = standalone && !State.lastFix;
-  if (standalone && !State.gps) {
+  State.mapStandalone = standalone || history;
+  State.mapHistory = history;
+  if (State.mapStandalone && !State.gps) State.lastFix = null;
+  State.mapPendingCenterOnFix = standalone && !history && !State.lastFix;
+  if (State.mapStandalone && !State.gps) {
     startGps();
     State.mapGpsStandalone = true;
   } else {
@@ -1961,7 +2090,10 @@ async function enterMapScreen(returnScreen, options) {
   setTimeout(() => {
     if (!State.map || !State.map.ready()) return;
     State.map.invalidate();
-    centerMapOnContext();
+    if (!State.mapHistory || !State.map.fitRecords ||
+        !State.map.fitRecords(State.historyDetail && State.historyDetail.trees)) {
+      centerMapOnContext();
+    }
   }, 0);
 }
 
@@ -1974,6 +2106,7 @@ function exitMapScreen() {
     updateMapPosition();
   }
   State.mapStandalone = false;
+  State.mapHistory = false;
   State.mapGpsStandalone = false;
   State.mapPendingCenterOnFix = false;
   showScreen(State.mapReturnScreen || 'screen-rec');
@@ -2038,6 +2171,11 @@ function refreshMapSampleAreas() {
 
 async function renderMapRecords() {
   if (!State.map || !State.map.ready()) return;
+  if (State.mapHistory) {
+    const trees = State.historyDetail && State.historyDetail.trees || [];
+    State.map.renderRecords(trees, { green: true, popup: true });
+    return;
+  }
   if (!State.session) {
     State.map.renderRecords([]);
     return;
@@ -2076,6 +2214,7 @@ function currentPaiSpeciesColors() {
 
 function formatMapRecordText(rec) {
   if (!rec) return '';
+  if (State.mapHistory) return formatHistoryMapRecordText(rec);
   if (isObservationMode()) {
     const text = rec[FIELD_TEXT] || '';
     const cats = Array.isArray(rec[FIELD_CATEGORIES])
@@ -2087,6 +2226,15 @@ function formatMapRecordText(rec) {
   if (rec.specie) bits.push(rec.specie);
   if (rec.d_cm != null) bits.push('D=' + rec.d_cm);
   if (rec.h_m != null) bits.push('h=' + rec.h_m);
+  return bits.join(' · ');
+}
+
+function formatHistoryMapRecordText(rec) {
+  if (!rec) return '';
+  const bits = [];
+  if (rec.species) bits.push(rec.species);
+  if (rec.d_cm != null) bits.push('D=' + rec.d_cm + ' cm');
+  bits.push('h=' + (rec.h_m != null ? rec.h_m + ' m' : '—'));
   return bits.join(' · ');
 }
 
@@ -2151,6 +2299,14 @@ function updateMapHeader() {
   const title = document.getElementById('map-title');
   const sub = document.getElementById('map-sub');
   if (!title || !sub) return;
+  if (State.mapHistory && State.historyDetail) {
+    title.textContent = State.historyDetail[FIELD_LABEL];
+    sub.textContent = S.HISTORY_MAP_COUNTS(
+      State.historyDetail[FIELD_MAPPED_TREE_COUNT],
+      State.historyDetail[FIELD_TREE_COUNT]
+    );
+    return;
+  }
   title.textContent = State.session ? S.where(State.session) : S.MAP_TITLE;
   const committed = State.locator ? State.locator.getCommitted() : null;
   const sampleArea = currentSampleArea();

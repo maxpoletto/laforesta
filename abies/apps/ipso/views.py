@@ -20,7 +20,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.exceptions import RequestDataTooBig
 from django.db import IntegrityError, transaction
-from django.db.models import Max
+from django.db.models import Count, Max
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
@@ -39,7 +39,7 @@ from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
     HypsoParamSet, Observation, ObservationCategory,
     ObservationCategoryAssignment, ObservationPhoto, Parcel, Region, SampleArea,
-    Species, Survey, TreeSample,
+    Species, Survey, TreeMark, TreeSample,
     natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
@@ -73,7 +73,8 @@ from config.constants import (
     FIELD_MAX_BYTES,
     FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
-    FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT,
+    FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_KIND,
+    FIELD_LABEL, FIELD_LAT,
     FIELD_LON, FIELD_L10_MM, FIELD_MODE, FIELD_MODE_LABEL, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID,
     FIELD_PARCEL, FIELD_PHOTO_COUNT, FIELD_PHOTOS, FIELD_PRESERVED,
@@ -85,7 +86,8 @@ from config.constants import (
     FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SIZE_BYTES, FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE,
     FIELD_TEXT, FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT,
-    FIELD_STATE, FIELD_STATE_LABEL, FIELD_TAKEN_AT, FIELD_WIDTH_PX,
+    FIELD_STATE, FIELD_STATE_LABEL, FIELD_TAKEN_AT, FIELD_TREE_COUNT,
+    FIELD_MAPPED_TREE_COUNT, FIELD_WIDTH_PX,
     FIELD_HEIGHT_PX,
     FIELD_SURVEY_ID, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
@@ -93,7 +95,8 @@ from config.constants import (
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
-    IPSO_REF_HYPSOMETRY, IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_PAI,
+    IPSO_REF_HISTORY, IPSO_REF_HYPSOMETRY, IPSO_REF_OBSERVATION_CATEGORIES,
+    IPSO_REF_PAI,
     IPSO_REF_PARCELS, IPSO_REF_UPLOAD,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
     DATA_ID_IPSO_UPLOADS, IPSO_UPLOAD_MAX_BYTES_DEFAULT,
@@ -101,6 +104,7 @@ from config.constants import (
     IPSO_REF_SURVEYS, IPSO_REF_WORK_PACKAGES,
     IPSO_REFERENCE_JSON, IPSO_REFERENCE_LEGACY_CONVERTED,
     IPSO_REFERENCE_VERSION_KEYS,
+    IPSO_HISTORY_MARK, IPSO_HISTORY_SURVEY,
     IPSO_TARGET_HARVEST_PLAN_ITEM, IPSO_TARGET_OBSERVATIONS,
     IPSO_TARGET_SURVEY, IPSO_TERRENI_GEOJSON,
     IPSO_WORK_PACKAGE_HARVEST_PREFIX,
@@ -113,7 +117,7 @@ from config.constants import (
     OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
-    TREE_H_QUANTUM, UPLOAD, is_truthy,
+    TREE_H_QUANTUM, UPLOAD, FIELD_YEAR, is_truthy,
 )
 
 SCHEMA_VERSION = 1
@@ -244,6 +248,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         IPSO_REF_OBSERVATION_CATEGORIES: _observation_category_rows(),
         IPSO_REF_UPLOAD: _upload_limits(),
         IPSO_REF_WORK_PACKAGES: _work_packages(sampling),
+        IPSO_REF_HISTORY: _history_rows(),
     }
     payload[FIELD_REFERENCE_VERSION] = _reference_version(payload)
     response = _json_response(
@@ -422,6 +427,154 @@ def _work_packages(sampling: dict) -> list[dict]:
         }
         for s in sampling[IPSO_REF_SURVEYS]
     ]
+
+
+def _history_rows() -> list[dict]:
+    """Lightweight index for the Ipso history screen.
+
+    Tree coordinates and measurements deliberately stay out of reference.json;
+    they are returned only by history_detail(). Empty plan items and surveys are
+    not history yet, so only aggregates containing at least one tree are listed.
+    """
+    rows = []
+    mark_items = (
+        HarvestPlanItem.objects
+        .filter(tree_marks__isnull=False)
+        .select_related('harvest_plan', 'region', 'parcel__region')
+        .annotate(tree_count=Count('tree_marks'))
+    )
+    for item in mark_items:
+        rows.append(_history_mark_row(item, item.tree_count))
+
+    surveys = (
+        Survey.objects
+        .filter(sample__treesample__isnull=False)
+        .annotate(
+            tree_count=Count('sample__treesample'),
+            latest_date=Max('sample__date'),
+        )
+    )
+    for survey in surveys:
+        rows.append(_history_survey_row(
+            survey, survey.tree_count,
+            survey.latest_date.year if survey.latest_date else 0,
+        ))
+
+    rows.sort(key=lambda row: (
+        -row[FIELD_YEAR],
+        0 if row[FIELD_KIND] == IPSO_HISTORY_MARK else 1,
+        natural_sort_key(row[FIELD_LABEL]),
+        row[FIELD_ID],
+    ))
+    return rows
+
+
+def _history_mark_row(item: HarvestPlanItem, tree_count: int) -> dict:
+    if item.parcel_id:
+        scope = f'{item.parcel.region.name}/{item.parcel.name}'
+    else:
+        scope = item.region.name
+    year = item.year_planned
+    return {
+        FIELD_KIND: IPSO_HISTORY_MARK,
+        FIELD_ID: item.id,
+        FIELD_YEAR: year,
+        FIELD_TREE_COUNT: tree_count,
+        FIELD_LABEL: (
+            f'Martellata: {item.harvest_plan.name} {scope} {year} '
+            f'({tree_count} alberi)'
+        ),
+        'detail_url': f'/api/ipso/history/{IPSO_HISTORY_MARK}/{item.id}/',
+    }
+
+
+def _history_survey_row(survey: Survey, tree_count: int, year: int) -> dict:
+    return {
+        FIELD_KIND: IPSO_HISTORY_SURVEY,
+        FIELD_ID: survey.id,
+        FIELD_YEAR: year,
+        FIELD_TREE_COUNT: tree_count,
+        FIELD_LABEL: f'Rilevamento: {survey.name} ({tree_count} alberi)',
+        'detail_url': f'/api/ipso/history/{IPSO_HISTORY_SURVEY}/{survey.id}/',
+    }
+
+
+@require_GET
+def history_detail(
+        request: HttpRequest, history_kind: str, history_id: int,
+) -> HttpResponse:
+    """Return one mark/survey's trees for the on-demand Ipso history map."""
+    if not _upload_authorized(request):
+        return _auth_error()
+    if history_kind == IPSO_HISTORY_MARK:
+        payload = _history_mark_detail(history_id)
+    elif history_kind == IPSO_HISTORY_SURVEY:
+        payload = _history_survey_detail(history_id)
+    else:
+        raise Http404
+    response = _json_response(
+        payload, content_type='application/json', cache_control=CACHE_NO_STORE,
+    )
+    return _authorized_data_response(response)
+
+
+def _history_mark_detail(history_id: int) -> dict:
+    try:
+        item = (
+            HarvestPlanItem.objects
+            .select_related('harvest_plan', 'region', 'parcel__region')
+            .get(pk=history_id)
+        )
+    except HarvestPlanItem.DoesNotExist as exc:
+        raise Http404 from exc
+    marks = list(
+        TreeMark.objects
+        .filter(harvest_plan_item=item)
+        .select_related('tree__species')
+        .order_by('date', 'number', 'id')
+    )
+    trees = [_history_tree_row(mark) for mark in marks]
+    payload = _history_mark_row(item, len(trees))
+    payload[FIELD_MAPPED_TREE_COUNT] = _mapped_tree_count(trees)
+    payload['trees'] = trees
+    return payload
+
+
+def _history_survey_detail(history_id: int) -> dict:
+    try:
+        survey = Survey.objects.get(pk=history_id)
+    except Survey.DoesNotExist as exc:
+        raise Http404 from exc
+    samples = list(
+        TreeSample.objects
+        .filter(sample__survey=survey)
+        .select_related('sample', 'tree__species')
+        .order_by('sample__date', 'number', 'shoot', 'id')
+    )
+    trees = [_history_tree_row(sample) for sample in samples]
+    year = max((sample.sample.date.year for sample in samples), default=0)
+    payload = _history_survey_row(survey, len(trees), year)
+    payload[FIELD_MAPPED_TREE_COUNT] = _mapped_tree_count(trees)
+    payload['trees'] = trees
+    return payload
+
+
+def _history_tree_row(tree_record: TreeMark | TreeSample) -> dict:
+    return {
+        FIELD_SPECIES_ID: tree_record.tree.species_id,
+        FIELD_SPECIES: tree_record.tree.species.common_name,
+        FIELD_D_CM: tree_record.d_cm,
+        FIELD_H_M: str(tree_record.h_m) if tree_record.h_m is not None else None,
+        FIELD_LAT: tree_record.lat,
+        FIELD_LON: tree_record.lon,
+    }
+
+
+def _mapped_tree_count(trees: list[dict]) -> int:
+    return sum(
+        row[FIELD_LAT] is not None and row[FIELD_LON] is not None
+        for row in trees
+    )
 
 
 def _ipsometrica() -> dict:

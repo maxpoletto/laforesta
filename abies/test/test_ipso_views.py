@@ -33,7 +33,8 @@ from config.constants import (
     FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_ID,
     FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_MAX_BYTES,
-    FIELD_HYPSO_PARAM_SET_ID, FIELD_LAT, FIELD_LON, FIELD_MODE,
+    FIELD_HYPSO_PARAM_SET_ID, FIELD_KIND, FIELD_LABEL, FIELD_LAT, FIELD_LON,
+    FIELD_MAPPED_TREE_COUNT, FIELD_MODE,
     FIELD_L10_MM, FIELD_MODE_LABEL, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL,
     FIELD_PARCEL_ID, FIELD_PHOTO_COUNT, FIELD_PHOTOS, FIELD_PRESERVED,
@@ -42,12 +43,14 @@ from config.constants import (
     FIELD_SCHEMA_VERSION, FIELD_SIZE_BYTES, FIELD_STANDARD, FIELD_TAKEN_AT,
     FIELD_TEXT, FIELD_TREE_PRESERVED_ID, FIELD_WIDTH_PX,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
-    FIELD_SPECIES_ID,
+    FIELD_SPECIES_ID, FIELD_TREE_COUNT, FIELD_YEAR,
     FIELD_SURVEY_ID, FIELD_WARNINGS, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, IMPORTED,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
+    IPSO_HISTORY_MARK, IPSO_HISTORY_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
+    IPSO_REF_HISTORY,
     IPSO_REF_OBSERVATION_CATEGORIES, IPSO_REF_UPLOAD, IPSO_TARGET_OBSERVATIONS,
     IPSO_UPLOAD_FILE_PHOTOS_DIR, IPSO_UPLOAD_FILE_READY, MESSAGE,
     PENDING_COUNT, RECORDS, ROWS, ROW_ID, SESSION, STATUS, STATUS_WARNING,
@@ -107,6 +110,8 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'id="screen-mode"' in body
     assert 'id="btn-mode-samples" class="btn-primary btn-big" type="button"' in body
     assert 'id="btn-mode-free-survey" class="btn-secondary btn-big" type="button"' in body
+    assert 'id="btn-mode-history" class="btn-secondary btn-big" type="button"' in body
+    assert 'id="screen-history"' in body
     assert 'id="btn-mode-pai"' not in body
     assert 'id="screen-map"' in body
     assert 'src="modes.js"' in body
@@ -352,6 +357,131 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'note': 'nota',
         'coppice': False,
     }]
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_reference_history_is_lightweight_sorted_and_marks_win_year_ties(
+        db, parcels, species):
+    plan = HarvestPlan.objects.create(
+        name='Piano storico', year_start=2025, year_end=2026,
+    )
+    recent_item = HarvestPlanItem.objects.create(
+        harvest_plan=plan, parcel=parcels[0], year_planned=2026,
+    )
+    older_item = HarvestPlanItem.objects.create(
+        harvest_plan=plan, parcel=parcels[1], year_planned=2025,
+    )
+    for item, parcel, number in (
+        (recent_item, parcels[0], 1),
+        (recent_item, parcels[0], 2),
+        (older_item, parcels[1], 1),
+    ):
+        tree = Tree.objects.create(species=species[0])
+        TreeMark.objects.create(
+            harvest_plan_item=item, tree=tree, parcel=parcel, number=number,
+            date=date(item.year_planned, 6, 1), d_cm=30,
+            h_m=Decimal('18.00'), operator='Mario',
+        )
+
+    grid = SampleGrid.objects.create(name='Griglia storico')
+    area = SampleArea.objects.create(
+        sample_grid=grid, parcel=parcels[0], number='1', lat=38.5, lon=16.1,
+    )
+    survey = Survey.objects.create(name='Inventario 2026', sample_grid=grid)
+    sample = Sample.objects.create(
+        sample_area=area, survey=survey, date=date(2026, 5, 20),
+    )
+    TreeSample.objects.create(
+        sample=sample, tree=Tree.objects.create(species=species[1]),
+        parcel=parcels[0], number=1, d_cm=24, h_m=Decimal('15.00'),
+    )
+    Survey.objects.create(name='Rilevamento vuoto')
+
+    data = Client().get(
+        '/ipso/reference.json', HTTP_AUTHORIZATION='Bearer test-token',
+    ).json()
+
+    rows = data[IPSO_REF_HISTORY]
+    assert [(row[FIELD_KIND], row[FIELD_YEAR]) for row in rows] == [
+        (IPSO_HISTORY_MARK, 2026),
+        (IPSO_HISTORY_SURVEY, 2026),
+        (IPSO_HISTORY_MARK, 2025),
+    ]
+    assert rows[0] == {
+        FIELD_KIND: IPSO_HISTORY_MARK,
+        FIELD_ID: recent_item.id,
+        FIELD_YEAR: 2026,
+        FIELD_TREE_COUNT: 2,
+        FIELD_LABEL: 'Martellata: Piano storico Capistrano/1 2026 (2 alberi)',
+        'detail_url': f'/api/ipso/history/mark/{recent_item.id}/',
+    }
+    assert rows[1][FIELD_LABEL] == 'Rilevamento: Inventario 2026 (1 alberi)'
+    assert all('trees' not in row for row in rows)
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_history_detail_requires_bearer_and_returns_map_tree_fields(
+        db, parcels, species):
+    plan = HarvestPlan.objects.create(
+        name='Piano mappa', year_start=2026, year_end=2026,
+    )
+    item = HarvestPlanItem.objects.create(
+        harvest_plan=plan, parcel=parcels[0], year_planned=2026,
+    )
+    mapped_tree = Tree.objects.create(species=species[0])
+    TreeMark.objects.create(
+        harvest_plan_item=item, tree=mapped_tree, parcel=parcels[0], number=1,
+        date=date(2026, 6, 1), d_cm=31, h_m=Decimal('18.25'),
+        lat=38.51, lon=16.12, operator='Mario',
+    )
+    TreeMark.objects.create(
+        harvest_plan_item=item, tree=Tree.objects.create(species=species[1]),
+        parcel=parcels[0], number=2, date=date(2026, 6, 1), d_cm=22,
+        h_m=Decimal('14.00'), operator='Mario',
+    )
+    url = reverse('ipso-history-detail', args=[IPSO_HISTORY_MARK, item.id])
+
+    assert Client().get(url).status_code == 401
+    response = Client().get(url, HTTP_AUTHORIZATION='Bearer test-token')
+
+    assert response.status_code == 200
+    assert 'Authorization' in response['Vary']
+    assert 'no-store' in response['Cache-Control']
+    data = response.json()
+    assert data[FIELD_TREE_COUNT] == 2
+    assert data[FIELD_MAPPED_TREE_COUNT] == 1
+    assert data['trees'][0] == {
+        FIELD_SPECIES_ID: species[0].id,
+        FIELD_SPECIES: 'Abete',
+        FIELD_D_CM: 31,
+        FIELD_H_M: '18.25',
+        FIELD_LAT: 38.51,
+        FIELD_LON: 16.12,
+    }
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_history_survey_detail_returns_all_survey_measurements(
+        db, parcels, species):
+    survey, area = _sample_survey(parcels[0], name='Rilievo storico')
+    sample = Sample.objects.create(
+        survey=survey, sample_area=area, date=date(2024, 9, 16),
+    )
+    TreeSample.objects.create(
+        sample=sample, tree=Tree.objects.create(species=species[0]),
+        parcel=parcels[0], number=1, d_cm=28, h_m=Decimal('17.50'),
+        lat=38.52, lon=16.13,
+    )
+    url = reverse('ipso-history-detail', args=[IPSO_HISTORY_SURVEY, survey.id])
+
+    data = Client().get(
+        url, HTTP_AUTHORIZATION='Bearer test-token',
+    ).json()
+
+    assert data[FIELD_YEAR] == 2024
+    assert data[FIELD_LABEL] == 'Rilevamento: Rilievo storico (1 alberi)'
+    assert data[FIELD_MAPPED_TREE_COUNT] == 1
+    assert data['trees'][0][FIELD_SPECIES] == 'Abete'
 
 
 @override_settings(IPSO_SECRET='test-token')

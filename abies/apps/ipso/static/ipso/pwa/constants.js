@@ -28,6 +28,10 @@ const IPSO_REF_PARCELS = 'parcels';
 const IPSO_REF_HYPSOMETRY = 'ipsometrica';
 const IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories';
 const IPSO_REF_UPLOAD = 'upload';
+const IPSO_REF_HISTORY = 'history';
+const IPSO_HISTORY_MARK = 'mark';
+const IPSO_HISTORY_SURVEY = 'survey';
+const HISTORY_CACHE_TTL_MS = 60 * 60 * 1000;
 
 const FIELD_SESSION_ID = 'session_id';
 const FIELD_MODE = 'mode';
@@ -81,6 +85,10 @@ const FIELD_ORIGINAL_HEIGHT_PX = 'original_height_px';
 const FIELD_CONVERSION_STATUS = 'conversion_status';
 const FIELD_CONVERSION_REASON = 'conversion_reason';
 const FIELD_ORIGINAL_FILENAME = 'original_filename';
+const FIELD_KIND = 'kind';
+const FIELD_LABEL = 'label';
+const FIELD_TREE_COUNT = 'tree_count';
+const FIELD_MAPPED_TREE_COUNT = 'mapped_tree_count';
 
 const PHOTO_CONVERSION_CONVERTED = 'converted';
 const PHOTO_CONVERSION_ORIGINAL = 'original';
@@ -129,6 +137,10 @@ if (typeof module !== 'undefined') {
     IPSO_REF_HYPSOMETRY,
     IPSO_REF_OBSERVATION_CATEGORIES,
     IPSO_REF_UPLOAD,
+    IPSO_REF_HISTORY,
+    IPSO_HISTORY_MARK,
+    IPSO_HISTORY_SURVEY,
+    HISTORY_CACHE_TTL_MS,
     FIELD_SESSION_ID,
     FIELD_MODE,
     FIELD_SCHEMA_VERSION,
@@ -181,6 +193,10 @@ if (typeof module !== 'undefined') {
     FIELD_CONVERSION_STATUS,
     FIELD_CONVERSION_REASON,
     FIELD_ORIGINAL_FILENAME,
+    FIELD_KIND,
+    FIELD_LABEL,
+    FIELD_TREE_COUNT,
+    FIELD_MAPPED_TREE_COUNT,
     PHOTO_CONVERSION_CONVERTED,
     PHOTO_CONVERSION_ORIGINAL,
     PHOTO_CONVERSION_UNAVAILABLE,

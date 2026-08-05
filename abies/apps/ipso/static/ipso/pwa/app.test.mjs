@@ -13,6 +13,7 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
   `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
+  `validateHistoryItem, validateHistoryDetail, showHistoryScreen, loadHistoryDetail, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
   `registerServiceWorker, watchServiceWorkerUpdates, activatePendingAppUpdate, ` +
   `showResumeDiscardModal, confirmResumeDiscard, hideResumeDiscardModal, ` +
@@ -141,6 +142,13 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     MODE_SAMPLES: 'Rilevamenti predefiniti',
     MODE_FREE_SURVEYS: 'Rilevamenti liberi',
     MODE_MAP: 'Mappa',
+    MODE_HISTORY: 'Storico',
+    HISTORY_TITLE: 'Storico',
+    HISTORY_EMPTY: 'Nessuno storico',
+    HISTORY_LOADING: 'Caricamento alberi…',
+    HISTORY_NETWORK_REQUIRED: 'Connessione necessaria',
+    HISTORY_INVALID: 'history invalid',
+    HISTORY_MAP_COUNTS: (mapped, total) => `${mapped}/${total}`,
     ERROR_GEO_UNAVAILABLE: 'geo unavailable',
     ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
     ERROR_TOKEN_MISSING: 'token missing',
@@ -150,6 +158,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     TOAST_TERRENI_LOAD_ERROR: (msg) => `terreni error: ${msg}`,
     TOAST_DB_OPEN_ERROR: (msg) => `db error: ${msg}`,
     TOAST_BOOT_CACHE_ERROR: (msg) => `cache error: ${msg}`,
+    TOAST_HISTORY_LOAD_ERROR: (msg) => `history error: ${msg}`,
     TOAST_REFERENCE_REQUIRED: 'reference required',
     REC_OBSERVATION_PHOTO_OK: 'ok',
     REC_OBSERVATION_PHOTO_ERROR: 'errore',
@@ -215,6 +224,14 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     IPSO_REF_PRESERVED_TREES: 'preserved_trees',
     IPSO_REF_OBSERVATION_CATEGORIES: 'observation_categories',
     IPSO_REF_UPLOAD: 'upload',
+    IPSO_REF_HISTORY: 'history',
+    IPSO_HISTORY_MARK: 'mark',
+    IPSO_HISTORY_SURVEY: 'survey',
+    HISTORY_CACHE_TTL_MS: 3600000,
+    FIELD_KIND: 'kind',
+    FIELD_LABEL: 'label',
+    FIELD_TREE_COUNT: 'tree_count',
+    FIELD_MAPPED_TREE_COUNT: 'mapped_tree_count',
     RECORDS: 'records',
     FIELD_SURVEY_ID: 'survey_id',
     FIELD_SAMPLE_GRID_ID: 'sample_grid_id',
@@ -265,7 +282,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       addEventListener() {},
       confirm() { events.push('confirm'); return true; },
     },
-    navigator: serviceWorker ? { serviceWorker } : {},
+    navigator: serviceWorker ? { serviceWorker, onLine: true } : { onLine: true },
     localStorage: {
       getItem(key) { return localValues.get(key) || ''; },
       setItem(key, value) { localValues.set(key, value); },
@@ -318,6 +335,10 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       },
       async cacheReference(_db, value) { events.push(['cacheReference', value]); },
       async cacheTerreni(_db, value) { events.push(['cacheTerreni', value]); },
+      async getCachedHistoryDetail() { events.push('getCachedHistoryDetail'); return null; },
+      async cacheHistoryDetail(_db, kind, id, value) {
+        events.push(['cacheHistoryDetail', kind, id, value]);
+      },
       async listResumableSessions() { events.push('listResumableSessions'); return []; },
       async listRecoverableSessions() { events.push('listRecoverableSessions'); return []; },
       async listTrees() {
@@ -625,6 +646,57 @@ const session = {
   workerListeners.statechange();
   check(!button.classList.contains('hidden'),
         'installed service worker shows the update button');
+}
+
+// Cached protected resources are validated and restored before network work.
+{
+  const { context, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const mark = {
+    kind: 'mark', id: 7, year: 2026, tree_count: 1,
+    label: 'Martellata: Piano Serra/1 2026 (1 alberi)',
+    detail_url: '/api/ipso/history/mark/7/',
+  };
+  const survey = {
+    kind: 'survey', id: 9, year: 2025, tree_count: 1,
+    label: 'Rilevamento: Inventario (1 alberi)',
+    detail_url: '/api/ipso/history/survey/9/',
+  };
+  app.State.reference = { ...referenceFixture(), history: [mark, survey] };
+  app.showHistoryScreen();
+  eq(
+    elements.get('history-list').children.map((child) => child.textContent),
+    [mark.label, survey.label],
+    'history screen preserves the server-provided reverse-year ordering',
+  );
+  check(app.State.currentScreen === 'screen-history', 'history list is a top-level screen');
+
+  const detail = {
+    ...mark, mapped_tree_count: 1,
+    trees: [{ species: 'Abete', d_cm: 31, h_m: '18.25', lat: 38.5, lon: 16.1 }],
+  };
+  app.State.db = {};
+  context.Store.getCachedHistoryDetail = async () => detail;
+  context.fetch = async () => { throw new Error('fresh history cache must skip fetch'); };
+  eq(await app.loadHistoryDetail(mark), detail, 'fresh history detail loads from IndexedDB');
+
+  let request = null;
+  context.Store.getCachedHistoryDetail = async () => null;
+  context.fetch = async (url, options) => {
+    request = { url, options };
+    return { ok: true, json: async () => detail };
+  };
+  app.State.bearerToken = 'history-token';
+  eq(await app.loadHistoryDetail(mark), detail, 'history cache miss loads from Abies');
+  check(request.url === mark.detail_url, 'history fetch uses the reference detail URL');
+  check(request.options.cache === 'no-store', 'history fetch bypasses HTTP and service-worker caches');
+  check(request.options.headers.Authorization === 'Bearer history-token',
+        'history fetch carries the Ipso bearer');
+
+  let mismatchRejected = false;
+  try { app.validateHistoryDetail({ ...detail, id: 8 }, mark); }
+  catch (_) { mismatchRejected = true; }
+  check(mismatchRejected, 'history detail identity mismatches are rejected');
 }
 
 // Cached protected resources are validated and restored before network work.

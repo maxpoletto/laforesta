@@ -15,7 +15,18 @@ const S = {
   MODE_OBSERVATIONS: 'Osservazioni',
   MODE_PAI: 'PAI',
   MODE_MAP: 'Mappa',
+  MODE_HISTORY: 'Storico',
   MODE_BACK: 'Indietro',
+
+  // History screen
+  HISTORY_TITLE: 'Storico',
+  HISTORY_EMPTY: 'Nessuna martellata o rilevamento disponibile.',
+  HISTORY_LOADING: 'Caricamento alberi…',
+  HISTORY_NETWORK_REQUIRED:
+    'Connessione necessaria per caricare questi alberi.',
+  HISTORY_INVALID: 'Dati storico non validi.',
+  HISTORY_MAP_COUNTS: (mapped, total) =>
+    `${mapped} di ${total} alberi con coordinate`,
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',
@@ -208,6 +219,8 @@ const S = {
   TOAST_STATE_SAVE_ERROR: (detail) => `Errore salvataggio stato: ${detail}`,
   TOAST_MAP_POINTS_LOAD_ERROR: (detail) =>
     `Errore caricamento punti mappa: ${detail}`,
+  TOAST_HISTORY_LOAD_ERROR: (detail) =>
+    `Errore caricamento storico: ${detail}`,
   TOAST_DATA_LOAD_ERROR: (detail) => `Errore caricamento dati: ${detail}`,
   TOAST_BOOT_ERROR: (detail) => `Errore avvio: ${detail}`,
 

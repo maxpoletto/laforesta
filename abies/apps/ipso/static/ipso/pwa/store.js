@@ -26,7 +26,7 @@ const DB_NAME = 'ipso';
 // missing/extra fields without a structural change, so the bump is the
 // contract for "this code wrote/read vN-shaped rows" — not a migration
 // trigger at the moment.
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 const STORE_SESSIONS = 'sessions';
 const STORE_TREES = 'trees';
@@ -38,6 +38,7 @@ const STORE_META = 'meta';
 // are replaced only after app-level validation succeeds.
 const META_KEY_REFERENCE = 'boot:reference';
 const META_KEY_TERRENI = 'boot:terreni';
+const META_KEY_HISTORY_PREFIX = 'history:';
 
 // Meta-store key namespace for per-operator, per-mode "next tree number"
 // persistence. Full key is `${META_KEY_NEXT_NUMBER_PREFIX}${mode}:${operator}`
@@ -238,6 +239,32 @@ async function cacheBootResource(db, key, value) {
     t.objectStore(STORE_META).put({
       key,
       value,
+    });
+  });
+}
+
+function historyMetaKey(kind, id) {
+  return META_KEY_HISTORY_PREFIX + kind + ':' + id;
+}
+
+async function getCachedHistoryDetail(db, kind, id, maxAgeMs, nowMs) {
+  const key = historyMetaKey(kind, id);
+  const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+  return tx(db, [STORE_META], 'readonly', async (t) => {
+    const row = await req(t.objectStore(STORE_META).get(key));
+    if (!row || !Number.isFinite(row.fetched_at_ms)) return null;
+    if (now - row.fetched_at_ms >= maxAgeMs) return null;
+    return row.value;
+  });
+}
+
+async function cacheHistoryDetail(db, kind, id, value, fetchedAtMs) {
+  const fetchedAt = Number.isFinite(fetchedAtMs) ? fetchedAtMs : Date.now();
+  await tx(db, [STORE_META], 'readwrite', (t) => {
+    t.objectStore(STORE_META).put({
+      key: historyMetaKey(kind, id),
+      value,
+      fetched_at_ms: fetchedAt,
     });
   });
 }
@@ -533,6 +560,7 @@ const Store = {
   nextNumberAfterSave, nextNumberAfterDelete, nextSeqAfterRows, nextSeqForSession,
   openDb,
   getCachedBootResources, cacheReference, cacheTerreni,
+  historyMetaKey, getCachedHistoryDetail, cacheHistoryDetail,
   startSession, getSession, listResumableSessions, listRecoverableSessions,
   setSessionStatus, setSessionPendingUpload,
   setSessionUploadStatus,

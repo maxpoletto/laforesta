@@ -196,7 +196,7 @@ check(
   Store.nextSeqAfterRows([]) === 1,
   'nextSeqAfterRows starts fresh sessions at one',
 );
-check(Store.SCHEMA_VERSION === 8, 'schema v8 includes observation support');
+check(Store.SCHEMA_VERSION === 9, 'schema v9 includes history detail cache rows');
 check(
   Store.isResumableStatus(Store.STATUS_OPEN) &&
     Store.isResumableStatus(Store.STATUS_PENDING_UPLOAD) &&
@@ -295,6 +295,26 @@ check(
   const refreshed = await Store.getCachedBootResources(db);
   check(same(refreshed.reference, replacement), 'new reference replaces the last-good snapshot');
   check(same(refreshed.terreni, terreni), 'reference refresh retains last-good geometry');
+}
+
+// History detail snapshots are isolated by kind/id and expire at the caller's
+// TTL boundary instead of silently becoming a permanent offline data preload.
+{
+  const db = makeMetaDb();
+  const detail = { kind: 'mark', id: 7, trees: [{ species: 'Abete' }] };
+  await Store.cacheHistoryDetail(db, 'mark', 7, detail, 1000);
+  check(
+    same(await Store.getCachedHistoryDetail(db, 'mark', 7, 3600000, 3600999), detail),
+    'history detail remains available just inside the one-hour TTL',
+  );
+  check(
+    await Store.getCachedHistoryDetail(db, 'mark', 7, 3600000, 3601000) === null,
+    'history detail expires exactly at the one-hour TTL',
+  );
+  check(
+    await Store.getCachedHistoryDetail(db, 'survey', 7, 3600000, 2000) === null,
+    'history cache keys keep marks and surveys separate',
+  );
 }
 
 // addTree stores free-survey flags in the same durable row as the measured
