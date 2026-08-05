@@ -177,24 +177,43 @@ class TestHarvestFlagsConsistency:
 
 
 # ---------------------------------------------------------------------------
-# HarvestPlanItem.state monotonicity (Python-level validator)
+# HarvestPlanItem.state transitions (Python-level validator)
 # ---------------------------------------------------------------------------
 
-class TestStateMonotonic:
+class TestStateTransitions:
     def test_advance_ok(self, plan, parcels):
         item = HarvestPlanItem.objects.create(
             harvest_plan=plan, parcel=parcels[0], year_planned=2025,
             state=HarvestPlanItemState.PLANNED,
         )
         item.state = HarvestPlanItemState.OPEN
-        item.full_clean()  # raises if monotonic violated
+        item.full_clean()
 
-    def test_regress_blocks(self, plan, parcels):
+    @pytest.mark.parametrize(
+        ('old_state', 'new_state'),
+        [
+            (HarvestPlanItemState.HARVESTING, HarvestPlanItemState.OPEN),
+            (HarvestPlanItemState.CLOSED, HarvestPlanItemState.PLANNED),
+            (HarvestPlanItemState.CLOSED, HarvestPlanItemState.MARKED),
+            (HarvestPlanItemState.CLOSED, HarvestPlanItemState.HARVESTING),
+        ],
+    )
+    def test_other_regressions_block(
+        self, plan, parcels, old_state, new_state,
+    ):
         from django.core.exceptions import ValidationError
         item = HarvestPlanItem.objects.create(
             harvest_plan=plan, parcel=parcels[0], year_planned=2025,
-            state=HarvestPlanItemState.HARVESTING,
+            state=old_state,
         )
-        item.state = HarvestPlanItemState.OPEN
+        item.state = new_state
         with pytest.raises(ValidationError):
             item.full_clean()
+
+    def test_closed_to_open_reopen_is_allowed(self, plan, parcels):
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2025,
+            state=HarvestPlanItemState.CLOSED,
+        )
+        item.state = HarvestPlanItemState.OPEN
+        item.full_clean()

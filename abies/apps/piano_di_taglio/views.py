@@ -46,6 +46,7 @@ from apps.base.models import (
     HarvestTransition,
     Parcel,
     Region,
+    Role,
     Species,
     Tree,
     TreeMark,
@@ -103,6 +104,7 @@ from config.constants import (
     FIELD_YEAR_PLANNED,
     FIELD_YEAR_START,
     HTML,
+    MESSAGE,
     RECORD,
     ROW_ID,
     STATUS,
@@ -352,7 +354,7 @@ def item_data_view(request, item_id: int):
     """Modal metadata for one HarvestPlanItem.
 
     Returns the current materialised digest row plus the item's
-    HarvestTransition rows (Apri / Chiudi events).  Used by the
+    HarvestTransition rows (Apri / Chiudi / Riapri events). Used by the
     View/Edit modal to render the metadata pane.
     """
     item = (HarvestPlanItem.objects
@@ -643,7 +645,7 @@ def mark_dendrometry_export_view(request, item_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Apri / Chiudi cantiere
+# Apri / Chiudi / Riapri cantiere
 # ---------------------------------------------------------------------------
 
 # Valid (current_state, open_flag) -> new_state transitions.
@@ -652,6 +654,7 @@ _ALLOWED_TRANSITIONS = {
     (HarvestPlanItemState.MARKED, True):      HarvestPlanItemState.OPEN,
     (HarvestPlanItemState.OPEN, False):       HarvestPlanItemState.CLOSED,
     (HarvestPlanItemState.HARVESTING, False): HarvestPlanItemState.CLOSED,
+    (HarvestPlanItemState.CLOSED, True):      HarvestPlanItemState.OPEN,
 }
 
 
@@ -659,8 +662,10 @@ _ALLOWED_TRANSITIONS = {
 @require_writer
 @require_POST
 def transition_save_view(request):
-    """Apri / Chiudi cantiere — creates a HarvestTransition row and
-    advances ``HarvestPlanItem.state`` server-side.
+    """Open, close, or reopen a cantiere and update its plan-item state.
+
+    Writers can use the normal forward transitions. Reopening a closed
+    cantiere is the sole backward transition and is restricted to admins.
     """
     body, error = parse_json_body(request)
     if error:
@@ -686,6 +691,9 @@ def transition_save_view(request):
         if item is None:
             return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
         cur = HarvestPlanItemState(item.state)
+        if (cur == HarvestPlanItemState.CLOSED and open_flag
+                and request.user.role != Role.ADMIN):
+            return JsonResponse({MESSAGE: S.ERR_FORBIDDEN}, status=403)
         new_state = _ALLOWED_TRANSITIONS.get((cur, open_flag))
         if new_state is None:
             return validation_error([S.ERR_TRANSITION_INVALID_STATE])
@@ -975,8 +983,8 @@ def mark_save_view(request):
 def mark_delete_view(request):
     """Delete a single TreeMark (and its orphaned Tree).
 
-    State stays monotonic per B3: count can return to zero but state
-    does not revert to ``planned``.
+    The state does not regress automatically: count can return to zero but
+    state does not revert to ``planned``.
     """
     body, error = parse_json_body(request)
     if error:

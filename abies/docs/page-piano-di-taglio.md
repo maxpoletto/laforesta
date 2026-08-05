@@ -213,8 +213,9 @@ The modal displays:
 
    State labels: planned → "pianificato", marked → "martellato",
    open → "cantiere aperto", harvesting → "in prelievo",
-   closed → "cantiere chiuso". Transitions are monotonic — see
-   `database.md` for the full state machine and trigger rules.
+   closed → "cantiere chiuso". Transitions normally move forward; admins
+   can use the explicit reopen exception described below. See `database.md`
+   for the full state machine.
 
    Action buttons:
    - **[Apri cantiere]** (state ∈ {planned, marked}): modal with date
@@ -223,6 +224,12 @@ The modal displays:
      item available in the Prelievi "Cantiere" pulldown.
    - **[Chiudi cantiere]** (state ∈ {open, harvesting}): same modal;
      advances state to `closed`, removes from Cantiere pulldown.
+   - **[Riapri cantiere]** (state = closed, admins only): same modal;
+     returns the item to `open`, making it available in the Prelievi
+     Cantiere pulldown so omitted harvests can be recorded. Writers do not
+     see this action and receive HTTP 403 if they call it directly. The
+     original opening and closing events remain in the transition history;
+     later closure creates another closing event.
 
 2. **A foldable section "Martellate" (fustaia only).** The top of the
    section shows total `volume_marked_m3` so far, and on the right a
@@ -285,8 +292,8 @@ The modal displays:
    server exports all marks; the endpoint also accepts GET for integrations.
 
    Each row has pencil / trash icons. Editing or deleting an individual
-   row obeys state monotonicity (per `database.md`): deleting the last
-   `tree_mark` does NOT revert state to `planned`.
+   row does not automatically regress state: deleting the last `tree_mark`
+   does NOT revert state to `planned`.
 
    Clicking `[+ Nuova martellata]` opens an "Importa CSV martellate"
    modal (analogous to "Nuovo Rilevamento" → "Importa da CSV" on the
@@ -341,8 +348,9 @@ effettivo`, `Compresa`, `Particella`, `Superficie totale (ha)`, `Stato`,
   `parcel_plan_detail`.
 - The Martellate section does not appear in the View/Edit modal for
   coppice-only items; state transitions follow the coppice-only graph
-  (planned → open → harvesting → closed). Region-wide damaged/sick
-  items can still receive marks from coppice parcels via Ipso import.
+  (planned → open → harvesting → closed), with the same admin-only
+  `closed → open` reopen exception. Region-wide damaged/sick items can
+  still receive marks from coppice parcels via Ipso import.
 
 ### New marked tree modal
 
@@ -484,7 +492,7 @@ given `harvest_plan_item_id`):
 | Plan CSV import | `harvest_plans`, `harvest_plan_items`, `audit`, `future_production` | Both force-refreshed via `cache.load` (bulk path) |
 | Item save (create/update) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
 | Item delete | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` (row removed) |
-| Transition save (Apri/Chiudi) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
+| Transition save (Apri/Chiudi/Riapri) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
 | Harvest save (from Prelievi page) | `prelievi`, `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` (cross-domain) |
 
 `harvest_plan_item.volume_actual_m3` and `volume_marked_m3` are

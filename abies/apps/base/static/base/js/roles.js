@@ -11,3 +11,7 @@ const WRITER_ROLES = [ROLE_ADMIN, ROLE_WRITER];
 export function canModify() {
   return WRITER_ROLES.includes(document.body.dataset.role);
 }
+
+export function isAdmin() {
+  return document.body.dataset.role === ROLE_ADMIN;
+}

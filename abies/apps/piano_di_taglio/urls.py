@@ -44,7 +44,7 @@ urlpatterns = [
     path('item/export/<int:item_id>/', views.item_export_view,
          name='piano-di-taglio-item-export'),
 
-    # Apri / Chiudi cantiere.
+    # Apri / Chiudi / Riapri cantiere.
     path('transition/save/', views.transition_save_view,
          name='piano-di-taglio-transition-save'),
 

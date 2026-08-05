@@ -572,6 +572,7 @@ export const VIEW_ITEM_TITLE       = 'Intervento';
 export const VIEW_ITEM_HEADING = (planName, year, location) =>
   `${VIEW_ITEM_TITLE} del ${planName}, anno ${year}, ${location}`;
 export const LABEL_OPEN_WORKSITE   = 'Apri cantiere';
+export const LABEL_REOPEN_WORKSITE = 'Riapri cantiere';
 export const LABEL_CLOSE_WORKSITE  = 'Chiudi cantiere';
 export const LABEL_WORKSITE_OPENED = 'Apertura cantiere';
 export const LABEL_WORKSITE_CLOSED = 'Chiusura cantiere';

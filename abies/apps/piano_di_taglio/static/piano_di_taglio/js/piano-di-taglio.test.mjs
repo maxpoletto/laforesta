@@ -447,6 +447,7 @@ const itemRows = [
   itemRow(13, { region: 'C', parcel: 'X', year: 2028, coppice: null }),
   itemRow(21, { region: 'E', parcel: '21', year: 2026, state: S.STATE_OPEN, coppice: true }),
   itemRow(22, { region: 'F', parcel: '22', year: 2027, state: S.STATE_OPEN, coppice: true }),
+  itemRow(31, { region: 'G', parcel: '31', year: 2028, state: S.STATE_CLOSED }),
 ];
 const itemsDigest = { columns: itemColumns, rows: itemRows };
 
@@ -784,6 +785,42 @@ async function finish() {
   eq(tableInstances.at(-1).data[0][parcelIdx], '11',
      'region-wide mark table retains the imported parcel value');
   await finish();
+}
+
+// Only admins see the backward transition for a closed cantiere.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'admin';
+  const item = deferItem(31);
+  const marks = deferMarks(31);
+  const prelievi = deferPrelievi();
+  await mountItem(31);
+  item.resolve(itemPayload(31));
+  await flushAsyncWork();
+  marks.resolve(markDigest(31));
+  prelievi.resolve(prelieviDigest());
+  await flushSeveral();
+  const actions = contentEl.querySelector('[data-target="transitions"]');
+  eq(actions.children.map(child => child.textContent),
+     [S.LABEL_REOPEN_WORKSITE],
+     'admin sees Riapri cantiere for a closed item');
+  await finish();
+
+  document.body.dataset.role = 'writer';
+  const writerItem = deferItem(31);
+  const writerMarks = deferMarks(31);
+  const writerPrelievi = deferPrelievi();
+  await mountItem(31);
+  writerItem.resolve(itemPayload(31));
+  await flushAsyncWork();
+  writerMarks.resolve(markDigest(31));
+  writerPrelievi.resolve(prelieviDigest());
+  await flushSeveral();
+  const writerActions = contentEl.querySelector('[data-target="transitions"]');
+  check(writerActions.hidden && writerActions.children.length === 0,
+        'writer does not see Riapri cantiere for a closed item');
+  await finish();
+  document.body.dataset.role = previousRole;
 }
 
 // A stale item/data response must not replace the newer item view.

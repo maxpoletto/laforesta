@@ -191,22 +191,25 @@ explicitly reuses the same `tree_id`.
     collecting storm-damaged plants) are approved region-wide. A trigger
     enforces (`region_id` is null XOR `parcel_id` is null).
   - `state` is an enum: `planned=0, marked=1, open=2, harvesting=3, closed=4`.
-    Transitions are **monotonic** (never revert). Coppice items skip `marked`.
+    Transitions normally move forward. The sole backward transition is the
+    admin-only `closed → open` reopen operation. Coppice items skip `marked`.
 
-    | Transition | Trigger |
+    | Transition | Mechanism |
     |---|---|
     | `planned → marked` | automatic: first `tree_mark` insert |
     | `planned/marked → open` | manual: `harvest_transition` (open=true) |
     | `open → harvesting` | automatic: first linked `harvest` insert |
     | `harvesting → closed` | manual: `harvest_transition` (open=false) |
+    | `closed → open` | manual, admin-only: `harvest_transition` (open=true) |
   - `year_planned` is the planned year.
   - `date_actual` is the date of the earliest `tree_mark` (and so the date
     of the implicit `planned → marked` transition). NULL while state is
     still `planned`. For coppice items it is set by the manual
     Apri-cantiere transition.
   - Open / close events live in `harvest_transition` and link back via
-    `harvest_transition.harvest_plan_item_id` (one open row, optionally
-    one close row).
+    `harvest_transition.harvest_plan_item_id`. Reopening retains the original
+    pair and appends another open event; closing again appends another close
+    event.
   - Volumes are all in m³. `planned` comes from the plan, `marked` is the
     (cached, materialized) sum of `tree_mark.volume_m3` for all tree_marks
     under this item, `actual` is the sum of `harvest.volume_m3` for all
@@ -236,9 +239,9 @@ explicitly reuses the same `tree_id`.
 
 - harvest_transition: (id:int, harvest_plan_item_id:int, open:bool,
   date:date, note:string)
-  - Denotes the opening (`open = true`) and closing (`open = false`) of a
-    harvest plan item. Each item has at most one open row and at most one
-    close row.
+  - Denotes an opening or reopening (`open = true`) or closing
+    (`open = false`) of a harvest plan item. An item can have multiple
+    open/close pairs when an admin reopens it.
   - `date` is a user-specified date.
   - `note` is user-specified text, often a regional permit number.
   - ON DELETE PROTECT from `harvest_plan_item` (see deletion note above).

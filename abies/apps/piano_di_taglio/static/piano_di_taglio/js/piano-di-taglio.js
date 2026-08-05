@@ -22,7 +22,7 @@ import {
   showCascadeDeleteModal, showConfirmModal, wireActions, wireCancelButtons,
   wireCollapsibleToggle, wireTabbedModal, showLoadingIn,
 } from '../../base/js/ui-widgets.js';
-import { canModify } from '../../base/js/roles.js';
+import { canModify, isAdmin } from '../../base/js/roles.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { recordIsCoppice } from '../../base/js/coppice.js';
@@ -1167,7 +1167,7 @@ async function renderItemView(itemId) {
     addMetaRow(meta, label, value);
   }
 
-  // Apri / Chiudi cantiere buttons (writers only — host is in template).
+  // Normal transitions are available to writers; only admins can reopen.
   const btnRow = frag.querySelector('[data-target="transitions"]');
   if (btnRow) {
     let hasTransition = false;
@@ -1186,6 +1186,15 @@ async function renderItemView(itemId) {
       btn.className = 'btn btn-save';
       btn.textContent = S.LABEL_CLOSE_WORKSITE;
       btn.addEventListener('click', () => showTransitionForm(itemId, false));
+      btnRow.appendChild(btn);
+      hasTransition = true;
+    }
+    if (state === S.STATE_CLOSED && isAdmin()) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-save';
+      btn.textContent = S.LABEL_REOPEN_WORKSITE;
+      btn.addEventListener('click', () => showTransitionForm(itemId, true, true));
       btnRow.appendChild(btn);
       hasTransition = true;
     }
@@ -1247,12 +1256,14 @@ function showItemEditForm(itemId) {
   });
 }
 
-// --- Transition form (Apri / Chiudi cantiere) ---
+// --- Transition form (Apri / Chiudi / Riapri cantiere) ---
 
-function showTransitionForm(itemId, openFlag) {
+function showTransitionForm(itemId, openFlag, reopen = false) {
   const frag = cloneTemplate('tmpl-pdt-transition');
   const title = frag.querySelector('[data-field="title"]');
-  title.textContent = openFlag ? S.LABEL_OPEN_WORKSITE : S.LABEL_CLOSE_WORKSITE;
+  title.textContent = reopen
+    ? S.LABEL_REOPEN_WORKSITE
+    : (openFlag ? S.LABEL_OPEN_WORKSITE : S.LABEL_CLOSE_WORKSITE);
 
   const form = frag.querySelector('form');
   form.querySelector('#pdt-transition-date').value = localISODate();

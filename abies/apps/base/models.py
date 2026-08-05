@@ -490,11 +490,12 @@ class Parcel(TimestampedModel):
 class HarvestPlanItemState(models.IntegerChoices):
     """State machine for HarvestPlanItem.
 
-    Transitions are monotonic — state only advances. Auto-transitions:
-    `planned → marked` on first linked TreeMark; `open → harvesting`
-    on first linked Harvest. Manual transitions via HarvestTransition:
-    `planned|marked → open` (Apri cantiere) and `open|harvesting → closed`
-    (Chiudi cantiere). Coppice items skip `marked`.
+    State normally advances. Auto-transitions: `planned → marked` on first
+    linked TreeMark; `open → harvesting` on first linked Harvest. Manual
+    transitions via HarvestTransition: `planned|marked → open` (Apri
+    cantiere), `open|harvesting → closed` (Chiudi cantiere), and the
+    admin-only `closed → open` exception (Riapri cantiere). Coppice items
+    skip `marked`.
     """
     PLANNED    = 0, S.STATE_PLANNED
     MARKED     = 1, S.STATE_MARKED
@@ -561,11 +562,11 @@ class HarvestPlanItem(TimestampedModel):
         verbose_name_plural = S.HARVEST_PLAN_ITEMS
 
     def clean(self):
-        """App-side mirror of the SQLite triggers.
+        """Validate the plan-item storage and state invariants.
 
-        The DB enforces region XOR parcel and the state-monotonic
-        invariant via triggers; this method gives early, localised
-        feedback during form save.
+        SQLite enforces region XOR parcel. State normally advances; the one
+        permitted regression is the admin-only reopen operation, whose role
+        check is enforced by the transition endpoint.
         """
         from django.core.exceptions import ValidationError
         if (self.region_id is None) == (self.parcel_id is None):
@@ -574,7 +575,11 @@ class HarvestPlanItem(TimestampedModel):
             old_state = (
                 type(self).objects.filter(pk=self.pk).values_list('state', flat=True).first()
             )
-            if old_state is not None and self.state < old_state:
+            reopening = (
+                old_state == HarvestPlanItemState.CLOSED
+                and self.state == HarvestPlanItemState.OPEN
+            )
+            if old_state is not None and self.state < old_state and not reopening:
                 raise ValidationError(
                     S.ERR_STATE_REGRESSION.format(old_state, self.state)
                 )
@@ -587,9 +592,8 @@ class HarvestPlanItem(TimestampedModel):
 class HarvestTransition(models.Model):
     """Open / close event on a HarvestPlanItem cantiere.
 
-    Each item has at most one open row and at most one close row. The
-    item's `state` is advanced server-side when a transition row is
-    written.
+    Reopened cantieri retain each opening and closing event. The item's
+    `state` is updated server-side when a transition row is written.
     """
     harvest_plan_item = models.ForeignKey(
         HarvestPlanItem, on_delete=models.PROTECT,
@@ -605,7 +609,6 @@ class HarvestTransition(models.Model):
     class Meta:
         verbose_name = S.HARVEST_TRANSITION
         verbose_name_plural = S.HARVEST_TRANSITIONS
-        unique_together = [('harvest_plan_item', 'open')]
 
 
 class ParcelPlanDetail(models.Model):

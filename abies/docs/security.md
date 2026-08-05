@@ -4,6 +4,8 @@
 
 Three roles: `admin`, `writer`, `reader`. Readers have read-only access.
 Writers can insert/edit/delete domain data. Admins can also manage users.
+Only admins can reopen a closed harvest-plan cantiere; normal opening and
+closing remain available to writers.
 Password users can change their own password.
 
 ## Authorization

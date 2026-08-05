@@ -91,6 +91,13 @@ def writer_client(writer_user):
 
 
 @pytest.fixture
+def admin_client(admin_user):
+    c = Client()
+    c.force_login(admin_user)
+    return c
+
+
+@pytest.fixture
 def reader_client(reader_user):
     c = Client()
     c.force_login(reader_user)
@@ -988,7 +995,7 @@ class TestItemCRUD:
 
 
 # ---------------------------------------------------------------------------
-# Transition save (Apri / Chiudi cantiere)
+# Transition save (Apri / Chiudi / Riapri cantiere)
 # ---------------------------------------------------------------------------
 
 class TestTransitionSave:
@@ -1024,6 +1031,62 @@ class TestTransitionSave:
         assert resp.status_code == 200
         planned_item.refresh_from_db()
         assert planned_item.state == HarvestPlanItemState.CLOSED
+
+    def test_admin_can_reopen_and_close_cantiere_again(
+        self, admin_client, planned_item,
+    ):
+        planned_item.state = HarvestPlanItemState.CLOSED
+        planned_item.save()
+        HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True, date='2024-09-01',
+        )
+        HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=False, date='2024-12-01',
+        )
+
+        reopen = self._post(admin_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: True,
+            FIELD_DATE: '2025-01-15',
+            FIELD_NOTE: 'Prelievi mancanti',
+        })
+
+        assert reopen.status_code == 200
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.OPEN
+        assert HarvestTransition.objects.filter(
+            harvest_plan_item=planned_item, open=True,
+        ).count() == 2
+
+        close = self._post(admin_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: False,
+            FIELD_DATE: '2025-01-31',
+        })
+        assert close.status_code == 200
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.CLOSED
+        assert HarvestTransition.objects.filter(
+            harvest_plan_item=planned_item, open=False,
+        ).count() == 2
+
+    def test_writer_cannot_reopen_cantiere(self, writer_client, planned_item):
+        planned_item.state = HarvestPlanItemState.CLOSED
+        planned_item.save()
+
+        resp = self._post(writer_client, {
+            FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+            FIELD_OPEN: True,
+            FIELD_DATE: '2025-01-15',
+        })
+
+        assert resp.status_code == 403
+        assert S.ERR_FORBIDDEN in resp.json()[MESSAGE]
+        planned_item.refresh_from_db()
+        assert planned_item.state == HarvestPlanItemState.CLOSED
+        assert not HarvestTransition.objects.filter(
+            harvest_plan_item=planned_item,
+        ).exists()
 
     def test_invalid_transition_rejected(self, writer_client, planned_item):
         """Chiudi from PLANNED is not in the allowed transitions table."""
