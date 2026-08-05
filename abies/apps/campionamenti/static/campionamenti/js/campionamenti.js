@@ -586,21 +586,24 @@ function renderRilevamentiSummary(surveyId) {
   if (!row) return;
   const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
   const gridId = row[c.indexOf(S.COL_GRID)];
-  const gridName = lookupGridName(gridId);
+  const freeSurvey = gridId == null;
+  const firstDate = row[c.indexOf(S.COL_DATE_FIRST)];
+  const lastDate = row[c.indexOf(S.COL_DATE_LAST)];
 
   const stats = document.createElement('div');
-  const dates = row[c.indexOf(S.COL_DATE_FIRST)]
-    ? S.SAMPLES_SURVEY_DATE_RANGE(
-      row[c.indexOf(S.COL_DATE_FIRST)],
-      row[c.indexOf(S.COL_DATE_LAST)],
-    )
+  const dates = firstDate
+    ? (freeSurvey
+      ? S.SAMPLES_FREE_SURVEY_DATE_RANGE(firstDate, lastDate)
+      : S.SAMPLES_SURVEY_DATE_RANGE(firstDate, lastDate))
     : S.STATUS_NO_SAMPLES;
-  stats.textContent = S.SAMPLES_SURVEY_SUMMARY(
-    gridName,
-    row[c.indexOf(S.COL_N_AREAS_VISITED)],
-    row[c.indexOf(S.COL_N_AREAS_TOTAL)],
-    dates,
-  );
+  stats.textContent = freeSurvey
+    ? dates
+    : S.SAMPLES_SURVEY_SUMMARY(
+      lookupGridName(gridId),
+      row[c.indexOf(S.COL_N_AREAS_VISITED)],
+      row[c.indexOf(S.COL_N_AREAS_TOTAL)],
+      dates,
+    );
   s.summary.appendChild(stats);
   if (desc) {
     const d = document.createElement('div');
@@ -755,7 +758,13 @@ function updateTreesHeaderSummary() {
     return;
   }
 
-  const count = countTreesInActiveArea(data);
+  const freeSurvey = surveyGridId(activeSurveyId) == null;
+  const count = freeSurvey ? data.rows.length : countTreesInActiveArea(data);
+  if (freeSurvey) {
+    setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_COUNT(count));
+    return;
+  }
+
   if (activeAreaId == null) {
     setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_ALL(count));
     return;

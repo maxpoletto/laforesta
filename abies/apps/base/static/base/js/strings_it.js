@@ -223,6 +223,8 @@ export const SAMPLES_SURVEY_SUMMARY = (gridName, visited, total, dates) =>
   `Griglia: ${gridName} · ${visited}/${total} aree visitate · ${dates}`;
 export const SAMPLES_SURVEY_DATE_RANGE = (first, last) =>
   `dal ${first} al ${last}`;
+export const SAMPLES_FREE_SURVEY_DATE_RANGE = (first, last) =>
+  `Dal ${first} al ${last}`;
 export const DELETE_GRID_AREAS_WARNING = (n) =>
   `${n} aree saranno eliminate. ${DELETE_CONFIRM}`;
 

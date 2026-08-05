@@ -143,8 +143,10 @@ surveys retain the `Nome (visitate/totali aree)` label. The groups and labels
 are rebuilt from the survey and sample caches so tree edits and imports update
 the free-survey counts without a page reload.
 
-Summary line: descrizione, griglia, n. aree visitate / totali, data primo/ultimo
-campione.
+For predefined surveys the summary shows the grid, visited/total sample areas,
+and the first/last sample dates. For free surveys it shows only
+`Dal <first> al <last>`, since they have neither a grid nor sample areas.
+The optional description remains on its own line.
 
 Selecting a survey drives Section 3 (only that survey's trees). The
 section-level "Esporta" exports the full survey; Section 3 has its
@@ -178,6 +180,10 @@ rilevamento per visualizzare gli alberi campionati.") rather than every sampled
 tree in the database.
 
 With an active survey, shows all trees from that survey's samples.
+
+The section-heading suffix shows the selected sample area and tree count for
+predefined surveys. For free surveys it shows only `(N alberi)`, without the
+meaningless "Tutte le aree di campionamento" prefix.
 
 With an active survey and sample area, narrows to that area's trees within that
 survey.

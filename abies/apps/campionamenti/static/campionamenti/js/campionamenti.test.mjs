@@ -185,9 +185,11 @@ function el(tag, { id = '', className = '', dataset = {} } = {}, children = []) 
 function section(key) {
   const header = el('div', { className: 'collapsible-header', dataset: { section: key } });
   const body = el('div', { className: 'collapsible-body', dataset: { section: key } });
+  header.appendChild(el('span', { dataset: { field: 'title' } }));
   if (key === 'g') body.appendChild(el('select', { id: 'campionamenti-grid-select' }));
   if (key === 'r') {
     body.appendChild(el('select', { id: 'campionamenti-survey-select' }));
+    body.appendChild(el('div', { dataset: { target: 'survey-summary' } }));
   }
   return [header, body];
 }
@@ -293,10 +295,10 @@ function digest(columns, rows) {
 const payloads = new Map([
   ['/api/campionamenti/surveys/data/', digest(
     [ROW_ID, S.COL_NAME, S.COL_GRID, S.COL_N_AREAS_VISITED, S.COL_N_AREAS_TOTAL, S.COL_DATE_FIRST, S.COL_DATE_LAST],
-    [[1, 'Rilevamento Z', 10, 2, 4, '', ''],
-     [2, 'Alberi da preservare', null, 30, 0, '', ''],
-     [3, 'Abbattimenti urgenti', null, 1, 0, '', ''],
-     [4, 'Rilevamento A', 10, 3, 9, '', '']],
+    [[1, 'Rilevamento Z', 10, 2, 4, '2025-01-01', '2025-02-01'],
+     [2, 'Alberi da preservare', null, 30, 0, '1970-01-01', '1970-01-01'],
+     [3, 'Abbattimenti urgenti', null, 1, 0, '2026-01-01', '2026-01-02'],
+     [4, 'Rilevamento A', 10, 3, 9, '2025-03-01', '2025-03-02']],
   )],
   ['/api/campionamenti/grids/data/', digest(
     [ROW_ID, S.COL_NAME, S.COL_N_AREAS, S.COL_REGIONS, S.COL_N_SURVEYS, S.COL_LAST_UPDATE],
@@ -333,6 +335,12 @@ const campionamenti = await import(staticModule('campionamenti/js/campionamenti.
 
 await campionamenti.mount({});
 
+const surveySummary = contentEl.querySelector('[data-target="survey-summary"]');
+eq(
+  surveySummary.children[0].textContent,
+  'Griglia: Griglia · 2/4 aree visitate · dal 2025-01-01 al 2025-02-01',
+  'structured survey summary retains grid and area progress',
+);
 const surveySelect = contentEl.querySelector('#campionamenti-survey-select');
 const [freeSurveys, structuredSurveys] = surveySelect.children;
 eq(
@@ -353,6 +361,11 @@ eq(
 );
 
 campionamenti.onQueryChange({ s: '2' });
+eq(
+  surveySummary.children[0].textContent,
+  'Dal 1970-01-01 al 1970-01-01',
+  'free survey summary displays only its capitalized date range',
+);
 
 treeLoads.get('/api/campionamenti/trees/2/').resolve(digest([ROW_ID], [[2]]));
 await flushAsyncWork();
@@ -364,6 +377,11 @@ await cache.refreshVisible();
 const visibleTreeFetches = fetches.filter(url => url.includes('/trees/'));
 eq(visibleTreeFetches, ['/api/campionamenti/trees/2/'],
    'stale survey selection does not replace the visible sampled-trees digest');
+const treesHeaderSummary = contentEl.querySelector(
+  '[data-target="trees-header-summary"]',
+);
+eq(treesHeaderSummary.textContent, '(1 albero)',
+   'free survey tree header omits the sample-area wording');
 
 await contentEl.querySelector('[data-action="new-grid"]').click();
 await flushAsyncWork();
