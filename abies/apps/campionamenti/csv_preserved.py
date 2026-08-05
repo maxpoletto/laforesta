@@ -126,7 +126,7 @@ def validate_rows(reader, idx: PreservedIndexes):
                 continue
             h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
             if h_measured is None:
-                h_measured = True
+                h_measured = False
         if row_date is None:
             row_date = PRESERVED_LEGACY_UNKNOWN_DATE
 

@@ -57,7 +57,33 @@ def test_preserved_happy_path(parcels, species):
     assert pai.sample.date.isoformat() == '2024-09-15'
     assert pai.d_cm == 42
     assert str(pai.h_m) == '18.50'
+    assert pai.h_measured is False
     assert pai.note == 'nota'
+
+
+@pytest.mark.django_db
+def test_preserved_explicit_measured_height_imports(parcels, species):
+    header = (
+        f'{S.CSV_COL_REGION},{S.CSV_COL_PARCEL},{S.CSV_COL_NUMBER},'
+        f'{S.CSV_COL_SPECIES},{S.CSV_COL_LON},{S.CSV_COL_LAT},'
+        f'{S.CSV_COL_DATA},{S.CSV_COL_ESTIMATED_BIRTH_YEAR},'
+        f'{S.CSV_COL_D_CM},{S.CSV_COL_H_M},{S.CSV_COL_H_MEASURED}'
+    )
+    reader = _reader('\n'.join([
+        header,
+        'Capistrano,1,7,Abete,16.12345,38.45678,2024-09-15,1920,42,18.5,true',
+    ]))
+    idx = csv_preserved.db_indexes()
+
+    parsed, errors = csv_preserved.validate_rows(reader, idx)
+
+    assert errors == []
+    assert parsed[0]['h_measured'] is True
+
+    assert csv_preserved.apply(parsed) == 1
+    pai = TreeSample.objects.get(preserved_number=7)
+    assert str(pai.h_m) == '18.50'
+    assert pai.h_measured is True
 
 
 @pytest.mark.django_db
