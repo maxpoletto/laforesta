@@ -6,6 +6,11 @@ Read-only sortable-table of writes to the domain tables, sourced from
 django-simple-history. Columns: time/date, user, table name,
 action (insert/edit/delete), value before, value after.
 
+Stored protocol codes are rendered through their localized model-choice
+labels. In particular, Ipso upload modes, lifecycle states, and destination
+types appear as Italian labels rather than values such as `free_survey`,
+`received`, or `harvest_plan_item`.
+
 Insert rows have an empty previous value and the full audited record in
 the next value. Delete rows do the opposite. Update rows show the full
 audited projection before and after, not only changed fields, so recovery

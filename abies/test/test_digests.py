@@ -29,6 +29,9 @@ from apps.base.models import (
     SampleArea, SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
 )
 from apps.campionamenti import csv_grid
+from apps.ipso.models import (
+    IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType,
+)
 from apps.mannesi.models import ProductionCredit, WorkHour
 from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
@@ -736,6 +739,71 @@ class TestGenerateAudit:
         assert f'{S.COL_STATE}: {HarvestPlanItemState.OPEN.label}' in row[6]
         assert f'{S.COL_PARCEL}: {parcels[0].id}' not in row[6]
         assert f'{S.COL_STATE}: {int(HarvestPlanItemState.OPEN)}' not in row[6]
+
+    @pytest.mark.parametrize(
+        ('mode', 'mode_label', 'state', 'state_label',
+         'target_type', 'target_label'),
+        [
+            (
+                IpsoUploadMode.MARTELLATE, S.IPSO_MODE_MARTELLATE_LABEL,
+                IpsoUploadState.RECEIVED, S.IPSO_STATE_RECEIVED,
+                IpsoUploadTargetType.HARVEST_PLAN_ITEM,
+                S.TABLE_HARVEST_PLAN_ITEM,
+            ),
+            (
+                IpsoUploadMode.SAMPLES, S.IPSO_MODE_SAMPLES_LABEL,
+                IpsoUploadState.IMPORTED, S.IPSO_STATE_IMPORTED,
+                IpsoUploadTargetType.SURVEY, S.TABLE_SURVEY,
+            ),
+            (
+                IpsoUploadMode.FREE_SURVEY, S.IPSO_MODE_FREE_SURVEY_LABEL,
+                IpsoUploadState.REJECTED, S.IPSO_STATE_REJECTED,
+                IpsoUploadTargetType.SURVEY, S.TABLE_SURVEY,
+            ),
+            (
+                IpsoUploadMode.OBSERVATIONS, S.IPSO_MODE_OBSERVATIONS_LABEL,
+                IpsoUploadState.CONFLICT, S.IPSO_STATE_CONFLICT,
+                IpsoUploadTargetType.OBSERVATIONS,
+                S.IPSO_MODE_OBSERVATIONS_LABEL,
+            ),
+        ],
+    )
+    def test_ipso_upload_audit_localizes_protocol_codes(
+        self, db, settings, tmp_path, mode, mode_label, state, state_label,
+        target_type, target_label,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        session_id = '05a42dbc-9d9e-45a3-94f5-3632c64404c5'
+        IpsoUpload.objects.create(
+            session_id=session_id,
+            mode=mode,
+            schema_version=1,
+            operator='Mario',
+            record_count=15,
+            record_date='2026-06-15',
+            checksum='a' * 64,
+            inbox_path='/tmp/ipso-audit-test',
+            state=state,
+            target_type=target_type,
+        )
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
+            data = json.load(f)
+
+        row = next(
+            r for r in data[ROWS]
+            if r[3] == S.TABLE_IPSO_UPLOAD
+            and r[4] == S.AUDIT_INSERT
+            and f'{S.IPSO_COL_SESSION}: {session_id}' in (r[6] or '')
+        )
+        after = row[6]
+        assert f'{S.IPSO_COL_MODE}: {mode_label}' in after
+        assert f'{S.IPSO_COL_STATE}: {state_label}' in after
+        assert f'{S.IPSO_COL_TARGET}: {target_label}' in after
+        assert f'{S.IPSO_COL_MODE}: {mode.value}' not in after
+        assert f'{S.IPSO_COL_STATE}: {state.value}' not in after
+        assert f'{S.IPSO_COL_TARGET}: {target_type.value}' not in after
 
     def test_audit_diff_values_use_human_readable_labels(
         self, db, parcels, settings, tmp_path,

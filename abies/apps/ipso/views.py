@@ -58,7 +58,7 @@ from apps.ipso import staging as ipso_staging
 from apps.ipso.importers import (
     _int_ids, free_survey_import_rows, record_measurements, sample_import_rows,
 )
-from apps.ipso.models import IpsoUpload, IpsoUploadState
+from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
     mark_number_duplicate_errors, mark_parcel_matches_item,
@@ -637,18 +637,8 @@ INBOX_COLUMNS = [
     S.IPSO_COL_STATE, S.IPSO_COL_WORK_PACKAGE, S.IPSO_COL_TARGET,
     S.IPSO_COL_ERROR,
 ]
-STATE_LABELS = {
-    IpsoUploadState.RECEIVED: S.IPSO_STATE_RECEIVED,
-    IpsoUploadState.IMPORTED: S.IPSO_STATE_IMPORTED,
-    IpsoUploadState.REJECTED: S.IPSO_STATE_REJECTED,
-    IpsoUploadState.CONFLICT: S.IPSO_STATE_CONFLICT,
-}
-MODE_LABELS = {
-    IPSO_MODE_MARTELLATE: S.IPSO_MODE_MARTELLATE_LABEL,
-    IPSO_MODE_SAMPLES: S.IPSO_MODE_SAMPLES_LABEL,
-    IPSO_MODE_FREE_SURVEY: S.IPSO_MODE_FREE_SURVEY_LABEL,
-    IPSO_MODE_OBSERVATIONS: S.IPSO_MODE_OBSERVATIONS_LABEL,
-}
+STATE_LABELS = dict(IpsoUploadState.choices)
+MODE_LABELS = dict(IpsoUploadMode.choices)
 REFERENCE_LABELS = {
     IPSO_REFERENCE_LEGACY_CONVERTED: S.IPSO_REFERENCE_LEGACY_CONVERTED,
 }
