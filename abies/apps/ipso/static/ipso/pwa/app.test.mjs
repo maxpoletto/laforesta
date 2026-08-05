@@ -13,7 +13,8 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
   `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
-  `validateHistoryItem, validateHistoryDetail, showHistoryScreen, loadHistoryDetail, ` +
+  `validateHistoryItem, validateHistoryDetail, formatHistoryMapRecordText, ` +
+  `showHistoryScreen, loadHistoryDetail, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
   `registerServiceWorker, watchServiceWorkerUpdates, activatePendingAppUpdate, ` +
   `showResumeDiscardModal, confirmResumeDiscard, hideResumeDiscardModal, ` +
@@ -149,6 +150,9 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     HISTORY_NETWORK_REQUIRED: 'Connessione necessaria',
     HISTORY_INVALID: 'history invalid',
     HISTORY_MAP_COUNTS: (mapped, total) => `${mapped}/${total}`,
+    HISTORY_TREE_DIAMETER: (value) => `D=${value} cm`,
+    HISTORY_TREE_HEIGHT: (value) => `h=${value} m`,
+    HISTORY_TREE_HEIGHT_MISSING: 'h=—',
     ERROR_GEO_UNAVAILABLE: 'geo unavailable',
     ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
     ERROR_TOKEN_MISSING: 'token missing',
@@ -228,10 +232,14 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     IPSO_HISTORY_MARK: 'mark',
     IPSO_HISTORY_SURVEY: 'survey',
     HISTORY_CACHE_TTL_MS: 3600000,
+    FIELD_ID: 'id',
     FIELD_KIND: 'kind',
     FIELD_LABEL: 'label',
+    FIELD_YEAR: 'year',
+    FIELD_DETAIL_URL: 'detail_url',
     FIELD_TREE_COUNT: 'tree_count',
     FIELD_MAPPED_TREE_COUNT: 'mapped_tree_count',
+    FIELD_TREES: 'trees',
     RECORDS: 'records',
     FIELD_SURVEY_ID: 'survey_id',
     FIELD_SAMPLE_GRID_ID: 'sample_grid_id',
@@ -239,7 +247,10 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     FIELD_MAX_TREE_NUMBER: 'max_tree_number',
     FIELD_REGION_ID: 'region_id',
     FIELD_PARCEL_ID: 'parcel_id',
+    FIELD_SPECIES: 'species',
     FIELD_SPECIES_ID: 'species_id',
+    FIELD_D_CM: 'd_cm',
+    FIELD_H_M: 'h_m',
     FIELD_CSV_TEXT: 'csv_text',
     FIELD_CLIENT_PHOTO_ID: 'client_photo_id',
     FIELD_CONTENT_TYPE: 'content_type',
@@ -387,6 +398,8 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     },
     IpsoFormat: {
       fmtCoord(value) { return Number(value).toFixed(6); },
+      fmtInt(value) { return String(Number(value)); },
+      fmtDecimal2(value) { return Number(value).toFixed(2).replace('.', ','); },
     },
     ipso: {
       lookup(ipsometrica, compresa, specie) {
@@ -654,12 +667,12 @@ const session = {
   const app = context.__ipsoAppTest;
   const mark = {
     kind: 'mark', id: 7, year: 2026, tree_count: 1,
-    label: 'Martellata: Piano Serra/1 2026 (1 alberi)',
+    label: 'Martellata: Piano Serra/1 2026 (1 albero)',
     detail_url: '/api/ipso/history/mark/7/',
   };
   const survey = {
     kind: 'survey', id: 9, year: 2025, tree_count: 1,
-    label: 'Rilevamento: Inventario (1 alberi)',
+    label: 'Rilevamento: Inventario (1 albero)',
     detail_url: '/api/ipso/history/survey/9/',
   };
   app.State.reference = { ...referenceFixture(), history: [mark, survey] };
@@ -673,7 +686,10 @@ const session = {
 
   const detail = {
     ...mark, mapped_tree_count: 1,
-    trees: [{ species: 'Abete', d_cm: 31, h_m: '18.25', lat: 38.5, lon: 16.1 }],
+    trees: [{
+      species_id: 1, species: 'Abete', d_cm: 31, h_m: '18.25',
+      lat: 38.5, lon: 16.1,
+    }],
   };
   app.State.db = {};
   context.Store.getCachedHistoryDetail = async () => detail;
@@ -697,6 +713,31 @@ const session = {
   try { app.validateHistoryDetail({ ...detail, id: 8 }, mark); }
   catch (_) { mismatchRejected = true; }
   check(mismatchRejected, 'history detail identity mismatches are rejected');
+  check(
+    !app.validateHistoryItem({
+      ...mark, detail_url: '/api/ipso/history/survey/7/',
+    }),
+    'history items cannot redirect the bearer to a mismatched API route',
+  );
+
+  const validTree = detail.trees[0];
+  for (const [name, tree] of [
+    ['missing species identity', { ...validTree, species_id: undefined }],
+    ['blank species label', { ...validTree, species: '   ' }],
+    ['nonpositive diameter', { ...validTree, d_cm: 0 }],
+    ['nonnumeric canonical height', { ...validTree, h_m: 'not-a-number' }],
+    ['half-present coordinates', { ...validTree, lon: null }],
+  ]) {
+    let rejected = false;
+    try { app.validateHistoryDetail({ ...detail, trees: [tree] }, mark); }
+    catch (_) { rejected = true; }
+    check(rejected, `history detail rejects ${name}`);
+  }
+  eq(
+    app.formatHistoryMapRecordText(validTree),
+    'Abete · D=31 cm · h=18,25 m',
+    'history map labels localize canonical height decimals at display time',
+  );
 }
 
 // Cached protected resources are validated and restored before network work.

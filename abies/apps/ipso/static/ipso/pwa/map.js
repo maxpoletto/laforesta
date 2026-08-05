@@ -12,6 +12,38 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
 const PAI_PANE = 'ipsoPaiPane';
 const PAI_PANE_Z_INDEX = 625;
 
+function recordLatLng(record) {
+  if (!record || record.lat == null || record.lon == null) return null;
+  const latType = typeof record.lat;
+  const lonType = typeof record.lon;
+  if ((latType !== 'number' && latType !== 'string') ||
+      (lonType !== 'number' && lonType !== 'string') ||
+      (latType === 'string' && !record.lat.trim()) ||
+      (lonType === 'string' && !record.lon.trim())) return null;
+  const lat = Number(record.lat);
+  const lon = Number(record.lon);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      !Number.isFinite(lon) || lon < -180 || lon > 180) return null;
+  return [lat, lon];
+}
+
+function recordLatLngs(records) {
+  if (!Array.isArray(records)) return [];
+  return records.map(recordLatLng).filter((point) => point !== null);
+}
+
+function fitRecordPoints(leaflet, points, leafletApi) {
+  if (!leaflet || !points.length) return false;
+  if (points.length === 1) {
+    leaflet.setView(points[0], 18);
+    return true;
+  }
+  const bounds = leafletApi.latLngBounds(points);
+  if (!bounds.isValid()) return false;
+  leaflet.fitBounds(bounds, { padding: [24, 24], maxZoom: 18 });
+  return true;
+}
+
 function createOrientationMap(opts) {
   const elementId = opts.elementId;
   const formatFeatureLabel = opts.formatFeatureLabel;
@@ -129,11 +161,9 @@ function createOrientationMap(opts) {
     const green = !!(options && options.green);
     const popup = !!(options && options.popup);
     for (const rec of records) {
-      if (!rec || rec.lat == null || rec.lon == null) continue;
-      const lat = Number(rec && rec.lat);
-      const lon = Number(rec && rec.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      const marker = L.circleMarker([lat, lon], {
+      const point = recordLatLng(rec);
+      if (!point) continue;
+      const marker = L.circleMarker(point, {
         radius: 5,
         color: '#1f5b1a',
         weight: 2,
@@ -328,20 +358,7 @@ function createOrientationMap(opts) {
   }
 
   function fitRecords(records) {
-    if (!leaflet || !records) return false;
-    const points = records
-      .filter((record) => record && record.lat != null && record.lon != null)
-      .map((record) => [Number(record.lat), Number(record.lon)])
-      .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
-    if (!points.length) return false;
-    if (points.length === 1) {
-      leaflet.setView(points[0], 18);
-      return true;
-    }
-    const bounds = L.latLngBounds(points);
-    if (!bounds.isValid()) return false;
-    leaflet.fitBounds(bounds, { padding: [24, 24], maxZoom: 18 });
-    return true;
+    return fitRecordPoints(leaflet, recordLatLngs(records), L);
   }
 
   function invalidate() {
@@ -354,4 +371,8 @@ function createOrientationMap(opts) {
   };
 }
 
-if (typeof module !== 'undefined') module.exports = { createOrientationMap };
+if (typeof module !== 'undefined') {
+  module.exports = {
+    createOrientationMap, recordLatLng, recordLatLngs, fitRecordPoints,
+  };
+}

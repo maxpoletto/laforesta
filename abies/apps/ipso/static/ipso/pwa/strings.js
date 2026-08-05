@@ -24,9 +24,12 @@ const S = {
   HISTORY_LOADING: 'Caricamento alberi…',
   HISTORY_NETWORK_REQUIRED:
     'Connessione necessaria per caricare questi alberi.',
-  HISTORY_INVALID: 'Dati storico non validi.',
+  HISTORY_INVALID: 'Dati storici non validi.',
   HISTORY_MAP_COUNTS: (mapped, total) =>
-    `${mapped} di ${total} alberi con coordinate`,
+    `Alberi con coordinate: ${mapped}/${total}`,
+  HISTORY_TREE_DIAMETER: (value) => `D=${value} cm`,
+  HISTORY_TREE_HEIGHT: (value) => `h=${value} m`,
+  HISTORY_TREE_HEIGHT_MISSING: 'h=—',
 
   // Pre-session screen
   PRE_NEW_SESSION: 'Nuova martellata',

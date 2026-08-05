@@ -6,18 +6,40 @@
 
 const IpsoFormat = (function() {
   const locale = (typeof document !== 'undefined' && document.documentElement.lang) || 'it';
-  const coordFormat = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 5,
-    maximumFractionDigits: 5,
-    useGrouping: false,
-  });
+  const formats = new Map();
 
-  function fmtCoord(value) {
-    if (value == null || value === '') return '';
-    return typeof value === 'number' ? coordFormat.format(value) : value;
+  function numberFormat(decimals) {
+    if (!formats.has(decimals)) {
+      formats.set(decimals, new Intl.NumberFormat(locale, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+        useGrouping: false,
+      }));
+    }
+    return formats.get(decimals);
   }
 
-  return { fmtCoord };
+  function fmtDecimal(value, decimals) {
+    if (value == null || value === '') return '';
+    const number = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(number)
+      ? numberFormat(decimals).format(number)
+      : String(value);
+  }
+
+  function fmtInt(value) {
+    return fmtDecimal(value, 0);
+  }
+
+  function fmtDecimal2(value) {
+    return fmtDecimal(value, 2);
+  }
+
+  function fmtCoord(value) {
+    return fmtDecimal(value, 5);
+  }
+
+  return { fmtDecimal, fmtInt, fmtDecimal2, fmtCoord };
 })();
 
 if (typeof module !== 'undefined') module.exports = { IpsoFormat };

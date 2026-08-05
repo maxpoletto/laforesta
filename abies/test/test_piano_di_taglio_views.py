@@ -1189,10 +1189,13 @@ class TestMarkDendrometryExport:
             species[1].common_name,
         }
 
-    def test_post_rejects_invalid_row_ids(self, writer_client, planned_item):
+    @pytest.mark.parametrize('row_ids', (['bad'], [0], [-1], [True]))
+    def test_post_rejects_invalid_row_ids(
+        self, writer_client, planned_item, row_ids,
+    ):
         response = writer_client.post(
             f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
-            data=json.dumps({FIELD_ROW_IDS: ['bad']}),
+            data=json.dumps({FIELD_ROW_IDS: row_ids}),
             content_type='application/json',
         )
         assert response.status_code == 400

@@ -239,6 +239,8 @@ test-js:
 	node apps/ipso/static/ipso/pwa/modes.test.mjs
 	node apps/ipso/static/ipso/pwa/csv.test.mjs
 	node apps/ipso/static/ipso/pwa/gps.test.mjs
+	node apps/ipso/static/ipso/pwa/format.test.mjs
+	node apps/ipso/static/ipso/pwa/map.test.mjs
 	node apps/ipso/static/ipso/pwa/photo.test.mjs
 	node apps/ipso/static/ipso/pwa/upload.test.mjs
 	node apps/ipso/static/ipso/pwa/store.test.mjs

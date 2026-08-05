@@ -33,6 +33,7 @@ const IPSO_HISTORY_MARK = 'mark';
 const IPSO_HISTORY_SURVEY = 'survey';
 const HISTORY_CACHE_TTL_MS = 60 * 60 * 1000;
 
+const FIELD_ID = 'id';
 const FIELD_SESSION_ID = 'session_id';
 const FIELD_MODE = 'mode';
 const FIELD_SCHEMA_VERSION = 'schema_version';
@@ -47,6 +48,7 @@ const FIELD_CLIENT_RECORD_ID = 'client_record_id';
 const FIELD_CLIENT_PHOTO_ID = 'client_photo_id';
 const FIELD_DATE = 'date';
 const FIELD_PARCEL_ID = 'parcel_id';
+const FIELD_SPECIES = 'species';
 const FIELD_SPECIES_ID = 'species_id';
 const FIELD_NUMBER = 'number';
 const FIELD_MAX_TREE_NUMBER = 'max_tree_number';
@@ -87,8 +89,11 @@ const FIELD_CONVERSION_REASON = 'conversion_reason';
 const FIELD_ORIGINAL_FILENAME = 'original_filename';
 const FIELD_KIND = 'kind';
 const FIELD_LABEL = 'label';
+const FIELD_YEAR = 'year';
+const FIELD_DETAIL_URL = 'detail_url';
 const FIELD_TREE_COUNT = 'tree_count';
 const FIELD_MAPPED_TREE_COUNT = 'mapped_tree_count';
+const FIELD_TREES = 'trees';
 
 const PHOTO_CONVERSION_CONVERTED = 'converted';
 const PHOTO_CONVERSION_ORIGINAL = 'original';
@@ -141,6 +146,7 @@ if (typeof module !== 'undefined') {
     IPSO_HISTORY_MARK,
     IPSO_HISTORY_SURVEY,
     HISTORY_CACHE_TTL_MS,
+    FIELD_ID,
     FIELD_SESSION_ID,
     FIELD_MODE,
     FIELD_SCHEMA_VERSION,
@@ -155,6 +161,7 @@ if (typeof module !== 'undefined') {
     FIELD_CLIENT_PHOTO_ID,
     FIELD_DATE,
     FIELD_PARCEL_ID,
+    FIELD_SPECIES,
     FIELD_SPECIES_ID,
     FIELD_NUMBER,
     FIELD_MAX_TREE_NUMBER,
@@ -195,8 +202,11 @@ if (typeof module !== 'undefined') {
     FIELD_ORIGINAL_FILENAME,
     FIELD_KIND,
     FIELD_LABEL,
+    FIELD_YEAR,
+    FIELD_DETAIL_URL,
     FIELD_TREE_COUNT,
     FIELD_MAPPED_TREE_COUNT,
+    FIELD_TREES,
     PHOTO_CONVERSION_CONVERTED,
     PHOTO_CONVERSION_ORIGINAL,
     PHOTO_CONVERSION_UNAVAILABLE,

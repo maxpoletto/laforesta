@@ -312,6 +312,10 @@ check(
     'history detail expires exactly at the one-hour TTL',
   );
   check(
+    await Store.getCachedHistoryDetail(db, 'mark', 7, 3600000, 999) === null,
+    'future-dated history cache entries are rejected after a clock rollback',
+  );
+  check(
     await Store.getCachedHistoryDetail(db, 'survey', 7, 3600000, 2000) === null,
     'history cache keys keep marks and surveys separate',
   );

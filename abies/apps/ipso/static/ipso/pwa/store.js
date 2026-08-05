@@ -253,7 +253,8 @@ async function getCachedHistoryDetail(db, kind, id, maxAgeMs, nowMs) {
   return tx(db, [STORE_META], 'readonly', async (t) => {
     const row = await req(t.objectStore(STORE_META).get(key));
     if (!row || !Number.isFinite(row.fetched_at_ms)) return null;
-    if (now - row.fetched_at_ms >= maxAgeMs) return null;
+    const age = now - row.fetched_at_ms;
+    if (age < 0 || age >= maxAgeMs) return null;
     return row.value;
   });
 }

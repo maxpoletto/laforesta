@@ -72,6 +72,7 @@ from config.constants import (
     FIELD_CATEGORY_IDS, FIELD_CATEGORIES, FIELD_CONTENT_TYPE,
     FIELD_MAX_BYTES,
     FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
+    FIELD_DETAIL_URL,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_KIND,
     FIELD_LABEL, FIELD_LAT,
@@ -87,7 +88,7 @@ from config.constants import (
     FIELD_SIZE_BYTES, FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE,
     FIELD_TEXT, FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT,
     FIELD_STATE, FIELD_STATE_LABEL, FIELD_TAKEN_AT, FIELD_TREE_COUNT,
-    FIELD_MAPPED_TREE_COUNT, FIELD_WIDTH_PX,
+    FIELD_MAPPED_TREE_COUNT, FIELD_TREES, FIELD_WIDTH_PX, FIELD_YEAR,
     FIELD_HEIGHT_PX,
     FIELD_SURVEY_ID, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
@@ -117,7 +118,7 @@ from config.constants import (
     OK,
     PENDING_COUNT, PRESSLER_DEFAULT, RECORD_COUNT, RECORDS, ROW_ID, ROWS,
     SESSION, SKIPPED_DUPLICATES, STORED_AS, SUGGESTED_TARGET_ID, TARGETS,
-    TREE_H_QUANTUM, UPLOAD, FIELD_YEAR, is_truthy,
+    TREE_H_QUANTUM, UPLOAD, is_truthy,
 )
 
 SCHEMA_VERSION = 1
@@ -480,11 +481,11 @@ def _history_mark_row(item: HarvestPlanItem, tree_count: int) -> dict:
         FIELD_ID: item.id,
         FIELD_YEAR: year,
         FIELD_TREE_COUNT: tree_count,
-        FIELD_LABEL: (
-            f'Martellata: {item.harvest_plan.name} {scope} {year} '
-            f'({tree_count} alberi)'
+        FIELD_LABEL: S.IPSO_HISTORY_MARK_LABEL.format(
+            item.harvest_plan.name, scope, year,
+            _history_tree_count_label(tree_count),
         ),
-        'detail_url': f'/api/ipso/history/{IPSO_HISTORY_MARK}/{item.id}/',
+        FIELD_DETAIL_URL: f'/api/ipso/history/{IPSO_HISTORY_MARK}/{item.id}/',
     }
 
 
@@ -494,9 +495,16 @@ def _history_survey_row(survey: Survey, tree_count: int, year: int) -> dict:
         FIELD_ID: survey.id,
         FIELD_YEAR: year,
         FIELD_TREE_COUNT: tree_count,
-        FIELD_LABEL: f'Rilevamento: {survey.name} ({tree_count} alberi)',
-        'detail_url': f'/api/ipso/history/{IPSO_HISTORY_SURVEY}/{survey.id}/',
+        FIELD_LABEL: S.IPSO_HISTORY_SURVEY_LABEL.format(
+            survey.name, _history_tree_count_label(tree_count),
+        ),
+        FIELD_DETAIL_URL: f'/api/ipso/history/{IPSO_HISTORY_SURVEY}/{survey.id}/',
     }
+
+
+def _history_tree_count_label(tree_count: int) -> str:
+    noun = S.TREE if tree_count == 1 else S.TREES
+    return f'{tree_count} {noun}'
 
 
 @require_GET
@@ -536,7 +544,7 @@ def _history_mark_detail(history_id: int) -> dict:
     trees = [_history_tree_row(mark) for mark in marks]
     payload = _history_mark_row(item, len(trees))
     payload[FIELD_MAPPED_TREE_COUNT] = _mapped_tree_count(trees)
-    payload['trees'] = trees
+    payload[FIELD_TREES] = trees
     return payload
 
 
@@ -555,7 +563,7 @@ def _history_survey_detail(history_id: int) -> dict:
     year = max((sample.sample.date.year for sample in samples), default=0)
     payload = _history_survey_row(survey, len(trees), year)
     payload[FIELD_MAPPED_TREE_COUNT] = _mapped_tree_count(trees)
-    payload['trees'] = trees
+    payload[FIELD_TREES] = trees
     return payload
 
 

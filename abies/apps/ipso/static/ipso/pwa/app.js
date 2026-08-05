@@ -366,31 +366,41 @@ function validateHistoryItem(item) {
   return isObject(item) &&
     (item[FIELD_KIND] === IPSO_HISTORY_MARK ||
      item[FIELD_KIND] === IPSO_HISTORY_SURVEY) &&
-    Number.isInteger(item.id) && item.id > 0 &&
-    Number.isInteger(item.year) && item.year >= 0 &&
+    Number.isInteger(item[FIELD_ID]) && item[FIELD_ID] > 0 &&
+    Number.isInteger(item[FIELD_YEAR]) && item[FIELD_YEAR] >= 0 &&
     Number.isInteger(item[FIELD_TREE_COUNT]) && item[FIELD_TREE_COUNT] >= 0 &&
-    typeof item[FIELD_LABEL] === 'string' &&
-    typeof item.detail_url === 'string' && item.detail_url.startsWith('/api/ipso/');
+    typeof item[FIELD_LABEL] === 'string' && !!item[FIELD_LABEL].trim() &&
+    typeof item[FIELD_DETAIL_URL] === 'string' &&
+    item[FIELD_DETAIL_URL] === '/api/ipso/history/' +
+      item[FIELD_KIND] + '/' + item[FIELD_ID] + '/';
 }
 
 function validateHistoryDetail(value, item) {
   const validTree = (tree) => {
-    if (!isObject(tree) || typeof tree.species !== 'string' ||
-        !Number.isInteger(tree.d_cm) ||
-        (tree.h_m != null && typeof tree.h_m !== 'string')) return false;
-    if (tree.lat == null || tree.lon == null) {
-      return tree.lat == null && tree.lon == null;
+    if (!isObject(tree) ||
+        !Number.isInteger(tree[FIELD_SPECIES_ID]) || tree[FIELD_SPECIES_ID] <= 0 ||
+        typeof tree[FIELD_SPECIES] !== 'string' || !tree[FIELD_SPECIES].trim() ||
+        !Number.isInteger(tree[FIELD_D_CM]) || tree[FIELD_D_CM] <= 0) return false;
+    const height = tree[FIELD_H_M];
+    if (height != null &&
+        (typeof height !== 'string' || height !== height.trim() ||
+         !Number.isFinite(Number(height)) || Number(height) <= 0)) return false;
+    if (tree[FIELD_LAT] == null || tree[FIELD_LON] == null) {
+      return tree[FIELD_LAT] == null && tree[FIELD_LON] == null;
     }
-    return Number.isFinite(tree.lat) && tree.lat >= -90 && tree.lat <= 90 &&
-      Number.isFinite(tree.lon) && tree.lon >= -180 && tree.lon <= 180;
+    return Number.isFinite(tree[FIELD_LAT]) &&
+      tree[FIELD_LAT] >= -90 && tree[FIELD_LAT] <= 90 &&
+      Number.isFinite(tree[FIELD_LON]) &&
+      tree[FIELD_LON] >= -180 && tree[FIELD_LON] <= 180;
   };
   if (!validateHistoryItem(value) ||
-      value[FIELD_KIND] !== item[FIELD_KIND] || value.id !== item.id ||
+      value[FIELD_KIND] !== item[FIELD_KIND] ||
+      value[FIELD_ID] !== item[FIELD_ID] ||
       !Number.isInteger(value[FIELD_MAPPED_TREE_COUNT]) ||
-      !Array.isArray(value.trees) ||
-      value.trees.length !== value[FIELD_TREE_COUNT] ||
-      !value.trees.every(validTree) ||
-      value.trees.filter((tree) => tree.lat != null).length !==
+      !Array.isArray(value[FIELD_TREES]) ||
+      value[FIELD_TREES].length !== value[FIELD_TREE_COUNT] ||
+      !value[FIELD_TREES].every(validTree) ||
+      value[FIELD_TREES].filter((tree) => tree[FIELD_LAT] != null).length !==
         value[FIELD_MAPPED_TREE_COUNT]) {
     throw new Error(S.HISTORY_INVALID);
   }
@@ -877,13 +887,13 @@ async function loadHistoryDetail(item) {
   let cached = null;
   try {
     cached = await Store.getCachedHistoryDetail(
-      State.db, item[FIELD_KIND], item.id, HISTORY_CACHE_TTL_MS
+      State.db, item[FIELD_KIND], item[FIELD_ID], HISTORY_CACHE_TTL_MS
     );
     if (cached) return validateHistoryDetail(cached, item);
   } catch (_) {
     // A missing/corrupt cache row should not prevent an online refresh.
   }
-  const response = await fetch(item.detail_url, {
+  const response = await fetch(item[FIELD_DETAIL_URL], {
     cache: 'no-store',
     headers: bearerHeaders(),
   });
@@ -891,7 +901,7 @@ async function loadHistoryDetail(item) {
   const detail = validateHistoryDetail(await response.json(), item);
   try {
     await Store.cacheHistoryDetail(
-      State.db, item[FIELD_KIND], item.id, detail
+      State.db, item[FIELD_KIND], item[FIELD_ID], detail
     );
   } catch (e) {
     showToast(S.TOAST_BOOT_CACHE_ERROR(e.message));
@@ -2091,7 +2101,7 @@ async function enterMapScreen(returnScreen, options) {
     if (!State.map || !State.map.ready()) return;
     State.map.invalidate();
     if (!State.mapHistory || !State.map.fitRecords ||
-        !State.map.fitRecords(State.historyDetail && State.historyDetail.trees)) {
+        !State.map.fitRecords(State.historyDetail && State.historyDetail[FIELD_TREES])) {
       centerMapOnContext();
     }
   }, 0);
@@ -2172,7 +2182,7 @@ function refreshMapSampleAreas() {
 async function renderMapRecords() {
   if (!State.map || !State.map.ready()) return;
   if (State.mapHistory) {
-    const trees = State.historyDetail && State.historyDetail.trees || [];
+    const trees = State.historyDetail && State.historyDetail[FIELD_TREES] || [];
     State.map.renderRecords(trees, { green: true, popup: true });
     return;
   }
@@ -2232,9 +2242,13 @@ function formatMapRecordText(rec) {
 function formatHistoryMapRecordText(rec) {
   if (!rec) return '';
   const bits = [];
-  if (rec.species) bits.push(rec.species);
-  if (rec.d_cm != null) bits.push('D=' + rec.d_cm + ' cm');
-  bits.push('h=' + (rec.h_m != null ? rec.h_m + ' m' : '—'));
+  if (rec[FIELD_SPECIES]) bits.push(rec[FIELD_SPECIES]);
+  if (rec[FIELD_D_CM] != null) {
+    bits.push(S.HISTORY_TREE_DIAMETER(IpsoFormat.fmtInt(rec[FIELD_D_CM])));
+  }
+  bits.push(rec[FIELD_H_M] != null
+    ? S.HISTORY_TREE_HEIGHT(IpsoFormat.fmtDecimal2(rec[FIELD_H_M]))
+    : S.HISTORY_TREE_HEIGHT_MISSING);
   return bits.join(' · ');
 }
 

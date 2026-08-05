@@ -658,6 +658,7 @@ def mark_dendrometry_export_view(request, item_id: int):
             row_ids = body[FIELD_ROW_IDS]
             if (not isinstance(row_ids, list)
                     or any(isinstance(value, bool) or not isinstance(value, int)
+                           or value <= 0
                            for value in row_ids)):
                 return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
 

@@ -30,7 +30,7 @@ from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CATEGORIES,
     FIELD_CATEGORY_IDS, FIELD_CHECKSUM, FIELD_CLIENT_PHOTO_ID, FIELD_CLIENT_RECORD_ID,
     FIELD_COMPLETED_AT, FIELD_CONTENT_TYPE, FIELD_COPPICE, FIELD_CREATED_AT,
-    FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE,
+    FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DETAIL_URL,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_ID,
     FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_MAX_BYTES,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_KIND, FIELD_LABEL, FIELD_LAT, FIELD_LON,
@@ -43,7 +43,7 @@ from config.constants import (
     FIELD_SCHEMA_VERSION, FIELD_SIZE_BYTES, FIELD_STANDARD, FIELD_TAKEN_AT,
     FIELD_TEXT, FIELD_TREE_PRESERVED_ID, FIELD_WIDTH_PX,
     FIELD_SEQ, FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
-    FIELD_SPECIES_ID, FIELD_TREE_COUNT, FIELD_YEAR,
+    FIELD_SPECIES_ID, FIELD_TREE_COUNT, FIELD_TREES, FIELD_YEAR,
     FIELD_SURVEY_ID, FIELD_WARNINGS, FIELD_WARNINGS_CONFIRMED,
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, IMPORTED,
     IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
@@ -363,7 +363,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
 def test_reference_history_is_lightweight_sorted_and_marks_win_year_ties(
         db, parcels, species):
     plan = HarvestPlan.objects.create(
-        name='Piano storico', year_start=2025, year_end=2026,
+        name='Piano storico', year_start=2024, year_end=2026,
     )
     recent_item = HarvestPlanItem.objects.create(
         harvest_plan=plan, parcel=parcels[0], year_planned=2026,
@@ -371,10 +371,14 @@ def test_reference_history_is_lightweight_sorted_and_marks_win_year_ties(
     older_item = HarvestPlanItem.objects.create(
         harvest_plan=plan, parcel=parcels[1], year_planned=2025,
     )
+    region_item = HarvestPlanItem.objects.create(
+        harvest_plan=plan, region=parcels[0].region, year_planned=2024,
+    )
     for item, parcel, number in (
         (recent_item, parcels[0], 1),
         (recent_item, parcels[0], 2),
         (older_item, parcels[1], 1),
+        (region_item, parcels[0], 1),
     ):
         tree = Tree.objects.create(species=species[0])
         TreeMark.objects.create(
@@ -406,6 +410,7 @@ def test_reference_history_is_lightweight_sorted_and_marks_win_year_ties(
         (IPSO_HISTORY_MARK, 2026),
         (IPSO_HISTORY_SURVEY, 2026),
         (IPSO_HISTORY_MARK, 2025),
+        (IPSO_HISTORY_MARK, 2024),
     ]
     assert rows[0] == {
         FIELD_KIND: IPSO_HISTORY_MARK,
@@ -413,10 +418,13 @@ def test_reference_history_is_lightweight_sorted_and_marks_win_year_ties(
         FIELD_YEAR: 2026,
         FIELD_TREE_COUNT: 2,
         FIELD_LABEL: 'Martellata: Piano storico Capistrano/1 2026 (2 alberi)',
-        'detail_url': f'/api/ipso/history/mark/{recent_item.id}/',
+        FIELD_DETAIL_URL: f'/api/ipso/history/mark/{recent_item.id}/',
     }
-    assert rows[1][FIELD_LABEL] == 'Rilevamento: Inventario 2026 (1 alberi)'
-    assert all('trees' not in row for row in rows)
+    assert rows[1][FIELD_LABEL] == 'Rilevamento: Inventario 2026 (1 albero)'
+    assert rows[3][FIELD_LABEL] == (
+        'Martellata: Piano storico Capistrano 2024 (1 albero)'
+    )
+    assert all(FIELD_TREES not in row for row in rows)
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -450,7 +458,7 @@ def test_history_detail_requires_bearer_and_returns_map_tree_fields(
     data = response.json()
     assert data[FIELD_TREE_COUNT] == 2
     assert data[FIELD_MAPPED_TREE_COUNT] == 1
-    assert data['trees'][0] == {
+    assert data[FIELD_TREES][0] == {
         FIELD_SPECIES_ID: species[0].id,
         FIELD_SPECIES: 'Abete',
         FIELD_D_CM: 31,
@@ -479,9 +487,9 @@ def test_history_survey_detail_returns_all_survey_measurements(
     ).json()
 
     assert data[FIELD_YEAR] == 2024
-    assert data[FIELD_LABEL] == 'Rilevamento: Rilievo storico (1 alberi)'
+    assert data[FIELD_LABEL] == 'Rilevamento: Rilievo storico (1 albero)'
     assert data[FIELD_MAPPED_TREE_COUNT] == 1
-    assert data['trees'][0][FIELD_SPECIES] == 'Abete'
+    assert data[FIELD_TREES][0][FIELD_SPECIES] == 'Abete'
 
 
 @override_settings(IPSO_SECRET='test-token')
