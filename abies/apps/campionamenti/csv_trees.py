@@ -80,10 +80,12 @@ def db_indexes(survey) -> TreeIndexes:
         (ts.parcel_id, ts.preserved_number): ts.tree
         for ts in latest_preserved_tree_samples().select_related('tree__species')
     }
-    existing_sample_by_area = {
+    existing_sample_by_area = {} if is_unstructured else {
         s.sample_area_id: s for s in Sample.objects.filter(survey=survey)
     }
-    existing_number_shoots = set(
+    # Each unstructured CSV import creates a new Sample, so only rows within
+    # that file compete for its sample-local number/shoot identities.
+    existing_number_shoots = set() if is_unstructured else set(
         TreeSample.objects
         .filter(sample__survey=survey)
         .values_list('sample__sample_area_id', FIELD_NUMBER, FIELD_SHOOT)

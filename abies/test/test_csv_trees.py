@@ -418,6 +418,37 @@ def test_apply_free_creates_one_sample_and_new_tree_per_ordinary_row(parcels, sp
 
 
 @pytest.mark.django_db
+def test_free_numbers_may_repeat_in_a_later_import(parcels, species):
+    survey = Survey.objects.create(name='free-csv-repeated-number')
+    parcel = parcels[0]
+    first_csv = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_DATA}\n'
+        f'{parcel.region.name},{parcel.name},1,0,False,30,15.5,250,2,'
+        'Abete,True,2024-09-15\n'
+    )
+    second_csv = (
+        f'{FREE_TREE_HEADER},{S.CSV_COL_DATA}\n'
+        f'{parcel.region.name},{parcel.name},1,0,False,32,16.5,250,2,'
+        'Abete,True,2024-09-16\n'
+    )
+
+    first, first_errors = _validate_free(first_csv, survey)
+    assert first_errors == []
+    csv_trees.apply(survey, first)
+    second, second_errors = _validate_free(second_csv, survey)
+    assert second_errors == []
+    csv_trees.apply(survey, second)
+
+    samples = list(Sample.objects.filter(survey=survey).order_by('date'))
+    assert [sample.date for sample in samples] == [
+        date(2024, 9, 15), date(2024, 9, 16),
+    ]
+    assert [
+        TreeSample.objects.get(sample=sample).number for sample in samples
+    ] == [1, 1]
+
+
+@pytest.mark.django_db
 def test_apply_free_reuses_preserved_tree_identity(parcels, species):
     parcel = parcels[0]
     existing_tree = Tree.objects.create(

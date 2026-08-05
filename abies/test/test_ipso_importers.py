@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from apps.base.models import Sample, SampleArea, SampleGrid, Survey
+from apps.base.models import Sample, SampleArea, SampleGrid, Survey, Tree, TreeSample
 from apps.ipso.importers import (
     free_survey_import_rows, record_measurements, sample_import_rows,
 )
@@ -176,6 +176,30 @@ def test_free_survey_import_still_rejects_explicit_duplicates(parcels, species):
 
     assert [row[FIELD_NUMBER] for row in rows] == [4]
     assert errors == [S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2)]
+
+
+@pytest.mark.django_db
+def test_free_survey_numbers_may_repeat_in_a_later_sample(parcels, species):
+    survey = Survey.objects.create(name='Repeated-number free survey')
+    previous_sample = Sample.objects.create(
+        survey=survey, sample_area=None, date=date(2026, 6, 16),
+    )
+    TreeSample.objects.create(
+        sample=previous_sample,
+        tree=Tree.objects.create(species=species[0]),
+        parcel=parcels[0], number=1, d_cm=30, h_m='20.00',
+    )
+    payload = {
+        RECORDS: [
+            _free_record(parcels[0], species[0], 1),
+            _free_record(parcels[0], species[0], None),
+        ],
+    }
+
+    rows, errors = free_survey_import_rows(payload, survey)
+
+    assert errors == []
+    assert [row[FIELD_NUMBER] for row in rows] == [1, 2]
 
 
 def test_record_measurements_rejects_bad_and_non_positive_values():

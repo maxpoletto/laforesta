@@ -327,6 +327,31 @@ class TestTreeForm:
         assert 'id="id_tree_pick"' not in html
         assert parcels[0].name in html
 
+    def test_unstructured_form_suggests_number_within_default_date_sample(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='Free sample-local suggestion')
+        old_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2025, 1, 1),
+        )
+        TreeSample.objects.create(
+            sample=old_sample, tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], number=99, d_cm=30, h_m=Decimal('20.00'),
+        )
+        current_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date.today(),
+        )
+        TreeSample.objects.create(
+            sample=current_sample, tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], number=3, d_cm=31, h_m=Decimal('21.00'),
+        )
+
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={survey.id}'
+        )
+
+        assert resp.status_code == 200
+        assert 'value="4" required' in resp.json()[HTML]
+
     def test_form_add_rejects_mismatched_grid(self, writer_client, sample_setup,
                                               regions, eclasses):
         """Survey on grid A + area on grid B → 404."""
@@ -647,6 +672,32 @@ class TestTreeSave:
         assert samples.count() == 2
         assert samples[0].sample_id == samples[1].sample_id
         assert samples[0].tree_id != samples[1].tree_id
+
+    def test_unstructured_tree_number_may_repeat_on_another_date(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='Free sample-local numbers')
+        base = {
+            FIELD_SURVEY_ID: str(survey.id),
+            FIELD_PARCEL_ID: str(parcels[0].id),
+            FIELD_SPECIES_ID: str(species[0].id),
+            FIELD_NUMBER: '1',
+            FIELD_D_CM: '30', FIELD_H_M: '20.5',
+            'l10_mm': '12', 'volume_m3': '0.7022', FIELD_MASS_Q: '6.32',
+            FIELD_HIGHFOREST: 'true',
+        }
+
+        first = self._post(writer_client, {**base, FIELD_DATE: '2026-07-17'})
+        second = self._post(writer_client, {**base, FIELD_DATE: '2026-07-18'})
+
+        assert first.status_code == 200, first.content
+        assert second.status_code == 200, second.content
+        rows = list(
+            TreeSample.objects
+            .filter(sample__survey=survey)
+            .order_by('sample__date')
+        )
+        assert [row.number for row in rows] == [1, 1]
+        assert rows[0].sample_id != rows[1].sample_id
 
     def test_create_rejects_malformed_parent_ids(self, writer_client, sample_setup):
         s = sample_setup

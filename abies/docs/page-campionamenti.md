@@ -228,7 +228,9 @@ Required columns for free surveys: the same fields except `Area saggio`. Free
 rows resolve the parcel directly from `Compresa` + `Particella`, and one CSV
 import operation creates one `Sample(sample_area=NULL)`. If the CSV has a
 `Data` column, all rows in a free import must carry the same date; otherwise
-the modal's default date is used.
+the modal's default date is used. Tree number/shoot identities must be unique
+within that import's new sample, but may repeat in another sample belonging to
+the same free survey.
 
 Optional columns: `Data` (→ `sample.date`), `PAI` (bool), `H_measured` (bool),
 `Lat`, `Lon`, `Acc_m`, `Operatore`, and `Note`. Blank `H_measured` is false.

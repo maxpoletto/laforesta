@@ -262,8 +262,9 @@ the next sample-local number.
   are represented in Abies as separate rows by `shoot`; the current Ipso
   sample UI does not record multiple shoots for one number.
 - Free-survey ordinary rows may omit `number`. On import, Abies assigns the
-  next sample-local number within the selected unstructured survey. If a free
-  row supplies a number, it must be positive and unused in that survey.
+  next number after the explicit ordinary-tree numbers reserved by that upload.
+  If a free row supplies a number, it must be positive and unused within that
+  uploaded session/sample; another sample in the same survey may reuse it.
   Free-survey rows for preserved trees require a submitted positive number;
   Abies stores that value as the parcel-scoped `preserved_number` and assigns
   the row's sample-local `number` separately.

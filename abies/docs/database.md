@@ -306,7 +306,8 @@ explicitly reuses the same `tree_id`.
     unstructured samples it is supplied by the row.
   - `number`: 1-based counter of trees within a sample. It reflects the
     operator/sample sequencing and is also the physical identity anchor in the
-    structured-sample convention.
+    structured-sample convention. Separate unstructured samples may restart
+    this sequence; uniqueness never extends to their whole survey.
   - `preserved_number`: optional parcel-scoped number for a preserved/PAI tree.
     A non-null value is positive and is unique within `(sample, parcel)`. Across
     samples, rows with the same `(parcel_id, preserved_number)` must reuse the

@@ -159,11 +159,10 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
                        .filter(id__in=parcel_ids)
                        .select_related('region', 'eclass'))
     }
-    seen_sample_numbers = set(
-        TreeSample.objects
-        .filter(sample__survey=survey)
-        .values_list(FIELD_NUMBER, flat=True)
-    )
+    # One free-survey upload creates one new Sample. TreeSample.number is
+    # sample-local, so prior samples in the target survey do not reserve
+    # numbers for this import.
+    seen_sample_numbers = set()
     # Reserve every valid number explicitly supplied for an ordinary row
     # before filling blanks. Otherwise a blank between 3 and 4 would consume 4
     # during the single-pass import and make the later explicit 4 look like a

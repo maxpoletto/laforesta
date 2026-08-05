@@ -716,7 +716,10 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
     default_species = next((sp for sp in species if sp.id == default_species_id), None)
     if is_unstructured:
         prior_trees = []
-        next_number = _next_unstructured_tree_number(survey) if not ts else ts.number
+        next_number = (
+            _next_unstructured_tree_number(survey, date_type.today())
+            if not ts else ts.number
+        )
     else:
         prior_trees, next_number = _prior_trees_for_area(
             area, exclude_ts_id=ts_id, current_sample=sample,
@@ -772,9 +775,13 @@ def _tree_form_coord(tree, area, field, *, ts):
     return ''
 
 
-def _next_unstructured_tree_number(survey):
+def _next_unstructured_tree_number(survey, sample_date):
     last = (TreeSample.objects
-            .filter(sample__survey=survey)
+            .filter(
+                sample__survey=survey,
+                sample__sample_area__isnull=True,
+                sample__date=sample_date,
+            )
             .order_by('-number')
             .values_list(FIELD_NUMBER, flat=True)
             .first())

@@ -102,12 +102,12 @@ sample-local number.
   for that survey and sample area. The import page also rejects staged rows
   missing `number`.
 - `Rilevamenti liberi`: ordinary rows may omit `number`. Import assigns the
-  next sample-local number within the target unstructured survey. If a row
-  supplies a number, it must be positive and unused in that survey. Preserved
-  rows require a positive submitted number, store it as the parcel-scoped
-  `preserved_number`, and receive a separate sample-local `number`.
-  The import page rejects staged rows missing, invalid, non-positive, or
-  duplicate within-parcel `number` values.
+  next number after the explicit ordinary-tree numbers reserved by that
+  uploaded session. If a row supplies a number, it must be positive and unused
+  within that session/sample; another sample in the same survey may reuse it.
+  Preserved rows require a positive submitted number, store it as the
+  parcel-scoped `preserved_number`, and receive a separate sample-local
+  `number`.
 
 These checks are intentionally repeated at upload/build time and at server import
 time: mobile validation gives immediate feedback, while server validation protects
