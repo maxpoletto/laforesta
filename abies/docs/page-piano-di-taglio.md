@@ -232,7 +232,11 @@ The modal displays:
 
    The table lists `tree_mark` rows under this item. Columns:
 
-       Data; Numero; Specie; D (cm); h (m); h misurata; V (m³); m (q); Lat; Lon; Operatore
+       Data; Particella; Numero; Specie; D (cm); h (m); h misurata; V (m³); m (q); Lat; Lon; Operatore
+
+   `Particella` is shown only for region-wide items, where it identifies the
+   parcel stored on each individual mark. It is hidden for parcel-scoped items
+   because every row necessarily has the item's parcel.
 
    `Numero` is stored on `tree_mark.number`.
 
@@ -535,8 +539,12 @@ cheap.
 `sampled_trees_<survey_id>` digest. Invalidated on `tree_mark` writes
 that touch this item.
 
-Columns: `row_id`, `version`, `Data`, `Numero`, `Specie`, `D (cm)`,
+Columns: `row_id`, `version`, `Data`, `Particella`, `Numero`, `Specie`, `D (cm)`,
 `h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Operatore`.
+
+`Particella` carries `tree_mark.parcel.name`. The client displays it in the
+table and map popover only for region-wide plan items and hides the redundant
+field for parcel-scoped items.
 
 The browser aggregates the filtered rows in this digest for the map and
 `Riassunto dendrometrico`; no second dendrometry digest is generated. The ZIP

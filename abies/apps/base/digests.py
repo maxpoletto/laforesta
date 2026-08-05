@@ -1233,7 +1233,7 @@ def generate_hypso_params() -> None:
     logger.info('%s.json.gz: %s rows', DIGEST_HYPSO_PARAMS, len(rows))
 
 
-MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER,
+MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER,
                      S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
                      S.COL_V_M3, S.COL_MASS_Q,
                      S.COL_LAT, S.COL_LON, S.COL_OPERATOR]
@@ -1242,10 +1242,10 @@ MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER,
 def build_tree_mark_record(tm) -> list:
     """Build one row of a `mark_trees_<item_id>` digest.
 
-    Caller must pre-load `tree.species`.
+    Caller must pre-load `tree.species` and `parcel`.
     """
     return [
-        tm.id, tm.version, tm.date.isoformat(), tm.number,
+        tm.id, tm.version, tm.date.isoformat(), tm.parcel.name, tm.number,
         tm.tree.species.common_name,
         tm.d_cm, float(tm.h_m), tm.h_measured,
         float(tm.volume_m3) if tm.volume_m3 is not None else None,
@@ -1267,7 +1267,7 @@ def generate_mark_trees_for_item(item_id: int) -> None:
 
     qs = (TreeMark.objects
           .filter(harvest_plan_item_id=item_id)
-          .select_related('tree__species')
+          .select_related('tree__species', 'parcel')
           .order_by(FIELD_NUMBER))
     rows = [build_tree_mark_record(tm) for tm in qs]
     _write_gzip_json(

@@ -1362,6 +1362,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
 
   // Volume + mass totals.
   const c = data.columns;
+  const showParcel = itemIsRegionWide(itemId);
   const volCol = c.indexOf(S.COL_V_M3);
   const massCol = c.indexOf(S.COL_MASS_Q);
   const volTotal = data.rows.reduce((s, r) => s + (typeof r[volCol] === 'number' ? r[volCol] : 0), 0);
@@ -1390,7 +1391,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
   itemMarkTreesTable = new TableWrapper({
     container: host,
     digest: data,
-    columnDefs: buildMarkTreeColumnDefs(c),
+    columnDefs: buildMarkTreeColumnDefs(c, showParcel),
     canModify: showActions,
     actions: showActions ? {
       onEdit: (rowId, row) =>
@@ -1420,14 +1421,16 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     csvFormat: S.TABLE_CSV_FORMAT,
     onSearch: () => updateItemMarkTreeDependents(itemId, data),
   });
-  await appendItemMarkTreesMap(body, itemId, data, showActions);
+  await appendItemMarkTreesMap(body, itemId, data, showActions, showParcel);
   if (!itemViewIsActive(itemId) ||
       document.getElementById('content')?.contains?.(body) === false) return;
   appendItemDendrometrySummary(body, itemId, data);
   updateItemMarkTreeDependents(itemId, data);
 }
 
-async function appendItemMarkTreesMap(body, itemId, data, showActions) {
+async function appendItemMarkTreesMap(
+  body, itemId, data, showActions, showParcel,
+) {
   destroyItemMarkTreesMap();
   if (!data?.rows?.length || typeof L === 'undefined') return;
   let geojson;
@@ -1444,7 +1447,9 @@ async function appendItemMarkTreesMap(body, itemId, data, showActions) {
     className: 'pdt-mark-map',
     geojson,
     onTreeClick: (tree) => {
-      showMarkTreePopover(itemId, tree.row, data.columns, showActions);
+      showMarkTreePopover(
+        itemId, tree.row, data.columns, showActions, showParcel,
+      );
     },
   });
   itemMarkTreesMap.setTrees(treePointsFromDigest(data.rows, data.columns));
@@ -1568,13 +1573,16 @@ function markTreeRowId(row, columns) {
   return idx >= 0 ? row[idx] : row[0];
 }
 
-function showMarkTreePopover(itemId, row, columns, showActions) {
+function showMarkTreePopover(
+  itemId, row, columns, showActions, showParcel,
+) {
   if (!row) return;
   const rowId = markTreeRowId(row, columns);
   const frag = cloneTemplate('tmpl-pdt-mark-popover');
   const fields = frag.querySelector('[data-target="fields"]');
   for (const name of columns) {
     if (name === ROW_ID || name === VERSION) continue;
+    if (name === S.COL_PARCEL && !showParcel) continue;
     appendMarkPopoverField(
       fields, name, formatMarkPopoverValue(name, row[columns.indexOf(name)]),
     );
@@ -1623,8 +1631,9 @@ function formatMarkPopoverValue(name, value) {
   return String(value);
 }
 
-function buildMarkTreeColumnDefs(columns) {
+function buildMarkTreeColumnDefs(columns, showParcel) {
   const hidden = new Set([VERSION]);
+  if (!showParcel) hidden.add(S.COL_PARCEL);
   const defs = {};
   for (const name of columns) {
     if (name === ROW_ID) continue;
@@ -1640,6 +1649,15 @@ function buildMarkTreeColumnDefs(columns) {
     defs[name] = { label: name };
   }
   return defs;
+}
+
+function itemIsRegionWide(itemId) {
+  if (!itemsData?.columns || !itemsData?.rows) return false;
+  const idIdx = itemsData.columns.indexOf(ROW_ID);
+  const coppiceIdx = itemsData.columns.indexOf(COL_COPPICE);
+  if (idIdx < 0 || coppiceIdx < 0) return false;
+  const item = itemsData.rows.find(row => row[idIdx] === itemId);
+  return Boolean(item) && item[coppiceIdx] == null;
 }
 
 // --- Mark form (template-based, shared wireVMPreview) ---

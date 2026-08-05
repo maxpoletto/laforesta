@@ -909,7 +909,7 @@ def mark_save_view(request):
             version = submitted_version(body)
             if tm.version != version:
                 fresh_tm = (TreeMark.objects
-                            .select_related('tree__species')
+                            .select_related('tree__species', 'parcel')
                             .get(id=tm.id))
                 return conflict_response(
                     data_id=f'mark_trees_{item.id}', row_id=fresh_tm.id,
@@ -951,7 +951,7 @@ def mark_save_view(request):
         mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     tm = (TreeMark.objects
-          .select_related('tree__species')
+          .select_related('tree__species', 'parcel')
           .get(id=tm.id))
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',
@@ -993,7 +993,7 @@ def mark_delete_view(request):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if tm.version != version:
         fresh_tm = (TreeMark.objects
-                    .select_related('tree__species')
+                    .select_related('tree__species', 'parcel')
                     .get(id=tm.id))
         return conflict_response(
             data_id=f'mark_trees_{tm.harvest_plan_item_id}',

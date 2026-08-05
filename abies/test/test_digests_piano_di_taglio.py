@@ -14,6 +14,7 @@ write→stale→regenerate path in B5) land in Phase 4 alongside the views.
 import gzip
 import json
 from decimal import Decimal
+from importlib import import_module
 
 import pytest
 
@@ -29,7 +30,7 @@ from apps.base.digests import (
     generate_prelievi,
 )
 from apps.base.models import (
-    Eclass, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
+    DigestStatus, Eclass, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
     Parcel, Tree, TreeMark,
 )
 from apps.prelievi.models import Harvest
@@ -307,10 +308,82 @@ class TestGenerateMarkTreesForItem:
         generate_mark_trees_for_item(fustaia_item.id)
         data = _load(tmp_path / f'mark_trees_{fustaia_item.id}.json.gz')
         cols = data[COLUMNS]
-        for c in (ROW_ID, 'version', S.COL_DATE, S.COL_NUMBER, S.COL_SPECIES,
-                  S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED, S.COL_V_M3,
-                  S.COL_MASS_Q, S.COL_LAT, S.COL_LON, S.COL_OPERATOR):
+        for c in (ROW_ID, 'version', S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER,
+                  S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
+                  S.COL_V_M3, S.COL_MASS_Q, S.COL_LAT, S.COL_LON,
+                  S.COL_OPERATOR):
             assert c in cols
+
+    def test_region_wide_rows_carry_each_marks_parcel(
+        self, plan, parcels, species, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        assert parcels[0].region_id == parcels[1].region_id
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, region=parcels[0].region,
+            year_planned=2026,
+        )
+        for number, parcel in enumerate(parcels[:2], start=1):
+            tree = Tree.objects.create(species=species[0])
+            TreeMark.objects.create(
+                harvest_plan_item=item, tree=tree, parcel=parcel,
+                number=number, date='2026-06-15', d_cm=40,
+                h_m=Decimal('22.5'), operator='Mario',
+            )
+
+        generate_mark_trees_for_item(item.id)
+
+        data = _load(tmp_path / f'mark_trees_{item.id}.json.gz')
+        parcel_idx = data[COLUMNS].index(S.COL_PARCEL)
+        assert [row[parcel_idx] for row in data[ROWS]] == [
+            parcels[0].name, parcels[1].name,
+        ]
+
+    def test_schema_migration_stales_tracked_and_untracked_digests(
+        self, plan, parcels, species,
+    ):
+        item_ids = []
+        for index, parcel in enumerate(parcels[:2], start=1):
+            item = HarvestPlanItem.objects.create(
+                harvest_plan=plan, parcel=parcel, year_planned=2025 + index,
+            )
+            tree = Tree.objects.create(species=species[0])
+            TreeMark.objects.create(
+                harvest_plan_item=item, tree=tree, parcel=parcel,
+                number=index, date='2026-06-15', d_cm=40,
+                h_m=Decimal('22.5'), operator='Mario',
+            )
+            item_ids.append(item.id)
+
+        tracked = DigestStatus.objects.create(
+            name=f'mark_trees_{item_ids[0]}', stale=False, dirty_seq=7,
+        )
+        empty = DigestStatus.objects.create(
+            name='mark_trees_999999', stale=False, dirty_seq=3,
+        )
+
+        migration = import_module(
+            'apps.base.migrations.0019_refresh_mark_tree_digest_schema',
+        )
+
+        class CurrentApps:
+            @staticmethod
+            def get_model(app_label, model_name):
+                assert app_label == 'base'
+                models = {'DigestStatus': DigestStatus, 'TreeMark': TreeMark}
+                return models[model_name]
+
+        migration.mark_tree_digests_stale(CurrentApps(), None)
+
+        tracked.refresh_from_db()
+        empty.refresh_from_db()
+        untracked = DigestStatus.objects.get(name=f'mark_trees_{item_ids[1]}')
+        assert tracked.stale is True
+        assert tracked.dirty_seq == 8
+        assert empty.stale is True
+        assert empty.dirty_seq == 4
+        assert untracked.stale is True
+        assert untracked.dirty_seq == 1
 
     def test_empty_when_no_marks(self, fustaia_item, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path

@@ -444,6 +444,7 @@ const itemRows = [
   itemRow(2, { region: 'B', parcel: '2', year: 2027 }),
   itemRow(11, { region: 'C', parcel: '11', year: 2026 }),
   itemRow(12, { region: 'D', parcel: '12', year: 2027 }),
+  itemRow(13, { region: 'C', parcel: 'X', year: 2028, coppice: null }),
   itemRow(21, { region: 'E', parcel: '21', year: 2026, state: S.STATE_OPEN, coppice: true }),
   itemRow(22, { region: 'F', parcel: '22', year: 2027, state: S.STATE_OPEN, coppice: true }),
 ];
@@ -464,13 +465,13 @@ function itemPayload(id) {
 }
 function markDigest(id, overrides = {}) {
   const row = [
-    id * 100 + 1, 1, '2026-01-01', 1, 'Abete bianco', 30, 20,
+    id * 100 + 1, 1, '2026-01-01', '11', 1, 'Abete bianco', 30, 20,
     true, 1.2, 8.5, 38.1, 16.2, 'Operatore',
   ];
   const columns = [
-    ROW_ID, VERSION, S.COL_DATE, S.COL_NUMBER, S.COL_SPECIES, S.COL_D_CM,
-    S.COL_H_M, S.COL_H_MEASURED, S.COL_V_M3, S.COL_MASS_Q, S.COL_LAT,
-    S.COL_LON, S.COL_OPERATOR,
+    ROW_ID, VERSION, S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER, S.COL_SPECIES,
+    S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED, S.COL_V_M3, S.COL_MASS_Q,
+    S.COL_LAT, S.COL_LON, S.COL_OPERATOR,
   ];
   for (const [name, value] of Object.entries(overrides)) {
     row[columns.indexOf(name)] = value;
@@ -748,6 +749,41 @@ async function finish() {
   );
   await finish();
   document.body.dataset.role = previousRole;
+}
+
+// Per-tree parcels are useful only when the plan item covers a whole region.
+{
+  const scopedItem = deferItem(11);
+  const scopedMarks = deferMarks(11);
+  await mountItem(11);
+  scopedItem.resolve(itemPayload(11));
+  await flushAsyncWork();
+  scopedMarks.resolve(markDigest(11));
+  await flushAsyncWork();
+  const scopedParcel = tableInstances.at(-1).columns.find(
+    column => column.key === S.COL_PARCEL,
+  );
+  check(scopedParcel?.hidden,
+        'parcel-scoped mark table hides the redundant parcel column');
+  await finish();
+
+  const regionItem = deferItem(13);
+  const regionMarks = deferMarks(13);
+  await mountItem(13);
+  regionItem.resolve(itemPayload(13));
+  await flushAsyncWork();
+  const digest = markDigest(13);
+  regionMarks.resolve(digest);
+  await flushAsyncWork();
+  const regionParcel = tableInstances.at(-1).columns.find(
+    column => column.key === S.COL_PARCEL,
+  );
+  check(regionParcel && !regionParcel.hidden,
+        'region-wide mark table shows the per-tree parcel column');
+  const parcelIdx = digest.columns.indexOf(S.COL_PARCEL);
+  eq(tableInstances.at(-1).data[0][parcelIdx], '11',
+     'region-wide mark table retains the imported parcel value');
+  await finish();
 }
 
 // A stale item/data response must not replace the newer item view.
