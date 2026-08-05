@@ -20,9 +20,9 @@ import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_PARCEL_ID, COL_REGION_ID, FIELD_DATE, FIELD_ERRORS, FIELD_FILE,
-  FIELD_NONCE, FIELD_SPECIES, FIELD_SPECIES_PCT_PREFIX,
-  FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID, STATUS_CONFLICT,
+  COL_PARCEL_ID, COL_REGION_ID, FIELD_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
+  FIELD_NONCE, FIELD_SPECIES, FIELD_SPECIES_PCT_PREFIX, MESSAGE,
+  FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID, STATUS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
@@ -743,7 +743,7 @@ async function importCsv(form) {
   if (status === 200) return { ok: true };
   return data?.[FIELD_ERRORS]?.length
     ? { errors: data[FIELD_ERRORS] }
-    : { error: data?.message };
+    : { error: data?.[MESSAGE] };
 }
 
 // ---------------------------------------------------------------------------
@@ -814,17 +814,17 @@ function wireForm(form) {
       return;
     }
 
-    if (data.status === STATUS_CONFLICT) {
+    if (data[STATUS] === STATUS_CONFLICT) {
       cache.applyResponseChanges(data);
     }
-    if (data.html) {
-      const newForm = renderModalForm(data.html);
+    if (data[HTML]) {
+      const newForm = renderModalForm(data[HTML]);
       if (newForm) {
         wireForm(newForm);
-        showFormError(newForm, data.message || S.ERROR_GENERIC);
+        showFormError(newForm, data[MESSAGE] || S.ERROR_GENERIC);
       }
     } else {
-      showFormError(form, data.message || S.ERROR_GENERIC);
+      showFormError(form, data[MESSAGE] || S.ERROR_GENERIC);
     }
   });
 }

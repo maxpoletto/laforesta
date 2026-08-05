@@ -35,11 +35,11 @@ import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-m
 import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_FILE,
+  FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_ERRORS, FIELD_FILE,
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
   COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
-  HYPSO_FUNC_LN, ROW_ID, STATUS_CONFLICT, VERSION,
+  HYPSO_FUNC_LN, MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
@@ -579,7 +579,7 @@ function attachItemSubmit(form, kind, onSuccess) {
       const rowId = data?.[ROW_ID];
       if (rowId == null) return;
       const fresh = await fetchAndOpenItemForm(`${ITEM_FORM_URL}${rowId}/`, kind, { onDone: onSuccess });
-      if (fresh) showFormError(fresh, data.message || S.ERROR_CONFLICT);
+      if (fresh) showFormError(fresh, data[MESSAGE] || S.ERROR_CONFLICT);
     },
   });
 }
@@ -782,7 +782,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
-        if (data?.status === STATUS_CONFLICT) {
+        if (data?.[STATUS] === STATUS_CONFLICT) {
           applyWriteResponse(data);
           onPlansUpdate();
           const fresh = planRow(activePlanId);
@@ -794,7 +794,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
             version: fresh[c.indexOf(VERSION)] ?? current.version,
           };
         }
-        showFormError(detailsForm, data?.message || S.ERROR_GENERIC);
+        showFormError(detailsForm, data?.[MESSAGE] || S.ERROR_GENERIC);
         return;
       }
       applyWriteResponse(data);
@@ -862,11 +862,11 @@ function onNewPlan() {
     try {
       const { data, status } = await postJSON(PLAN_SAVE_URL, body);
       if (status !== 200) {
-        showFormError(form, data?.message || S.ERROR_GENERIC);
+        showFormError(form, data?.[MESSAGE] || S.ERROR_GENERIC);
         return;
       }
       applyWriteResponse(data);
-      activePlanId = data.row_id;
+      activePlanId = data[ROW_ID];
       onPlansUpdate();
       syncURL();
       dismissModal();
@@ -891,14 +891,14 @@ async function submitPlanCsvImport(form, body, statusBox, errorsBox) {
       const { data, status } = await postJSON(PLAN_IMPORT_CSV_URL, body);
       if (status === 200) {
         await Promise.all([refreshPlans(), refreshItems()]);
-        activePlanId = data.row_id;
+        activePlanId = data[ROW_ID];
         onPlansUpdate();
         syncURL();
         return { ok: true };
       }
-      return data?.errors?.length
-        ? { errors: data.errors }
-        : { error: data?.message };
+      return data?.[FIELD_ERRORS]?.length
+        ? { errors: data[FIELD_ERRORS] }
+        : { error: data?.[MESSAGE] };
     },
   });
 }
@@ -1268,7 +1268,7 @@ function showTransitionForm(itemId, openFlag) {
     try {
       const { data, status } = await postJSON(TRANSITION_SAVE_URL, body);
       if (status !== 200) {
-        showFormError(form, data?.message || S.ERROR_GENERIC);
+        showFormError(form, data?.[MESSAGE] || S.ERROR_GENERIC);
         return;
       }
       applyWriteResponse(data);
@@ -1596,14 +1596,14 @@ async function wireMarkForm(form, itemId) {
       _applyMarkSaveResponse(data, itemId);
       const rowId = data?.[ROW_ID];
       if (rowId == null) {
-        if (data.message) showFormError(form, data.message);
+        if (data[MESSAGE]) showFormError(form, data[MESSAGE]);
         return;
       }
       const fresh = await showEditMarkForm(itemId, rowId);
-      if (fresh) showFormError(fresh, data.message || S.ERROR_CONFLICT);
+      if (fresh) showFormError(fresh, data[MESSAGE] || S.ERROR_CONFLICT);
     },
     onValidationError(data) {
-      if (data.message) showFormError(form, data.message);
+      if (data[MESSAGE]) showFormError(form, data[MESSAGE]);
     },
   });
 }
@@ -1654,9 +1654,9 @@ async function showImportMarksForm(itemId) {
           applyWriteResponse(data);
           return { ok: true };
         }
-        return data?.errors?.length
-          ? { errors: data.errors }
-          : { error: data?.message };
+        return data?.[FIELD_ERRORS]?.length
+          ? { errors: data[FIELD_ERRORS] }
+          : { error: data?.[MESSAGE] };
       },
     });
     if (result?.ok) renderItemView(itemId);

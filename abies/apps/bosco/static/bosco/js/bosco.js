@@ -12,7 +12,7 @@ import {
   FIELD_LAT, FIELD_LON, FIELD_NAME,
   FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID, FIELD_PHOTOS,
   FIELD_REGION_ID, FIELD_SPECIES, FIELD_TEXT,
-  FIELD_URL, HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS_CONFLICT,
+  FIELD_URL, HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { fetchJSON, postFormData } from '../../base/js/api.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
@@ -1835,7 +1835,7 @@ function wireParcelMetadataForm(form) {
       const newForm = renderModalForm(html);
       if (newForm) {
         wireParcelMetadataForm(newForm);
-        showFormError(newForm, data.message || S.ERROR_GENERIC);
+        showFormError(newForm, data[MESSAGE] || S.ERROR_GENERIC);
       }
     },
   });
@@ -2190,7 +2190,7 @@ function wirePaiForm(form) {
       const newForm = renderModalForm(html);
       if (newForm) {
         wirePaiForm(newForm);
-        showFormError(newForm, data.message || S.ERROR_GENERIC);
+        showFormError(newForm, data[MESSAGE] || S.ERROR_GENERIC);
       }
     },
   });
@@ -2423,23 +2423,23 @@ function wireObservationForm(form) {
         dismissModal();
         return;
       }
-      if (data?.status === STATUS_CONFLICT) {
+      if (data?.[STATUS] === STATUS_CONFLICT) {
         showFormError(form, data[MESSAGE] || S.ERROR_CONFLICT);
         applyObservationResponse(data);
         return;
       }
-      const html = data?.[HTML] || data?.html;
+      const html = data?.[HTML];
       if (html) {
         const newForm = renderModalForm(html);
         if (newForm) {
           wireObservationForm(newForm);
           showFormError(
-            newForm, data?.[MESSAGE] || data?.message || S.ERROR_GENERIC,
+            newForm, data?.[MESSAGE] || S.ERROR_GENERIC,
           );
         }
         return;
       }
-      showFormError(form, data?.[MESSAGE] || data?.message || S.ERROR_GENERIC);
+      showFormError(form, data?.[MESSAGE] || S.ERROR_GENERIC);
     } finally {
       controls.forEach((control, index) => {
         control.disabled = previousDisabled[index];

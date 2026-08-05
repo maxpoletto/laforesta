@@ -17,9 +17,10 @@ import { TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_FILE, FIELD_LAT, FIELD_LON,
+  COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
+  FIELD_LAT, FIELD_LON,
   FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
-  ROW_ID, STATUS_CONFLICT, VERSION,
+  MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
 import { fileToBase64, postJSON } from '../../base/js/api.js';
@@ -941,7 +942,7 @@ function wireGridEmptyForm(modal) {
     onSuccess: (data) => {
       applySideEffects(data);
       dismissModal();
-      rebuildSection('g',data.row_id);
+      rebuildSection('g', data[ROW_ID]);
     },
     onValidationError(_data) {},
   });
@@ -965,7 +966,7 @@ function wireSurveyEmptyForm(modal) {
     onSuccess: (data) => {
       applySideEffects(data);
       dismissModal();
-      rebuildSection('r',data.row_id);
+      rebuildSection('r', data[ROW_ID]);
     },
     onValidationError(_data) {},
   });
@@ -1133,11 +1134,11 @@ function showEditGridModal() {
         },
       );
       if (status !== 200) {
-        if (data?.status === STATUS_CONFLICT) {
+        if (data?.[STATUS] === STATUS_CONFLICT) {
           applySideEffects(data);
           row = gridRow(activeGridId) || row;
         }
-        return data?.message || S.ERROR_GENERIC;
+        return data?.[MESSAGE] || S.ERROR_GENERIC;
       }
       applySideEffects(data);
       updatePulldownOption(sections.g, activeGridId, gridsData, S.COL_NAME);
@@ -1155,9 +1156,9 @@ function showEditGridModal() {
         applySideEffects(data);
         return { ok: true };
       }
-      return data?.errors?.length
-        ? { errors: data.errors }
-        : { error: data?.message };
+      return data?.[FIELD_ERRORS]?.length
+        ? { errors: data[FIELD_ERRORS] }
+        : { error: data?.[MESSAGE] };
     },
   });
 }
@@ -1182,11 +1183,11 @@ function showEditSurveyModal() {
         },
       );
       if (status !== 200) {
-        if (data?.status === STATUS_CONFLICT) {
+        if (data?.[STATUS] === STATUS_CONFLICT) {
           applySideEffects(data);
           row = surveyRow(activeSurveyId) || row;
         }
-        return data?.message || S.ERROR_GENERIC;
+        return data?.[MESSAGE] || S.ERROR_GENERIC;
       }
       applySideEffects(data);
       rebuildSurveyPulldown();
@@ -1238,9 +1239,9 @@ async function confirmTreeCsvImport(body) {
 }
 
 function csvImportErrorResult(data) {
-  return data?.errors?.length
-    ? { errors: data.errors }
-    : { error: data?.message };
+  return data?.[FIELD_ERRORS]?.length
+    ? { errors: data[FIELD_ERRORS] }
+    : { error: data?.[MESSAGE] };
 }
 
 function showEditModal(opts) {
@@ -1694,20 +1695,20 @@ function wireTreeForm(form) {
       if (isSaveAndAdd) showAddTreeForm();
     },
     onConflict(data) {
-      if (data.html) {
-        const f = renderModalForm(data.html);
+      if (data[HTML]) {
+        const f = renderModalForm(data[HTML]);
         if (f) {
           wireTreeForm(f);
-          showFormError(f, data.message || S.ERROR_CONFLICT);
+          showFormError(f, data[MESSAGE] || S.ERROR_CONFLICT);
         }
       }
     },
     onValidationError(data) {
-      if (data.html) {
-        const f = renderModalForm(data.html);
+      if (data[HTML]) {
+        const f = renderModalForm(data[HTML]);
         if (f) {
           wireTreeForm(f);
-          showFormError(f, data.message || S.ERROR_GENERIC);
+          showFormError(f, data[MESSAGE] || S.ERROR_GENERIC);
         }
       }
     },

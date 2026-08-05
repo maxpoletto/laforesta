@@ -20,7 +20,7 @@ import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js'
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_CREW_ID, FIELD_DATE, FIELD_HOURS, FIELD_MASS_Q, FIELD_MONTH, FIELD_NAME,
-  VERSION,
+  MESSAGE, VERSION,
 } from '../../base/js/constants.js';
 import { decimalRight, PDFDocument } from '../../base/js/pdf.js';
 
@@ -337,7 +337,7 @@ function wireEntryForm(form, cfg) {
       const newForm = renderModalForm(html);
       if (newForm) {
         wireEntryForm(newForm, cfg);
-        showFormError(newForm, data.message || S.ERROR_GENERIC);
+        showFormError(newForm, data[MESSAGE] || S.ERROR_GENERIC);
       }
     },
   });

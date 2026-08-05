@@ -19,7 +19,7 @@ import { fmtDecimal1, fmtDecimal2, parseDecimal } from '../../base/js/format.js'
 import * as S from '../../base/js/strings.js';
 import {
   DEFAULT_RADIUS_M, FIELD_DESCRIPTION, FIELD_NAME, FIELD_NONCE, FIELD_POINTS,
-  FIELD_R_M, M2_PER_HA,
+  FIELD_R_M, M2_PER_HA, MESSAGE, ROW_ID,
 } from '../../base/js/constants.js';
 
 const TERRENI_URL = '/api/geo/terreni.geojson';
@@ -317,10 +317,10 @@ export class GridPlanner {
       if (status !== 200) {
         this.submitBtn.disabled = false;
         this._setStatus('');
-        showFormError(this.host, data?.message || S.ERROR_GENERIC);
+        showFormError(this.host, data?.[MESSAGE] || S.ERROR_GENERIC);
         return;
       }
-      this.onCreated?.(data.row_id, data);
+      this.onCreated?.(data[ROW_ID], data);
     } catch (err) {
       this.submitBtn.disabled = false;
       this._setStatus('');

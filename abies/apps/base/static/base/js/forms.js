@@ -10,7 +10,7 @@ import { postJSON } from './api.js';
 import * as cache from './cache.js';
 import { show as showModal, dismiss as dismissModal, showError } from './modals.js';
 import * as S from './strings.js';
-import { FIELD_NONCE, HTML, ROW_ID, STATUS_CONFLICT, VERSION } from './constants.js';
+import { FIELD_NONCE, HTML, MESSAGE, RECORD, ROW_ID, STATUS, STATUS_CONFLICT, VERSION } from './constants.js';
 
 /**
  * Fetch a form fragment from the server and display it in #content.
@@ -31,7 +31,7 @@ export async function fetchForm(url) {
     showError(S.ERROR_NETWORK);
     return null;
   }
-  return renderFormHTML(data.html);
+  return renderFormHTML(data[HTML]);
 }
 
 /**
@@ -112,19 +112,19 @@ export function interceptSubmit(form, postUrl, callbacks) {
         return;
       }
 
-      if (data?.status === STATUS_CONFLICT) {
-        showFormError(form, data.message || S.ERROR_CONFLICT);
+      if (data?.[STATUS] === STATUS_CONFLICT) {
+        showFormError(form, data[MESSAGE] || S.ERROR_CONFLICT);
         await callbacks.onConflict?.(data);
         return;
       }
 
-      const html = data?.[HTML] || data?.html;
+      const html = data?.[HTML];
       if (html && callbacks.onHtml) {
         callbacks.onHtml(html, data);
         return;
       }
 
-      showFormError(form, data?.message || S.ERROR_GENERIC);
+      showFormError(form, data?.[MESSAGE] || S.ERROR_GENERIC);
       callbacks.onValidationError?.(data);
     } finally {
       submitControls.forEach((control, index) => {
@@ -192,14 +192,14 @@ export async function deleteRowWithVersion(
     return true;
   }
 
-  if (data?.status === STATUS_CONFLICT) {
+  if (data?.[STATUS] === STATUS_CONFLICT) {
     const touched = cache.applyResponseChanges(data);
-    if (!touched.size && data.record) {
-      cache.updateRow(dataId, data.row_id, data.record);
+    if (!touched.size && data[RECORD]) {
+      cache.updateRow(dataId, data[ROW_ID], data[RECORD]);
     }
     await onConflict?.(data);
   }
-  showError(data?.message || S.ERROR_GENERIC);
+  showError(data?.[MESSAGE] || S.ERROR_GENERIC);
   return false;
 }
 
@@ -217,7 +217,7 @@ export async function fetchModalForm(url) {
     showError(S.ERROR_NETWORK);
     return null;
   }
-  const html = data?.[HTML] || data?.html;
+  const html = data?.[HTML];
   if (!html) { showError(S.ERROR_GENERIC); return null; }
   return renderModalForm(html);
 }
