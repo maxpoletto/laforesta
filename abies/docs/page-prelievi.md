@@ -38,6 +38,15 @@ the active filter set changes.
 The full dataset is served as a single compressed JSON digest. All filtering (by
 year and search box) is client-side and affects the charts, calendar, and table.
 
+"Esporta" submits the row IDs retained by those filters and downloads the
+normalized harvest data in the same schema accepted by "Importa CSV". The
+backup keeps the three flags separate, retains every individual species
+(including minor species), uses percentage columns for species and tractors,
+and includes the materialized capture-time volume so later density edits do not
+rewrite history during restore. An optional `ID cantiere` column reconnects
+Abies-originated backups to their existing cutting-plan items; older external
+CSVs without that column retain the legacy unlinked-import behavior.
+
 Table columns are:
 Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Volume (m³), Note,
 Altre note, (quintal columns by **major** species in sort_order), (quintal

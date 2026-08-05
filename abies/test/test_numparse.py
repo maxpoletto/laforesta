@@ -16,7 +16,8 @@ import pytest
 from django.utils import translation
 
 from apps.base.numparse import (
-    coord_float, float_or_none, int_or_none, parse_decimal, to_int,
+    coord_float, float_or_none, int_or_none, parse_decimal, positive_int_list,
+    to_int,
 )
 
 
@@ -129,3 +130,17 @@ class TestIntOrNone:
 def test_float_or_none_preserves_null_and_converts_decimal():
     assert float_or_none(None) is None
     assert float_or_none(Decimal('18.50')) == 18.5
+
+
+@pytest.mark.parametrize(('raw', 'expected'), [
+    (None, (None, True)),
+    ([], ([], True)),
+    ([1, 7], ([1, 7], True)),
+    ('1', (None, False)),
+    ([0], (None, False)),
+    ([-1], (None, False)),
+    ([True], (None, False)),
+    (['1'], (None, False)),
+])
+def test_positive_int_list(raw, expected):
+    assert positive_int_list(raw) == expected

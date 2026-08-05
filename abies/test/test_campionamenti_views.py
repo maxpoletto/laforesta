@@ -8,7 +8,8 @@ from decimal import Decimal
 import pytest
 from django.test import Client
 
-from apps.campionamenti import csv_trees
+from apps.base import csv_io
+from apps.campionamenti import csv_grid, csv_trees
 from apps.base.models import (
     DigestStatus, Parcel, Sample, SampleArea, SampleGrid, Survey, Tree,
     TreeSample, UsedNonce,
@@ -23,6 +24,7 @@ from config.constants import (
     FIELD_HIGHFOREST, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
     FIELD_NUMBER, FIELD_PARCEL_ID, FIELD_POINTS, FIELD_PRESERVED, FIELD_R_M,
+    FIELD_ROW_IDS,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SPECIES_ID,
     FIELD_STANDARD, FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_WARNINGS,
     FIELD_WARNINGS_CONFIRMED, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
@@ -192,6 +194,82 @@ class TestDataEndpoints:
         settings.DIGEST_DIR = tmp_path
         resp = reader_client.get('/api/campionamenti/surveys/data/')
         assert resp.status_code == 200
+
+
+class TestCsvExports:
+    def test_grid_export_preserves_area_note(
+        self, reader_client, sample_setup,
+    ):
+        area = sample_setup['area']
+        area.note = 'Confine; nord\nseconda riga'
+        area.save(update_fields=['note'])
+
+        response = reader_client.get(
+            f'/api/campionamenti/grid/export-csv/{sample_setup["grid"].id}/',
+        )
+
+        assert response.status_code == 200
+        assert response['Cache-Control'] == 'no-store'
+        reader = csv_io.read(response.content)
+        assert reader.fieldnames == [
+            *csv_grid.GRID_CSV_REQUIRED, S.CSV_COL_NOTE,
+        ]
+        assert reader[0][S.CSV_COL_NOTE] == area.note
+
+    def test_tree_export_uses_raw_optional_fields_not_map_fallback(
+        self, reader_client, sample_setup,
+    ):
+        row = TreeSample.objects.get(sample__survey=sample_setup['survey'])
+        row.h_measured = True
+        row.operator = 'Mario; Rossi'
+        row.note = 'GPS assente'
+        row.lat = None
+        row.lon = None
+        row.save(update_fields=[
+            'h_measured', 'operator', 'note', 'lat', 'lon',
+        ])
+
+        response = reader_client.get(
+            f'/api/campionamenti/survey/export-csv/'
+            f'{sample_setup["survey"].id}/',
+        )
+
+        assert response.status_code == 200
+        reader = csv_io.read(response.content)
+        exported = reader[0]
+        assert exported[S.CSV_COL_H_MEASURED] == '1'
+        assert exported[S.CSV_COL_OPERATOR] == row.operator
+        assert exported[S.CSV_COL_NOTE] == row.note
+        assert exported[S.CSV_COL_LAT] == ''
+        assert exported[S.CSV_COL_LON] == ''
+        assert sample_setup['area'].lat == 0.0
+        assert sample_setup['area'].lon == 0.0
+
+    def test_tree_export_honours_filtered_row_ids(
+        self, reader_client, sample_setup, species,
+    ):
+        selected = TreeSample.objects.get(
+            sample__survey=sample_setup['survey'],
+        )
+        TreeSample.objects.create(
+            sample=sample_setup['sample'],
+            tree=Tree.objects.create(species=species[1], coppice=False),
+            parcel=sample_setup['area'].parcel,
+            number=2, shoot=0, standard=False,
+            d_cm=35, h_m=Decimal('21.00'), l10_mm=10,
+        )
+
+        response = reader_client.post(
+            f'/api/campionamenti/survey/export-csv/'
+            f'{sample_setup["survey"].id}/',
+            data=json.dumps({FIELD_ROW_IDS: [selected.id]}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        rows = list(csv_io.read(response.content))
+        assert len(rows) == 1
+        assert rows[0][S.CSV_COL_TREE] == str(selected.number)
 
 
 class TestTreeForm:

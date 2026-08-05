@@ -12,9 +12,12 @@ import {
   showConfirmModal, wireActions, wireCancelButtons, wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
-import { fileToBase64, postJSON } from '../../base/js/api.js';
+import { fileToBase64, postBlob, postJSON } from '../../base/js/api.js';
+import { downloadBlob } from '../../base/js/csv-export.js';
 import { renderStackedBar, speciesNamesFromDigest } from '../../base/js/charts.js';
-import { dismiss as dismissModal, onDismiss, show as showModal } from '../../base/js/modals.js';
+import {
+  dismiss as dismissModal, onDismiss, show as showModal, showError,
+} from '../../base/js/modals.js';
 import { columnMap } from '../../base/js/digests.js';
 import { createRangeSlider } from '../../base/js/range-slider.js';
 import * as router from '../../base/js/router.js';
@@ -22,7 +25,8 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_PARCEL_ID, COL_REGION_ID, FIELD_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
   FIELD_NONCE, FIELD_SPECIES, FIELD_SPECIES_PCT_PREFIX, MESSAGE,
-  FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID, STATUS, STATUS_CONFLICT,
+  FIELD_ROW_IDS, FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID,
+  STATUS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
   from '../../base/js/prelievi-columns.js';
@@ -46,6 +50,7 @@ const SPECIES_URL = '/api/species/data/';
 const FORM_URL = '/api/prelievi/form/';
 const SAVE_URL = '/api/prelievi/save/';
 const DELETE_URL = '/api/prelievi/delete/';
+const CSV_EXPORT_URL = '/api/prelievi/export-csv/';
 const CSV_IMPORT_URL = '/api/prelievi/import-csv/';
 const PAGE_PATH = '/prelievi';
 const BOSCO_PATH = '/bosco';
@@ -453,6 +458,24 @@ function _getFilteredRows() {
   });
 }
 
+async function exportCsv() {
+  const data = cache.get(DATA_ID);
+  if (!data) return;
+  const rowIdCol = data.columns.indexOf(ROW_ID);
+  if (rowIdCol < 0) return;
+  const rowIds = _getFilteredRows()
+    .map(row => positiveInt(row[rowIdCol]))
+    .filter(rowId => rowId != null);
+  try {
+    const { blob, filename } = await postBlob(
+      CSV_EXPORT_URL, { [FIELD_ROW_IDS]: rowIds },
+    );
+    downloadBlob(blob, filename);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
 function positiveInt(value) {
   if (value == null || value === '') return null;
   const n = parseInt(value, 10);
@@ -640,7 +663,7 @@ function buildPage(el, data, p) {
       syncURL();
       _updateCharts();
     },
-    'export-csv': () => table?.exportCSV(),
+    'export-csv': () => exportCsv(),
     'import-csv': () => showCsvImportModal(),
     add: () => showAddForm(),
   });

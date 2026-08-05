@@ -14,9 +14,9 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q, Sum
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
@@ -28,7 +28,7 @@ from apps.base.digests import (
     mark_stale,
     serve_digest,
 )
-from apps.base.numparse import int_or_none, parse_decimal
+from apps.base.numparse import int_or_none, parse_decimal, positive_int_list
 from apps.base.responses import (
     conflict_response, csv_error_list, parse_json_body, row_delete, row_patch,
     submitted_version, success_response, validation_error,
@@ -50,7 +50,8 @@ from config.constants import (
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID,
     FIELD_PRODUCT_ID, FIELD_RECORD1, FIELD_RECORD2, FIELD_REGION_ID,
     FIELD_SORT_ORDER, FIELD_SPECIES_ID, FIELD_SPECIES_PCT_PREFIX,
-    FIELD_TRACTOR_PCT_PREFIX, FIELD_VOLUME_M3, HTML, MESSAGE, RECORD, ROW_ID, STATUS,
+    FIELD_TRACTOR_PCT_PREFIX, FIELD_VOLUME_M3, FIELD_ROW_IDS, HTML, MESSAGE,
+    RECORD, ROW_ID, STATUS,
     VERSION,
 )
 
@@ -276,6 +277,42 @@ def csv_import_view(request):
 
     csv_harvests.apply(parsed)
     return success_response(request, body)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def csv_export_view(request):
+    """Export lossless, importer-compatible harvest rows.
+
+    POST optionally accepts ``row_ids`` so the page can preserve its current
+    year, scope, and text filters.  GET exports the complete dataset.
+    """
+    row_ids = None
+    if request.method == 'POST':
+        body, error = parse_json_body(request)
+        if error:
+            return error
+        row_ids, row_ids_ok = positive_int_list(body.get(FIELD_ROW_IDS))
+        if not row_ids_ok:
+            return validation_error([S.ERR_ROW_ID_INVALID])
+
+    harvests = (Harvest.objects
+                .select_related(
+                    'parcel__region', 'region', 'crew', 'product',
+                )
+                .order_by('date', 'id'))
+    if row_ids is not None:
+        harvests = harvests.filter(id__in=row_ids)
+
+    response = HttpResponse(
+        csv_harvests.render_csv(harvests),
+        content_type='text/csv; charset=utf-8',
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="{S.CSV_FILE_HARVESTS}"'
+    )
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------

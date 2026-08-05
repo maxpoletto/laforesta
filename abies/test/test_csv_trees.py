@@ -477,3 +477,95 @@ def test_validate_free_rejects_preserved_species_mismatch(parcels, species):
             2, parcel.region.name, parcel.name, 7, species[0].common_name,
         ),
     ]
+
+
+@pytest.mark.django_db
+def test_export_import_export_import_round_trip(survey_with_area, species):
+    setup = survey_with_area
+    survey = setup['survey']
+    area = setup['area']
+    sample = Sample.objects.create(
+        survey=survey, sample_area=area, date=date(2024, 9, 21),
+    )
+    highforest = Tree.objects.create(species=species[0], coppice=False)
+    volume, mass = csv_trees.tree_volume_and_mass(
+        False, 30, 20, species[0],
+    )
+    TreeSample.objects.create(
+        sample=sample, tree=highforest, parcel=area.parcel,
+        number=1, shoot=0, standard=False,
+        d_cm=30, h_m='20.00', h_measured=False,
+        l10_mm=250, pressler_coeff='2.15',
+        volume_m3=volume, mass_q=mass,
+        lat=None, lon=None, acc_m=None,
+        operator='Mario; Rossi', note='Altezza stimata\ncontrollare',
+    )
+    coppice = Tree.objects.create(species=species[1], coppice=True)
+    for shoot, standard, d_cm, h_m in (
+        (1, False, 12, '9.25'),
+        (2, True, 14, '10.50'),
+    ):
+        TreeSample.objects.create(
+            sample=sample, tree=coppice, parcel=area.parcel,
+            number=2, shoot=shoot, standard=standard,
+            d_cm=d_cm, h_m=h_m, h_measured=True,
+            l10_mm=0, pressler_coeff='1.75',
+            lat=38.54321, lon=16.23456, acc_m=4,
+            operator='Luisa', note=f'Pollone {shoot}',
+        )
+
+    def snapshot():
+        rows = (TreeSample.objects
+                .filter(sample__survey=survey)
+                .select_related('sample', 'tree__species', 'parcel__region')
+                .order_by('number', 'shoot'))
+        return [(
+            row.sample.date,
+            row.parcel.region.name,
+            row.parcel.name,
+            row.sample.sample_area.number if row.sample.sample_area else None,
+            row.number,
+            row.shoot,
+            row.standard,
+            row.tree.species.common_name,
+            row.tree.coppice,
+            row.d_cm,
+            row.h_m,
+            row.h_measured,
+            row.l10_mm,
+            row.pressler_coeff,
+            row.volume_m3,
+            row.mass_q,
+            row.lat,
+            row.lon,
+            row.acc_m,
+            row.operator,
+            row.note,
+        ) for row in rows]
+
+    def import_text(content):
+        reader = csv_io.read(content, csv_trees.TREE_CSV_REQUIRED)
+        parsed, errors = csv_trees.validate_rows(
+            reader, csv_trees.db_indexes(survey),
+            has_date_column=True, default_date=None,
+        )
+        assert errors == []
+        csv_trees.apply(survey, parsed)
+
+    expected = snapshot()
+    first_export = csv_trees.render_csv(survey)
+    header = csv_io.read(first_export).fieldnames
+    assert {
+        S.CSV_COL_H_MEASURED, S.CSV_COL_LAT, S.CSV_COL_LON,
+        S.CSV_COL_ACC_M, S.CSV_COL_OPERATOR, S.CSV_COL_NOTE,
+    }.issubset(header)
+
+    TreeSample.objects.filter(sample__survey=survey).delete()
+    import_text(first_export)
+    assert snapshot() == expected
+
+    second_export = csv_trees.render_csv(survey)
+    assert second_export == first_export
+    TreeSample.objects.filter(sample__survey=survey).delete()
+    import_text(second_export)
+    assert snapshot() == expected

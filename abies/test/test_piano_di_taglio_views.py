@@ -30,7 +30,7 @@ from apps.base.models import (
 from apps.piano_di_taglio.mark_import import (
     csv_mark_fingerprint, legacy_csv_mark_fingerprint, mark_volume_and_mass,
 )
-from apps.prelievi.models import Harvest, HarvestTractor
+from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
     COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_COPPICE_FILE, FIELD_CREW_ID,
@@ -708,6 +708,21 @@ class TestPlanExport:
         assert items[0].id == planned_item.id
         assert float(items[0].volume_planned_m3) == float(planned_item.volume_planned_m3)
 
+        exported_again = writer_client.get(
+            f'/api/piano-di-taglio/plan/export/{plan.id}/',
+        )
+        fustaia_again = zipfile.ZipFile(
+            io.BytesIO(exported_again.content),
+        ).read(S.CSV_FILE_HIGHFOREST)
+        assert fustaia_again == fustaia_bytes
+        reup_again = _post_plan_csv_import(
+            writer_client,
+            harvest_plan_id=plan.id,
+            fustaia_file=io.BytesIO(fustaia_again),
+        )
+        assert reup_again.status_code == 200, reup_again.json()
+        assert HarvestPlanItem.objects.filter(harvest_plan=plan).count() == 1
+
     def test_round_trip_duplicate_region_items_and_notes(
         self, writer_client, plan, regions,
     ):
@@ -1095,6 +1110,117 @@ class TestItemExport:
         rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
         numero = rows[1][rows[0].index(S.CSV_COL_NUMBER)]
         assert numero == '1440', f'expected mark number 1440, got {numero!r}'
+
+    def test_region_wide_harvest_export_is_importer_compatible(
+        self, writer_client, plan, regions, crews, products, species,
+    ):
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, region=regions[0], year_planned=2027,
+            damaged=True, unhealthy=False, psr=True,
+            state=HarvestPlanItemState.HARVESTING,
+        )
+        harvest = Harvest.objects.create(
+            date=date_type(2027, 8, 1), region=regions[0], crew=crews[0],
+            product=products[0], mass_q=Decimal('12.50'),
+            damaged=True, unhealthy=False, psr=True,
+            harvest_plan_item=item,
+        )
+        HarvestSpecies.objects.create(
+            harvest=harvest, species=species[0], percent=100,
+        )
+
+        response = writer_client.get(
+            f'/api/piano-di-taglio/item/export/{item.id}/',
+        )
+
+        assert response.status_code == 200
+        archive = zipfile.ZipFile(io.BytesIO(response.content))
+        content = archive.read(f'prelievi_{item.id}.csv')
+        reader = csv_io.read(content)
+        assert len(reader) == 1
+        assert reader[0][S.CSV_COL_REGION] == regions[0].name
+        assert reader[0][S.CSV_COL_PARCEL] == ''
+        assert reader[0][S.CSV_COL_HARVEST_DAMAGED] == '1'
+        assert reader[0][S.CSV_COL_HARVEST_PSR] == '1'
+        assert reader[0][S.CSV_COL_HARVEST_PLAN_ITEM_ID] == str(item.id)
+        assert S.CSV_COL_NOTE not in reader.fieldnames
+
+    def test_mark_export_import_export_import_round_trip(
+        self, writer_client, planned_item, species,
+    ):
+        planned_item.state = HarvestPlanItemState.MARKED
+        planned_item.save(update_fields=['state'])
+        specs = [
+            (None, species[0], 30, Decimal('20.25'), False, None, None, None,
+             'Mario; Rossi'),
+            (1440, species[1], 42, Decimal('23.50'), True, 38.54321, 16.23456,
+             4, 'Luisa'),
+        ]
+        for index, (
+            number, tree_species, d_cm, h_m, h_measured,
+            lat, lon, acc_m, operator,
+        ) in enumerate(specs, 1):
+            volume, mass = mark_volume_and_mass(d_cm, h_m, tree_species)
+            TreeMark.objects.create(
+                harvest_plan_item=planned_item,
+                tree=Tree.objects.create(species=tree_species),
+                parcel=planned_item.parcel,
+                number=number,
+                date=date_type(2025, 6, index),
+                d_cm=d_cm,
+                h_m=h_m,
+                h_measured=h_measured,
+                volume_m3=volume,
+                mass_q=mass,
+                lat=lat,
+                lon=lon,
+                acc_m=acc_m,
+                operator=operator,
+            )
+
+        def snapshot():
+            return list(
+                TreeMark.objects.filter(harvest_plan_item=planned_item)
+                .order_by('date', 'id')
+                .values_list(
+                    'date', 'parcel__region__name', 'parcel__name',
+                    'number', 'tree__species__common_name', 'd_cm', 'h_m',
+                    'h_measured', 'volume_m3', 'mass_q', 'lat', 'lon',
+                    'acc_m', 'operator',
+                )
+            )
+
+        def exported_marks():
+            response = writer_client.get(
+                f'/api/piano-di-taglio/item/export/{planned_item.id}/',
+            )
+            assert response.status_code == 200
+            return zipfile.ZipFile(io.BytesIO(response.content)).read(
+                f'martellate_{planned_item.id}.csv',
+            )
+
+        def import_marks(content):
+            response = writer_client.post(
+                '/api/piano-di-taglio/mark/import-csv/',
+                data=json.dumps({
+                    FIELD_HARVEST_PLAN_ITEM_ID: planned_item.id,
+                    FIELD_FILE: _csv_b64(content),
+                }),
+                content_type='application/json',
+            )
+            assert response.status_code == 200, response.content
+
+        expected = snapshot()
+        first_export = exported_marks()
+        TreeMark.objects.filter(harvest_plan_item=planned_item).delete()
+        import_marks(first_export)
+        assert snapshot() == expected
+
+        second_export = exported_marks()
+        assert second_export == first_export
+        TreeMark.objects.filter(harvest_plan_item=planned_item).delete()
+        import_marks(second_export)
+        assert snapshot() == expected
 
 
 class TestMarkDendrometryExport:

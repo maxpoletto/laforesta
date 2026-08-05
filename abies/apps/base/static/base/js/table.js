@@ -190,6 +190,9 @@ export class TableWrapper {
   /** Current search text. */
   getSearchText() { return this._searchText; }
 
+  /** Rows currently retained by search and any external page filter. */
+  getFilteredRows() { return this._table ? [...this._table.data] : []; }
+
   /** Column defs (with formatters) for building the search haystack. */
   get searchColumns() { return this._stColumns; }
 

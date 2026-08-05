@@ -10,11 +10,15 @@ from decimal import Decimal
 import pytest
 from django.test import Client
 
+from apps.base import csv_io
 from apps.base.digests import generate_prelievi, mark_stale
 from apps.base.models import (
-    DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
+    DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState, Tractor,
 )
-from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
+from apps.prelievi import csv_harvests
+from apps.prelievi.models import (
+    Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
+)
 
 
 @pytest.fixture
@@ -948,10 +952,190 @@ from config.constants import (
     FIELD_CREW_ID, FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER, FIELD_MASS_Q,
     FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID,
-    FIELD_RECORD1, FIELD_RECORD2,
+    FIELD_RECORD1, FIELD_RECORD2, FIELD_ROW_IDS,
     DELETES, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
 )
+
+
+class TestCsvRoundTrip:
+    EXPORT_URL = '/api/prelievi/export-csv/'
+    IMPORT_URL = '/api/prelievi/import-csv/'
+
+    @staticmethod
+    def _post(client, url, body):
+        return client.post(
+            url, data=json.dumps(body), content_type='application/json',
+        )
+
+    @staticmethod
+    def _snapshot():
+        rows = []
+        for harvest in (Harvest.objects
+                        .select_related(
+                            'parcel__region', 'region', 'crew', 'product',
+                        )
+                        .order_by('date', 'id')):
+            parcel = harvest.parcel
+            region = parcel.region if parcel is not None else harvest.region
+            species_pcts = tuple(
+                HarvestSpecies.objects
+                .filter(harvest=harvest)
+                .order_by('species__common_name')
+                .values_list('species__common_name', 'percent')
+            )
+            tractor_pcts = tuple(
+                (row.tractor.display_name, row.percent)
+                for row in (HarvestTractor.objects
+                            .filter(harvest=harvest)
+                            .select_related('tractor')
+                            .order_by('tractor__manufacturer', 'tractor__model'))
+            )
+            rows.append((
+                harvest.date,
+                region.name,
+                parcel.name if parcel is not None else None,
+                harvest.crew.name,
+                harvest.product.name,
+                harvest.harvest_plan_item_id,
+                harvest.record1,
+                harvest.record2,
+                harvest.mass_q,
+                harvest.volume_m3,
+                harvest.damaged,
+                harvest.unhealthy,
+                harvest.psr,
+                harvest.note,
+                species_pcts,
+                tractor_pcts,
+            ))
+        return rows
+
+    def _import(self, client, content):
+        return self._post(client, self.IMPORT_URL, {
+            FIELD_FILE: base64.b64encode(content).decode('ascii'),
+        })
+
+    def test_export_import_export_import_is_lossless(
+        self, writer_client, harvest_fixtures,
+    ):
+        f = harvest_fixtures
+        major, minor, other = (
+            f['species'][0], f['species'][2], f['species'][3]
+        )
+        mass_one = Decimal('37.25')
+        f['open_item'].damaged = True
+        f['open_item'].psr = True
+        f['open_item'].save(update_fields=['damaged', 'psr'])
+        first = Harvest.objects.create(
+            date=date(2024, 8, 21), parcel=f['parcels'][0],
+            crew=f['crews'][0], product=f['products'][0],
+            record1=0, record2=404, mass_q=mass_one,
+            volume_m3=harvest_volume_m3(
+                mass_one, ((major.density, 55), (minor.density, 45)),
+            ),
+            damaged=True, unhealthy=False, psr=True,
+            harvest_plan_item=f['open_item'],
+            note='Due righe; con "virgolette"\ne una virgola, qui',
+        )
+        HarvestSpecies.objects.create(
+            harvest=first, species=major, percent=55,
+        )
+        HarvestSpecies.objects.create(
+            harvest=first, species=minor, percent=45,
+        )
+        HarvestTractor.objects.create(
+            harvest=first, tractor=f['tractors'][0], percent=35,
+        )
+        HarvestTractor.objects.create(
+            harvest=first, tractor=f['tractors'][1], percent=65,
+        )
+
+        mass_two = Decimal('12.50')
+        second = Harvest.objects.create(
+            date=date(2024, 8, 22), region=f['regions'][1],
+            crew=f['crews'][1], product=f['products'][1],
+            record1=None, record2=405, mass_q=mass_two,
+            volume_m3=harvest_volume_m3(
+                mass_two, ((other.density, 100),),
+            ),
+            damaged=False, unhealthy=True, psr=False,
+            note='Prelievo su tutta la compresa',
+        )
+        HarvestSpecies.objects.create(
+            harvest=second, species=other, percent=100,
+        )
+
+        # This malformed legacy row is deliberately outside the selected set:
+        # if the endpoint ignores row_ids, the exported file cannot re-import.
+        Harvest.objects.create(
+            date=date(2024, 8, 23), parcel=f['parcels'][1],
+            crew=f['crews'][0], product=f['products'][0], mass_q=1,
+        )
+        expected = self._snapshot()[:2]
+
+        # Materialized volume captures density at write time. A later reference
+        # edit must not make restoring a backup silently recalculate history.
+        major.density = Decimal('5.00')
+        major.save(update_fields=['density'])
+        duplicate_tractor = Tractor.objects.create(
+            manufacturer=f['tractors'][0].manufacturer,
+            model=f['tractors'][0].model,
+            year=2025,
+        )
+        tractor_keys = csv_harvests.tractor_csv_keys(
+            list(Tractor.objects.all()),
+        )
+
+        exported = self._post(writer_client, self.EXPORT_URL, {
+            FIELD_ROW_IDS: [first.id, second.id],
+        })
+        assert exported.status_code == 200
+        assert exported['Cache-Control'] == 'no-store'
+        reader = csv_io.read(exported.content)
+        assert len(reader) == 2
+        assert S.CSV_COL_NOTE not in reader.fieldnames
+        assert {
+            S.CSV_COL_HARVEST_DAMAGED,
+            S.CSV_COL_HARVEST_UNHEALTHY,
+            S.CSV_COL_HARVEST_PSR,
+            S.CSV_COL_VOLUME_M3,
+            S.CSV_COL_HARVEST_PLAN_ITEM_ID,
+            f'{S.CSV_COL_SPECIES_PREFIX}{minor.common_name}',
+            f'{S.CSV_COL_TRACTOR_PREFIX}{tractor_keys[f["tractors"][0].id]}',
+            f'{S.CSV_COL_TRACTOR_PREFIX}{tractor_keys[duplicate_tractor.id]}',
+        }.issubset(reader.fieldnames)
+
+        Harvest.objects.all().delete()
+        imported = self._import(writer_client, exported.content)
+        assert imported.status_code == 200, imported.content
+        assert self._snapshot() == expected
+        f['open_item'].refresh_from_db()
+        assert f['open_item'].volume_actual_m3 == first.volume_m3
+
+        imported_ids = list(Harvest.objects.values_list('id', flat=True))
+        exported_again = self._post(writer_client, self.EXPORT_URL, {
+            FIELD_ROW_IDS: imported_ids,
+        })
+        assert exported_again.status_code == 200
+        assert exported_again.content == exported.content
+
+        Harvest.objects.all().delete()
+        imported_again = self._import(writer_client, exported_again.content)
+        assert imported_again.status_code == 200, imported_again.content
+        assert self._snapshot() == expected
+        f['open_item'].refresh_from_db()
+        assert f['open_item'].volume_actual_m3 == first.volume_m3
+
+    @pytest.mark.parametrize('row_ids', ['bad', [0], [-1], [True], ['1']])
+    def test_export_rejects_invalid_row_selection(
+        self, writer_client, harvest_fixtures, row_ids,
+    ):
+        resp = self._post(
+            writer_client, self.EXPORT_URL, {FIELD_ROW_IDS: row_ids},
+        )
+        assert resp.status_code == 400
+        assert S.ERR_ROW_ID_INVALID in resp.json()[MESSAGE]
 
 
 def _read_gzip_json(resp):

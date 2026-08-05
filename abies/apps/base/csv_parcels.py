@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.digests import mark_all_stale
 from apps.base.models import Eclass, Parcel, Region
 from config import strings as S
@@ -38,6 +39,15 @@ PARCEL_UPDATE_FIELDS = [
     'altitude_max_m', 'aspect', 'grade_pct', 'desc_veg', 'desc_geo',
     'cutting_plan', 'harvest_mechanism', 'intervention_interval',
     'standards_per_ha',
+]
+PARCEL_EXPORT_COLUMNS = [
+    S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_CLASS,
+    S.CSV_COL_GOVERNANCE, S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE,
+    S.CSV_COL_LOCATION,
+    S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
+    S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
+    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_HARVEST_MECHANISM,
+    S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
 ]
 
 
@@ -61,6 +71,34 @@ def db_indexes() -> ParcelIndexes:
         regions={r.name: r for r in Region.objects.all()},
         eclasses={e.name: e for e in Eclass.objects.all()},
     )
+
+
+def render_csv(parcels) -> str:
+    """Render parcels in the canonical metadata schema accepted above."""
+    delimiter, decimal_sep = csv_io.export_format()
+    buf, writer = csv_io.csv_buffer(delimiter)
+    writer.writerow(PARCEL_EXPORT_COLUMNS)
+    for parcel in parcels:
+        writer.writerow([
+            parcel.region.name,
+            parcel.name,
+            parcel.eclass.name,
+            S.TYPE_COPPICE if parcel.eclass.coppice else S.TYPE_HIGHFOREST,
+            csv_io.format_decimal(parcel.area_ha, decimal_sep),
+            parcel.ave_age,
+            parcel.location_name,
+            parcel.altitude_min_m,
+            parcel.altitude_max_m,
+            parcel.aspect,
+            parcel.grade_pct,
+            parcel.desc_geo,
+            parcel.desc_veg,
+            parcel.cutting_plan,
+            parcel.harvest_mechanism,
+            parcel.intervention_interval,
+            parcel.standards_per_ha,
+        ])
+    return buf.getvalue()
 
 
 def validate_rows(reader, idx: ParcelIndexes):

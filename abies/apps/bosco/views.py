@@ -20,7 +20,7 @@ from django.utils import timezone
 from django.utils.http import http_date
 from django.views.decorators.http import require_POST
 
-from apps.base import csv_io
+from apps.base import csv_parcels
 from apps.base.auth import require_writer
 from apps.base.digests import (
     build_observation_record, build_parcel_record, build_preserved_tree_record,
@@ -90,15 +90,6 @@ PARCEL_METADATA_TEXT_FIELDS = {
     FIELD_HARVEST_MECHANISM: (S.LABEL_BOSCO_HARVEST_MECHANISM, 200),
 }
 
-PARCEL_EXPORT_COLUMNS = [
-    S.CSV_COL_REGION, S.CSV_COL_PARCEL, S.CSV_COL_CLASS,
-    S.CSV_COL_GOVERNANCE, S.CSV_COL_AREA_HA, S.CSV_COL_AVE_AGE,
-    S.CSV_COL_LOCATION,
-    S.CSV_COL_ALT_MIN, S.CSV_COL_ALT_MAX, S.CSV_COL_ASPECT,
-    S.CSV_COL_GRADE_PCT, S.CSV_COL_GEO_DESC, S.CSV_COL_VEG_DESC,
-    S.CSV_COL_CUTTING_PLAN, S.CSV_COL_HARVEST_MECHANISM,
-    S.CSV_COL_INTERVAL, S.CSV_COL_STANDARDS,
-]
 _SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
 
 
@@ -114,7 +105,7 @@ def parcel_metadata_export_view(request):
             Parcel.objects.select_related('region', 'eclass'),
             key=parcel_sort_key,
         )
-        content = _render_parcel_export_csv(parcels)
+        content = csv_parcels.render_csv(parcels)
         response = HttpResponse(content, content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="particelle.csv"'
         response['Cache-Control'] = 'no-store'
@@ -139,7 +130,7 @@ def parcel_metadata_export_view(request):
         parcels = [parcel]
     else:
         parcels = sorted(parcels, key=parcel_sort_key)
-    content = _render_parcel_export_csv(parcels)
+    content = csv_parcels.render_csv(parcels)
     response = HttpResponse(content, content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     response['Cache-Control'] = 'no-store'
@@ -887,37 +878,6 @@ def satellite_raw(request, region_id, layer, date):
 def satellite_mask_raw(request, region_id):
     path = _satellite_file_path(region_id, 'parcel-mask.tif')
     return _satellite_raw_response(request, path)
-
-
-def _render_parcel_export_csv(parcels):
-    delimiter, decimal_sep = csv_io.export_format()
-    buf, writer = csv_io.csv_buffer(delimiter)
-    writer.writerow(PARCEL_EXPORT_COLUMNS)
-    for parcel in parcels:
-        writer.writerow(_parcel_export_row(parcel, decimal_sep))
-    return buf.getvalue()
-
-
-def _parcel_export_row(parcel, decimal_sep: str):
-    return [
-        parcel.region.name,
-        parcel.name,
-        parcel.eclass.name,
-        S.TYPE_COPPICE if parcel.eclass.coppice else S.TYPE_HIGHFOREST,
-        csv_io.format_decimal(parcel.area_ha, decimal_sep),
-        parcel.ave_age,
-        parcel.location_name,
-        parcel.altitude_min_m,
-        parcel.altitude_max_m,
-        parcel.aspect,
-        parcel.grade_pct,
-        parcel.desc_geo,
-        parcel.desc_veg,
-        parcel.cutting_plan,
-        parcel.harvest_mechanism,
-        parcel.intervention_interval,
-        parcel.standards_per_ha,
-    ]
 
 
 def _required_query_int(request, key: str) -> int:

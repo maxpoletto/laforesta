@@ -184,3 +184,57 @@ def test_coppice_metadata_rejected_for_highforest(regions, eclasses):
     assert parsed == []
     assert S.CSV_COL_INTERVAL in errors[0]
     assert S.CSV_COL_STANDARDS in errors[1]
+
+
+@pytest.mark.django_db
+def test_export_import_export_import_round_trip(regions, eclasses):
+    Parcel.objects.create(
+        name='7', region=regions[0], eclass=eclasses[0],
+        area_ha=Decimal('12.75'), ave_age=41,
+        location_name='Versante; nord', altitude_min_m=410,
+        altitude_max_m=780, aspect='NE', grade_pct=35,
+        desc_geo='Roccia, affiorante', desc_veg='Abetina\na gruppi',
+        cutting_plan='Diradamento selettivo', harvest_mechanism='Verricello',
+    )
+    Parcel.objects.create(
+        name='C1', region=regions[1], eclass=eclasses[2],
+        area_ha=Decimal('4.25'), ave_age=None,
+        intervention_interval=18, standards_per_ha=75,
+        cutting_plan='Taglio ceduo', harvest_mechanism='Trattore',
+    )
+
+    def parcels():
+        return (Parcel.objects.select_related('region', 'eclass')
+                .order_by('region__name', 'name'))
+
+    def snapshot():
+        return list(parcels().values_list(
+            'region__name', 'name', 'eclass__name', 'area_ha', 'ave_age',
+            'location_name', 'altitude_min_m', 'altitude_max_m', 'aspect',
+            'grade_pct', 'desc_geo', 'desc_veg', 'cutting_plan',
+            'harvest_mechanism', 'intervention_interval', 'standards_per_ha',
+        ))
+
+    def import_text(content):
+        reader = csv_io.read(content, csv_parcels.PARCEL_CSV_REQUIRED)
+        parsed, errors = csv_parcels.validate_rows(
+            reader, csv_parcels.db_indexes(),
+        )
+        assert errors == []
+        assert csv_parcels.apply(parsed) == 2
+
+    expected = snapshot()
+    first_export = csv_parcels.render_csv(parcels())
+    assert csv_io.read(first_export).fieldnames == (
+        csv_parcels.PARCEL_EXPORT_COLUMNS
+    )
+
+    Parcel.objects.all().delete()
+    import_text(first_export)
+    assert snapshot() == expected
+
+    second_export = csv_parcels.render_csv(parcels())
+    assert second_export == first_export
+    Parcel.objects.all().delete()
+    import_text(second_export)
+    assert snapshot() == expected

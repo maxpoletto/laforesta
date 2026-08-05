@@ -107,6 +107,23 @@ def int_or_none(value) -> int | None:
         return None
 
 
+def positive_int_list(value) -> tuple[list[int] | None, bool]:
+    """Validate an optional JSON list of positive integer IDs.
+
+    Returns ``(None, True)`` when absent, ``(None, False)`` when malformed,
+    and ``(value, True)`` for a valid list.  Booleans are rejected explicitly
+    because Python treats ``bool`` as an ``int`` subclass.
+    """
+    if value is None:
+        return None, True
+    if not isinstance(value, list) or any(
+        isinstance(item, bool) or not isinstance(item, int) or item <= 0
+        for item in value
+    ):
+        return None, False
+    return value, True
+
+
 def float_or_none(value: Decimal | float | int | None) -> float | None:
     """Convert a numeric value to float for JSON edges; preserve NULL as None."""
     return float(value) if value is not None else None

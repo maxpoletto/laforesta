@@ -15,9 +15,9 @@ from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
@@ -26,7 +26,9 @@ from apps.base.digests import (
     build_survey_record, build_tree_sample_record,
     mark_stale, serve_digest,
 )
-from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.numparse import (
+    coord_float, int_or_none, parse_decimal, positive_int_list,
+)
 from apps.base.preserved_trees import latest_preserved_tree_sample
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.base.responses import (
@@ -56,6 +58,7 @@ from config.constants import (
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
     FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PARTICELLA, FIELD_POINTS,
     FIELD_PRESERVED, FIELD_R_M,
+    FIELD_ROW_IDS,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
@@ -94,6 +97,43 @@ def sampled_trees_data(request, survey_id: int):
     if survey_id <= 0 or not Survey.objects.filter(id=survey_id).exists():
         raise Http404
     return serve_digest(request, f'sampled_trees_{survey_id}')
+
+
+@login_required
+def grid_csv_export_view(request, grid_id: int):
+    grid = SampleGrid.objects.filter(id=grid_id).first()
+    if grid is None:
+        raise Http404
+    return _csv_export_response(
+        csv_grid.render_csv(grid), S.CSV_FILE_GRID_AREAS,
+    )
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def tree_csv_export_view(request, survey_id: int):
+    survey = Survey.objects.filter(id=survey_id).first()
+    if survey is None:
+        raise Http404
+    row_ids = None
+    if request.method == 'POST':
+        body, error = parse_json_body(request)
+        if error:
+            return error
+        row_ids, row_ids_ok = positive_int_list(body.get(FIELD_ROW_IDS))
+        if not row_ids_ok:
+            return validation_error([S.ERR_ROW_ID_INVALID])
+    return _csv_export_response(
+        csv_trees.render_csv(survey, row_ids=row_ids),
+        S.CSV_FILE_SURVEY_TREES,
+    )
+
+
+def _csv_export_response(content: str, filename: str) -> HttpResponse:
+    response = HttpResponse(content, content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 # ---------------------------------------------------------------------------

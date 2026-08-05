@@ -348,6 +348,47 @@ class TestImportExportClear:
             S.CSV_COL_N_REGRESSION, S.CSV_COL_R2,
         ]
 
+    def test_export_import_export_import_round_trip(
+        self, writer_client, regions, species, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        initial = (
+            CSV_HEADER + '\n'
+            + f'{regions[0].name},{species[0].common_name},'
+              f'{HYPSO_FUNC_LN},7.1234,-4.5678,0.6789,31\n'
+            + f'{regions[1].name},{species[1].common_name},'
+              f'{HYPSO_FUNC_LN},8.0001,-3.0002,0.9999,42\n'
+        )
+        assert _post_json(writer_client, URL_IMPORT, {
+            FIELD_FILE: _csv_b64(initial),
+        }).status_code == 200
+
+        def snapshot():
+            active = hypsometry.active_set()
+            return list(
+                HypsoParam.objects.filter(param_set=active)
+                .order_by('region__name', 'species__common_name')
+                .values_list(
+                    'region__name', 'species__common_name', 'func',
+                    'a', 'b', 'r2', 'n',
+                )
+            )
+
+        expected = snapshot()
+        first_export = writer_client.get(URL_EXPORT)
+        assert first_export.status_code == 200
+        assert _post_json(writer_client, URL_IMPORT, {
+            FIELD_FILE: _csv_b64(first_export.content),
+        }).status_code == 200
+        assert snapshot() == expected
+
+        second_export = writer_client.get(URL_EXPORT)
+        assert second_export.content == first_export.content
+        assert _post_json(writer_client, URL_IMPORT, {
+            FIELD_FILE: _csv_b64(second_export.content),
+        }).status_code == 200
+        assert snapshot() == expected
+
     def test_clear_archives_active(self, writer_client, hypso_samples, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         _persist(hypso_samples)

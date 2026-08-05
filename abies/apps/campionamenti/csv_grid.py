@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.digests import mark_stale
 from apps.base.models import Parcel, SampleArea
 from apps.base.numparse import coord_float
@@ -24,7 +25,7 @@ from config.constants import (
 GRID_CSV_REQUIRED = [S.CSV_COL_REGION, S.CSV_COL_PARCEL,
                      S.CSV_COL_SAMPLE_AREA, S.CSV_COL_LON, S.CSV_COL_LAT,
                      S.CSV_COL_ALT, S.CSV_COL_RADIUS]
-GRID_CSV_OPTIONAL = []
+GRID_CSV_OPTIONAL = [S.CSV_COL_NOTE]
 GRID_CSV_ALIASES = {
     # CSV exports use Quota/Raggio.  Also accept the unit-bearing display labels
     # operators may get by exporting visible table data.
@@ -82,6 +83,32 @@ def db_indexes(grid) -> GridIndexes:
     return GridIndexes(parcels, existing_keys)
 
 
+def render_csv(grid) -> str:
+    """Render every area in ``grid`` using this importer's canonical schema."""
+    delimiter, decimal_sep = csv_io.export_format()
+    buf, writer = csv_io.csv_buffer(delimiter)
+    writer.writerow([
+        *GRID_CSV_REQUIRED,
+        S.CSV_COL_NOTE,
+    ])
+    areas = (SampleArea.objects
+             .filter(sample_grid=grid)
+             .select_related('parcel__region')
+             .order_by('parcel__region__name', 'parcel__name', 'number', 'id'))
+    for area in areas:
+        writer.writerow([
+            area.parcel.region.name,
+            area.parcel.name,
+            area.number,
+            csv_io.format_decimal(area.lon, decimal_sep),
+            csv_io.format_decimal(area.lat, decimal_sep),
+            area.altitude_m,
+            area.r_m,
+            area.note,
+        ])
+    return buf.getvalue()
+
+
 def validate_rows(reader, cols, idx: GridIndexes):
     """Validate parsed CSV rows against ``idx``.  Pure: no DB writes.
 
@@ -130,7 +157,9 @@ def validate_rows(reader, cols, idx: GridIndexes):
             FIELD_LON: coord_float(lon),
             FIELD_ALTITUDE: altitude,
             FIELD_R_M: r_m,
-            FIELD_NOTE: '',
+            FIELD_NOTE: (
+                row.get(cols.get(S.CSV_COL_NOTE, ''), '') or ''
+            ).strip(),
         })
     return parsed, errors
 

@@ -23,7 +23,9 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
 from apps.base import csv_io
-from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.numparse import (
+    coord_float, int_or_none, parse_decimal, positive_int_list,
+)
 from apps.base.responses import (
     conflict_response, csv_error_list, parse_json_body, row_delete,
     row_patch, save_model_response, submitted_version, success_response,
@@ -47,7 +49,6 @@ from apps.base.models import (
     Tree,
     TreeMark,
     parcel_sort_key,
-    render_flag_note,
 )
 from apps.piano_di_taglio import csv_plan
 from apps.piano_di_taglio.dendrometry import render_mark_dendrometry_csvs
@@ -63,7 +64,8 @@ from apps.piano_di_taglio.mark_import import (
 from apps.piano_di_taglio.plan_item_validation import (
     plan_item_harvest_invariant_errors,
 )
-from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
+from apps.prelievi import csv_harvests
+from apps.prelievi.models import Harvest
 from config import strings as S
 from config.constants import (
     DATA_ID,
@@ -589,44 +591,13 @@ def item_export_view(request, item_id: int):
             tm.operator,
         ])
 
-    # prelievi_<id>.csv — one row per linked Harvest with species/tractor
-    # percent breakdowns as separate trailing columns.
-    species_list = list(Species.objects.order_by('sort_order')
-                                       .values_list('id', 'common_name'))
-    from apps.base.models import Tractor
-    tractor_list = list(Tractor.objects.order_by('name', 'manufacturer', 'model', 'id'))
-    species_ids = [sid for sid, _ in species_list]
-    tractor_ids = [t.id for t in tractor_list]
-    tractor_labels = [t.display_name for t in tractor_list]
-
-    prelievi_buf, prelievi_w = csv_io.csv_buffer(delimiter)
-    prelievi_w.writerow(
-        [S.CSV_COL_DATA, S.CSV_COL_REGION, S.CSV_COL_PARCEL,
-         S.CSV_COL_CREW, S.CSV_COL_VDP, S.CSV_COL_PRODUCT,
-         S.CSV_COL_QUINTALS, S.CSV_COL_NOTE, S.CSV_COL_EXTRA_NOTE]
-        + [f'{S.CSV_COL_SPECIES_PREFIX}{sn}' for _, sn in species_list]
-        + [f'{S.CSV_COL_TRACTOR_PREFIX}{label}' for label in tractor_labels]
-    )
     harvests_qs = (Harvest.objects
                    .filter(harvest_plan_item=item)
-                   .select_related('parcel__region', 'crew', 'product')
+                   .select_related(
+                       'parcel__region', 'region', 'crew', 'product',
+                   )
                    .order_by('date', 'id'))
-    sp_map: dict[int, dict[int, int]] = {}
-    for hs in HarvestSpecies.objects.filter(harvest__in=harvests_qs):
-        sp_map.setdefault(hs.harvest_id, {})[hs.species_id] = hs.percent
-    tr_map: dict[int, dict[int, int]] = {}
-    for ht in HarvestTractor.objects.filter(harvest__in=harvests_qs):
-        tr_map.setdefault(ht.harvest_id, {})[ht.tractor_id] = ht.percent
-    for h in harvests_qs:
-        prelievi_w.writerow(
-            [h.date.isoformat(), h.parcel.region.name, h.parcel.name,
-             h.crew.name, h.record1 or '', h.product.name,
-             csv_io.format_decimal(h.mass_q, decimal_sep),
-             render_flag_note(h.damaged, h.unhealthy, h.psr),
-             h.note or '']
-            + [sp_map.get(h.id, {}).get(sid, 0) for sid in species_ids]
-            + [tr_map.get(h.id, {}).get(tid, 0) for tid in tractor_ids]
-        )
+    prelievi_csv = csv_harvests.render_csv(harvests_qs)
 
     region_name = (item.region or item.parcel.region).name
     parcel_name = item.parcel.name if item.parcel else ''
@@ -635,7 +606,7 @@ def item_export_view(request, item_id: int):
     return csv_io.zip_csv_response(
         [
             (f'martellate_{item.id}.csv', marks_buf.getvalue()),
-            (f'prelievi_{item.id}.csv', prelievi_buf.getvalue()),
+            (f'prelievi_{item.id}.csv', prelievi_csv),
         ],
         f'{safe_name}.zip',
     )
@@ -654,13 +625,9 @@ def mark_dendrometry_export_view(request, item_id: int):
         body, error = parse_json_body(request)
         if error:
             return error
-        if FIELD_ROW_IDS in body:
-            row_ids = body[FIELD_ROW_IDS]
-            if (not isinstance(row_ids, list)
-                    or any(isinstance(value, bool) or not isinstance(value, int)
-                           or value <= 0
-                           for value in row_ids)):
-                return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
+        row_ids, row_ids_ok = positive_int_list(body.get(FIELD_ROW_IDS))
+        if not row_ids_ok:
+            return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
 
     marks = (TreeMark.objects
              .filter(harvest_plan_item=item)

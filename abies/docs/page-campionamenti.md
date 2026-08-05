@@ -90,8 +90,9 @@ The new-area form:
 - Note (optional).
 
 The "Esporta" button at the top right exports the active grid's sample areas
-in the same column shape as the import flow (see "Grid CSV import" below) —
-useful for programming GPS devices for the field crew.
+in the same column shape as the import flow (see "Grid CSV import" below),
+including optional notes — useful for programming GPS devices for the field
+crew and as a lossless backup.
 
 The "Nuova griglia" button opens an overlay modal with two creation
 paths:
@@ -499,10 +500,10 @@ if set, else fall back to the sample-area center.  `Data campione` is `sample.da
 (useful for cross-tab tracking even when Section 3 isn't narrowed
 to a single area).
 
-This digest is shared between the page's Section 3 sortable-table
-*and* its CSV export from Section 3 / Section 2 (the latter via the
-"export the active survey's full set of trees" button — same data,
-the section-2 export bypasses the section-3 search filter).
+The page uses this digest for the Section 3 sortable table and maps. CSV
+exports are rendered from the normalized database rows in the canonical import
+schema so hidden fields are not lost: Section 2 exports the entire survey,
+while Section 3 submits the row IDs retained by its area/search filters.
 
 Bosco's per-parcel Dendrometria charts read a different digest
 (`parcel_dendrometry.json` — pre-aggregated, not per-tree); they do

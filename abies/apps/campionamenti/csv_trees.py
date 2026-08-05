@@ -11,6 +11,7 @@ from decimal import ROUND_HALF_UP
 
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.digests import mark_stale
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Tree, TreeSample, tree_mass_q,
@@ -92,6 +93,75 @@ def db_indexes(survey) -> TreeIndexes:
         parcel_cache=parcel_cache, preserved_tree_by_key=preserved_tree_by_key,
         is_unstructured=is_unstructured,
     )
+
+
+def render_csv(survey, row_ids=None) -> str:
+    """Render a survey in the complete schema accepted by this importer.
+
+    Raw row coordinates are exported rather than the map display fallback to
+    sample-area coordinates, preserving the distinction between an absent GPS
+    fix and a fix that happens to equal the area's location.
+    """
+    delimiter, decimal_sep = csv_io.export_format()
+    buf, writer = csv_io.csv_buffer(delimiter)
+    writer.writerow([
+        S.CSV_COL_REGION,
+        S.CSV_COL_PARCEL,
+        S.CSV_COL_SAMPLE_AREA,
+        S.CSV_COL_TREE,
+        S.CSV_COL_COPPICE_SHOOT,
+        S.CSV_COL_COPPICE_STD,
+        S.CSV_COL_D_CM,
+        S.CSV_COL_H_M,
+        S.CSV_COL_L10_MM,
+        S.CSV_COL_PRESSLER,
+        S.CSV_COL_SPECIES,
+        S.CSV_COL_HIGHFOREST,
+        S.CSV_COL_DATA,
+        S.CSV_COL_PRESERVED,
+        S.CSV_COL_H_MEASURED,
+        S.CSV_COL_LON,
+        S.CSV_COL_LAT,
+        S.CSV_COL_ACC_M,
+        S.CSV_COL_OPERATOR,
+        S.CSV_COL_NOTE,
+    ])
+    rows = (TreeSample.objects
+            .filter(sample__survey=survey)
+            .select_related(
+                'sample__sample_area', 'parcel__region', 'tree__species',
+            )
+            .order_by(
+                'parcel__region__name', 'parcel__name',
+                'sample__sample_area__number', 'number', 'shoot', 'id',
+            ))
+    if row_ids is not None:
+        rows = rows.filter(id__in=row_ids)
+    for tree_sample in rows:
+        area = tree_sample.sample.sample_area
+        writer.writerow([
+            tree_sample.parcel.region.name,
+            tree_sample.parcel.name,
+            area.number if area is not None else '',
+            tree_sample.number,
+            tree_sample.shoot,
+            '1' if tree_sample.standard else '0',
+            tree_sample.d_cm,
+            csv_io.format_decimal(tree_sample.h_m, decimal_sep),
+            tree_sample.l10_mm,
+            csv_io.format_decimal(tree_sample.pressler_coeff, decimal_sep),
+            tree_sample.tree.species.common_name,
+            '0' if tree_sample.tree.coppice else '1',
+            tree_sample.sample.date.isoformat(),
+            '1' if tree_sample.preserved_number is not None else '0',
+            '1' if tree_sample.h_measured else '0',
+            csv_io.format_decimal(tree_sample.lon, decimal_sep),
+            csv_io.format_decimal(tree_sample.lat, decimal_sep),
+            tree_sample.acc_m,
+            tree_sample.operator,
+            tree_sample.note,
+        ])
+    return buf.getvalue()
 
 
 def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):

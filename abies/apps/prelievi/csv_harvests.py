@@ -9,20 +9,25 @@ Dynamic columns
 Headers starting with ``S.CSV_COL_SPECIES_PREFIX`` or
 ``S.CSV_COL_TRACTOR_PREFIX`` are dynamic: each carries an integer percentage.
 The key (header suffix after the prefix, whitespace-stripped) must match
-``Species.common_name`` or ``Tractor.name`` exactly (case-sensitive).
+``Species.common_name`` or a tractor's exported display key exactly
+(case-sensitive). Duplicate tractor display names receive an ID suffix.
 """
 
 import hashlib
 import json
-
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 
+from apps.base import csv_io
 from apps.base.digests import mark_stale
-from apps.base.models import Crew, Parcel, Product, Region, Species, Tractor
+from apps.base.models import (
+    Crew, HarvestPlanItem, Parcel, Product, Region, Species, Tractor,
+)
 from apps.prelievi.models import (
     Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
 )
@@ -31,6 +36,7 @@ from apps.prelievi.harvest_validation import (
     valid_harvest_mass, valid_percentage,
 )
 from config import strings as S
+from config.constants import DIGEST_FUTURE_PRODUCTION
 
 # Required static columns — blank Particella is permitted (region-wide row).
 HARVEST_CSV_REQUIRED = [
@@ -46,6 +52,8 @@ HARVEST_CSV_REQUIRED = [
 _OPTIONAL_STATIC = {
     S.CSV_COL_VDP,
     S.CSV_COL_PROT,
+    S.CSV_COL_VOLUME_M3,
+    S.CSV_COL_HARVEST_PLAN_ITEM_ID,
     S.CSV_COL_HARVEST_DAMAGED,
     S.CSV_COL_HARVEST_UNHEALTHY,
     S.CSV_COL_HARVEST_PSR,
@@ -75,8 +83,10 @@ class HarvestIndexes:
     products: dict
     # Species.common_name -> Species (exact-case key)
     species: dict
-    # Tractor.name -> Tractor (exact-case key, name may be None — excluded)
+    # Exported tractor display key -> Tractor (exact-case key)
     tractors: dict
+    # HarvestPlanItem.id -> HarvestPlanItem
+    plan_items: dict
 
 
 def db_indexes() -> HarvestIndexes:
@@ -89,10 +99,108 @@ def db_indexes() -> HarvestIndexes:
     crews = {c.name: c for c in Crew.objects.all()}
     products = {p.name: p for p in Product.objects.all()}
     species = {sp.common_name: sp for sp in Species.objects.all()}
-    tractors = {
-        t.name: t for t in Tractor.objects.all() if t.name
+    tractor_list = list(Tractor.objects.all())
+    export_keys = tractor_csv_keys(tractor_list)
+    tractors = {export_keys[t.id]: t for t in tractor_list}
+    # Continue to accept explicit Tractor.name values in hand-authored and
+    # historical imports. Names are unique at the model level.
+    tractors.update({t.name: t for t in tractor_list if t.name})
+    plan_items = {
+        item.id: item
+        for item in HarvestPlanItem.objects.select_related(
+            'parcel', 'region',
+        )
     }
-    return HarvestIndexes(parcels, regions, crews, products, species, tractors)
+    return HarvestIndexes(
+        parcels, regions, crews, products, species, tractors, plan_items,
+    )
+
+
+def tractor_csv_keys(tractors) -> dict[int, str]:
+    """Return unambiguous dynamic-column keys for tractor reference rows."""
+    label_counts = Counter(tractor.display_name for tractor in tractors)
+    return {
+        tractor.id: (
+            tractor.display_name
+            if label_counts[tractor.display_name] == 1
+            else f'{tractor.display_name} [#{tractor.id}]'
+        )
+        for tractor in tractors
+    }
+
+
+def render_csv(harvests) -> str:
+    """Render harvest rows in the canonical schema accepted by this module.
+
+    The table digest is intentionally presentation-oriented (minor species are
+    folded into ``Altro``, amounts are rendered as quintals, and flags share a
+    single note column), so it cannot serve as a lossless backup.  This
+    renderer reads the normalized rows instead and is shared by both the
+    Prelievi page and per-cantiere cutting-plan exports.
+    """
+    harvests = list(harvests)
+    species = list(Species.objects.order_by('sort_order', 'common_name', 'id'))
+    tractors = list(Tractor.objects.order_by(
+        'name', 'manufacturer', 'model', 'id',
+    ))
+    tractor_keys = tractor_csv_keys(tractors)
+    harvest_ids = [harvest.id for harvest in harvests]
+
+    species_pcts = {}
+    for row in HarvestSpecies.objects.filter(harvest_id__in=harvest_ids):
+        species_pcts.setdefault(row.harvest_id, {})[row.species_id] = row.percent
+    tractor_pcts = {}
+    for row in HarvestTractor.objects.filter(harvest_id__in=harvest_ids):
+        tractor_pcts.setdefault(row.harvest_id, {})[row.tractor_id] = row.percent
+
+    delimiter, decimal_sep = csv_io.export_format()
+    buf, writer = csv_io.csv_buffer(delimiter)
+    writer.writerow([
+        S.CSV_COL_REGION,
+        S.CSV_COL_PARCEL,
+        S.CSV_COL_DATA,
+        S.CSV_COL_CREW,
+        S.CSV_COL_PRODUCT,
+        S.CSV_COL_QUINTALS,
+        S.CSV_COL_VOLUME_M3,
+        S.CSV_COL_HARVEST_PLAN_ITEM_ID,
+        S.CSV_COL_VDP,
+        S.CSV_COL_PROT,
+        S.CSV_COL_HARVEST_DAMAGED,
+        S.CSV_COL_HARVEST_UNHEALTHY,
+        S.CSV_COL_HARVEST_PSR,
+        S.CSV_COL_EXTRA_NOTE,
+        *[f'{S.CSV_COL_SPECIES_PREFIX}{sp.common_name}' for sp in species],
+        *[f'{S.CSV_COL_TRACTOR_PREFIX}{tractor_keys[tr.id]}' for tr in tractors],
+    ])
+    for harvest in harvests:
+        parcel = harvest.parcel
+        region = parcel.region if parcel is not None else harvest.region
+        writer.writerow([
+            region.name,
+            parcel.name if parcel is not None else '',
+            harvest.date.isoformat(),
+            harvest.crew.name,
+            harvest.product.name,
+            csv_io.format_decimal(harvest.mass_q, decimal_sep),
+            csv_io.format_decimal(harvest.volume_m3, decimal_sep),
+            harvest.harvest_plan_item_id,
+            harvest.record1,
+            harvest.record2,
+            '1' if harvest.damaged else '0',
+            '1' if harvest.unhealthy else '0',
+            '1' if harvest.psr else '0',
+            harvest.note,
+            *[
+                species_pcts.get(harvest.id, {}).get(sp.id, 0)
+                for sp in species
+            ],
+            *[
+                tractor_pcts.get(harvest.id, {}).get(tr.id, 0)
+                for tr in tractors
+            ],
+        ])
+    return buf.getvalue()
 
 
 def resolve_columns(fieldnames):
@@ -221,6 +329,46 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_QUINTALS))
             continue
 
+        # --- Optional capture-time volume. ---
+        volume_m3 = None
+        if S.CSV_COL_VOLUME_M3 in static_cols:
+            volume_m3, volume_ok = reader.opt_decimal(
+                row.get(S.CSV_COL_VOLUME_M3),
+            )
+            if not volume_ok or (volume_m3 is not None and volume_m3 < 0):
+                errors.append(S.ERR_CSV_ROW_PARSE.format(
+                    i, S.CSV_COL_VOLUME_M3,
+                ))
+                continue
+
+        # --- Optional link to the originating cutting-plan item. ---
+        plan_item = None
+        if S.CSV_COL_HARVEST_PLAN_ITEM_ID in static_cols:
+            plan_item_id, plan_item_ok = reader.opt_int(
+                row.get(S.CSV_COL_HARVEST_PLAN_ITEM_ID),
+            )
+            if not plan_item_ok or (
+                plan_item_id is not None
+                and (
+                    plan_item_id <= 0
+                    or plan_item_id not in idx.plan_items
+                )
+            ):
+                errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(
+                    i, row.get(S.CSV_COL_HARVEST_PLAN_ITEM_ID) or '',
+                ))
+                continue
+            if plan_item_id is not None:
+                plan_item = idx.plan_items[plan_item_id]
+                if (
+                    plan_item.parcel_id != (parcel.id if parcel else None)
+                    or plan_item.region_id != (region.id if region else None)
+                ):
+                    errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(
+                        i, plan_item_id,
+                    ))
+                    continue
+
         # --- Optional integer fields. ---
         record1, r1_ok = reader.opt_int(row.get(S.CSV_COL_VDP))
         record2, r2_ok = reader.opt_int(row.get(S.CSV_COL_PROT))
@@ -242,6 +390,15 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
         damaged = bool(damaged_raw)
         unhealthy = bool(unhealthy_raw)
         psr = bool(psr_raw)
+        if plan_item is not None and (
+            damaged != plan_item.damaged
+            or unhealthy != plan_item.unhealthy
+            or psr != plan_item.psr
+        ):
+            errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(
+                i, plan_item.id,
+            ))
+            continue
 
         note = (row.get(S.CSV_COL_EXTRA_NOTE) or '').strip()
 
@@ -292,10 +449,13 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
             continue
 
         # --- Volume. ---
-        volume_m3 = harvest_volume_m3(
-            mass_q,
-            ((sp.density, pct) for sp, pct in species_pcts),
-        )
+        if volume_m3 is None:
+            volume_m3 = harvest_volume_m3(
+                mass_q,
+                ((sp.density, pct) for sp, pct in species_pcts),
+            )
+        else:
+            volume_m3 = volume_m3.quantize(_VOLUME_M3_QUANTUM)
 
         parsed.append({
             _FIELD_SOURCE_ROW: i,
@@ -304,6 +464,7 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
             'parcel': parcel,
             'region': region,
             'crew': crew,
+            'harvest_plan_item': plan_item,
             'record1': record1,
             'record2': record2,
             'mass_q': mass_q,
@@ -339,6 +500,11 @@ def harvest_import_fingerprint(row: dict) -> str:
         'species_pcts': [(sp.id, pct) for sp, pct in row['species_pcts']],
         'tractor_pcts': [(tr.id, pct) for tr, pct in row['tractor_pcts']],
     }
+    # Keep the pre-link v1 payload byte-for-byte stable for legacy unlinked
+    # files; only Abies-originated linked backups add the new identity field.
+    plan_item = row.get('harvest_plan_item')
+    if plan_item is not None:
+        data['harvest_plan_item_id'] = plan_item.id
     raw = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
     return f'{_FINGERPRINT_VERSION}:{digest}'
@@ -376,6 +542,7 @@ def apply(parsed: list) -> int:
                 parcel=r['parcel'],
                 region=r['region'],
                 crew=r['crew'],
+                harvest_plan_item=r.get('harvest_plan_item'),
                 record1=r['record1'],
                 record2=r['record2'],
                 mass_q=r['mass_q'],
@@ -407,7 +574,28 @@ def apply(parsed: list) -> int:
         if tractor_rows:
             HarvestTractor.objects.bulk_create(tractor_rows)
 
+        plan_item_ids = {
+            harvest.harvest_plan_item_id
+            for harvest in harvests
+            if harvest.harvest_plan_item_id is not None
+        }
+        for plan_item_id in sorted(plan_item_ids):
+            total = (Harvest.objects
+                     .filter(harvest_plan_item_id=plan_item_id)
+                     .aggregate(total=Sum('volume_m3'))['total']) or 0
+            item = HarvestPlanItem.objects.select_for_update().get(
+                id=plan_item_id,
+            )
+            if item.volume_actual_m3 != total:
+                item.volume_actual_m3 = total
+                item.save(update_fields=['volume_actual_m3'])
+
         if harvests:
-            mark_stale('prelievi', 'audit')
+            stale = ['prelievi', 'audit']
+            if plan_item_ids:
+                stale.extend([
+                    'harvest_plan_items', DIGEST_FUTURE_PRODUCTION,
+                ])
+            mark_stale(*stale)
 
     return len(harvests)

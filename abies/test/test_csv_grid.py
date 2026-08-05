@@ -216,3 +216,52 @@ def test_apply_creates_sample_areas(parcels):
     area = SampleArea.objects.get(sample_grid=grid, number='10')
     assert area.r_m == 15
     assert area.altitude_m == 500
+
+
+@pytest.mark.django_db
+def test_export_import_export_import_round_trip(parcels):
+    grid = SampleGrid.objects.create(name='grid-round-trip')
+    SampleArea.objects.create(
+        sample_grid=grid, parcel=parcels[0], number='A;1',
+        lat=38.51234, lon=16.12345, altitude_m=503, r_m=15,
+        note='Confine, nord\nseconda riga',
+    )
+    SampleArea.objects.create(
+        sample_grid=grid, parcel=parcels[2], number='2',
+        lat=38.6, lon=16.2, altitude_m=None, r_m=12,
+        note='Area senza quota',
+    )
+
+    def snapshot():
+        return list(
+            SampleArea.objects.filter(sample_grid=grid)
+            .order_by('parcel__region__name', 'number')
+            .values_list(
+                'parcel__region__name', 'parcel__name', 'number',
+                'lat', 'lon', 'altitude_m', 'r_m', 'note',
+            )
+        )
+
+    def import_text(content):
+        reader = csv_io.read(content)
+        cols, missing = csv_grid.resolve_columns(reader.fieldnames)
+        assert missing == []
+        parsed, errors = csv_grid.validate_rows(
+            reader, cols, csv_grid.db_indexes(grid),
+        )
+        assert errors == []
+        csv_grid.apply(grid, parsed)
+
+    expected = snapshot()
+    first_export = csv_grid.render_csv(grid)
+    assert S.CSV_COL_NOTE in csv_io.read(first_export).fieldnames
+
+    SampleArea.objects.filter(sample_grid=grid).delete()
+    import_text(first_export)
+    assert snapshot() == expected
+
+    second_export = csv_grid.render_csv(grid)
+    assert second_export == first_export
+    SampleArea.objects.filter(sample_grid=grid).delete()
+    import_text(second_export)
+    assert snapshot() == expected

@@ -19,11 +19,12 @@ import * as S from '../../base/js/strings.js';
 import {
   COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
   FIELD_LAT, FIELD_LON,
-  FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
+  FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_ROW_IDS,
+  FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
   MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
-import { fileToBase64, postJSON } from '../../base/js/api.js';
+import { fileToBase64, postBlob, postJSON } from '../../base/js/api.js';
 import {
   importWarningLines, isImportWarningResponse, showImportWarningModal,
   withImportWarningsConfirmed,
@@ -37,8 +38,7 @@ import {
   wireCollapsibleToggle, wireTabbedModal,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
-import { recordIsCoppice } from '../../base/js/coppice.js';
-import { exportDigest } from '../../base/js/csv-export.js';
+import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
@@ -81,6 +81,8 @@ const SURVEY_EDIT_URL_PREFIX = '/api/campionamenti/survey/edit/';
 const SURVEY_DELETE_URL_PREFIX = '/api/campionamenti/survey/delete/';
 const GRID_CSV_IMPORT_URL = '/api/campionamenti/grid/import-csv/';
 const TREE_CSV_IMPORT_URL = '/api/campionamenti/survey/import-csv/';
+const GRID_CSV_EXPORT_URL_PREFIX = '/api/campionamenti/grid/export-csv/';
+const TREE_CSV_EXPORT_URL_PREFIX = '/api/campionamenti/survey/export-csv/';
 const GRID_FORM_URL = '/api/campionamenti/grid/form/';
 const GRID_SAVE_URL = '/api/campionamenti/grid/save/';
 const SURVEY_FORM_URL = '/api/campionamenti/survey/form/';
@@ -655,6 +657,7 @@ function renderTable(data) {
     sort: tableSort(treeState, DEFAULT_TREE_SORT),
     searchText: treeState.searchText,
     csvFilename: S.CSV_SAMPLED_TREES,
+    toolbar: { export: () => exportFilteredSurveyCSV(data) },
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
@@ -1385,38 +1388,31 @@ function countTreesInActiveSurvey() {
 
 async function exportSurveyCSV(surveyId) {
   if (surveyId == null) return { error: S.ERROR_GENERIC };
-  const dataId = `${TREES_ID_PREFIX}${surveyId}`;
-  cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
-  let d = cache.get(dataId);
-  if (!d) {
-    try { d = await cache.load(dataId); }
-    catch { return { error: S.ERROR_NETWORK }; }
-  }
-  if (!d?.columns || !Array.isArray(d.rows)) return { error: S.ERROR_GENERIC };
-  const visibleCols = d.columns.filter(
-    c => c !== VERSION && c !== S.COL_SAMPLE_AREA,
-  );
-  exportDigest(d, visibleCols, S.CSV_SAMPLED_TREES);
+  downloadFromURL(`${TREE_CSV_EXPORT_URL_PREFIX}${surveyId}/`);
   return { ok: true };
 }
 
 function exportGridAreasCSV(gridId) {
-  if (!sampleAreasData) return;
-  const gridCol = sampleAreasData.columns.indexOf(S.COL_GRID);
-  exportDigest(
-    sampleAreasData,
-    [
-      { src: S.COL_REGION, dst: S.CSV_COL_REGION },
-      { src: S.COL_PARCEL,   dst: S.CSV_COL_PARTICELLA },
-      { src: S.COL_NUMBER,   dst: S.CSV_COL_AREA_SAGGIO },
-      { src: S.COL_LON,      dst: S.CSV_COL_LON },
-      { src: S.COL_LAT,      dst: S.CSV_COL_LAT },
-      { src: S.COL_ALT,    dst: S.CSV_COL_ALT },
-      { src: S.COL_RADIUS,   dst: S.CSV_COL_RADIUS },
-    ],
-    S.CSV_GRID_AREAS,
-    { filter: row => row[gridCol] === gridId },
-  );
+  if (gridId == null) return;
+  downloadFromURL(`${GRID_CSV_EXPORT_URL_PREFIX}${gridId}/`);
+}
+
+async function exportFilteredSurveyCSV(data) {
+  if (activeSurveyId == null || !table) return;
+  const rowIdCol = data.columns.indexOf(ROW_ID);
+  if (rowIdCol < 0) return;
+  const rowIds = table.getFilteredRows()
+    .map(row => row[rowIdCol])
+    .filter(rowId => Number.isInteger(rowId) && rowId > 0);
+  try {
+    const { blob, filename } = await postBlob(
+      `${TREE_CSV_EXPORT_URL_PREFIX}${activeSurveyId}/`,
+      { [FIELD_ROW_IDS]: rowIds },
+    );
+    downloadBlob(blob, filename);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
 }
 
 async function exportFullSurveyCSV(surveyId) {
@@ -1429,26 +1425,7 @@ async function exportFullSurveyCSV(surveyId) {
     showError(S.NO_RESULTS);
     return;
   }
-  exportDigest(
-    d,
-    [
-      { src: S.COL_REGION,    dst: S.CSV_COL_REGION },
-      { src: S.COL_PARCEL,      dst: S.CSV_COL_PARTICELLA },
-      { src: S.COL_AREA_NUM,    dst: S.CSV_COL_AREA_SAGGIO },
-      { src: S.COL_TREE_NUM,    dst: S.CSV_COL_ALBERO },
-      { src: S.COL_COPPICE_SHOOT,     dst: S.CSV_COL_COPPICE_SHOOT },
-      { src: S.COL_COPPICE_STD,   dst: S.CSV_COL_COPPICE_STD },
-      { src: S.COL_D_CM,        dst: S.CSV_COL_D_CM },
-      { src: S.COL_H_M,         dst: S.CSV_COL_H_M },
-      { src: S.COL_L10_MM,      dst: S.CSV_COL_L10_MM },
-      { src: S.COL_PRESSLER,    dst: S.CSV_COL_PRESSLER },
-      { src: S.COL_SPECIES,     dst: S.CSV_COL_GENERE },
-      { dst: S.CSV_COL_HIGHFOREST, transform: row => !recordIsCoppice(row, d.columns) },
-      { src: S.COL_SAMPLE_DATE, dst: S.CSV_COL_DATA },
-      { src: S.COL_PRESERVED,         dst: S.CSV_COL_PRESERVED },
-    ],
-    S.CSV_SURVEY_TREES,
-  );
+  downloadFromURL(`${TREE_CSV_EXPORT_URL_PREFIX}${surveyId}/`);
 }
 
 
