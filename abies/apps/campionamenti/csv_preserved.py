@@ -15,11 +15,11 @@ from decimal import ROUND_HALF_UP
 from django.db import transaction
 
 from apps.base.digests import mark_stale
-from apps.base.models import Parcel, Sample, Species, Survey, Tree, TreeSample
+from apps.base.models import Parcel, Sample, Species, Tree, TreeSample
 from apps.base.numparse import coord_float
 from apps.base.preserved_trees import (
-    PRESERVED_IMPORT_SURVEY_NAME, PRESERVED_LEGACY_UNKNOWN_DATE,
-    current_preserved_number_keys,
+    PRESERVED_LEGACY_UNKNOWN_DATE, current_preserved_number_keys,
+    get_preserved_tree_survey,
 )
 from config import strings as S
 from config.constants import (
@@ -161,21 +161,7 @@ def _optional_date(value):
 def apply(parsed) -> int:
     """Persist validated rows as PAI observations.  Returns created count."""
     with transaction.atomic():
-        survey, _ = Survey.objects.get_or_create(
-            name=PRESERVED_IMPORT_SURVEY_NAME,
-            defaults={
-                'sample_grid': None,
-                'description': 'Rilevamento libero per alberi PAI.',
-                'active': False,
-            },
-        )
-        if survey.sample_grid_id is not None:
-            raise RuntimeError(
-                f'Existing survey {PRESERVED_IMPORT_SURVEY_NAME!r} is structured.'
-            )
-        if survey.active:
-            survey.active = False
-            survey.save(update_fields=['active'])
+        survey = get_preserved_tree_survey()
         sample_by_key = {}
         for r in parsed:
             key = (r[FIELD_DATE], r[FIELD_PARCEL].id)

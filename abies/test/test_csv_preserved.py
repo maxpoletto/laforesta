@@ -4,7 +4,9 @@ import pytest
 
 from apps.base import csv_io
 from apps.base.models import Sample, Survey, Tree, TreeSample
-from apps.base.preserved_trees import PRESERVED_LEGACY_UNKNOWN_DATE
+from apps.base.preserved_trees import (
+    PRESERVED_LEGACY_UNKNOWN_DATE, PRESERVED_SURVEY_NAME,
+)
 from apps.campionamenti import csv_preserved
 from config import strings as S
 
@@ -55,6 +57,7 @@ def test_preserved_happy_path(parcels, species):
     assert pai.lat == pytest.approx(38.45678, abs=1e-4)
     assert pai.lon == pytest.approx(16.12345, abs=1e-4)
     assert pai.sample.date.isoformat() == '2024-09-15'
+    assert pai.sample.survey.name == PRESERVED_SURVEY_NAME
     assert pai.d_cm == 42
     assert str(pai.h_m) == '18.50'
     assert pai.h_measured is False

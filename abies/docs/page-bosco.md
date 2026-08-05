@@ -369,6 +369,10 @@ mode-switch.
   each `(parcel_id, preserved_number)` identity. Invalidated on preserved-tree
   sample writes.
 
+  The lookup spans all surveys. New observations created with **+ Aggiungi**
+  are written to the canonical free survey `Alberi da preservare`; other
+  surveys may also contain preserved-tree observations.
+
   Columns: `row_id`, `version`, `Tree id`, `Parcel id`, `Species id`,
   `Compresa`, `Particella`, `Specie`, `Numero`, `Data`,
   `Anno di nascita stimato`, `D (cm)`, `h (m)`, `h misurata`, `Lat`, `Lon`,

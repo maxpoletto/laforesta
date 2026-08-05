@@ -32,7 +32,7 @@ from apps.base.http import (
 )
 from apps.base.models import (
     Eclass, Observation, ObservationCategory, ObservationPhoto, Parcel,
-    Region, Sample, Species, Survey, Tree, TreeSample,
+    Region, Sample, Species, Tree, TreeSample,
     parcel_sort_key,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
@@ -42,7 +42,7 @@ from apps.base.observation_storage import (
     observation_photo_relative_path, sniff_observation_photo_content_type,
 )
 from apps.base.preserved_trees import (
-    PRESERVED_IMPORT_SURVEY_NAME, latest_preserved_tree_samples,
+    get_preserved_tree_survey, latest_preserved_tree_samples,
     next_preserved_number, preserved_number_exists,
 )
 from apps.base.responses import (
@@ -1186,19 +1186,7 @@ def _preserved_tree_qs(*, for_update=False):
 
 
 def _pai_sample(sample_date):
-    survey, _ = Survey.objects.get_or_create(
-        name=PRESERVED_IMPORT_SURVEY_NAME,
-        defaults={
-            'sample_grid': None,
-            'description': 'Rilevamento libero per alberi PAI.',
-            'active': False,
-        },
-    )
-    if survey.sample_grid_id is not None:
-        raise RuntimeError(f'Survey {PRESERVED_IMPORT_SURVEY_NAME!r} is structured')
-    if survey.active:
-        survey.active = False
-        survey.save(update_fields=['active'])
+    survey = get_preserved_tree_survey()
     return Sample.objects.create(sample_area=None, survey=survey, date=sample_date)
 
 

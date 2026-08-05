@@ -6,11 +6,29 @@ from datetime import date as date_type
 
 from django.db.models import Max, OuterRef, Subquery
 
-from apps.base.models import TreeSample
+from apps.base.models import Survey, TreeSample
 
-PRESERVED_HISTORY_SURVEY_NAME = 'Alberi da preservare - storico'
-PRESERVED_IMPORT_SURVEY_NAME = 'Alberi da preservare'
+PRESERVED_SURVEY_NAME = 'Alberi da preservare'
+PRESERVED_SURVEY_DESCRIPTION = 'Rilevamento libero per alberi PAI.'
 PRESERVED_LEGACY_UNKNOWN_DATE = date_type(1970, 1, 1)
+
+
+def get_preserved_tree_survey() -> Survey:
+    """Return the single canonical survey used for new PAI observations."""
+    survey, _ = Survey.objects.get_or_create(
+        name=PRESERVED_SURVEY_NAME,
+        defaults={
+            'sample_grid': None,
+            'description': PRESERVED_SURVEY_DESCRIPTION,
+            'active': False,
+        },
+    )
+    if survey.sample_grid_id is not None:
+        raise RuntimeError(f'Survey {PRESERVED_SURVEY_NAME!r} is structured')
+    if survey.active:
+        survey.active = False
+        survey.save(update_fields=['active'])
+    return survey
 
 
 def latest_preserved_tree_samples(*, for_update: bool = False):

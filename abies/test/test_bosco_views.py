@@ -21,6 +21,7 @@ from apps.base.models import (
     DigestStatus, Observation, ObservationCategory, ObservationCategoryAssignment,
     ObservationPhoto, Parcel, Region, Sample, Survey, Tree, TreeSample,
 )
+from apps.base.preserved_trees import PRESERVED_SURVEY_NAME
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, DIGEST_OBSERVATIONS, DIGEST_PARCELS,
@@ -774,6 +775,7 @@ def test_pai_save_creates_preserved_tree(writer_client, parcels, species):
     assert pai.lat == 38.12346
     assert pai.preserved_number == 7
     assert pai.sample.date.isoformat() == '2024-09-15'
+    assert pai.sample.survey.name == PRESERVED_SURVEY_NAME
     assert pai.d_cm == 42
     assert str(pai.h_m) == '18.50'
     assert pai.note == 'chioma secca'

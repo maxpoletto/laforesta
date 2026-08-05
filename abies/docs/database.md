@@ -353,6 +353,12 @@ operation can proceed.  See `campionamenti.md` for the flow.
 Preserved/PAI trees are represented by `tree_sample` rows with a non-null
 `preserved_number`.
 
+New rows created with Bosco/PAI **+ Aggiungi** or the preserved-tree CSV
+import are stored in the single canonical unstructured survey
+`Alberi da preservare`. This is a write destination, not an ownership
+boundary: current PAI state is resolved across every survey because any
+survey may contain preserved-tree observations.
+
 - `preserved_number` is scoped to a parcel, not to a sample.
 - `tree_sample.number` remains the sample-local operator sequence number.
 - The stable preserved-tree identity is `(parcel_id, preserved_number)`.
