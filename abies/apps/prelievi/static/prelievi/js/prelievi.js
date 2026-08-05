@@ -247,13 +247,17 @@ export function boscoUrlForHarvestRow(row, columns) {
 
 
 function extractYears(rows) {
-  const s = new Set();
+  const years = [];
   for (const row of rows) {
     const d = row[colDate];
-    if (d) s.add(parseInt(String(d).substring(0, 4), 10));
+    const y = d ? parseInt(String(d).substring(0, 4), 10) : NaN;
+    if (Number.isFinite(y)) years.push(y);
   }
-  const arr = [...s].sort((a, b) => a - b);
-  return arr.length ? arr : [new Date().getFullYear()];
+  const currentYear = new Date().getFullYear();
+  if (!years.length) return [currentYear];
+  const start = Math.min(...years);
+  const end = Math.max(Math.max(...years), currentYear);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
 function yearFilter() {
@@ -610,15 +614,17 @@ function buildPage(el, data, p) {
   // Year slider — uses the template's range inputs.
   const years = extractYears(data.rows);
   const sliderLabel = el.querySelector('.prelievi-slider-label');
+  const sliderTrack = el.querySelector('.range-slider');
   const minInput = el.querySelector('[data-role="slider-min"]');
   const maxInput = el.querySelector('[data-role="slider-max"]');
-  if (minInput && maxInput && years.length >= 2) {
+  if (minInput && maxInput && years.length >= 1) {
     slider = createRangeSlider(minInput, maxInput, sliderLabel, () => {
       if (table) table.setExternalFilter(pageFilter());
       syncURL();
       _updateCharts();
     });
     slider.setRange(years);
+    if (sliderTrack) sliderTrack.hidden = years.length < 2;
     if (p.y1 != null || p.y2 != null) {
       slider.setValues(p.y1 ?? years[0], p.y2 ?? years[years.length - 1]);
     }

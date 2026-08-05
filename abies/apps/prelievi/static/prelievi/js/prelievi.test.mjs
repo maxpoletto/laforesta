@@ -45,6 +45,7 @@ class MockElement {
     this.type = '';
     this.href = '';
     this.rel = '';
+    this.hidden = false;
     this.removed = false;
     this._listeners = {};
     this.style = { setProperty: (k, v) => { this.style[k] = v; } };
@@ -160,6 +161,7 @@ class MockElement {
     clone.min = this.min;
     clone.max = this.max;
     clone.type = this.type;
+    clone.hidden = this.hidden;
     if (deep) for (const child of this.children) clone.appendChild(child.cloneNode(true));
     return clone;
   }
@@ -171,6 +173,11 @@ function el(tag, { id = '', className = '', dataset = {}, type = '' } = {}, chil
   node.className = className;
   node.dataset = { ...dataset };
   node.type = type;
+  if (type === 'range') {
+    node.min = '0';
+    node.max = '100';
+    node.value = '50';
+  }
   for (const child of children) node.appendChild(child);
   return node;
 }
@@ -198,8 +205,10 @@ function buildPrelieviTemplate() {
   const search = el('input', { id: 'prelievi-search', className: 'table-search', type: 'text' });
   frag.appendChild(el('div', { className: 'prelievi-filter-bar' }, [
     el('span', { className: 'prelievi-slider-label' }),
-    minInput,
-    maxInput,
+    el('div', { className: 'range-slider' }, [
+      minInput,
+      maxInput,
+    ]),
     search,
     el('button', { dataset: { action: 'reset-filters' } }),
     el('button', { dataset: { action: 'export-csv' } }),
@@ -515,6 +524,12 @@ function sliderValues() {
   const max = contentEl.querySelector('[data-role="slider-max"]');
   return [Number(min.value), Number(max.value)];
 }
+function sliderLabelText() {
+  return String(contentEl.querySelector('.prelievi-slider-label').textContent);
+}
+function sliderTrackHidden() {
+  return contentEl.querySelector('.range-slider')?.hidden === true;
+}
 function filteredIds() {
   return tableInstances.at(-1).filteredRows.map(row => row[0]);
 }
@@ -524,16 +539,21 @@ eq(prelievi.boscoUrlForHarvestRow(digest.rows[1], digest.columns), '/bosco?c=10&
 eq(prelievi.boscoUrlForHarvestRow(digest.rows[1], [ROW_ID, S.COL_DATE]), null,
    'boscoUrlForHarvestRow returns null without stable ids');
 
+const currentYear = new Date().getFullYear();
+const expectedEndYear = Math.max(2022, currentYear);
+
 await prelievi.mount({ y1: '2021', y2: '2021' });
 eq(sliderValues(), [2021, 2021], 'mount applies explicit year range from URL');
 eq(filteredIds(), [2], 'mount filters table to explicit year range');
 
 prelievi.onQueryChange({});
-eq(sliderValues(), [2020, 2022], 'bare URL resets year slider to available endpoints');
+eq(sliderValues(), [2020, expectedEndYear],
+   'bare URL resets year slider to first data year and current year');
 eq(filteredIds(), [1, 2, 3], 'bare URL restores all years in the table filter');
 
 prelievi.onQueryChange({ y1: '2021' });
-eq(sliderValues(), [2021, 2022], 'partial y1 URL uses requested lower bound and default upper bound');
+eq(sliderValues(), [2021, expectedEndYear],
+   'partial y1 URL uses requested lower bound and default upper bound');
 eq(filteredIds(), [2, 3], 'partial y1 URL filters through the default upper bound');
 
 prelievi.onQueryChange({ y2: '2021' });
@@ -541,7 +561,8 @@ eq(sliderValues(), [2020, 2021], 'partial y2 URL uses default lower bound and re
 eq(filteredIds(), [1, 2], 'partial y2 URL filters from the default lower bound');
 
 prelievi.onQueryChange({});
-eq(sliderValues(), [2020, 2022], 'second bare URL reset is not ignored after partial states');
+eq(sliderValues(), [2020, expectedEndYear],
+   'second bare URL reset is not ignored after partial states');
 eq(filteredIds(), [1, 2, 3], 'second bare URL reset restores all years again');
 
 prelievi.onQueryChange({ c: '10' });
@@ -608,6 +629,33 @@ eq(filteredIds(), [3], 'plain search matches non-zero multi-word species columns
 
 prelievi.unmount();
 check(tableInstances.at(-1).destroyed, 'unmount destroys the table');
+
+
+const singleYearDigest = {
+  columns: digest.columns,
+  rows: [
+    [10, 1, 10, 101, `${currentYear}-03-15`, 'A', '1', 'Crew',
+      'Taglio', 10, 1, '', 10, 100, 0, 0, 0],
+    [11, 1, 10, 102, `${currentYear}-04-20`, 'A', '2', 'Crew',
+      'Taglio', 20, 2, '', 20, 100, 0, 0, 0],
+  ],
+};
+prelieviDigest = singleYearDigest;
+prelieviLastModified = 'v3';
+await cache.load('prelievi');
+await prelievi.mount({});
+eq(sliderValues(), [currentYear, currentYear],
+   'single-year digest initializes year slider instead of leaving browser defaults');
+eq(sliderLabelText(), String(currentYear),
+   'single-year digest shows the year label');
+check(sliderTrackHidden(),
+      'single-year digest hides the meaningless range track');
+eq(filteredIds(), [10, 11],
+   'single-year digest keeps matching rows visible');
+prelievi.unmount();
+prelieviDigest = digest;
+prelieviLastModified = 'v4';
+await cache.load('prelievi');
 
 // Row deletion must use the shared modal, not window.confirm().
 document.body.dataset.role = 'writer';
