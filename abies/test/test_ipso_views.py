@@ -108,7 +108,7 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'href="/static/vendor/leaflet/leaflet.css"' in body
     assert 'href="/static/base/css/map-basemaps.css"' in body
     assert 'id="screen-mode"' in body
-    assert 'id="btn-mode-samples" class="btn-primary btn-big" type="button"' in body
+    assert 'id="btn-mode-samples" class="btn-secondary btn-big" type="button"' in body
     assert 'id="btn-mode-free-survey" class="btn-secondary btn-big" type="button"' in body
     assert 'id="btn-mode-history" class="btn-secondary btn-big" type="button"' in body
     assert 'id="screen-history"' in body
