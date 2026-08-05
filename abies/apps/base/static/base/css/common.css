@@ -549,6 +549,40 @@ input:focus, select:focus, textarea:focus {
 
 /* Shared dendrometry chart layout. Bosco and Piano di taglio intentionally
    use the same component so sizing and responsive behavior cannot drift. */
+.tree-detail-map-host {
+  background: #f5f5f5;
+  border: 1px solid #888;
+  border-radius: 4px;
+  height: 840px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.tree-detail-map {
+  height: 100%;
+  width: 100%;
+}
+
+.tree-dendrometry-summary {
+  margin-top: 24px;
+}
+
+.tree-dendrometry-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 4px solid var(--color-bosco-green);
+  padding: 8px 0;
+  margin-bottom: 12px;
+}
+
+.tree-dendrometry-summary-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+
 .dendrometry-chart-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));

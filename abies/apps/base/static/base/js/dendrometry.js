@@ -1,8 +1,8 @@
 /**
  * Shared dendrometry aggregation, legend, and chart builders.
  *
- * Bosco supplies already-aggregated rows; Piano di taglio supplies individual
- * marked trees. Both consumers use the same five-centimetre diameter classes,
+ * Bosco supplies already-aggregated rows; tree-detail consumers supply
+ * individual trees. Both use the same five-centimetre diameter classes,
  * species palette, sparse-series filling, and metric matrix.
  */
 
@@ -37,8 +37,8 @@ export function basalAreaM2(dCm) {
   return Math.PI * radiusM * radiusM;
 }
 
-/** Aggregate individual marked-tree digest rows for dendrometry displays. */
-export function aggregateMarkedTreeDendrometry(rows, columns, { allSpeciesNames = [] } = {}) {
+/** Aggregate individual tree digest rows for dendrometry displays. */
+export function aggregateTreeDendrometry(rows, columns, { allSpeciesNames = [] } = {}) {
   const c = columnMap(columns);
   const groups = new Map();
   const speciesNames = new Map();
@@ -76,6 +76,10 @@ export function aggregateMarkedTreeDendrometry(rows, columns, { allSpeciesNames 
       basalAreaM2: round(group.basalAreaM2, 6),
     }));
 }
+
+// Compatibility for callers outside the page bundle. New code should use the
+// generic name: nothing in the aggregation is specific to marked trees.
+export const aggregateMarkedTreeDendrometry = aggregateTreeDendrometry;
 
 /** Build species rows × continuous five-centimetre diameter-class columns. */
 export function dendrometryMetricMatrix(rows, metric) {

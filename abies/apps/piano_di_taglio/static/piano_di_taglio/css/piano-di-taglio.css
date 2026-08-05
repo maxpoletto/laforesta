@@ -153,39 +153,6 @@
   color: var(--color-danger);
 }
 
-.pdt-mark-map-host {
-  background: #f5f5f5;
-  border: 1px solid #888;
-  border-radius: 4px;
-  height: 840px;
-  margin-top: 12px;
-  overflow: hidden;
-}
-
-.pdt-mark-map {
-  height: 100%;
-  width: 100%;
-}
-
-.pdt-dendrometry-summary {
-  margin-top: 24px;
-}
-
-.pdt-dendrometry-summary-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-top: 4px solid var(--color-bosco-green);
-  padding: 8px 0;
-  margin-bottom: 12px;
-}
-
-.pdt-dendrometry-summary-header h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
 .pdt-mark-popover-fields {
   background: #f0f0f0;
   border-radius: 4px;

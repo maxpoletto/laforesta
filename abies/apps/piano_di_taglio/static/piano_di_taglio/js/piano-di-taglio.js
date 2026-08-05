@@ -9,7 +9,7 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import { matchesSearch, searchTerms, TableWrapper } from '../../base/js/table.js';
+import { searchTerms, TableWrapper } from '../../base/js/table.js';
 import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
@@ -28,16 +28,11 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { recordIsCoppice } from '../../base/js/coppice.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
-import {
-  aggregateMarkedTreeDendrometry, clearDendrometrySummaryInfo,
-  renderDendrometryBarCharts, renderDendrometryLegend,
-  renderDendrometrySummaryInfo,
-} from '../../base/js/dendrometry.js';
+import { TreeDetail } from '../../base/js/tree-detail.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
 } from '../../base/js/tree-form.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
-import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-map.js';
 import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -121,9 +116,7 @@ let itemRenderSeq = 0;
 let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
-let itemMarkTreesMap = null;
-let itemDendrometryRoot = null;
-let itemDendrometryCharts = {};
+let itemTreeDetail = null;
 let disposeEscape = null;
 let disposePageActions = null;
 
@@ -1059,24 +1052,17 @@ function destroyItemMarkTreesTable() {
   }
 }
 
-function destroyItemMarkTreesMap() {
-  if (itemMarkTreesMap) {
-    itemMarkTreesMap.destroy();
-    itemMarkTreesMap = null;
+function destroyItemTreeDetail() {
+  if (itemTreeDetail) {
+    itemTreeDetail.destroy();
+    itemTreeDetail = null;
   }
-}
-
-function destroyItemDendrometry() {
-  for (const chart of Object.values(itemDendrometryCharts)) chart?.destroy?.();
-  itemDendrometryCharts = {};
-  itemDendrometryRoot = null;
 }
 
 function destroyItemTables() {
   destroyItemPrelieviTable();
   destroyItemMarkTreesTable();
-  destroyItemMarkTreesMap();
-  destroyItemDendrometry();
+  destroyItemTreeDetail();
 }
 
 async function ensureParcelsGeo() {
@@ -1419,139 +1405,57 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
-    onSearch: () => updateItemMarkTreeDependents(itemId, data),
+    onSearch: () => updateItemMarkTreeDependents(itemId),
   });
-  await appendItemMarkTreesMap(body, itemId, data, showActions, showParcel);
+  await appendItemTreeDetail(body, itemId, data, showActions, showParcel);
   if (!itemViewIsActive(itemId) ||
       document.getElementById('content')?.contains?.(body) === false) return;
-  appendItemDendrometrySummary(body, itemId, data);
-  updateItemMarkTreeDependents(itemId, data);
+  updateItemMarkTreeDependents(itemId);
 }
 
-async function appendItemMarkTreesMap(
+async function appendItemTreeDetail(
   body, itemId, data, showActions, showParcel,
 ) {
-  destroyItemMarkTreesMap();
-  if (!data?.rows?.length || typeof L === 'undefined') return;
-  let geojson;
-  try { geojson = await ensureParcelsGeo(); }
-  catch { return; }
+  destroyItemTreeDetail();
+  let geojson = null;
+  if (data?.rows?.length && typeof L !== 'undefined') {
+    try { geojson = await ensureParcelsGeo(); }
+    catch { /* The charts remain useful if the map cannot load. */ }
+  }
   if (!itemViewIsActive(itemId) ||
       document.getElementById('content')?.contains?.(body) === false) return;
 
-  const host = document.createElement('div');
-  host.className = 'pdt-mark-map-host';
-  body.appendChild(host);
-  itemMarkTreesMap = new TreePointsMap({
-    container: host,
-    className: 'pdt-mark-map',
+  itemTreeDetail = new TreeDetail({
+    container: body,
+    digest: data,
     geojson,
+    speciesNames,
     onTreeClick: (tree) => {
       showMarkTreePopover(
         itemId, tree.row, data.columns, showActions, showParcel,
       );
     },
+    onExport: rows => downloadMarkDendrometry(itemId, data, rows),
   });
-  itemMarkTreesMap.setTrees(treePointsFromDigest(data.rows, data.columns));
-}
-
-function filteredMarkTreeRows(data) {
-  const terms = markTreeSearchTerms();
-  if (!terms.length) return data.rows;
-  return data.rows.filter(row => (
-    matchesSearch(row, terms, itemMarkTreesTable?.searchColumns)
-  ));
 }
 
 function markTreeSearchTerms() {
   return searchTerms(itemMarkTreesTable?.getSearchText() || '');
 }
 
-function updateItemMarkTreeDependents(itemId, data) {
+function updateItemMarkTreeDependents(itemId) {
   if (!itemViewIsActive(itemId)) return;
-  const rows = filteredMarkTreeRows(data);
-  itemMarkTreesMap?.setTrees(treePointsFromDigest(rows, data.columns));
-  renderItemDendrometrySummary(itemId, rows, data.columns);
+  itemTreeDetail?.setRows(itemMarkTreesTable?.getFilteredRows() || []);
 }
 
-function appendItemDendrometrySummary(body, itemId, data) {
-  destroyItemDendrometry();
-  const frag = cloneTemplate('tmpl-pdt-dendrometry-summary');
-  itemDendrometryRoot = frag.querySelector('.pdt-dendrometry-summary');
-  const exportButton = frag.querySelector('[data-action="export-dendrometry"]');
-  exportButton?.addEventListener('click', () => {
-    downloadMarkDendrometry(itemId, data, exportButton);
-  });
-  body.appendChild(frag);
-}
-
-function renderItemDendrometrySummary(itemId, markRows, columns) {
-  if (!itemViewIsActive(itemId) || !itemDendrometryRoot) return;
-  const status = itemDendrometryRoot.querySelector('[data-target="dendrometry-status"]');
-  const chartGrid = itemDendrometryRoot.querySelector('[data-target="dendrometry-chart-grid"]');
-  const legendRow = itemDendrometryRoot.querySelector('[data-target="dendrometry-species-row"]');
-  const legend = itemDendrometryRoot.querySelector('[data-target="dendrometry-species"]');
-  const exportButton = itemDendrometryRoot.querySelector('[data-action="export-dendrometry"]');
-  const rows = aggregateMarkedTreeDendrometry(markRows, columns, {
-    allSpeciesNames: speciesNames,
-  });
-
-  if (exportButton) exportButton.disabled = !markRows.length;
-  if (!rows.length) {
-    for (const chart of Object.values(itemDendrometryCharts)) chart?.destroy?.();
-    itemDendrometryCharts = {};
-    if (status) {
-      status.textContent = S.MARK_DENDROMETRY_EMPTY;
-      status.hidden = false;
-    }
-    if (chartGrid) chartGrid.hidden = true;
-    if (legendRow) legendRow.hidden = true;
-    legend?.replaceChildren();
-    clearDendrometrySummaryInfo(itemDendrometryInfoHosts());
-    return;
-  }
-
-  if (status) {
-    status.textContent = '';
-    status.hidden = true;
-  }
-  if (chartGrid) chartGrid.hidden = false;
-  if (legendRow) legendRow.hidden = false;
-  renderDendrometryLegend(legend, rows);
-  itemDendrometryCharts = renderDendrometryBarCharts({
-    rows,
-    canvases: {
-      treeCount: itemDendrometryRoot.querySelector('[data-target="dendrometry-tree-count-chart"]'),
-      volume: itemDendrometryRoot.querySelector('[data-target="dendrometry-volume-chart"]'),
-      basalArea: itemDendrometryRoot.querySelector('[data-target="dendrometry-basal-area-chart"]'),
-    },
-    yTitles: {
-      treeCount: S.BOSCO_TREE_COUNT,
-      volume: S.COL_VOLUME_M3,
-      basalArea: S.COL_BASAL_AREA_M2,
-    },
-    existing: itemDendrometryCharts,
-  });
-  renderDendrometrySummaryInfo(itemDendrometryInfoHosts(), rows);
-}
-
-function itemDendrometryInfoHosts() {
-  return {
-    treeCount: itemDendrometryRoot?.querySelector('[data-target="dendrometry-tree-count-info"]'),
-    volume: itemDendrometryRoot?.querySelector('[data-target="dendrometry-volume-info"]'),
-    basalArea: itemDendrometryRoot?.querySelector('[data-target="dendrometry-basal-area-info"]'),
-  };
-}
-
-async function downloadMarkDendrometry(itemId, data, button) {
+async function downloadMarkDendrometry(itemId, data, rows) {
   const filtered = markTreeSearchTerms().length > 0;
   const rowIds = filtered
-    ? filteredMarkTreeRows(data)
+    ? rows
       .map(row => markTreeRowId(row, data.columns))
       .filter(id => id != null)
     : null;
   if (filtered && !rowIds.length) return;
-  if (button) button.disabled = true;
   try {
     const { blob, filename } = await postBlob(
       `${MARK_DENDROMETRY_EXPORT_URL}${itemId}/`,
@@ -1560,10 +1464,6 @@ async function downloadMarkDendrometry(itemId, data, button) {
     downloadBlob(blob, filename);
   } catch {
     showError(S.ERROR_NETWORK);
-  } finally {
-    if (button && itemViewIsActive(itemId)) {
-      button.disabled = !filteredMarkTreeRows(data).length;
-    }
   }
 }
 

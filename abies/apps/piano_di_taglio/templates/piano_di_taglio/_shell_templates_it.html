@@ -205,43 +205,6 @@ render context.
   <div class="collapsible-body"></div>
 </template>
 
-<template id="tmpl-pdt-dendrometry-summary">
-  <section class="pdt-dendrometry-summary">
-    <div class="pdt-dendrometry-summary-header">
-      <h3>{{ S.SECTION_DENDROMETRIC_SUMMARY }}</h3>
-      <button type="button" class="btn btn-export"
-              data-action="export-dendrometry">{{ S.EXPORT }}</button>
-    </div>
-    <p class="subsection-note" data-target="dendrometry-status" hidden></p>
-    <div class="dendrometry-species-row" data-target="dendrometry-species-row">
-      <span class="dendrometry-species-label">{{ S.COL_SPECIES }}:</span>
-      <div class="dendrometry-species-legend" data-target="dendrometry-species"></div>
-    </div>
-    <div class="dendrometry-chart-grid" data-target="dendrometry-chart-grid">
-      <div class="dendrometry-chart-panel">
-        <h3>{{ S.BOSCO_TREE_COUNT }}</h3>
-        <div class="dendrometry-chart-canvas">
-          <canvas data-target="dendrometry-tree-count-chart"></canvas>
-        </div>
-        <div class="dendrometry-chart-info" data-target="dendrometry-tree-count-info"></div>
-      </div>
-      <div class="dendrometry-chart-panel">
-        <h3>{{ S.MARK_DENDROMETRY_VOLUME }}</h3>
-        <div class="dendrometry-chart-canvas">
-          <canvas data-target="dendrometry-volume-chart"></canvas>
-        </div>
-        <div class="dendrometry-chart-info" data-target="dendrometry-volume-info"></div>
-      </div>
-      <div class="dendrometry-chart-panel">
-        <h3>{{ S.MARK_DENDROMETRY_BASAL_AREA }}</h3>
-        <div class="dendrometry-chart-canvas">
-          <canvas data-target="dendrometry-basal-area-chart"></canvas>
-        </div>
-        <div class="dendrometry-chart-info" data-target="dendrometry-basal-area-info"></div>
-      </div>
-    </div>
-  </section>
-</template>
 
 <template id="tmpl-pdt-item-view">
   <div class="pdt-item-card">

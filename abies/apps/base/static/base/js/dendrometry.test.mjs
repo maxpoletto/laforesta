@@ -2,7 +2,7 @@
 
 import * as S from './strings.js';
 import {
-  aggregateMarkedTreeDendrometry, basalAreaM2, dendrometryBarChartData,
+  aggregateTreeDendrometry, basalAreaM2, dendrometryBarChartData,
   dendrometryLegendItems, dendrometryMetricMatrix, dendrometrySpeciesColor,
   dendrometrySummaryLines, diameterClassCm,
 } from './dendrometry.js';
@@ -40,7 +40,7 @@ const marked = [
   [2, 'Abete', 22, 0.2],
   [3, 'Faggio', 30, null],
 ];
-const rows = aggregateMarkedTreeDendrometry(marked, columns, {
+const rows = aggregateTreeDendrometry(marked, columns, {
   allSpeciesNames: ['Abete', 'Castagno', 'Faggio'],
 });
 assertEqual(rows.map(row => [row.species, row.diameterClassCm, row.treeCount]),

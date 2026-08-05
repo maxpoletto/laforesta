@@ -244,8 +244,8 @@ function buildSubsectionTemplate() {
 }
 
 function buildDendrometrySummaryTemplate() {
-  const summary = el('section', { className: 'pdt-dendrometry-summary' });
-  summary.appendChild(el('div', { className: 'pdt-dendrometry-summary-header' }, [
+  const summary = el('section', { className: 'tree-dendrometry-summary' });
+  summary.appendChild(el('div', { className: 'tree-dendrometry-summary-header' }, [
     el('h3'),
     el('button', { className: 'btn btn-export', dataset: { action: 'export-dendrometry' } }),
   ]));
@@ -308,7 +308,7 @@ const templates = {
   'tmpl-pdt-page': { content: buildPageTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
   'tmpl-pdt-item-subsection': { content: buildSubsectionTemplate() },
-  'tmpl-pdt-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
+  'tmpl-tree-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
   'tmpl-pdt-mark-popover': { content: buildMarkPopoverTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
@@ -995,7 +995,7 @@ async function finish() {
      ['Abete bianco', 'Faggio'], 'unfiltered dendrometry includes both species');
   eq(contentEl.querySelectorAll('.dendrometry-species-item').length, 2,
      'summary renders one shared species legend');
-  eq(contentEl.querySelectorAll('.pdt-dendrometry-summary input').length, 0,
+  eq(contentEl.querySelectorAll('.tree-dendrometry-summary input').length, 0,
      'species legend has no checkbox controls');
   eq(contentEl.querySelectorAll('.pdt-dendrometry-table').length, 0,
      'summary does not render matrix tables');
@@ -1061,7 +1061,7 @@ async function finish() {
   await flushSeveral(6);
 
   eq(tableInstances.at(-1).data, [], 'table delete refreshes the mark table to empty');
-  check(!contentEl.querySelector('.pdt-mark-map-host'),
+  check(!contentEl.querySelector('.tree-detail-map-host'),
         'table delete removes the mark map when no geolocated rows remain');
   await finish();
   document.body.dataset.role = previousRole;
@@ -1086,7 +1086,7 @@ async function finish() {
   await flushSeveral(6);
 
   eq(tableInstances.at(-1).data, [], 'map delete refreshes the mark table to empty');
-  check(!contentEl.querySelector('.pdt-mark-map-host'),
+  check(!contentEl.querySelector('.tree-detail-map-host'),
         'map delete removes the mark map when no geolocated rows remain');
   await finish();
   document.body.dataset.role = previousRole;
