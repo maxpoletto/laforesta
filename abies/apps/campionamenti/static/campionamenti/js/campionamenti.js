@@ -300,7 +300,7 @@ function buildPage(el, params) {
     activateSurvey(parseInt(r.pulldown.value, 10));
     syncURL();
   });
-  populatePulldown(r.pulldown, surveysData, surveyPulldownLabel);
+  populateSurveyPulldown(r.pulldown);
 
   // Trees section refs.
   sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
@@ -349,12 +349,65 @@ function populatePulldown(sel, digest, labelFn) {
   }
 }
 
-function surveyPulldownLabel(row) {
+function surveyTreeCounts() {
+  const totals = new Map();
+  if (!samplesData) return totals;
+  const surveyCol = samplesData.columns.indexOf(S.COL_SURVEY);
+  const treesCol = samplesData.columns.indexOf(S.COL_N_TREES);
+  if (surveyCol < 0 || treesCol < 0) return totals;
+  for (const row of samplesData.rows) {
+    const surveyId = row[surveyCol];
+    totals.set(surveyId, (totals.get(surveyId) || 0) + (Number(row[treesCol]) || 0));
+  }
+  return totals;
+}
+
+function surveyPulldownLabel(row, treeCounts) {
   const c = surveysData.columns;
   const name = row[c.indexOf(S.COL_NAME)];
+  const gridId = row[c.indexOf(S.COL_GRID)];
+  if (gridId === null || gridId === undefined) {
+    const surveyId = row[c.indexOf(ROW_ID)];
+    return S.SAMPLES_FREE_SURVEY_OPTION(name, treeCounts.get(surveyId) || 0);
+  }
   const vis = row[c.indexOf(S.COL_N_AREAS_VISITED)];
   const tot = row[c.indexOf(S.COL_N_AREAS_TOTAL)];
   return S.SAMPLES_SURVEY_OPTION(name, vis, tot);
+}
+
+function populateSurveyPulldown(sel) {
+  if (!sel || !surveysData) return;
+  sel.replaceChildren();
+  const c = surveysData.columns;
+  const idCol = c.indexOf(ROW_ID);
+  const nameCol = c.indexOf(S.COL_NAME);
+  const gridCol = c.indexOf(S.COL_GRID);
+  const treeCounts = surveyTreeCounts();
+  const rows = [...surveysData.rows].sort((a, b) =>
+    String(a[nameCol]).localeCompare(String(b[nameCol]), S.LOCALE)
+      || Number(a[idCol]) - Number(b[idCol]));
+  const groups = [
+    {
+      label: S.SAMPLES_FREE_SURVEYS_GROUP,
+      rows: rows.filter(row => row[gridCol] === null || row[gridCol] === undefined),
+    },
+    {
+      label: S.SAMPLES_STRUCTURED_SURVEYS_GROUP,
+      rows: rows.filter(row => row[gridCol] !== null && row[gridCol] !== undefined),
+    },
+  ];
+  for (const group of groups) {
+    if (!group.rows.length) continue;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    for (const row of group.rows) {
+      const opt = document.createElement('option');
+      opt.value = String(row[idCol]);
+      opt.textContent = surveyPulldownLabel(row, treeCounts);
+      optgroup.appendChild(opt);
+    }
+    sel.appendChild(optgroup);
+  }
 }
 
 function updateGridEmptyState() {
@@ -466,21 +519,19 @@ function rebuildSection(key, activeId) {
   const cfg = {
     g: {
       destroy: destroyGriglieMap,
-      digest: gridsData,
-      labelFn: null,
+      populate: sel => populatePulldown(sel, gridsData),
       postRebuild: updateGridEmptyState,
       activate: activateGrid,
     },
     r: {
       destroy: destroyRilevamentiMap,
-      digest: surveysData,
-      labelFn: surveyPulldownLabel,
+      populate: populateSurveyPulldown,
       postRebuild: null,
       activate: activateSurvey,
     },
   }[key];
   cfg.destroy();
-  populatePulldown(sections[key].pulldown, cfg.digest, cfg.labelFn);
+  cfg.populate(sections[key].pulldown);
   cfg.postRebuild?.();
   if (activeId != null) cfg.activate(activeId);
   syncURL();
@@ -1442,12 +1493,12 @@ function updatePulldownOption(section, id, digest, column) {
   if (opt) opt.textContent = row[c.indexOf(column)];
 }
 
-/** Survey pulldown label is "<name> (<n>/<m> aree)" — rebuild from cache. */
+/** Rebuild the grouped survey pulldown from the survey and sample caches. */
 function rebuildSurveyPulldown() {
   const sel = sections.r.pulldown;
   if (!sel) return;
   const prev = sel.value;
-  populatePulldown(sel, surveysData, surveyPulldownLabel);
+  populateSurveyPulldown(sel);
   if (prev) sel.value = prev;
 }
 
@@ -1537,8 +1588,8 @@ function applySideEffects(data) {
   if (touchedSurveys) {
     surveysData = cache.get(SURVEYS_ID);
     if (activeSurveyId != null) renderRilevamentiSummary(activeSurveyId);
-    rebuildSurveyPulldown();
   }
+  if (touchedSamples || touchedSurveys) rebuildSurveyPulldown();
   if (touchedGrids) {
     gridsData = cache.get(GRIDS_ID);
     if (activeGridId != null) renderGriglieSummary(activeGridId);

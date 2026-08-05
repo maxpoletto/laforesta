@@ -185,6 +185,10 @@ function el(tag, { id = '', className = '', dataset = {} } = {}, children = []) 
 function section(key) {
   const header = el('div', { className: 'collapsible-header', dataset: { section: key } });
   const body = el('div', { className: 'collapsible-body', dataset: { section: key } });
+  if (key === 'g') body.appendChild(el('select', { id: 'campionamenti-grid-select' }));
+  if (key === 'r') {
+    body.appendChild(el('select', { id: 'campionamenti-survey-select' }));
+  }
   return [header, body];
 }
 
@@ -289,14 +293,20 @@ function digest(columns, rows) {
 const payloads = new Map([
   ['/api/campionamenti/surveys/data/', digest(
     [ROW_ID, S.COL_NAME, S.COL_GRID, S.COL_N_AREAS_VISITED, S.COL_N_AREAS_TOTAL, S.COL_DATE_FIRST, S.COL_DATE_LAST],
-    [[1, 'Rilevamento A', 10, 0, 0, '', ''], [2, 'Rilevamento B', 10, 0, 0, '', '']],
+    [[1, 'Rilevamento Z', 10, 2, 4, '', ''],
+     [2, 'Alberi da preservare', null, 30, 0, '', ''],
+     [3, 'Abbattimenti urgenti', null, 1, 0, '', ''],
+     [4, 'Rilevamento A', 10, 3, 9, '', '']],
   )],
   ['/api/campionamenti/grids/data/', digest(
     [ROW_ID, S.COL_NAME, S.COL_N_AREAS, S.COL_REGIONS, S.COL_N_SURVEYS, S.COL_LAST_UPDATE],
     [[10, 'Griglia', 0, '', 2, '2026-01-01']],
   )],
   ['/api/campionamenti/sample-areas/data/', digest([ROW_ID, S.COL_GRID], [])],
-  ['/api/campionamenti/samples/data/', digest([ROW_ID, S.COL_SURVEY, S.COL_SAMPLE_AREA, S.COL_N_TREES], [])],
+  ['/api/campionamenti/samples/data/', digest(
+    [ROW_ID, S.COL_SURVEY, S.COL_SAMPLE_AREA, S.COL_N_TREES],
+    [[100, 2, null, 1490], [101, 2, null, 5], [102, 3, null, 1]],
+  )],
   ['/api/geo/terreni.geojson', { type: 'FeatureCollection', features: [] }],
   ['/api/campionamenti/grid/form/', { html: '<div id=\"campionamenti-grid-modal\"></div>' }],
 ]);
@@ -322,6 +332,26 @@ globalThis.fetch = async (url) => {
 const campionamenti = await import(staticModule('campionamenti/js/campionamenti.js'));
 
 await campionamenti.mount({});
+
+const surveySelect = contentEl.querySelector('#campionamenti-survey-select');
+const [freeSurveys, structuredSurveys] = surveySelect.children;
+eq(
+  surveySelect.children.map(group => group.label),
+  [S.SAMPLES_FREE_SURVEYS_GROUP, S.SAMPLES_STRUCTURED_SURVEYS_GROUP],
+  'survey picker groups free surveys before structured surveys',
+);
+eq(
+  freeSurveys.children.map(option => [option.value, option.textContent]),
+  [['3', 'Abbattimenti urgenti (1 albero)'],
+   ['2', 'Alberi da preservare (1495 alberi)']],
+  'free surveys are alphabetical and display summed tree counts',
+);
+eq(
+  structuredSurveys.children.map(option => [option.value, option.textContent]),
+  [['4', 'Rilevamento A (3/9 aree)'], ['1', 'Rilevamento Z (2/4 aree)']],
+  'structured surveys are alphabetical and retain area-progress labels',
+);
+
 campionamenti.onQueryChange({ s: '2' });
 
 treeLoads.get('/api/campionamenti/trees/2/').resolve(digest([ROW_ID], [[2]]));

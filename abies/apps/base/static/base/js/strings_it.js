@@ -211,6 +211,10 @@ export const SAMPLES_TREES_HEADER_AREA = (area, n) =>
   `area di campionamento ${area.numero} / ${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_TREES_HEADER_COUNT = (n) =>
   `(${SAMPLES_TREE_COUNT(n)})`;
+export const SAMPLES_FREE_SURVEYS_GROUP = '-- Rilevamenti liberi --';
+export const SAMPLES_STRUCTURED_SURVEYS_GROUP = '-- Rilevamenti predefiniti --';
+export const SAMPLES_FREE_SURVEY_OPTION = (name, nTrees) =>
+  `${name} (${SAMPLES_TREE_COUNT(nTrees)})`;
 export const SAMPLES_SURVEY_OPTION = (name, visited, total) =>
   `${name} (${visited}/${total} aree)`;
 export const SAMPLES_GRID_SUMMARY = (areas, regions, surveys, updatedAt) =>

@@ -135,6 +135,14 @@ rilevamento). Deleting an empty survey shows a simple warning. Deleting a
 survey with trees prompts with a deletion-after-export modal (see UI Design
 Patterns > Deletion-after-export).
 
+The pulldown separates surveys into **Rilevamenti liberi** and
+**Rilevamenti predefiniti** optgroups, in that order, and sorts each group
+alphabetically. Free surveys are labelled `Nome (N alberi)`, where the count
+is the sum of their samples' materialized `N. alberi` values. Structured
+surveys retain the `Nome (visitate/totali aree)` label. The groups and labels
+are rebuilt from the survey and sample caches so tree edits and imports update
+the free-survey counts without a page reload.
+
 Summary line: descrizione, griglia, n. aree visitate / totali, data primo/ultimo
 campione.
 
