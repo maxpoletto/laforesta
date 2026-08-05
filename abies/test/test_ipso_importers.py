@@ -5,10 +5,13 @@ from datetime import date
 import pytest
 
 from apps.base.models import Sample, SampleArea, SampleGrid, Survey
-from apps.ipso.importers import record_measurements, sample_import_rows
+from apps.ipso.importers import (
+    free_survey_import_rows, record_measurements, sample_import_rows,
+)
 from config import strings as S
 from config.constants import (
     FIELD_DATE, FIELD_D_CM, FIELD_H_M, FIELD_NUMBER, FIELD_PARCEL_ID,
+    FIELD_PRESERVED,
     FIELD_PRESSLER_COEFF,
     FIELD_SAMPLE_AREA_ID, FIELD_SPECIES_ID, RECORDS, SESSION,
 )
@@ -36,6 +39,18 @@ def _sample_record(area, species, **overrides):
     }
     record.update(overrides)
     return record
+
+
+def _free_record(parcel, species, number):
+    return {
+        FIELD_PARCEL_ID: parcel.id,
+        FIELD_SPECIES_ID: species.id,
+        FIELD_NUMBER: number,
+        FIELD_PRESERVED: False,
+        FIELD_DATE: '2026-06-17',
+        FIELD_D_CM: 42,
+        FIELD_H_M: '22',
+    }
 
 
 
@@ -129,6 +144,38 @@ def test_sample_import_rejects_in_payload_date_conflict(parcels, species):
             '2026-06-17',
         ),
     ]
+
+
+@pytest.mark.django_db
+def test_free_survey_import_reserves_later_explicit_numbers(parcels, species):
+    survey = Survey.objects.create(name='Mixed-number free survey')
+    payload = {
+        RECORDS: [
+            _free_record(parcels[0], species[0], number)
+            for number in (1, 2, 3, None, 4, 5)
+        ],
+    }
+
+    rows, errors = free_survey_import_rows(payload, survey)
+
+    assert errors == []
+    assert [row[FIELD_NUMBER] for row in rows] == [1, 2, 3, 6, 4, 5]
+
+
+@pytest.mark.django_db
+def test_free_survey_import_still_rejects_explicit_duplicates(parcels, species):
+    survey = Survey.objects.create(name='Duplicate-number free survey')
+    payload = {
+        RECORDS: [
+            _free_record(parcels[0], species[0], number)
+            for number in (4, 4)
+        ],
+    }
+
+    rows, errors = free_survey_import_rows(payload, survey)
+
+    assert [row[FIELD_NUMBER] for row in rows] == [4]
+    assert errors == [S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2)]
 
 
 def test_record_measurements_rejects_bad_and_non_positive_values():

@@ -164,7 +164,23 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
         .filter(sample__survey=survey)
         .values_list(FIELD_NUMBER, flat=True)
     )
-    next_sample_number = (max(seen_sample_numbers) if seen_sample_numbers else 0) + 1
+    # Reserve every valid number explicitly supplied for an ordinary row
+    # before filling blanks. Otherwise a blank between 3 and 4 would consume 4
+    # during the single-pass import and make the later explicit 4 look like a
+    # duplicate. Invalid values are deliberately left to the row validator.
+    reserved_sample_numbers = {
+        int(record[FIELD_NUMBER])
+        for record in records
+        if (
+            isinstance(record, dict)
+            and not bool(record.get(FIELD_PRESERVED))
+            and _is_positive_int_value(record.get(FIELD_NUMBER))
+        )
+    }
+    unavailable_sample_numbers = seen_sample_numbers | reserved_sample_numbers
+    next_sample_number = (
+        max(unavailable_sample_numbers) if unavailable_sample_numbers else 0
+    ) + 1
     seen_preserved_numbers = current_preserved_number_keys(parcel_ids)
 
     rows = []
@@ -207,10 +223,11 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
 
         sample_number = None if preserved else number
         if sample_number is None:
-            while next_sample_number in seen_sample_numbers:
+            while next_sample_number in unavailable_sample_numbers:
                 next_sample_number += 1
             sample_number = next_sample_number
             next_sample_number += 1
+            unavailable_sample_numbers.add(sample_number)
         if sample_number in seen_sample_numbers:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
             continue
@@ -225,6 +242,15 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
             continue
         rows.append(parsed)
     return rows, errors
+
+
+def _is_positive_int_value(value) -> bool:
+    if value is None:
+        return False
+    try:
+        return int(value) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def _payload_records(payload: dict) -> list | None:
