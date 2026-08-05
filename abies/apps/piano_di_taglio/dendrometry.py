@@ -12,7 +12,8 @@ def render_mark_dendrometry_csvs(marks) -> list[tuple[str, str]]:
     """Return tree-count, volume, and basal-area CSV matrices.
 
     Every matrix uses species on rows and a continuous sequence of 5 cm
-    diameter classes on columns, matching the client-side charts and tables.
+    diameter classes on columns. Species whose values are all zero for a
+    metric are omitted from that metric's CSV.
     """
     groups = defaultdict(lambda: {
         'tree_count': 0,
@@ -56,12 +57,18 @@ def _render_matrix_csv(groups, species, classes, metric, places) -> str:
     buf, writer = csv_io.csv_buffer(delimiter)
     writer.writerow([S.COL_SPECIES, *classes])
     for species_name in species:
-        values = []
-        for diameter_class in classes:
-            value = groups[(species_name, diameter_class)][metric]
-            if places:
-                value = Decimal(str(round(value, places)))
-                value = csv_io.format_decimal(value, decimal_sep)
-            values.append(value)
+        values = [
+            groups[(species_name, diameter_class)][metric]
+            for diameter_class in classes
+        ]
+        if not any(values):
+            continue
+        if places:
+            values = [
+                csv_io.format_decimal(
+                    Decimal(str(round(value, places))), decimal_sep,
+                )
+                for value in values
+            ]
         writer.writerow([species_name, *values])
     return buf.getvalue()

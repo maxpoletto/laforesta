@@ -3,7 +3,8 @@
 import * as S from './strings.js';
 import {
   aggregateMarkedTreeDendrometry, basalAreaM2, dendrometryBarChartData,
-  dendrometryMetricMatrix, dendrometrySpeciesColor, diameterClassCm,
+  dendrometryLegendItems, dendrometryMetricMatrix, dendrometrySpeciesColor,
+  dendrometrySummaryLines, diameterClassCm,
 } from './dendrometry.js';
 
 let failed = 0;
@@ -63,6 +64,16 @@ assertEqual(chart.labels, ['20', '25', '30'], 'chart reuses matrix classes');
 assertEqual(chart.datasets.map(dataset => dataset.data), [[0.3, 0, 0], [0, 0, 0]],
             'chart reuses matrix values');
 assertEqual(chart.legend, false, 'chart appearance matches Bosco');
+assertEqual(dendrometrySummaryLines(rows), {
+  treeCount: ['Alberi totali: 3'],
+  volume: ['Volume totale: 0,30 m³'],
+  basalArea: ['Area totale: 0,13 m²', 'Diametro medio: 23,3, σ=4,7'],
+}, 'chart summaries match Bosco totals and stacked basal-area lines');
+const zeroCountRow = {
+  ...rows[0], speciesId: 'zero', species: 'Specie zero', treeCount: 0,
+};
+assertEqual(dendrometryLegendItems([...rows, zeroCountRow]).map(item => item.name),
+            ['Abete', 'Faggio'], 'legend omits species with zero total tree count');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

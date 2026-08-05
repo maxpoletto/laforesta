@@ -1139,9 +1139,9 @@ class TestMarkDendrometryExport:
         assert response['Content-Type'] == 'application/zip'
         zf = zipfile.ZipFile(io.BytesIO(response.content))
         assert set(zf.namelist()) == {
-            S.CSV_FILE_MARK_TREE_COUNT,
-            S.CSV_FILE_MARK_VOLUME,
-            S.CSV_FILE_MARK_BASAL_AREA,
+            'numero_alberi.csv',
+            'volume_m3.csv',
+            'area_basimetrica_m2.csv',
         }
         tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
         assert tree_rows[0] == [S.COL_SPECIES, '20', '25', '30']
@@ -1152,6 +1152,7 @@ class TestMarkDendrometryExport:
         volume_rows = self._zip_rows(response, S.CSV_FILE_MARK_VOLUME)
         volume_by_species = {row[0]: row[1:] for row in volume_rows[1:]}
         assert volume_by_species[species[0].common_name] == ['0,3', '0', '0']
+        assert species[1].common_name not in volume_by_species
 
     def test_post_row_ids_exports_only_the_filtered_marks(
         self, writer_client, planned_item, species,
@@ -1169,6 +1170,24 @@ class TestMarkDendrometryExport:
             [S.COL_SPECIES, '30'],
             [species[1].common_name, '1'],
         ]
+
+    def test_post_without_row_ids_exports_all_marks(
+        self, writer_client, planned_item, species,
+    ):
+        self._marks(planned_item, species)
+        response = writer_client.post(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+            data=json.dumps({}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
+        assert len(tree_rows) == 3
+        assert {row[0] for row in tree_rows[1:]} == {
+            species[0].common_name,
+            species[1].common_name,
+        }
 
     def test_post_rejects_invalid_row_ids(self, writer_client, planned_item):
         response = writer_client.post(

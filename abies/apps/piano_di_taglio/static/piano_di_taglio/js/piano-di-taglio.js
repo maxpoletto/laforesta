@@ -29,8 +29,9 @@ import { recordIsCoppice } from '../../base/js/coppice.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
 import {
-  aggregateMarkedTreeDendrometry, renderDendrometryBarCharts,
-  renderDendrometryLegend,
+  aggregateMarkedTreeDendrometry, clearDendrometrySummaryInfo,
+  renderDendrometryBarCharts, renderDendrometryLegend,
+  renderDendrometrySummaryInfo,
 } from '../../base/js/dendrometry.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
@@ -1450,11 +1451,15 @@ async function appendItemMarkTreesMap(body, itemId, data, showActions) {
 }
 
 function filteredMarkTreeRows(data) {
-  const terms = searchTerms(itemMarkTreesTable?.getSearchText() || '');
+  const terms = markTreeSearchTerms();
   if (!terms.length) return data.rows;
   return data.rows.filter(row => (
     matchesSearch(row, terms, itemMarkTreesTable?.searchColumns)
   ));
+}
+
+function markTreeSearchTerms() {
+  return searchTerms(itemMarkTreesTable?.getSearchText() || '');
 }
 
 function updateItemMarkTreeDependents(itemId, data) {
@@ -1497,6 +1502,7 @@ function renderItemDendrometrySummary(itemId, markRows, columns) {
     if (chartGrid) chartGrid.hidden = true;
     if (legendRow) legendRow.hidden = true;
     legend?.replaceChildren();
+    clearDendrometrySummaryInfo(itemDendrometryInfoHosts());
     return;
   }
 
@@ -1521,18 +1527,30 @@ function renderItemDendrometrySummary(itemId, markRows, columns) {
     },
     existing: itemDendrometryCharts,
   });
+  renderDendrometrySummaryInfo(itemDendrometryInfoHosts(), rows);
+}
+
+function itemDendrometryInfoHosts() {
+  return {
+    treeCount: itemDendrometryRoot?.querySelector('[data-target="dendrometry-tree-count-info"]'),
+    volume: itemDendrometryRoot?.querySelector('[data-target="dendrometry-volume-info"]'),
+    basalArea: itemDendrometryRoot?.querySelector('[data-target="dendrometry-basal-area-info"]'),
+  };
 }
 
 async function downloadMarkDendrometry(itemId, data, button) {
-  const rowIds = filteredMarkTreeRows(data)
-    .map(row => markTreeRowId(row, data.columns))
-    .filter(id => id != null);
-  if (!rowIds.length) return;
+  const filtered = markTreeSearchTerms().length > 0;
+  const rowIds = filtered
+    ? filteredMarkTreeRows(data)
+      .map(row => markTreeRowId(row, data.columns))
+      .filter(id => id != null)
+    : null;
+  if (filtered && !rowIds.length) return;
   if (button) button.disabled = true;
   try {
     const { blob, filename } = await postBlob(
       `${MARK_DENDROMETRY_EXPORT_URL}${itemId}/`,
-      { [FIELD_ROW_IDS]: rowIds },
+      rowIds == null ? {} : { [FIELD_ROW_IDS]: rowIds },
     );
     downloadBlob(blob, filename);
   } catch {

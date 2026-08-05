@@ -654,11 +654,12 @@ def mark_dendrometry_export_view(request, item_id: int):
         body, error = parse_json_body(request)
         if error:
             return error
-        row_ids = body.get(FIELD_ROW_IDS)
-        if (not isinstance(row_ids, list)
-                or any(isinstance(value, bool) or not isinstance(value, int)
-                       for value in row_ids)):
-            return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
+        if FIELD_ROW_IDS in body:
+            row_ids = body[FIELD_ROW_IDS]
+            if (not isinstance(row_ids, list)
+                    or any(isinstance(value, bool) or not isinstance(value, int)
+                           for value in row_ids)):
+                return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
 
     marks = (TreeMark.objects
              .filter(harvest_plan_item=item)

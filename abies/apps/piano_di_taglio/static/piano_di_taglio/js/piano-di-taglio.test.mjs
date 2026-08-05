@@ -261,15 +261,19 @@ function buildDendrometrySummaryTemplate() {
   const grid = el('div', {
     className: 'dendrometry-chart-grid', dataset: { target: 'dendrometry-chart-grid' },
   });
-  for (const target of [
-    'dendrometry-tree-count-chart', 'dendrometry-volume-chart',
-    'dendrometry-basal-area-chart',
+  for (const [chartTarget, infoTarget] of [
+    ['dendrometry-tree-count-chart', 'dendrometry-tree-count-info'],
+    ['dendrometry-volume-chart', 'dendrometry-volume-info'],
+    ['dendrometry-basal-area-chart', 'dendrometry-basal-area-info'],
   ]) {
     grid.appendChild(el('div', { className: 'dendrometry-chart-panel' }, [
       el('h3'),
       el('div', { className: 'dendrometry-chart-canvas' }, [
-        el('canvas', { dataset: { target } }),
+        el('canvas', { dataset: { target: chartTarget } }),
       ]),
+      el('div', {
+        className: 'dendrometry-chart-info', dataset: { target: infoTarget },
+      }),
     ]));
   }
   summary.appendChild(grid);
@@ -451,6 +455,7 @@ const markDataOverrides = new Map();
 const prelieviLoads = [];
 const fetchUrls = [];
 let exportedDendrometryRowIds = null;
+let dendrometryExportCalls = 0;
 function deferItem(id) { const d = deferred(); itemLoads.set(`/api/piano-di-taglio/item/data/${id}/`, d); return d; }
 function deferMarks(id) { const d = deferred(); markLoads.set(`/api/piano-di-taglio/mark-trees/${id}/`, d); return d; }
 function deferPrelievi() { const d = deferred(); prelieviLoads.push(d); return d; }
@@ -655,7 +660,8 @@ globalThis.fetch = async (url, options = {}) => {
   }
   if (String(url).startsWith('/api/piano-di-taglio/mark/dendrometry/export/') &&
       options.method === 'POST') {
-    exportedDendrometryRowIds = JSON.parse(options.body || '{}').row_ids;
+    dendrometryExportCalls += 1;
+    exportedDendrometryRowIds = JSON.parse(options.body || '{}').row_ids ?? null;
     return {
       status: 200,
       ok: true,
@@ -699,6 +705,7 @@ async function finish() {
   tableInstances.length = 0;
   chartInstances.length = 0;
   exportedDendrometryRowIds = null;
+  dendrometryExportCalls = 0;
   markDataOverrides.clear();
   delete globalThis.L;
   leafletMaps = [];
@@ -956,6 +963,18 @@ async function finish() {
      'species legend has no checkbox controls');
   eq(contentEl.querySelectorAll('.pdt-dendrometry-table').length, 0,
      'summary does not render matrix tables');
+  const chartInfo = contentEl.querySelectorAll('.dendrometry-chart-info');
+  eq(chartInfo.map(info => info.children.map(line => line.textContent)), [
+    ['Alberi totali: 2'],
+    ['Volume totale: 3,60 m³'],
+    ['Area totale: 0,20 m²', 'Diametro medio: 35,0, σ=5,0'],
+  ], 'summary renders the same graph totals and stacked basal lines as Bosco');
+
+  contentEl.querySelector('[data-action="export-dendrometry"]').click();
+  await flushSeveral();
+  eq(dendrometryExportCalls, 1, 'unfiltered dendrometry export is requested');
+  eq(exportedDendrometryRowIds, null,
+     'unfiltered dendrometry export lets the server select all marks');
 
   const search = contentEl.querySelector('.pdt-item-card .table-search');
   search.value = 'Faggio';
@@ -971,9 +990,12 @@ async function finish() {
      'Filtra restricts the dendrometry charts');
   eq(contentEl.querySelectorAll('.dendrometry-species-item').length, 1,
      'Filtra restricts the shared species legend');
+  eq(chartInfo[0].children.map(line => line.textContent), ['Alberi totali: 1'],
+     'Filtra updates the graph summaries');
 
   contentEl.querySelector('[data-action="export-dendrometry"]').click();
   await flushSeveral();
+  eq(dendrometryExportCalls, 2, 'filtered dendrometry export is requested');
   eq(exportedDendrometryRowIds, [1102],
      'dendrometry export submits only rows in the active filter');
   await finish();

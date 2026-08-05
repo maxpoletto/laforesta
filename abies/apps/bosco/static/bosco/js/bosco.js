@@ -69,12 +69,11 @@ import {
 } from './bosco-satellite.js';
 import { positionLabelValue } from './bosco-position.js';
 import {
-  aggregateDendrometry, dendrometryBasalAreaSum,
-  dendrometryDiameterStats, dendrometryHeightPoints,
+  aggregateDendrometry, clearDendrometrySummaryInfo,
+  dendrometryHeightPoints,
   dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
-  dendrometrySpeciesColor, dendrometryTreeSum, dendrometryTreeTotal,
-  dendrometryVolumeSum, parcelNavigation, regionMetadata,
-  renderDendrometryBarCharts,
+  dendrometrySpeciesColor, parcelNavigation, regionMetadata,
+  renderDendrometryBarCharts, renderDendrometrySummaryInfo,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -1979,7 +1978,9 @@ function renderDendrometryCharts(rows, heightPoints) {
   dendrometryChartGrid.hidden = false;
   const perHa = dendrometryPerHa?.checked !== false;
   setDendrometryStatus('');
-  renderDendrometryInfo(rows, { perHa });
+  renderDendrometrySummaryInfo(dendrometrySummaryInfoHosts(), rows, { perHa });
+  dendrometryHeightInfo?.replaceChildren();
+  dendrometryIncrementInfo?.replaceChildren();
   Object.assign(dendrometryCharts, renderDendrometryBarCharts({
     rows,
     canvases: {
@@ -2012,57 +2013,20 @@ function setDendrometryStatus(message) {
   dendrometryStatus.hidden = !message;
 }
 
-function renderDendrometryInfo(rows, { perHa }) {
-  setDendrometryInfo(
-    dendrometryTreeInfo,
-    perHa
-      ? S.BOSCO_TREES_PER_HA(fmtDecimal1(dendrometryTreeSum(rows)))
-      : S.BOSCO_TOTAL_TREES(fmtInt(dendrometryTreeTotal(rows))),
-  );
-  setDendrometryInfo(
-    dendrometryVolumeInfo,
-    perHa
-      ? S.BOSCO_VOLUME_PER_HA_SUMMARY(S.BOSCO_VOLUME_PER_HA_VALUE(
-        fmtDecimal2(dendrometryVolumeSum(rows)),
-      ))
-      : S.BOSCO_TOTAL_VOLUME(fmtVolume(dendrometryVolumeSum(rows))),
-  );
-
-  const basalArea = dendrometryBasalAreaSum(rows);
-  const diameterStats = dendrometryDiameterStats(rows);
-  const basalLines = [
-    perHa
-      ? S.BOSCO_BASAL_AREA_PER_HA_SUMMARY(S.BOSCO_BASAL_AREA_PER_HA_VALUE(
-        fmtDecimal2(basalArea),
-      ))
-      : S.BOSCO_TOTAL_BASAL_AREA(S.BOSCO_BASAL_AREA_VALUE(fmtDecimal2(basalArea))),
-  ];
-  if (diameterStats) {
-    basalLines.push(S.BOSCO_AVG_DIAMETER(
-      fmtDecimal1(diameterStats.meanCm), fmtDecimal1(diameterStats.sigmaCm),
-    ));
-  }
-  setDendrometryInfo(dendrometryBasalAreaInfo, basalLines);
-  setDendrometryInfo(dendrometryHeightInfo, '');
-  setDendrometryInfo(dendrometryIncrementInfo, '');
-}
-
-function setDendrometryInfo(el, content) {
-  if (!el) return;
-  el.replaceChildren();
-  const lines = Array.isArray(content) ? content : [content];
-  for (const line of lines.filter(Boolean)) {
-    const div = document.createElement('div');
-    div.textContent = line;
-    el.appendChild(div);
-  }
+function dendrometrySummaryInfoHosts() {
+  return {
+    treeCount: dendrometryTreeInfo,
+    volume: dendrometryVolumeInfo,
+    basalArea: dendrometryBasalAreaInfo,
+  };
 }
 
 function clearDendrometryInfo() {
-  [
-    dendrometryTreeInfo, dendrometryVolumeInfo, dendrometryBasalAreaInfo,
-    dendrometryHeightInfo, dendrometryIncrementInfo,
-  ].forEach(el => setDendrometryInfo(el, ''));
+  clearDendrometrySummaryInfo({
+    ...dendrometrySummaryInfoHosts(),
+    height: dendrometryHeightInfo,
+    increment: dendrometryIncrementInfo,
+  });
 }
 
 function showNoDendrometryData() {

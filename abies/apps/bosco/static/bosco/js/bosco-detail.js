@@ -3,10 +3,12 @@ import {
   COL_PARCEL_ID, COL_SPECIES_ID, COL_SURVEY_ID, ROWS,
 } from '../../base/js/constants.js';
 import {
-  dendrometryBarChartData, dendrometryBasalAreaSum, dendrometryChartKey,
+  clearDendrometrySummaryInfo, dendrometryBarChartData,
+  dendrometryBasalAreaSum, dendrometryChartKey,
   dendrometryDiameterStats, dendrometryLineChartData, dendrometrySpeciesColor,
   dendrometrySpeciesColorMap, dendrometryTreeSum, dendrometryTreeTotal,
   dendrometryVolumeSum, renderDendrometryBarCharts,
+  renderDendrometrySummaryInfo,
 } from '../../base/js/dendrometry.js';
 import { fmtDecimal3 } from '../../base/js/format.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
@@ -14,9 +16,11 @@ import { columnMap, toNumber } from '../../base/js/digests.js';
 const HEIGHT_FIT_MIN_N = 5;
 
 export {
-  dendrometryBarChartData, dendrometryBasalAreaSum, dendrometryDiameterStats,
+  clearDendrometrySummaryInfo, dendrometryBarChartData,
+  dendrometryBasalAreaSum, dendrometryDiameterStats,
   dendrometryLineChartData, dendrometrySpeciesColor, dendrometryTreeSum,
   dendrometryTreeTotal, dendrometryVolumeSum, renderDendrometryBarCharts,
+  renderDendrometrySummaryInfo,
 };
 
 export function parcelNavigation(entries, parcelId) {

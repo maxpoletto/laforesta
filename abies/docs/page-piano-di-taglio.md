@@ -261,19 +261,24 @@ The modal displays:
    As in Bosco detail, one species color legend is displayed above the charts.
    It is informational rather than a second set of checkbox filters: the marks
    table's **Filtra** input is the sole control for the visible species.
+   Beneath the charts, the shared Bosco summaries show Alberi totali, Volume
+   totale, and the two stacked basal-area lines (Area totale and Diametro
+   medio with σ); these totals follow the active filter too.
 
    The title row carries a standard grey **Esporta** button at the far right. It downloads
    `riassunto_dendrometrico_<item-id>.zip`, containing:
 
    - `numero_alberi.csv`
-   - `volume.csv`
-   - `area_basimetrica.csv`
+   - `volume_m3.csv`
+   - `area_basimetrica_m2.csv`
 
    Each CSV is a matrix with species on rows and a continuous sequence of
    five-centimetre diameter classes on columns; missing combinations are zero.
-   It uses the active locale's CSV delimiter and decimal separator. The client POSTs the currently
-   filtered mark row IDs, so the ZIP exactly matches the visible summary; the
-   endpoint also accepts GET to export all marks for integrations.
+   Species whose entire row is zero for that metric are omitted. It uses the
+   active locale's CSV delimiter and decimal separator. With an active filter,
+   the client POSTs the displayed mark row IDs so the ZIP exactly matches the
+   visible summary. Without a filter it leaves row IDs unspecified and the
+   server exports all marks; the endpoint also accepts GET for integrations.
 
    Each row has pencil / trash icons. Editing or deleting an individual
    row obeys state monotonicity (per `database.md`): deleting the last

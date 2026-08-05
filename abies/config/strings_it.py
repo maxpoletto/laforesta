@@ -736,8 +736,8 @@ CSV_FILE_HIGHFOREST = 'fustaia.csv'
 CSV_FILE_COPPICE    = 'ceduo.csv'
 CSV_FILE_REGRESSION = 'equazioni_ipsometro.csv'
 CSV_FILE_MARK_TREE_COUNT = 'numero_alberi.csv'
-CSV_FILE_MARK_VOLUME = 'volume.csv'
-CSV_FILE_MARK_BASAL_AREA = 'area_basimetrica.csv'
+CSV_FILE_MARK_VOLUME = 'volume_m3.csv'
+CSV_FILE_MARK_BASAL_AREA = 'area_basimetrica_m2.csv'
 ZIP_FILE_MARK_DENDROMETRY = 'riassunto_dendrometrico_{}.zip'
 
 # Canonical bootstrap data-dir filenames (reference/container files derive their

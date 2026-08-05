@@ -11,6 +11,7 @@ import {
   chartSeriesColor, renderStackedBar, speciesColorMap as chartSpeciesColorMap,
 } from './charts.js';
 import { columnMap, toNumber } from './digests.js';
+import { fmtDecimal1, fmtDecimal2, fmtInt, fmtVolume } from './format.js';
 
 export function dendrometrySpeciesColor(idx) {
   return chartSeriesColor(idx);
@@ -128,7 +129,7 @@ export function renderDendrometryBarCharts({
 export function renderDendrometryLegend(host, rows) {
   if (!host) return;
   const doc = host.ownerDocument || globalThis.document;
-  const { species } = dendrometryChartAxes(rows);
+  const species = dendrometryLegendItems(rows);
   host.replaceChildren(...species.map(item => {
     const label = doc.createElement('span');
     label.className = 'dendrometry-species-item';
@@ -138,6 +139,19 @@ export function renderDendrometryLegend(host, rows) {
     label.append(dot, doc.createTextNode(item.name));
     return label;
   }));
+}
+
+/** Species with a positive summed tree count, in chart display order. */
+export function dendrometryLegendItems(rows) {
+  const counts = new Map();
+  for (const row of rows) {
+    counts.set(
+      row.speciesId,
+      (counts.get(row.speciesId) || 0) + toNumber(row.treeCount, 0),
+    );
+  }
+  const { species } = dendrometryChartAxes(rows);
+  return species.filter(item => (counts.get(item.id) || 0) > 0);
 }
 
 export function dendrometryLineChartData(rows, metric, yTitle) {
@@ -201,6 +215,58 @@ export function dendrometryDiameterStats(rows) {
     meanCm: round(mean, 4),
     sigmaCm: round(Math.sqrt(varianceTotal / weight), 4),
   };
+}
+
+/** Return the localized lines shown below the three core charts. */
+export function dendrometrySummaryLines(rows, { perHa = false } = {}) {
+  const basalArea = dendrometryBasalAreaSum(rows);
+  const diameterStats = dendrometryDiameterStats(rows);
+  const basalLines = [
+    perHa
+      ? S.BOSCO_BASAL_AREA_PER_HA_SUMMARY(S.BOSCO_BASAL_AREA_PER_HA_VALUE(
+        fmtDecimal2(basalArea),
+      ))
+      : S.BOSCO_TOTAL_BASAL_AREA(S.BOSCO_BASAL_AREA_VALUE(fmtDecimal2(basalArea))),
+  ];
+  if (diameterStats) {
+    basalLines.push(S.BOSCO_AVG_DIAMETER(
+      fmtDecimal1(diameterStats.meanCm), fmtDecimal1(diameterStats.sigmaCm),
+    ));
+  }
+  return {
+    treeCount: [
+      perHa
+        ? S.BOSCO_TREES_PER_HA(fmtDecimal1(dendrometryTreeSum(rows)))
+        : S.BOSCO_TOTAL_TREES(fmtInt(dendrometryTreeTotal(rows))),
+    ],
+    volume: [
+      perHa
+        ? S.BOSCO_VOLUME_PER_HA_SUMMARY(S.BOSCO_VOLUME_PER_HA_VALUE(
+          fmtDecimal2(dendrometryVolumeSum(rows)),
+        ))
+        : S.BOSCO_TOTAL_VOLUME(fmtVolume(dendrometryVolumeSum(rows))),
+    ],
+    basalArea: basalLines,
+  };
+}
+
+/** Render Bosco's localized summary lines into the three chart info hosts. */
+export function renderDendrometrySummaryInfo(hosts, rows, options = {}) {
+  const summaries = dendrometrySummaryLines(rows, options);
+  for (const [key, lines] of Object.entries(summaries)) {
+    const host = hosts?.[key];
+    if (!host) continue;
+    const doc = host.ownerDocument || globalThis.document;
+    host.replaceChildren(...lines.map(line => {
+      const div = doc.createElement('div');
+      div.textContent = line;
+      return div;
+    }));
+  }
+}
+
+export function clearDendrometrySummaryInfo(hosts) {
+  for (const host of Object.values(hosts || {})) host?.replaceChildren();
 }
 
 function dendrometryMetricValues(rows, metric) {
