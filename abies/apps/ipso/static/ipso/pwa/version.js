@@ -2,4 +2,4 @@
 // classic <script>) and by sw.js (via importScripts). Bump this and run
 // `make deploy`.
 'use strict';
-const APP_VERSION = '1.3.21';
+const APP_VERSION = '1.4.0';
