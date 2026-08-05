@@ -26,7 +26,8 @@ check(pdf.startsWith('%PDF-1.4'), 'PDF header');
 check(pdf.includes('/Count 1'), 'page count');
 check(pdf.includes('/BaseFont /Helvetica'), 'regular font resource');
 check(pdf.includes('/Encoding /WinAnsiEncoding'), 'font encoding');
-check(pdf.includes('(A\\(B\\) \\\\ a)'), 'escaped single-byte text');
+check(pdf.includes('<41284229205c20e0>'),
+      'WinAnsi hex text preserves diacritics');
 check(!pdf.includes('FEFF'), 'no UTF-16 marker in text');
 check(pdf.includes('xref'), 'xref table present');
 check(pdf.endsWith('%%EOF\n'), 'EOF marker');

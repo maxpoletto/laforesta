@@ -51,6 +51,10 @@
 
 .bosco-sidebar-section:last-child { border-bottom: none; }
 
+.bosco-sidebar-section[data-mode-panel="4"] {
+  border-bottom: 1px solid #c9d3c7;
+}
+
 .bosco-sidebar-section h2 {
   margin-bottom: 8px;
   font-size: 1rem;

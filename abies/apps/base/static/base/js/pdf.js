@@ -169,8 +169,14 @@ function hexFromBase64(value) {
 }
 
 function pdfString(value) {
+  const text = safeText(value);
+  if (isAsciiPDFLiteral(text)) return pdfLiteralString(text);
+  return `<${winAnsiHex(text)}>`;
+}
+
+function pdfLiteralString(text) {
   let out = '(';
-  for (const ch of safeText(value)) {
+  for (const ch of text) {
     if (ch === '\\' || ch === '(' || ch === ')') out += `\\${ch}`;
     else if (ch === '\n') out += '\\n';
     else if (ch === '\r') out += '\\r';
@@ -179,15 +185,28 @@ function pdfString(value) {
   return `${out})`;
 }
 
+function isAsciiPDFLiteral(text) {
+  for (const ch of text) {
+    if (ch.charCodeAt(0) > 0x7e) return false;
+  }
+  return true;
+}
+
+function winAnsiHex(text) {
+  let out = '';
+  for (const ch of text) {
+    out += ch.charCodeAt(0).toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
 function safeText(value) {
   return String(value ?? '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[\u2013\u2014]/g, '-')
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/\u20AC/g, 'EUR')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '?');
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '?');
 }
 
 function num(value) {
