@@ -547,6 +547,101 @@ input:focus, select:focus, textarea:focus {
 
 .collapsible-body.open { display: block; }
 
+/* Shared dendrometry chart layout. Bosco and Piano di taglio intentionally
+   use the same component so sizing and responsive behavior cannot drift. */
+.dendrometry-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  column-gap: 14px;
+  row-gap: 32px;
+}
+
+.dendrometry-chart-grid[hidden] {
+  display: none;
+}
+
+.dendrometry-chart-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 380px;
+  min-height: 0;
+}
+
+.dendrometry-chart-panel h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.dendrometry-chart-canvas {
+  min-height: 0;
+  position: relative;
+}
+
+.dendrometry-chart-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.dendrometry-chart-info {
+  color: #444;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  margin-top: 8px;
+}
+
+.dendrometry-chart-info:empty {
+  margin-top: 0;
+}
+
+.dendrometry-species-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+}
+
+.dendrometry-species-row[hidden] {
+  display: none;
+}
+
+.dendrometry-species-label {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.dendrometry-species-legend {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  min-width: 0;
+}
+
+.dendrometry-species-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 400;
+}
+
+.dendrometry-species-dot {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 12px;
+  min-width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border: 1px solid #5f6a5d;
+}
+
 /* Sub-section building blocks — used inside collapsible bodies for
    totals lines, table hosts, action button rows, and info banners. */
 

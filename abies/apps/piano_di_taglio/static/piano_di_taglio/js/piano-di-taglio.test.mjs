@@ -44,6 +44,7 @@ class MockElement {
     this.rel = '';
     this.type = '';
     this.download = '';
+    this.disabled = false;
     this.removed = false;
     this._listeners = {};
     this.style = { setProperty: (k, v) => { this.style[k] = v; } };
@@ -98,6 +99,11 @@ class MockElement {
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   removeEventListener(type, fn) {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
+  }
+  dispatchEvent(event) {
+    event.target ||= this;
+    for (const fn of this._listeners[event.type] || []) fn(event);
+    return true;
   }
   click() {
     const event = { target: this, preventDefault() {} };
@@ -172,6 +178,8 @@ class MockElement {
     clone.href = this.href;
     clone.rel = this.rel;
     clone.type = this.type;
+    clone.download = this.download;
+    clone.disabled = this.disabled;
     if (deep) for (const child of this.children) clone.appendChild(child.cloneNode(true));
     return clone;
   }
@@ -235,6 +243,39 @@ function buildSubsectionTemplate() {
   ]);
 }
 
+function buildDendrometrySummaryTemplate() {
+  const summary = el('section', { className: 'pdt-dendrometry-summary' });
+  summary.appendChild(el('div', { className: 'pdt-dendrometry-summary-header' }, [
+    el('h3'),
+    el('button', { className: 'btn btn-export', dataset: { action: 'export-dendrometry' } }),
+  ]));
+  summary.appendChild(el('p', { dataset: { target: 'dendrometry-status' } }));
+  summary.appendChild(el('div', {
+    className: 'dendrometry-species-row', dataset: { target: 'dendrometry-species-row' },
+  }, [
+    el('span', { className: 'dendrometry-species-label' }),
+    el('div', {
+      className: 'dendrometry-species-legend', dataset: { target: 'dendrometry-species' },
+    }),
+  ]));
+  const grid = el('div', {
+    className: 'dendrometry-chart-grid', dataset: { target: 'dendrometry-chart-grid' },
+  });
+  for (const target of [
+    'dendrometry-tree-count-chart', 'dendrometry-volume-chart',
+    'dendrometry-basal-area-chart',
+  ]) {
+    grid.appendChild(el('div', { className: 'dendrometry-chart-panel' }, [
+      el('h3'),
+      el('div', { className: 'dendrometry-chart-canvas' }, [
+        el('canvas', { dataset: { target } }),
+      ]),
+    ]));
+  }
+  summary.appendChild(grid);
+  return el('fragment', {}, [summary]);
+}
+
 function buildConfirmTemplate() {
   const frag = el('fragment');
   frag.appendChild(el('p', { dataset: { field: 'message' } }));
@@ -263,6 +304,7 @@ const templates = {
   'tmpl-pdt-page': { content: buildPageTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
   'tmpl-pdt-item-subsection': { content: buildSubsectionTemplate() },
+  'tmpl-pdt-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
   'tmpl-pdt-mark-popover': { content: buildMarkPopoverTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
@@ -318,6 +360,7 @@ function appendMockControls(opts) {
 class MockSortableTable {
   constructor(opts) {
     this.container = opts.container;
+    this._allData = opts.data;
     this.data = opts.data;
     this.columns = opts.columns;
     this.currentSort = opts.sort || { column: opts.columns.find(c => !c.hidden)?.key, ascending: true };
@@ -326,9 +369,9 @@ class MockSortableTable {
     appendMockControls(opts);
     tableInstances.push(this);
   }
-  setData(rows) { this.data = rows; }
-  filter(fn) { this.data = this.data.filter(fn); }
-  clearFilter() {}
+  setData(rows) { this._allData = rows; this.data = rows; }
+  filter(fn) { this.data = this._allData.filter(fn); }
+  clearFilter() { this.data = this._allData; }
   sort(column, _type, ascending) {
     this.currentSort = { column, ascending };
     this.onSort?.(column, ascending);
@@ -338,7 +381,22 @@ class MockSortableTable {
 
 let browserConfirmCalls = 0;
 globalThis.confirm = () => { browserConfirmCalls += 1; return false; };
-globalThis.window = { SortableTable: MockSortableTable, addEventListener() {} };
+const chartInstances = [];
+class MockChart {
+  constructor(_canvas, config) {
+    this.data = config.data;
+    this.options = config.options;
+    this.destroyed = false;
+    chartInstances.push(this);
+  }
+  update() {}
+  destroy() { this.destroyed = true; }
+}
+globalThis.window = {
+  SortableTable: MockSortableTable,
+  Chart: MockChart,
+  addEventListener() {},
+};
 
 function deferred() {
   let resolve;
@@ -355,6 +413,10 @@ const { COL_COPPICE, ROW_ID, VERSION } = await import(staticModule('base/js/cons
 
 const planColumns = [ROW_ID, S.COL_NAME, S.COL_DESCRIPTION, S.COL_YEAR_START, S.COL_YEAR_END];
 const planDigest = { columns: planColumns, rows: [[10, 'Piano', '', 2026, 2029]] };
+const speciesDigest = {
+  columns: [ROW_ID, S.COL_NAME],
+  rows: [[1, 'Abete bianco'], [2, 'Castagno'], [3, 'Faggio']],
+};
 const itemColumns = [
   ROW_ID, VERSION, S.COL_HARVEST_PLAN,
   S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_REGION, S.COL_PARCEL,
@@ -388,6 +450,7 @@ const markLoads = new Map();
 const markDataOverrides = new Map();
 const prelieviLoads = [];
 const fetchUrls = [];
+let exportedDendrometryRowIds = null;
 function deferItem(id) { const d = deferred(); itemLoads.set(`/api/piano-di-taglio/item/data/${id}/`, d); return d; }
 function deferMarks(id) { const d = deferred(); markLoads.set(`/api/piano-di-taglio/mark-trees/${id}/`, d); return d; }
 function deferPrelievi() { const d = deferred(); prelieviLoads.push(d); return d; }
@@ -576,6 +639,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (url === '/api/piano-di-taglio/plans/data/') return response(planDigest);
   if (url === '/api/piano-di-taglio/items/data/') return response(itemsDigest);
   if (url === '/api/impostazioni/hypso-params/data/') return response({ columns: [], rows: [] });
+  if (url === '/api/species/data/') return response(speciesDigest);
   if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
   if (url === '/api/piano-di-taglio/mark/delete/' && options.method === 'POST') {
     const body = JSON.parse(options.body || '{}');
@@ -588,6 +652,17 @@ globalThis.fetch = async (url, options = {}) => {
     return response({
       deletes: [{ data_id: `mark_trees_${itemId}`, row_id: rowId }],
     });
+  }
+  if (String(url).startsWith('/api/piano-di-taglio/mark/dendrometry/export/') &&
+      options.method === 'POST') {
+    exportedDendrometryRowIds = JSON.parse(options.body || '{}').row_ids;
+    return {
+      status: 200,
+      ok: true,
+      headers: { get: h => h === 'Content-Disposition'
+        ? 'attachment; filename="riassunto.zip"' : null },
+      blob: async () => new Blob(['zip']),
+    };
   }
   if (itemLoads.has(url)) return response(await itemLoads.get(url).promise);
   if (markDataOverrides.has(url)) return response(markDataOverrides.get(url), 'v2');
@@ -622,6 +697,8 @@ async function finish() {
   contentEl.replaceChildren();
   modalEl.replaceChildren();
   tableInstances.length = 0;
+  chartInstances.length = 0;
+  exportedDendrometryRowIds = null;
   markDataOverrides.clear();
   delete globalThis.L;
   leafletMaps = [];
@@ -844,6 +921,61 @@ async function finish() {
      'mark table reflects the edited digest row after re-render');
   eq(latestTreeMarkers().map(marker => marker.latlng), [[38.25, 16.35]],
      'mark map reflects the edited coordinates after re-render');
+  await finish();
+}
+
+// The mark-table Filtra input drives the table, map, dendrometry, and ZIP rows.
+{
+  installLeafletMock();
+  const item = deferItem(11);
+  const marks = deferMarks(11);
+  const digest = markDigest(11);
+  const second = [...digest.rows[0]];
+  second[digest.columns.indexOf(ROW_ID)] = 1102;
+  second[digest.columns.indexOf(S.COL_NUMBER)] = 2;
+  second[digest.columns.indexOf(S.COL_SPECIES)] = 'Faggio';
+  second[digest.columns.indexOf(S.COL_D_CM)] = 40;
+  second[digest.columns.indexOf(S.COL_V_M3)] = 2.4;
+  second[digest.columns.indexOf(S.COL_LAT)] = 38.2;
+  second[digest.columns.indexOf(S.COL_LON)] = 16.3;
+  digest.rows.push(second);
+
+  await mountItem(11);
+  item.resolve(itemPayload(11));
+  await flushAsyncWork();
+  marks.resolve(digest);
+  await flushSeveral();
+
+  eq(latestTreeMarkers().length, 2, 'unfiltered mark map shows both trees');
+  eq(chartInstances.length, 3, 'summary renders the three dendrometry charts');
+  eq(chartInstances[0].data.datasets.map(dataset => dataset.label),
+     ['Abete bianco', 'Faggio'], 'unfiltered dendrometry includes both species');
+  eq(contentEl.querySelectorAll('.dendrometry-species-item').length, 2,
+     'summary renders one shared species legend');
+  eq(contentEl.querySelectorAll('.pdt-dendrometry-summary input').length, 0,
+     'species legend has no checkbox controls');
+  eq(contentEl.querySelectorAll('.pdt-dendrometry-table').length, 0,
+     'summary does not render matrix tables');
+
+  const search = contentEl.querySelector('.pdt-item-card .table-search');
+  search.value = 'Faggio';
+  search.dispatchEvent({ type: 'input' });
+  await new Promise(resolve => setTimeout(resolve, 550));
+  await flushSeveral();
+
+  eq(tableInstances.at(-1).data.map(row => row[0]), [1102],
+     'Filtra restricts the mark table');
+  eq(latestTreeMarkers().map(marker => marker.latlng), [[38.2, 16.3]],
+     'Filtra restricts the mark map');
+  eq(chartInstances[0].data.datasets.map(dataset => dataset.label), ['Faggio'],
+     'Filtra restricts the dendrometry charts');
+  eq(contentEl.querySelectorAll('.dendrometry-species-item').length, 1,
+     'Filtra restricts the shared species legend');
+
+  contentEl.querySelector('[data-action="export-dendrometry"]').click();
+  await flushSeveral();
+  eq(exportedDendrometryRowIds, [1102],
+     'dendrometry export submits only rows in the active filter');
   await finish();
 }
 

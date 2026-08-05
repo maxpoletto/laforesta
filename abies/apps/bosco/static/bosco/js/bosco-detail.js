@@ -3,16 +3,21 @@ import {
   COL_PARCEL_ID, COL_SPECIES_ID, COL_SURVEY_ID, ROWS,
 } from '../../base/js/constants.js';
 import {
-  chartSeriesColor, speciesColorMap as chartSpeciesColorMap,
-} from '../../base/js/charts.js';
+  dendrometryBarChartData, dendrometryBasalAreaSum, dendrometryChartKey,
+  dendrometryDiameterStats, dendrometryLineChartData, dendrometrySpeciesColor,
+  dendrometrySpeciesColorMap, dendrometryTreeSum, dendrometryTreeTotal,
+  dendrometryVolumeSum, renderDendrometryBarCharts,
+} from '../../base/js/dendrometry.js';
 import { fmtDecimal3 } from '../../base/js/format.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 
 const HEIGHT_FIT_MIN_N = 5;
 
-export function dendrometrySpeciesColor(idx) {
-  return chartSeriesColor(idx);
-}
+export {
+  dendrometryBarChartData, dendrometryBasalAreaSum, dendrometryDiameterStats,
+  dendrometryLineChartData, dendrometrySpeciesColor, dendrometryTreeSum,
+  dendrometryTreeTotal, dendrometryVolumeSum, renderDendrometryBarCharts,
+};
 
 export function parcelNavigation(entries, parcelId) {
   const index = (entries || []).findIndex(entry => entry.id === parcelId);
@@ -124,112 +129,6 @@ export function dendrometrySpecies(digest, scope, { allSpeciesNames = [] } = {})
 }
 
 
-export function dendrometryBarChartData(rows, metric, yTitle) {
-  const { labels, species } = dendrometryChartAxes(rows);
-  const values = new Map(rows.map(row => [
-    dendrometryChartKey(row.speciesId, row.diameterClassCm), toNumber(row[metric], 0),
-  ]));
-  return {
-    labels,
-    yTitle,
-    legend: false,
-    datasets: species.map((item, idx) => ({
-      label: item.name,
-      data: labels.map(label => round(values.get(dendrometryChartKey(item.id, Number(label))) || 0, 4)),
-      backgroundColor: item.color || dendrometrySpeciesColor(idx),
-    })),
-  };
-}
-
-export function dendrometryLineChartData(rows, metric, yTitle) {
-  const { labels, species } = dendrometryChartAxes(rows);
-  const values = new Map(rows.map(row => [
-    dendrometryChartKey(row.speciesId, row.diameterClassCm),
-    toNumber(row[metric]),
-  ]));
-  return {
-    labels,
-    yTitle,
-    legend: false,
-    datasets: species.map((item, idx) => ({
-      label: item.name,
-      data: labels.map(label => values.get(dendrometryChartKey(item.id, Number(label))) ?? null),
-      borderColor: item.color || dendrometrySpeciesColor(idx),
-      backgroundColor: item.color || dendrometrySpeciesColor(idx),
-      tension: 0.25,
-      spanGaps: true,
-    })),
-  };
-}
-
-export function dendrometryTreeSum(rows) {
-  return sum(rows.map(row => row.treeCount));
-}
-
-export function dendrometryTreeTotal(rows) {
-  return Math.round(dendrometryTreeSum(rows));
-}
-
-export function dendrometryVolumeSum(rows) {
-  return sum(rows.map(row => row.volumeM3));
-}
-
-export function dendrometryBasalAreaSum(rows) {
-  return sum(rows.map(row => row.basalAreaM2));
-}
-
-export function dendrometryDiameterStats(rows) {
-  let weight = 0;
-  let total = 0;
-  for (const row of rows) {
-    const d = toNumber(row.diameterClassCm);
-    const w = toNumber(row.treeCount, 0);
-    if (d == null || w <= 0) continue;
-    weight += w;
-    total += d * w;
-  }
-  if (weight <= 0) return null;
-
-  const mean = total / weight;
-  let varianceTotal = 0;
-  for (const row of rows) {
-    const d = toNumber(row.diameterClassCm);
-    const w = toNumber(row.treeCount, 0);
-    if (d == null || w <= 0) continue;
-    varianceTotal += ((d - mean) ** 2) * w;
-  }
-
-  return {
-    meanCm: round(mean, 4),
-    sigmaCm: round(Math.sqrt(varianceTotal / weight), 4),
-  };
-}
-
-function dendrometryChartAxes(rows) {
-  const labels = dendrometryClassRange(rows).map(String);
-  const bySpecies = new Map();
-  for (const row of rows) {
-    if (!bySpecies.has(row.speciesId)) {
-      bySpecies.set(row.speciesId, { id: row.speciesId, name: row.species, color: row.color });
-    }
-  }
-  const species = [...bySpecies.values()]
-    .sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
-  return { labels, species };
-}
-
-function dendrometryClassRange(rows) {
-  const classes = rows
-    .map(row => toNumber(row.diameterClassCm))
-    .filter(value => value != null);
-  if (!classes.length) return [];
-  const start = Math.min(...classes);
-  const end = Math.max(...classes);
-  const out = [];
-  for (let cm = start; cm <= end; cm += 5) out.push(cm);
-  return out;
-}
-
 function dendrometryScale({ areaHa, perHa, sampledAreaHa }) {
   if (sampledAreaHa > 0) {
     if (perHa) return 1 / sampledAreaHa;
@@ -237,18 +136,6 @@ function dendrometryScale({ areaHa, perHa, sampledAreaHa }) {
   }
   return perHa && areaHa ? 1 / areaHa : 1;
 }
-
-function dendrometrySpeciesColorMap(speciesNames, allSpeciesNames = []) {
-  const colorByName = chartSpeciesColorMap([...speciesNames.values()], allSpeciesNames);
-  return new Map([...speciesNames.entries()].map(([id, name], idx) => [
-    id, colorByName.get(name) || dendrometrySpeciesColor(idx),
-  ]));
-}
-
-function dendrometryChartKey(speciesId, diameterClassCm) {
-  return `${speciesId}|${diameterClassCm}`;
-}
-
 
 export function dendrometryHeightPoints(digest, scope, { speciesIds = null, allSpeciesNames = [] } = {}) {
   if (!digest) return [];

@@ -9,11 +9,11 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import { TableWrapper } from '../../base/js/table.js';
+import { matchesSearch, searchTerms, TableWrapper } from '../../base/js/table.js';
 import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
-import { fetchJSON, fileToBase64, postJSON } from '../../base/js/api.js';
+import { fetchJSON, fileToBase64, postBlob, postJSON } from '../../base/js/api.js';
 import {
   deleteRowWithVersion, fetchModalForm, injectNonce, interceptSubmit,
   parseHTMLFragment, submitCsvImport, showFormError,
@@ -26,7 +26,12 @@ import { canModify } from '../../base/js/roles.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { recordIsCoppice } from '../../base/js/coppice.js';
-import { downloadFromURL } from '../../base/js/csv-export.js';
+import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
+import { speciesNamesFromDigest } from '../../base/js/charts.js';
+import {
+  aggregateMarkedTreeDendrometry, renderDendrometryBarCharts,
+  renderDendrometryLegend,
+} from '../../base/js/dendrometry.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
 } from '../../base/js/tree-form.js';
@@ -37,7 +42,7 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_ERRORS, FIELD_FILE,
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
-  COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
+  COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_ROW_IDS, FIELD_SPECIES,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
   HYPSO_FUNC_LN, MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
@@ -59,10 +64,12 @@ const ITEMS_ID = 'harvest_plan_items';
 // Hypsometric params live in a single global set, served by Impostazioni and
 // consumed here only to auto-fill h in the mark form.
 const HYPSO_PARAMS_ID = 'hypso_params';
+const SPECIES_ID = FIELD_SPECIES;
 
 const PLANS_URL = '/api/piano-di-taglio/plans/data/';
 const ITEMS_URL = '/api/piano-di-taglio/items/data/';
 const HYPSO_PARAMS_URL = '/api/impostazioni/hypso-params/data/';
+const SPECIES_URL = '/api/species/data/';
 const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
 const PLAN_SAVE_URL = '/api/piano-di-taglio/plan/save/';
 const PLAN_IMPORT_CSV_URL = '/api/piano-di-taglio/plan/import-csv/';
@@ -79,6 +86,7 @@ const MARK_FORM_URL = '/api/piano-di-taglio/mark/form/';
 const MARK_SAVE_URL = '/api/piano-di-taglio/mark/save/';
 const MARK_DELETE_URL = '/api/piano-di-taglio/mark/delete/';
 const MARK_CSV_IMPORT_URL = '/api/piano-di-taglio/mark/import-csv/';
+const MARK_DENDROMETRY_EXPORT_URL = '/api/piano-di-taglio/mark/dendrometry/export/';
 
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
@@ -92,6 +100,7 @@ const CEDUO_TABLE_KEYS = tableParamKeys('c');
 cache.register(PLANS_ID, PLANS_URL);
 cache.register(ITEMS_ID, ITEMS_URL);
 cache.register(HYPSO_PARAMS_ID, HYPSO_PARAMS_URL);
+cache.register(SPECIES_ID, SPECIES_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
@@ -101,6 +110,7 @@ let activePlanId = null;
 let plansData = null;
 let itemsData = null;
 let hypsoParamsData = null;
+let speciesNames = [];
 let parcelsGeo = null;
 
 let descriptionEl = null;
@@ -111,6 +121,8 @@ let prelieviData = null;
 let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
 let itemMarkTreesMap = null;
+let itemDendrometryRoot = null;
+let itemDendrometryCharts = {};
 let disposeEscape = null;
 let disposePageActions = null;
 
@@ -156,7 +168,7 @@ const page = createPage({
   mount: mountPage,
   unmount: destroyPage,
   onQueryChange: applyParams,
-  visibleIds: [PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID],
+  visibleIds: [PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID, SPECIES_ID],
   onUpdate: [[PLANS_ID, onPlansUpdate], [ITEMS_ID, onItemsUpdate]],
 });
 
@@ -165,14 +177,16 @@ export const unmount = page.unmount;
 export const onQueryChange = page.onQueryChange;
 
 async function loadPageData() {
-  const [p, i, r] = await Promise.all([
+  const [p, i, r, species] = await Promise.all([
     cache.load(PLANS_ID),
     cache.load(ITEMS_ID),
     cache.load(HYPSO_PARAMS_ID),
+    cache.load(SPECIES_ID),
   ]);
   plansData = p;
   itemsData = i;
   hypsoParamsData = r;
+  speciesNames = speciesNamesFromDigest(species);
 }
 
 function mountPage(el, params) {
@@ -189,6 +203,7 @@ function destroyPage() {
   activePlanId = null;
   activeItemId = null;
   plansData = itemsData = hypsoParamsData = prelieviData = parcelsGeo = null;
+  speciesNames = [];
   descriptionEl = null;
   planSelectEl = null;
 }
@@ -1050,10 +1065,17 @@ function destroyItemMarkTreesMap() {
   }
 }
 
+function destroyItemDendrometry() {
+  for (const chart of Object.values(itemDendrometryCharts)) chart?.destroy?.();
+  itemDendrometryCharts = {};
+  itemDendrometryRoot = null;
+}
+
 function destroyItemTables() {
   destroyItemPrelieviTable();
   destroyItemMarkTreesTable();
   destroyItemMarkTreesMap();
+  destroyItemDendrometry();
 }
 
 async function ensureParcelsGeo() {
@@ -1395,8 +1417,13 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
+    onSearch: () => updateItemMarkTreeDependents(itemId, data),
   });
   await appendItemMarkTreesMap(body, itemId, data, showActions);
+  if (!itemViewIsActive(itemId) ||
+      document.getElementById('content')?.contains?.(body) === false) return;
+  appendItemDendrometrySummary(body, itemId, data);
+  updateItemMarkTreeDependents(itemId, data);
 }
 
 async function appendItemMarkTreesMap(body, itemId, data, showActions) {
@@ -1420,6 +1447,101 @@ async function appendItemMarkTreesMap(body, itemId, data, showActions) {
     },
   });
   itemMarkTreesMap.setTrees(treePointsFromDigest(data.rows, data.columns));
+}
+
+function filteredMarkTreeRows(data) {
+  const terms = searchTerms(itemMarkTreesTable?.getSearchText() || '');
+  if (!terms.length) return data.rows;
+  return data.rows.filter(row => (
+    matchesSearch(row, terms, itemMarkTreesTable?.searchColumns)
+  ));
+}
+
+function updateItemMarkTreeDependents(itemId, data) {
+  if (!itemViewIsActive(itemId)) return;
+  const rows = filteredMarkTreeRows(data);
+  itemMarkTreesMap?.setTrees(treePointsFromDigest(rows, data.columns));
+  renderItemDendrometrySummary(itemId, rows, data.columns);
+}
+
+function appendItemDendrometrySummary(body, itemId, data) {
+  destroyItemDendrometry();
+  const frag = cloneTemplate('tmpl-pdt-dendrometry-summary');
+  itemDendrometryRoot = frag.querySelector('.pdt-dendrometry-summary');
+  const exportButton = frag.querySelector('[data-action="export-dendrometry"]');
+  exportButton?.addEventListener('click', () => {
+    downloadMarkDendrometry(itemId, data, exportButton);
+  });
+  body.appendChild(frag);
+}
+
+function renderItemDendrometrySummary(itemId, markRows, columns) {
+  if (!itemViewIsActive(itemId) || !itemDendrometryRoot) return;
+  const status = itemDendrometryRoot.querySelector('[data-target="dendrometry-status"]');
+  const chartGrid = itemDendrometryRoot.querySelector('[data-target="dendrometry-chart-grid"]');
+  const legendRow = itemDendrometryRoot.querySelector('[data-target="dendrometry-species-row"]');
+  const legend = itemDendrometryRoot.querySelector('[data-target="dendrometry-species"]');
+  const exportButton = itemDendrometryRoot.querySelector('[data-action="export-dendrometry"]');
+  const rows = aggregateMarkedTreeDendrometry(markRows, columns, {
+    allSpeciesNames: speciesNames,
+  });
+
+  if (exportButton) exportButton.disabled = !markRows.length;
+  if (!rows.length) {
+    for (const chart of Object.values(itemDendrometryCharts)) chart?.destroy?.();
+    itemDendrometryCharts = {};
+    if (status) {
+      status.textContent = S.MARK_DENDROMETRY_EMPTY;
+      status.hidden = false;
+    }
+    if (chartGrid) chartGrid.hidden = true;
+    if (legendRow) legendRow.hidden = true;
+    legend?.replaceChildren();
+    return;
+  }
+
+  if (status) {
+    status.textContent = '';
+    status.hidden = true;
+  }
+  if (chartGrid) chartGrid.hidden = false;
+  if (legendRow) legendRow.hidden = false;
+  renderDendrometryLegend(legend, rows);
+  itemDendrometryCharts = renderDendrometryBarCharts({
+    rows,
+    canvases: {
+      treeCount: itemDendrometryRoot.querySelector('[data-target="dendrometry-tree-count-chart"]'),
+      volume: itemDendrometryRoot.querySelector('[data-target="dendrometry-volume-chart"]'),
+      basalArea: itemDendrometryRoot.querySelector('[data-target="dendrometry-basal-area-chart"]'),
+    },
+    yTitles: {
+      treeCount: S.BOSCO_TREE_COUNT,
+      volume: S.COL_VOLUME_M3,
+      basalArea: S.COL_BASAL_AREA_M2,
+    },
+    existing: itemDendrometryCharts,
+  });
+}
+
+async function downloadMarkDendrometry(itemId, data, button) {
+  const rowIds = filteredMarkTreeRows(data)
+    .map(row => markTreeRowId(row, data.columns))
+    .filter(id => id != null);
+  if (!rowIds.length) return;
+  if (button) button.disabled = true;
+  try {
+    const { blob, filename } = await postBlob(
+      `${MARK_DENDROMETRY_EXPORT_URL}${itemId}/`,
+      { [FIELD_ROW_IDS]: rowIds },
+    );
+    downloadBlob(blob, filename);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  } finally {
+    if (button && itemViewIsActive(itemId)) {
+      button.disabled = !filteredMarkTreeRows(data).length;
+    }
+  }
 }
 
 function markTreeRowId(row, columns) {

@@ -40,7 +40,7 @@ from config.constants import (
     FIELD_INTERVENTION_AREA_HA, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
     FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPEN, FIELD_OPERATOR,
     FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_PSR, FIELD_REGION_ID,
-    FIELD_SPECIES_ID, FIELD_UNHEALTHY,
+    FIELD_ROW_IDS, FIELD_SPECIES_ID, FIELD_UNHEALTHY,
     FIELD_VOLUME_M3, FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END,
     FIELD_YEAR_PLANNED, FIELD_YEAR_START, HTML, MESSAGE, PATCHES,
     RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
@@ -1095,6 +1095,89 @@ class TestItemExport:
         rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
         numero = rows[1][rows[0].index(S.CSV_COL_NUMBER)]
         assert numero == '1440', f'expected mark number 1440, got {numero!r}'
+
+
+class TestMarkDendrometryExport:
+    def _marks(self, planned_item, species):
+        specs = [
+            (species[0], 18, '0.1'),
+            (species[0], 22, '0.2'),
+            (species[1], 30, None),
+        ]
+        marks = []
+        for number, (tree_species, diameter, volume) in enumerate(specs, 1):
+            marks.append(TreeMark.objects.create(
+                harvest_plan_item=planned_item,
+                tree=Tree.objects.create(species=tree_species),
+                parcel=planned_item.parcel,
+                number=number,
+                date=date_type(2025, 6, number),
+                d_cm=diameter,
+                h_m=Decimal('20'),
+                h_measured=False,
+                volume_m3=Decimal(volume) if volume is not None else None,
+                mass_q=Decimal('1'),
+                lat=38.5,
+                lon=16.3,
+                operator='Mario',
+            ))
+        return marks
+
+    def _zip_rows(self, response, filename):
+        zf = zipfile.ZipFile(io.BytesIO(response.content))
+        return _csv_rows(zf.read(filename))
+
+    def test_export_has_three_species_by_class_matrices(
+        self, writer_client, planned_item, species,
+    ):
+        self._marks(planned_item, species)
+        response = writer_client.get(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+        )
+
+        assert response.status_code == 200
+        assert response['Content-Type'] == 'application/zip'
+        zf = zipfile.ZipFile(io.BytesIO(response.content))
+        assert set(zf.namelist()) == {
+            S.CSV_FILE_MARK_TREE_COUNT,
+            S.CSV_FILE_MARK_VOLUME,
+            S.CSV_FILE_MARK_BASAL_AREA,
+        }
+        tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
+        assert tree_rows[0] == [S.COL_SPECIES, '20', '25', '30']
+        by_species = {row[0]: row[1:] for row in tree_rows[1:]}
+        assert by_species[species[0].common_name] == ['2', '0', '0']
+        assert by_species[species[1].common_name] == ['0', '0', '1']
+
+        volume_rows = self._zip_rows(response, S.CSV_FILE_MARK_VOLUME)
+        volume_by_species = {row[0]: row[1:] for row in volume_rows[1:]}
+        assert volume_by_species[species[0].common_name] == ['0,3', '0', '0']
+
+    def test_post_row_ids_exports_only_the_filtered_marks(
+        self, writer_client, planned_item, species,
+    ):
+        marks = self._marks(planned_item, species)
+        response = writer_client.post(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+            data=json.dumps({FIELD_ROW_IDS: [marks[2].id]}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
+        assert tree_rows == [
+            [S.COL_SPECIES, '30'],
+            [species[1].common_name, '1'],
+        ]
+
+    def test_post_rejects_invalid_row_ids(self, writer_client, planned_item):
+        response = writer_client.post(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+            data=json.dumps({FIELD_ROW_IDS: ['bad']}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        assert S.ERR_MARK_DENDROMETRY_ROW_IDS in response.json()[MESSAGE]
 
 
 # ---------------------------------------------------------------------------

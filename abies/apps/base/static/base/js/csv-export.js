@@ -50,6 +50,16 @@ export function downloadFromURL(url, filename = '') {
   a.remove();
 }
 
+/** Trigger a browser download for an already-fetched Blob. */
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || '';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * Export a digest to CSV.  `columns` is an array of column descriptors:
  *   - `'X'`                       — use digest column X, render as X

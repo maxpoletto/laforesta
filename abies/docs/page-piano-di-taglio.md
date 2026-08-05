@@ -236,6 +236,45 @@ The modal displays:
 
    `Numero` is stored on `tree_mark.number`.
 
+   The standard **Filtra** input is the scope control for the whole marks
+   display, as on Prelievi: after its 500 ms debounce, the same displayed-cell
+   search semantics (including column selectors and numeric comparisons)
+   restrict the table rows, map points, dendrometric charts, species legend, and the
+   dendrometric export. The volume/mass total above the table remains the item
+   total rather than a filtered subtotal.
+
+   Below the table is the marked-tree map. It is 840 px tall (twice the former
+   420 px height) and retains the shared `TreePointsMap` basemaps, tools,
+   tooltips, and edit/delete popover. Trees without valid coordinates remain in
+   the table and dendrometric calculations but do not produce map points.
+
+   Below the map, **Riassunto dendrometrico** contains three stacked bar charts
+   by five-centimetre diameter class, stacked by species: Numero alberi,
+   Volume, and Area basimetrica. The charts reuse Bosco's shared Chart.js data
+   builder, responsive side-by-side panel layout, and full-species color
+   universe, so a
+   species keeps the same color across Bosco, Prelievi, and marks. Mark
+   diameters use the same class formula as Bosco (`18..22 → 20`, `23..27 →
+   25`); volume is the sum of `tree_mark.volume_m3` (NULL contributes zero),
+   and basal area is summed from each tree's actual diameter, `π × (D/200)²`.
+
+   As in Bosco detail, one species color legend is displayed above the charts.
+   It is informational rather than a second set of checkbox filters: the marks
+   table's **Filtra** input is the sole control for the visible species.
+
+   The title row carries a standard grey **Esporta** button at the far right. It downloads
+   `riassunto_dendrometrico_<item-id>.zip`, containing:
+
+   - `numero_alberi.csv`
+   - `volume.csv`
+   - `area_basimetrica.csv`
+
+   Each CSV is a matrix with species on rows and a continuous sequence of
+   five-centimetre diameter classes on columns; missing combinations are zero.
+   It uses the active locale's CSV delimiter and decimal separator. The client POSTs the currently
+   filtered mark row IDs, so the ZIP exactly matches the visible summary; the
+   endpoint also accepts GET to export all marks for integrations.
+
    Each row has pencil / trash icons. Editing or deleting an individual
    row obeys state monotonicity (per `database.md`): deleting the last
    `tree_mark` does NOT revert state to `planned`.
@@ -493,6 +532,12 @@ that touch this item.
 
 Columns: `row_id`, `version`, `Data`, `Numero`, `Specie`, `D (cm)`,
 `h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Operatore`.
+
+The browser aggregates the filtered rows in this digest for the map and
+`Riassunto dendrometrico`; no second dendrometry digest is generated. The ZIP
+endpoint (`/api/piano-di-taglio/mark/dendrometry/export/<item-id>/`) queries the
+same `tree_mark` records, optionally restricted by POSTed `row_ids`, and uses
+the shared server-side diameter-class and basal-area functions.
 Sorted by `Numero` ascending.
 
 `Numero` is stored on `tree_mark.number`. `h misurata`

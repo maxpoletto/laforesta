@@ -19,7 +19,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
 from apps.base import csv_io
@@ -50,6 +50,7 @@ from apps.base.models import (
     render_flag_note,
 )
 from apps.piano_di_taglio import csv_plan
+from apps.piano_di_taglio.dendrometry import render_mark_dendrometry_csvs
 from apps.piano_di_taglio.mark_import import (
     MARK_CSV_SPECIES_HEADERS, MarkImportRow,
     auto_advance_to_marked as _auto_advance_to_marked,
@@ -88,6 +89,7 @@ from config.constants import (
     FIELD_NUMBER,
     FIELD_OPEN,
     FIELD_OPERATOR,
+    FIELD_ROW_IDS,
     FIELD_PARCEL_ID,
     FIELD_PSR,
     FIELD_REGION_ID,
@@ -636,6 +638,38 @@ def item_export_view(request, item_id: int):
             (f'prelievi_{item.id}.csv', prelievi_buf.getvalue()),
         ],
         f'{safe_name}.zip',
+    )
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def mark_dendrometry_export_view(request, item_id: int):
+    """Zip the mark dendrometry matrices, optionally for selected row IDs."""
+    item = HarvestPlanItem.objects.filter(id=item_id).first()
+    if item is None:
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+
+    row_ids = None
+    if request.method == 'POST':
+        body, error = parse_json_body(request)
+        if error:
+            return error
+        row_ids = body.get(FIELD_ROW_IDS)
+        if (not isinstance(row_ids, list)
+                or any(isinstance(value, bool) or not isinstance(value, int)
+                       for value in row_ids)):
+            return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
+
+    marks = (TreeMark.objects
+             .filter(harvest_plan_item=item)
+             .select_related('tree__species')
+             .order_by('tree__species__common_name', 'd_cm', 'id'))
+    if row_ids is not None:
+        marks = marks.filter(id__in=set(row_ids))
+
+    return csv_io.zip_csv_response(
+        render_mark_dendrometry_csvs(marks),
+        S.ZIP_FILE_MARK_DENDROMETRY.format(item.id),
     )
 
 

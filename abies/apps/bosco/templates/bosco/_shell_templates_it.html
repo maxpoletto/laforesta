@@ -159,9 +159,9 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             <div class="bosco-detail-toolbar">
               <label class="bosco-check"><input type="checkbox" data-role="dendrometry-per-ha" checked> {{ S.LABEL_VALUES_PER_HA }}</label>
             </div>
-            <div class="bosco-species-row">
-              <span class="bosco-species-label">Specie:</span>
-              <div class="bosco-species-filter" data-target="dendrometry-species"></div>
+            <div class="bosco-species-row dendrometry-species-row">
+              <span class="bosco-species-label dendrometry-species-label">Specie:</span>
+              <div class="bosco-species-filter dendrometry-species-legend" data-target="dendrometry-species"></div>
             </div>
             <div class="bosco-species-actions">
               <button type="button" class="btn" data-action="show-all-dendrometry-species">Tutte</button>
@@ -169,41 +169,41 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             </div>
             <div data-target="dendrometry">
               <p class="bosco-detail-note" data-target="dendrometry-status"></p>
-              <div class="bosco-chart-grid" data-target="dendrometry-chart-grid">
-                <div class="bosco-chart-panel">
+              <div class="bosco-chart-grid dendrometry-chart-grid" data-target="dendrometry-chart-grid">
+                <div class="bosco-chart-panel dendrometry-chart-panel">
                   <h3>Numero alberi</h3>
-                  <div class="bosco-chart-canvas">
+                  <div class="bosco-chart-canvas dendrometry-chart-canvas">
                     <canvas data-target="dendrometry-tree-count-chart"></canvas>
                   </div>
-                  <div class="bosco-chart-info" data-target="dendrometry-tree-count-info"></div>
+                  <div class="bosco-chart-info dendrometry-chart-info" data-target="dendrometry-tree-count-info"></div>
                 </div>
-                <div class="bosco-chart-panel">
+                <div class="bosco-chart-panel dendrometry-chart-panel">
                   <h3>Volume</h3>
-                  <div class="bosco-chart-canvas">
+                  <div class="bosco-chart-canvas dendrometry-chart-canvas">
                     <canvas data-target="dendrometry-volume-chart"></canvas>
                   </div>
-                  <div class="bosco-chart-info" data-target="dendrometry-volume-info"></div>
+                  <div class="bosco-chart-info dendrometry-chart-info" data-target="dendrometry-volume-info"></div>
                 </div>
-                <div class="bosco-chart-panel">
+                <div class="bosco-chart-panel dendrometry-chart-panel">
                   <h3>Area basimetrica</h3>
-                  <div class="bosco-chart-canvas">
+                  <div class="bosco-chart-canvas dendrometry-chart-canvas">
                     <canvas data-target="dendrometry-basal-area-chart"></canvas>
                   </div>
-                  <div class="bosco-chart-info" data-target="dendrometry-basal-area-info"></div>
+                  <div class="bosco-chart-info dendrometry-chart-info" data-target="dendrometry-basal-area-info"></div>
                 </div>
-                <div class="bosco-chart-panel">
+                <div class="bosco-chart-panel dendrometry-chart-panel">
                   <h3>Altezza media</h3>
-                  <div class="bosco-chart-canvas">
+                  <div class="bosco-chart-canvas dendrometry-chart-canvas">
                     <canvas data-target="dendrometry-height-chart"></canvas>
                   </div>
-                  <div class="bosco-chart-info" data-target="dendrometry-height-info"></div>
+                  <div class="bosco-chart-info dendrometry-chart-info" data-target="dendrometry-height-info"></div>
                 </div>
-                <div class="bosco-chart-panel">
+                <div class="bosco-chart-panel dendrometry-chart-panel">
                   <h3>Incremento %</h3>
-                  <div class="bosco-chart-canvas">
+                  <div class="bosco-chart-canvas dendrometry-chart-canvas">
                     <canvas data-target="dendrometry-increment-chart"></canvas>
                   </div>
-                  <div class="bosco-chart-info" data-target="dendrometry-increment-info"></div>
+                  <div class="bosco-chart-info dendrometry-chart-info" data-target="dendrometry-increment-info"></div>
                 </div>
               </div>
             </div>

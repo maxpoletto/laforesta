@@ -469,6 +469,7 @@ ERR_MARK_PARCEL_NOT_IN_TARGET = (
 ERR_MARK_ROW_TARGET_MISMATCH = (
     'Riga {}: particella fuori dalla destinazione selezionata.'
 )
+ERR_MARK_DENDROMETRY_ROW_IDS = 'Selezione alberi non valida.'
 ERR_BOSCO_AREA_REQUIRED = 'Superficie obbligatoria.'
 ERR_BOSCO_GOVERNANCE_REQUIRED = 'Governo obbligatorio.'
 ERR_BOSCO_GOVERNANCE_INVALID = 'Governo non valido.'
@@ -729,11 +730,15 @@ LABEL_ALL_PARCELS = '(tutti)'  # form pulldown placeholder for region-wide
 # character chosen for narrow columns; localizable.
 PARCEL_WHOLE_REGION_MARK = 'X'
 
-# Zip-archive filenames for the plan-level Esporta.  Italian by
+# CSV and zip-archive filenames for harvest-plan exports.  Italian by
 # default; localizable so a future language gets distinct names.
 CSV_FILE_HIGHFOREST = 'fustaia.csv'
 CSV_FILE_COPPICE    = 'ceduo.csv'
 CSV_FILE_REGRESSION = 'equazioni_ipsometro.csv'
+CSV_FILE_MARK_TREE_COUNT = 'numero_alberi.csv'
+CSV_FILE_MARK_VOLUME = 'volume.csv'
+CSV_FILE_MARK_BASAL_AREA = 'area_basimetrica.csv'
+ZIP_FILE_MARK_DENDROMETRY = 'riassunto_dendrometrico_{}.zip'
 
 # Canonical bootstrap data-dir filenames (reference/container files derive their
 # name from the RefTable stem; these are the bespoke + deferred files).
@@ -772,6 +777,10 @@ APP_PRELIEVI = 'Prelievi'
 CHART_TOTAL = 'Totale'
 CHART_TOTAL_OPTION = '(Totale)'
 CHART_OTHER = 'Altro'
+SECTION_DENDROMETRIC_SUMMARY = 'Riassunto dendrometrico'
+BOSCO_TREE_COUNT = 'Numero alberi'
+MARK_DENDROMETRY_VOLUME = 'Volume'
+MARK_DENDROMETRY_BASAL_AREA = 'Area basimetrica'
 
 # Prelievi page sections/charts.
 PRELIEVI_SECTION_SUMMARY = 'Riassunto'

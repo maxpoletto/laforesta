@@ -1,0 +1,67 @@
+"""Dendrometric matrix exports for harvest-plan tree marks."""
+
+from collections import defaultdict
+from decimal import Decimal
+
+from apps.base import csv_io
+from apps.base.digests import basal_area_m2, diameter_class_cm
+from config import strings as S
+
+
+def render_mark_dendrometry_csvs(marks) -> list[tuple[str, str]]:
+    """Return tree-count, volume, and basal-area CSV matrices.
+
+    Every matrix uses species on rows and a continuous sequence of 5 cm
+    diameter classes on columns, matching the client-side charts and tables.
+    """
+    groups = defaultdict(lambda: {
+        'tree_count': 0,
+        'volume_m3': 0.0,
+        'basal_area_m2': 0.0,
+    })
+    species_names = set()
+    diameter_classes = set()
+
+    for mark in marks:
+        species = mark.tree.species.common_name
+        diameter_class = diameter_class_cm(mark.d_cm)
+        group = groups[(species, diameter_class)]
+        group['tree_count'] += 1
+        group['volume_m3'] += float(mark.volume_m3 or 0)
+        group['basal_area_m2'] += basal_area_m2(mark.d_cm)
+        species_names.add(species)
+        diameter_classes.add(diameter_class)
+
+    classes = _continuous_classes(diameter_classes)
+    species = sorted(species_names, key=str.casefold)
+    metrics = [
+        (S.CSV_FILE_MARK_TREE_COUNT, 'tree_count', 0),
+        (S.CSV_FILE_MARK_VOLUME, 'volume_m3', 4),
+        (S.CSV_FILE_MARK_BASAL_AREA, 'basal_area_m2', 4),
+    ]
+    return [
+        (filename, _render_matrix_csv(groups, species, classes, metric, places))
+        for filename, metric, places in metrics
+    ]
+
+
+def _continuous_classes(classes) -> list[int]:
+    if not classes:
+        return []
+    return list(range(min(classes), max(classes) + 1, 5))
+
+
+def _render_matrix_csv(groups, species, classes, metric, places) -> str:
+    delimiter, decimal_sep = csv_io.export_format()
+    buf, writer = csv_io.csv_buffer(delimiter)
+    writer.writerow([S.COL_SPECIES, *classes])
+    for species_name in species:
+        values = []
+        for diameter_class in classes:
+            value = groups[(species_name, diameter_class)][metric]
+            if places:
+                value = Decimal(str(round(value, places)))
+                value = csv_io.format_decimal(value, decimal_sep)
+            values.append(value)
+        writer.writerow([species_name, *values])
+    return buf.getvalue()

@@ -54,6 +54,23 @@ export async function postJSON(url, body) {
   return { data, status: resp.status };
 }
 
+/** POST JSON and return a binary download plus its server-provided filename. */
+export async function postBlob(url, body) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken(),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(`POST ${url}: ${resp.status}`);
+  return {
+    blob: await resp.blob(),
+    filename: contentDispositionFilename(resp.headers.get('Content-Disposition')),
+  };
+}
+
 /**
  * POST multipart form data.  Includes CSRF token.
  *
@@ -69,6 +86,11 @@ export async function postFormData(url, body) {
   });
   const data = await resp.json();
   return { data, status: resp.status };
+}
+
+function contentDispositionFilename(value) {
+  const match = String(value || '').match(/filename="?([^";]+)"?/i);
+  return match ? match[1] : '';
 }
 
 /**
@@ -87,4 +109,3 @@ export async function fileToBase64(file) {
   }
   return btoa(binary);
 }
-

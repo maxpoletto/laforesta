@@ -208,6 +208,7 @@ export const FIELD_LAST_NAME             = 'last_name';
 export const FIELD_LOGIN_METHOD          = 'login_method';
 export const FIELD_PASSWORD              = 'password';
 export const FIELD_NONCE                 = 'nonce';
+export const FIELD_ROW_IDS               = 'row_ids';
 export const FIELD_POINTS                = 'points';
 export const FIELD_PLANS                 = 'plans';
 export const FIELD_COUNTS                = 'counts';

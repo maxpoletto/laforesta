@@ -573,6 +573,7 @@ export const ERR_DATE_REQUIRED     = 'Data obbligatoria.';
 export const ERR_BOSCO_OBSERVATION_TEXT_REQUIRED = 'Descrizione obbligatoria.';
 export const SECTION_HARVESTS      = 'Prelievi';
 export const SECTION_MARK          = 'Martellate';
+export const SECTION_DENDROMETRIC_SUMMARY = 'Riassunto dendrometrico';
 export const LABEL_VOLUME_TOTAL    = 'Volume totale';
 export const LABEL_MASS_TOTAL      = 'Massa totale';
 export const COL_WORKSITE          = 'Cantiere';
@@ -595,6 +596,9 @@ export const ERR_SPECIES_REQUIRED = 'Specie obbligatoria.';
 export const ERR_OPERATOR_REQUIRED = 'Operatore obbligatorio.';
 export const MARK_NULL_VOLUME_NOTE =
   'volume e massa non calcolati per alcune specie rare';
+export const MARK_DENDROMETRY_VOLUME = 'Volume';
+export const MARK_DENDROMETRY_BASAL_AREA = 'Area basimetrica';
+export const MARK_DENDROMETRY_EMPTY = 'Nessun dato dendrometrico nel filtro corrente.';
 
 // Per-item exports use the item id; constants here are filename prefixes
 // (the JS code appends `<id>.csv`).

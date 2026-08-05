@@ -69,11 +69,12 @@ import {
 } from './bosco-satellite.js';
 import { positionLabelValue } from './bosco-position.js';
 import {
-  aggregateDendrometry, dendrometryBarChartData, dendrometryBasalAreaSum,
+  aggregateDendrometry, dendrometryBasalAreaSum,
   dendrometryDiameterStats, dendrometryHeightPoints,
   dendrometryLineChartData, dendrometryScatterChartData, dendrometrySpecies,
   dendrometrySpeciesColor, dendrometryTreeSum, dendrometryTreeTotal,
   dendrometryVolumeSum, parcelNavigation, regionMetadata,
+  renderDendrometryBarCharts,
 } from './bosco-detail.js';
 import {
   buildPreservedTrees, filterPaiTrees, paiParcelItems, paiSpeciesItems, speciesColorMap,
@@ -1940,14 +1941,14 @@ function renderDendrometrySpecies(scope) {
   const selected = new Set(selectedIds || []);
   for (const [idx, item] of species.entries()) {
     const label = document.createElement('label');
-    label.className = 'bosco-check';
+    label.className = 'bosco-check dendrometry-species-item';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.value = String(item.id);
     input.checked = selectedIds == null || selected.has(item.id);
     input.addEventListener('change', () => updateDendrometrySpeciesFilter(species));
     const dot = document.createElement('span');
-    dot.className = 'bosco-legend-dot';
+    dot.className = 'bosco-legend-dot dendrometry-species-dot';
     dot.style.backgroundColor = item.color || dendrometrySpeciesColor(idx);
     const text = document.createElement('span');
     text.textContent = `${item.name} (${fmtInt(item.count)})`;
@@ -1979,21 +1980,20 @@ function renderDendrometryCharts(rows, heightPoints) {
   const perHa = dendrometryPerHa?.checked !== false;
   setDendrometryStatus('');
   renderDendrometryInfo(rows, { perHa });
-  dendrometryCharts.treeCount = renderStackedBar(
-    dendrometryTreeCanvas,
-    dendrometryBarChartData(rows, 'treeCount', perHa ? S.BOSCO_TREE_COUNT_PER_HA : S.BOSCO_TREE_COUNT),
-    dendrometryCharts.treeCount,
-  );
-  dendrometryCharts.volume = renderStackedBar(
-    dendrometryVolumeCanvas,
-    dendrometryBarChartData(rows, 'volumeM3', perHa ? S.BOSCO_VOLUME_PER_HA : S.COL_VOLUME_M3),
-    dendrometryCharts.volume,
-  );
-  dendrometryCharts.basalArea = renderStackedBar(
-    dendrometryBasalAreaCanvas,
-    dendrometryBarChartData(rows, 'basalAreaM2', perHa ? S.BOSCO_BASAL_AREA_PER_HA : S.COL_BASAL_AREA_M2),
-    dendrometryCharts.basalArea,
-  );
+  Object.assign(dendrometryCharts, renderDendrometryBarCharts({
+    rows,
+    canvases: {
+      treeCount: dendrometryTreeCanvas,
+      volume: dendrometryVolumeCanvas,
+      basalArea: dendrometryBasalAreaCanvas,
+    },
+    yTitles: {
+      treeCount: perHa ? S.BOSCO_TREE_COUNT_PER_HA : S.BOSCO_TREE_COUNT,
+      volume: perHa ? S.BOSCO_VOLUME_PER_HA : S.COL_VOLUME_M3,
+      basalArea: perHa ? S.BOSCO_BASAL_AREA_PER_HA : S.COL_BASAL_AREA_M2,
+    },
+    existing: dendrometryCharts,
+  }));
   dendrometryCharts.height = renderScatterChart(
     dendrometryHeightCanvas,
     dendrometryScatterChartData(heightPoints, S.COL_H_M),
