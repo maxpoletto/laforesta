@@ -2,13 +2,16 @@
 
 import json
 import math
+import subprocess
 import struct
+import sys
 from datetime import date
 from decimal import Decimal
 from itertools import count
 from pathlib import Path
 
 import pytest
+from django.conf import settings as django_settings
 
 from config.constants import IPSO_TERRENI_GEOJSON
 
@@ -16,6 +19,20 @@ from apps.base.models import (
     Crew, Eclass, Parcel, Product, Region, Role, Sample, SampleArea,
     SampleGrid, Species, Survey, Tractor, Tree, TreeSample, User,
 )
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(scope='session', autouse=True)
+def localized_template_links():
+    """Materialize the same active-locale template aliases as deployment."""
+    language = django_settings.LANGUAGE_CODE.split('-', 1)[0]
+    subprocess.run(
+        [sys.executable, PROJECT_ROOT / 'bin/link-templates.py', f'_{language}'],
+        cwd=PROJECT_ROOT,
+        check=True,
+    )
 
 
 @pytest.fixture(autouse=True)

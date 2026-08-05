@@ -151,7 +151,9 @@ applies at three levels:
 - **JS**: `strings_it.js` defines constants; `strings.js` re-exports via
   `export * from './strings_it.js'`.
 - **Templates**: `foo_it.html` is the real file; `foo.html` is a symlink
-  to `foo_it.html`.
+  to `foo_it.html`. Docker and `make dev` materialize these aliases through
+  `bin/link-templates.py`; pytest's session fixture runs the same script so
+  direct test invocations also work from a clean checkout.
 
 ## Number formatting
 
