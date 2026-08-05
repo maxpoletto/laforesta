@@ -16,6 +16,9 @@ urlpatterns = [
          name='campionamenti-grid-export-csv'),
     path('survey/export-csv/<int:survey_id>/', views.tree_csv_export_view,
          name='campionamenti-tree-export-csv'),
+    path('survey/dendrometry/export/<int:survey_id>/',
+         views.survey_dendrometry_export_view,
+         name='campionamenti-survey-dendrometry-export'),
     # Tree-sample CRUD.
     path('tree/form/', views.tree_form_view, name='campionamenti-tree-form-add'),
     path('tree/form/<int:ts_id>/', views.tree_form_view,

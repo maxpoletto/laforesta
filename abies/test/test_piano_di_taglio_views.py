@@ -1269,13 +1269,13 @@ class TestMarkDendrometryExport:
             'volume_m3.csv',
             'area_basimetrica_m2.csv',
         }
-        tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
+        tree_rows = self._zip_rows(response, S.CSV_FILE_DENDROMETRY_TREE_COUNT)
         assert tree_rows[0] == [S.COL_SPECIES, '20', '25', '30']
         by_species = {row[0]: row[1:] for row in tree_rows[1:]}
         assert by_species[species[0].common_name] == ['2', '0', '0']
         assert by_species[species[1].common_name] == ['0', '0', '1']
 
-        volume_rows = self._zip_rows(response, S.CSV_FILE_MARK_VOLUME)
+        volume_rows = self._zip_rows(response, S.CSV_FILE_DENDROMETRY_VOLUME)
         volume_by_species = {row[0]: row[1:] for row in volume_rows[1:]}
         assert volume_by_species[species[0].common_name] == ['0,3', '0', '0']
         assert species[1].common_name not in volume_by_species
@@ -1291,7 +1291,7 @@ class TestMarkDendrometryExport:
         )
 
         assert response.status_code == 200
-        tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
+        tree_rows = self._zip_rows(response, S.CSV_FILE_DENDROMETRY_TREE_COUNT)
         assert tree_rows == [
             [S.COL_SPECIES, '30'],
             [species[1].common_name, '1'],
@@ -1308,7 +1308,7 @@ class TestMarkDendrometryExport:
         )
 
         assert response.status_code == 200
-        tree_rows = self._zip_rows(response, S.CSV_FILE_MARK_TREE_COUNT)
+        tree_rows = self._zip_rows(response, S.CSV_FILE_DENDROMETRY_TREE_COUNT)
         assert len(tree_rows) == 3
         assert {row[0] for row in tree_rows[1:]} == {
             species[0].common_name,
@@ -1325,7 +1325,7 @@ class TestMarkDendrometryExport:
             content_type='application/json',
         )
         assert response.status_code == 400
-        assert S.ERR_MARK_DENDROMETRY_ROW_IDS in response.json()[MESSAGE]
+        assert S.ERR_TREE_DENDROMETRY_ROW_IDS in response.json()[MESSAGE]
 
 
 # ---------------------------------------------------------------------------

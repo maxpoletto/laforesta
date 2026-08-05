@@ -1,10 +1,14 @@
 """Tests for Campionamenti API views."""
 
 import base64
+import csv
 import gzip
+import io
 import json
+import zipfile
 from datetime import date
 from decimal import Decimal
+
 import pytest
 from django.test import Client
 
@@ -270,6 +274,95 @@ class TestCsvExports:
         rows = list(csv_io.read(response.content))
         assert len(rows) == 1
         assert rows[0][S.CSV_COL_TREE] == str(selected.number)
+
+
+class TestSurveyDendrometryExport:
+    @staticmethod
+    def _zip_rows(response, filename):
+        delimiter, _ = csv_io.export_format()
+        zf = zipfile.ZipFile(io.BytesIO(response.content))
+        return list(csv.reader(
+            io.StringIO(zf.read(filename).decode('utf-8')),
+            delimiter=delimiter,
+        ))
+
+    def test_export_has_three_species_by_class_matrices(
+        self, reader_client, sample_setup, species,
+    ):
+        TreeSample.objects.create(
+            sample=sample_setup['sample'],
+            tree=Tree.objects.create(species=species[1], coppice=False),
+            parcel=sample_setup['area'].parcel,
+            number=2, shoot=0, standard=False,
+            d_cm=35, h_m=Decimal('21.00'), l10_mm=10,
+            volume_m3=None,
+        )
+
+        response = reader_client.get(
+            f'/api/campionamenti/survey/dendrometry/export/'
+            f'{sample_setup["survey"].id}/',
+        )
+
+        assert response.status_code == 200
+        assert response['Content-Type'] == 'application/zip'
+        assert response['Cache-Control'] == 'no-store'
+        zf = zipfile.ZipFile(io.BytesIO(response.content))
+        assert set(zf.namelist()) == {
+            S.CSV_FILE_DENDROMETRY_TREE_COUNT,
+            S.CSV_FILE_DENDROMETRY_VOLUME,
+            S.CSV_FILE_DENDROMETRY_BASAL_AREA,
+        }
+
+        tree_rows = self._zip_rows(
+            response, S.CSV_FILE_DENDROMETRY_TREE_COUNT,
+        )
+        assert tree_rows[0] == [S.COL_SPECIES, '30', '35']
+        assert {row[0] for row in tree_rows[1:]} == {
+            species[0].common_name,
+            species[1].common_name,
+        }
+
+        volume_rows = self._zip_rows(
+            response, S.CSV_FILE_DENDROMETRY_VOLUME,
+        )
+        assert [row[0] for row in volume_rows[1:]] == [
+            species[0].common_name,
+        ]
+
+    def test_post_row_ids_exports_only_filtered_tree_samples(
+        self, reader_client, sample_setup,
+    ):
+        selected = TreeSample.objects.get(
+            sample__survey=sample_setup['survey'],
+        )
+        response = reader_client.post(
+            f'/api/campionamenti/survey/dendrometry/export/'
+            f'{sample_setup["survey"].id}/',
+            data=json.dumps({FIELD_ROW_IDS: [selected.id]}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        assert self._zip_rows(
+            response, S.CSV_FILE_DENDROMETRY_TREE_COUNT,
+        ) == [
+            [S.COL_SPECIES, '30'],
+            [selected.tree.species.common_name, '1'],
+        ]
+
+    @pytest.mark.parametrize('row_ids', (['bad'], [0], [-1], [True]))
+    def test_post_rejects_invalid_row_ids(
+        self, reader_client, sample_setup, row_ids,
+    ):
+        response = reader_client.post(
+            f'/api/campionamenti/survey/dendrometry/export/'
+            f'{sample_setup["survey"].id}/',
+            data=json.dumps({FIELD_ROW_IDS: row_ids}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 400
+        assert S.ERR_TREE_DENDROMETRY_ROW_IDS in response.json()[MESSAGE]
 
 
 class TestTreeForm:

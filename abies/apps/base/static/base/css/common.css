@@ -547,7 +547,7 @@ input:focus, select:focus, textarea:focus {
 
 .collapsible-body.open { display: block; }
 
-/* Shared dendrometry chart layout. Bosco and Piano di taglio intentionally
+/* Shared dendrometry chart layout. Bosco and tree-detail consumers
    use the same component so sizing and responsive behavior cannot drift. */
 .tree-detail-map-host {
   background: #f5f5f5;

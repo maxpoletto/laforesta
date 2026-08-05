@@ -81,6 +81,7 @@ export class TreePointsMap extends ParcelMap {
 }
 
 export function treePointsFromDigest(rows, columns, names = DEFAULT_COLUMN_NAMES) {
+  names = { ...DEFAULT_COLUMN_NAMES, ...names };
   const index = (name) => columns.indexOf(name);
   const iId = index(names.id);
   const iNumber = index(names.number);

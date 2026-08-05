@@ -128,6 +128,16 @@ check(points[0].id === 101 && points[0].row === rows[0]
       && points[0].lat === 38.1 && points[0].lon === 16.2,
       'treePointsFromDigest maps id, source row, and standard tree fields');
 
+const sampleColumns = columns.map(column => (
+  column === S.COL_NUMBER ? S.COL_TREE_NUM : column
+));
+const samplePoints = treePointsFromDigest(rows, sampleColumns, {
+  number: S.COL_TREE_NUM,
+});
+check(samplePoints[0].number === 12 && samplePoints[0].species === 'Abete bianco'
+      && samplePoints[0].lat === 38.1,
+      'a partial column override preserves the shared tree field defaults');
+
 const host = new MockNode('div');
 let clicked = null;
 const map = new TreePointsMap({

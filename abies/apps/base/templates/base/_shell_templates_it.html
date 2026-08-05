@@ -1,5 +1,5 @@
 {% comment %}
-Shared <template> elements cloned by JS — confirm dialog, cascade-delete.
+Shared <template> elements cloned by JS — dialogs and tree dendrometry.
 Rendered once inside the shell; never displayed directly.
 {% endcomment %}
 
@@ -44,14 +44,14 @@ Rendered once inside the shell; never displayed directly.
         <div class="dendrometry-chart-info" data-target="dendrometry-tree-count-info"></div>
       </div>
       <div class="dendrometry-chart-panel">
-        <h3>{{ S.MARK_DENDROMETRY_VOLUME }}</h3>
+        <h3>{{ S.DENDROMETRY_VOLUME }}</h3>
         <div class="dendrometry-chart-canvas">
           <canvas data-target="dendrometry-volume-chart"></canvas>
         </div>
         <div class="dendrometry-chart-info" data-target="dendrometry-volume-info"></div>
       </div>
       <div class="dendrometry-chart-panel">
-        <h3>{{ S.MARK_DENDROMETRY_BASAL_AREA }}</h3>
+        <h3>{{ S.DENDROMETRY_BASAL_AREA }}</h3>
         <div class="dendrometry-chart-canvas">
           <canvas data-target="dendrometry-basal-area-chart"></canvas>
         </div>

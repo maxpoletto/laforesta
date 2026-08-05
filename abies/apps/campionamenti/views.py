@@ -21,6 +21,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.dendrometry_export import render_tree_dendrometry_csvs
 from apps.base.digests import (
     build_grid_record, build_sample_area_record, build_sample_record,
     build_survey_record, build_tree_sample_record,
@@ -126,6 +127,36 @@ def tree_csv_export_view(request, survey_id: int):
     return _csv_export_response(
         csv_trees.render_csv(survey, row_ids=row_ids),
         S.CSV_FILE_SURVEY_TREES,
+    )
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def survey_dendrometry_export_view(request, survey_id: int):
+    """Zip dendrometry matrices, optionally for selected tree-sample IDs."""
+    survey = Survey.objects.filter(id=survey_id).first()
+    if survey is None:
+        raise Http404
+
+    row_ids = None
+    if request.method == 'POST':
+        body, error = parse_json_body(request)
+        if error:
+            return error
+        row_ids, row_ids_ok = positive_int_list(body.get(FIELD_ROW_IDS))
+        if not row_ids_ok:
+            return validation_error([S.ERR_TREE_DENDROMETRY_ROW_IDS])
+
+    trees = (TreeSample.objects
+             .filter(sample__survey=survey)
+             .select_related('tree__species')
+             .order_by('tree__species__common_name', 'd_cm', 'id'))
+    if row_ids is not None:
+        trees = trees.filter(id__in=set(row_ids))
+
+    return csv_io.zip_csv_response(
+        render_tree_dendrometry_csvs(trees),
+        S.ZIP_FILE_SURVEY_DENDROMETRY.format(survey.id),
     )
 
 

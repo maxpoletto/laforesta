@@ -602,9 +602,9 @@ export const ERR_SPECIES_REQUIRED = 'Specie obbligatoria.';
 export const ERR_OPERATOR_REQUIRED = 'Operatore obbligatorio.';
 export const MARK_NULL_VOLUME_NOTE =
   'volume e massa non calcolati per alcune specie rare';
-export const MARK_DENDROMETRY_VOLUME = 'Volume';
-export const MARK_DENDROMETRY_BASAL_AREA = 'Area basimetrica';
-export const MARK_DENDROMETRY_EMPTY = 'Nessun dato dendrometrico nel filtro corrente.';
+export const DENDROMETRY_VOLUME = 'Volume';
+export const DENDROMETRY_BASAL_AREA = 'Area basimetrica';
+export const TREE_DENDROMETRY_EMPTY = 'Nessun dato dendrometrico nel filtro corrente.';
 
 // Per-item exports use the item id; constants here are filename prefixes
 // (the JS code appends `<id>.csv`).

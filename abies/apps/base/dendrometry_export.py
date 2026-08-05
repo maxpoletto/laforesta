@@ -1,4 +1,4 @@
-"""Dendrometric matrix exports for harvest-plan tree marks."""
+"""Shared dendrometric matrix exports for tree-like measurements."""
 
 from collections import defaultdict
 from decimal import Decimal
@@ -8,7 +8,7 @@ from apps.base.digests import basal_area_m2, diameter_class_cm
 from config import strings as S
 
 
-def render_mark_dendrometry_csvs(marks) -> list[tuple[str, str]]:
+def render_tree_dendrometry_csvs(trees) -> list[tuple[str, str]]:
     """Return tree-count, volume, and basal-area CSV matrices.
 
     Every matrix uses species on rows and a continuous sequence of 5 cm
@@ -23,22 +23,22 @@ def render_mark_dendrometry_csvs(marks) -> list[tuple[str, str]]:
     species_names = set()
     diameter_classes = set()
 
-    for mark in marks:
-        species = mark.tree.species.common_name
-        diameter_class = diameter_class_cm(mark.d_cm)
+    for tree_row in trees:
+        species = tree_row.tree.species.common_name
+        diameter_class = diameter_class_cm(tree_row.d_cm)
         group = groups[(species, diameter_class)]
         group['tree_count'] += 1
-        group['volume_m3'] += float(mark.volume_m3 or 0)
-        group['basal_area_m2'] += basal_area_m2(mark.d_cm)
+        group['volume_m3'] += float(tree_row.volume_m3 or 0)
+        group['basal_area_m2'] += basal_area_m2(tree_row.d_cm)
         species_names.add(species)
         diameter_classes.add(diameter_class)
 
     classes = _continuous_classes(diameter_classes)
     species = sorted(species_names, key=str.casefold)
     metrics = [
-        (S.CSV_FILE_MARK_TREE_COUNT, 'tree_count', 0),
-        (S.CSV_FILE_MARK_VOLUME, 'volume_m3', 4),
-        (S.CSV_FILE_MARK_BASAL_AREA, 'basal_area_m2', 4),
+        (S.CSV_FILE_DENDROMETRY_TREE_COUNT, 'tree_count', 0),
+        (S.CSV_FILE_DENDROMETRY_VOLUME, 'volume_m3', 4),
+        (S.CSV_FILE_DENDROMETRY_BASAL_AREA, 'basal_area_m2', 4),
     ]
     return [
         (filename, _render_matrix_csv(groups, species, classes, metric, places))

@@ -2,9 +2,10 @@
  * Campionamenti page — 3 collapsible sections.
  *
  *   Section 1 (g) — Griglie: grid pulldown + map of its sample areas.
- *   Section 2 (r) — Rilevamenti: survey pulldown + map with visited
- *                    coloring + click-to-narrow-Section-3.
- *   Section 3 (t) — Alberi campionati: sortable table of sampled trees.
+ *   Section 2 (r) — Rilevamenti: survey pulldown + sample-area map for
+ *                    predefined surveys.
+ *   Section 3 (t) — Alberi campionati: sortable table; free surveys also
+ *                    show their tree map and dendrometric summary.
  *
  * URL params: see docs/page-campionamenti.md (o, g, s, a, tf, tsc, tso).
  *
@@ -13,14 +14,14 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import { TableWrapper } from '../../base/js/table.js';
+import { searchTerms, TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
   COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
   FIELD_LAT, FIELD_LON,
   FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_ROW_IDS,
-  FIELD_SAMPLE_GRID_ID, FIELD_SURVEY_ID,
+  FIELD_SAMPLE_GRID_ID, FIELD_SPECIES, FIELD_SURVEY_ID,
   MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
@@ -39,6 +40,8 @@ import {
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
+import { speciesNamesFromDigest } from '../../base/js/charts.js';
+import { TreeDetail } from '../../base/js/tree-detail.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
@@ -62,12 +65,14 @@ const SURVEYS_ID = 'surveys';
 const GRIDS_ID = 'grids';
 const SAMPLE_AREAS_ID = 'sample_areas';
 const SAMPLES_ID = 'samples';
+const SPECIES_ID = FIELD_SPECIES;
 const TREES_ID_PREFIX = 'sampled_trees_';
 
 const SURVEYS_URL = '/api/campionamenti/surveys/data/';
 const GRIDS_URL = '/api/campionamenti/grids/data/';
 const SAMPLE_AREAS_URL = '/api/campionamenti/sample-areas/data/';
 const SAMPLES_URL = '/api/campionamenti/samples/data/';
+const SPECIES_URL = '/api/species/data/';
 const TREES_URL_PREFIX = '/api/campionamenti/trees/';
 const TREE_FORM_URL = '/api/campionamenti/tree/form/';
 const TREE_SAVE_URL = '/api/campionamenti/tree/save/';
@@ -83,6 +88,8 @@ const GRID_CSV_IMPORT_URL = '/api/campionamenti/grid/import-csv/';
 const TREE_CSV_IMPORT_URL = '/api/campionamenti/survey/import-csv/';
 const GRID_CSV_EXPORT_URL_PREFIX = '/api/campionamenti/grid/export-csv/';
 const TREE_CSV_EXPORT_URL_PREFIX = '/api/campionamenti/survey/export-csv/';
+const TREE_DENDROMETRY_EXPORT_URL_PREFIX =
+  '/api/campionamenti/survey/dendrometry/export/';
 const GRID_FORM_URL = '/api/campionamenti/grid/form/';
 const GRID_SAVE_URL = '/api/campionamenti/grid/save/';
 const SURVEY_FORM_URL = '/api/campionamenti/survey/form/';
@@ -149,7 +156,7 @@ const sections = {
        pulldown: null, summary: null, mapEl: null, map: null,
        savedView: null },
   t: { open: false, header: null, body: null,
-       host: null, emptyEl: null, headerSummary: null },
+       host: null, detailHost: null, emptyEl: null, headerSummary: null },
 };
 
 let table = null;
@@ -161,6 +168,8 @@ let gridsData = null;
 let sampleAreasData = null;
 let samplesData = null;
 let parcelsGeo = null;
+let speciesNames = [];
+let treeDetail = null;
 let unsubCache = null;
 let currentTreesId = null;
 let surveyActivationSeq = 0;
@@ -177,6 +186,7 @@ cache.register(SURVEYS_ID, SURVEYS_URL);
 cache.register(GRIDS_ID, GRIDS_URL);
 cache.register(SAMPLE_AREAS_ID, SAMPLE_AREAS_URL);
 cache.register(SAMPLES_ID, SAMPLES_URL);
+cache.register(SPECIES_ID, SPECIES_URL);
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
 // ---------------------------------------------------------------------------
@@ -189,7 +199,9 @@ const page = createPage({
   mount: mountPage,
   unmount: destroyPage,
   onQueryChange: handleQueryChange,
-  visibleIds: [SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID],
+  visibleIds: [
+    SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID, SPECIES_ID,
+  ],
 });
 
 export const mount = page.mount;
@@ -197,23 +209,25 @@ export const unmount = page.unmount;
 export const onQueryChange = page.onQueryChange;
 
 async function loadPageData() {
-  const [s, g, sa, sm] = await Promise.all([
+  const [s, g, sa, sm, species, geojson] = await Promise.all([
     cache.load(SURVEYS_ID),
     cache.load(GRIDS_ID),
     cache.load(SAMPLE_AREAS_ID),
     cache.load(SAMPLES_ID),
+    cache.load(SPECIES_ID),
     // terreni.geojson is effectively immutable: load it once per session,
     // then reuse the cached, area-sorted copy (no request on re-navigation).
-    cache.get(TERRENI_ID) ? Promise.resolve() : cache.load(TERRENI_ID),
+    cache.get(TERRENI_ID) || cache.load(TERRENI_ID),
   ]);
   surveysData = s;
   gridsData = g;
   sampleAreasData = sa;
   samplesData = sm;
+  speciesNames = speciesNamesFromDigest(species);
   // Sort largest-first so small polygons render — and bind tooltip —
   // on top of their containing larger neighbours.  Mirrors
   // `bosco/b/app.js`'s use of the same helper.
-  parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
+  parcelsGeo = sortFeaturesByArea(geojson);
 }
 
 function mountPage(el, params) {
@@ -239,6 +253,7 @@ function destroyPage() {
   resetSectionRefs();
   activeGridId = activeSurveyId = activeAreaId = null;
   surveysData = gridsData = sampleAreasData = samplesData = parcelsGeo = null;
+  speciesNames = [];
   currentTreesId = null;
   _areaColIdx = -1;
 }
@@ -248,7 +263,7 @@ function resetSectionRefs() {
     const s = sections[k];
     s.header = s.body = null;
     s.pulldown = s.summary = s.mapEl = s.map = null;
-    s.host = s.emptyEl = s.headerSummary = null;
+    s.host = s.detailHost = s.emptyEl = s.headerSummary = null;
   }
 }
 
@@ -305,6 +320,7 @@ function buildPage(el, params) {
   // Trees section refs.
   sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
   sections.t.host = el.querySelector('[data-target="trees-table-host"]');
+  sections.t.detailHost = el.querySelector('[data-target="trees-detail-host"]');
   mountTreesHeaderSummary();
 
   disposePageActions = wireActions(el, {
@@ -427,6 +443,10 @@ function updateGridEmptyState() {
 
 function onSectionOpen(s) {
   // A map first fitted while its section was collapsed (zero-height host)
+  if (s === sections.t) {
+    treeDetail?.showMap();
+    return;
+  }
   // clamps to max zoom; re-fit now that the host has a real size.  Skip the
   // re-fit when the user already has a saved pan/zoom, so we don't clobber it.
   if (!s.map) return;
@@ -568,12 +588,14 @@ async function activateSurvey(surveyId) {
   if (activationSeq !== surveyActivationSeq || currentTreesId !== dataId) return;
 
   renderTable(data);
-  cache.setVisible([SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID, dataId]);
+  cache.setVisible([
+    SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID, SPECIES_ID, dataId,
+  ]);
 
   if (unsubCache) unsubCache();
   unsubCache = cache.onUpdate(dataId, () => {
     if (table) table.setData(cache.get(dataId));
-    updateTreesHeaderSummary();
+    applyAreaFilter();
   });
 }
 
@@ -623,12 +645,15 @@ function renderRilevamentiMap(surveyId) {
   destroyRilevamentiMap();
   const s = sections.r;
   if (!s.mapEl) return;
+  s.mapEl.hidden = true;
 
   const surveyRow = surveysData.rows.find(
     r => r[surveysData.columns.indexOf(ROW_ID)] === surveyId,
   );
   if (!surveyRow) return;
   const gridId = surveyRow[surveysData.columns.indexOf(S.COL_GRID)];
+  if (gridId == null) return;
+  s.mapEl.hidden = false;
 
   const c = sampleAreasData.columns;
   const areas = sampleAreasData.rows
@@ -715,27 +740,54 @@ function renderTable(data) {
     labels: S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
-    onSearch: () => syncURL(),
+    onSearch: () => {
+      syncURL();
+      updateTreeDetail();
+    },
   });
   applyAreaFilter();
+  if (surveyGridId(activeSurveyId) == null) mountTreeDetail(data);
+}
+
+function mountTreeDetail(data) {
+  const host = sections.t.detailHost;
+  if (!host) return;
+  treeDetail = new TreeDetail({
+    container: host,
+    digest: {
+      columns: data.columns,
+      rows: table?.getFilteredRows() || [],
+    },
+    geojson: parcelsGeo,
+    basemap: activeBasemap(),
+    speciesNames,
+    pointColumnNames: { number: S.COL_TREE_NUM },
+    onExport: rows => exportSurveyDendrometry(data, rows),
+  });
+  bindBasemapEvents(treeDetail.map);
+  if (sections.t.open) treeDetail.showMap();
 }
 
 function destroyTable() {
   if (table) { table.destroy(); table = null; }
+  if (treeDetail) { treeDetail.destroy(); treeDetail = null; }
+  sections.t.detailHost?.replaceChildren();
 }
 
 function applyAreaFilter() {
-  if (!table) {
-    updateTreesHeaderSummary();
-    return;
+  if (table) {
+    table.setExternalFilter(
+      activeAreaId == null
+        ? null
+        : row => row[areaCol()] === activeAreaId,
+    );
   }
-  if (activeAreaId == null) {
-    table.setExternalFilter(null);
-    updateTreesHeaderSummary();
-    return;
-  }
-  table.setExternalFilter((row) => row[areaCol()] === activeAreaId);
   updateTreesHeaderSummary();
+  updateTreeDetail();
+}
+
+function updateTreeDetail() {
+  treeDetail?.setRows(table?.getFilteredRows() || []);
 }
 
 function areaCol() {
@@ -841,6 +893,7 @@ function onBasemapChange(name) {
   currentMapType = name;
   if (sections.g.map?.wrapper) sections.g.map.wrapper.syncBasemap(name);
   if (sections.r.map?.wrapper) sections.r.map.wrapper.syncBasemap(name);
+  treeDetail?.syncBasemap(name);
   syncURL();
 }
 
@@ -878,6 +931,7 @@ function applyParams(params) {
     currentMapType = desiredBasemap;
     if (sections.g.map?.wrapper) sections.g.map.wrapper.syncBasemap(desiredBasemap);
     if (sections.r.map?.wrapper) sections.r.map.wrapper.syncBasemap(desiredBasemap);
+    treeDetail?.syncBasemap(desiredBasemap);
   }
 
   // Sync section open/closed.
@@ -904,25 +958,27 @@ function applyParams(params) {
     targetSurvey = surveysData.rows[0][surveysData.columns.indexOf(ROW_ID)];
   }
   if (targetSurvey == null) { showAlberiEmpty(); return; }
+  const targetArea = surveyGridId(targetSurvey) == null ? null : p.a;
 
   if (targetSurvey !== activeSurveyId) {
     const requestedSurvey = targetSurvey;
     const activationSeq = surveyActivationSeq + 1;
     activateSurvey(targetSurvey).then(() => {
       if (activationSeq !== surveyActivationSeq || activeSurveyId !== requestedSurvey) return;
-      if (p.a != null) {
-        activeAreaId = p.a;
-        if (sections.r.map) sections.r.map.setActiveAreaId(p.a);
+      if (targetArea != null) {
+        activeAreaId = targetArea;
+        if (sections.r.map) sections.r.map.setActiveAreaId(targetArea);
         applyAreaFilter();
       }
     });
-  } else if (p.a !== activeAreaId) {
-    activeAreaId = p.a;
-    if (sections.r.map) sections.r.map.setActiveAreaId(p.a);
+  } else if (targetArea !== activeAreaId) {
+    activeAreaId = targetArea;
+    if (sections.r.map) sections.r.map.setActiveAreaId(targetArea);
     applyAreaFilter();
   }
 
   applyTableState(table, p.t, DEFAULT_TREE_SORT);
+  updateTreeDetail();
 }
 
 function syncURL() {
@@ -1459,11 +1515,8 @@ function exportGridAreasCSV(gridId) {
 
 async function exportFilteredSurveyCSV(data) {
   if (activeSurveyId == null || !table) return;
-  const rowIdCol = data.columns.indexOf(ROW_ID);
-  if (rowIdCol < 0) return;
-  const rowIds = table.getFilteredRows()
-    .map(row => row[rowIdCol])
-    .filter(rowId => Number.isInteger(rowId) && rowId > 0);
+  const rowIds = treeRowIds(data, table.getFilteredRows());
+  if (rowIds == null) return;
   try {
     const { blob, filename } = await postBlob(
       `${TREE_CSV_EXPORT_URL_PREFIX}${activeSurveyId}/`,
@@ -1473,6 +1526,30 @@ async function exportFilteredSurveyCSV(data) {
   } catch {
     showError(S.ERROR_NETWORK);
   }
+}
+
+async function exportSurveyDendrometry(data, rows) {
+  if (activeSurveyId == null) return;
+  const filtered = searchTerms(table?.getSearchText() || '').length > 0;
+  const rowIds = filtered ? treeRowIds(data, rows) : null;
+  if (filtered && !rowIds?.length) return;
+  try {
+    const { blob, filename } = await postBlob(
+      `${TREE_DENDROMETRY_EXPORT_URL_PREFIX}${activeSurveyId}/`,
+      rowIds == null ? {} : { [FIELD_ROW_IDS]: rowIds },
+    );
+    downloadBlob(blob, filename);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  }
+}
+
+function treeRowIds(data, rows) {
+  const rowIdCol = data.columns.indexOf(ROW_ID);
+  if (rowIdCol < 0) return null;
+  return rows
+    .map(row => row[rowIdCol])
+    .filter(rowId => Number.isInteger(rowId) && rowId > 0);
 }
 
 async function exportFullSurveyCSV(surveyId) {

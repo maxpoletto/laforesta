@@ -20,15 +20,17 @@ export class TreeDetail {
     container,
     digest,
     geojson = null,
+    basemap = undefined,
     speciesNames = [],
     pointColumnNames = undefined,
     onTreeClick = null,
     onExport = null,
-    emptyMessage = S.MARK_DENDROMETRY_EMPTY,
+    emptyMessage = S.TREE_DENDROMETRY_EMPTY,
   }) {
     this.container = container;
     this.columns = digest?.columns || [];
     this.geojson = geojson;
+    this.basemap = basemap;
     this.speciesNames = speciesNames;
     this.pointColumnNames = pointColumnNames;
     this.onTreeClick = onTreeClick;
@@ -65,6 +67,11 @@ export class TreeDetail {
     this.map.fitParcels();
   }
 
+  /** Mirror a basemap change made on another map on the same page. */
+  syncBasemap(name) {
+    this.map?.wrapper?.syncBasemap(name);
+  }
+
   destroy() {
     this.map?.destroy();
     this.map = null;
@@ -84,6 +91,7 @@ export class TreeDetail {
       className: 'tree-detail-map',
       geojson: this.geojson,
       onTreeClick: this.onTreeClick,
+      basemap: this.basemap,
     });
   }
 

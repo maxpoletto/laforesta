@@ -23,6 +23,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
 from apps.base import csv_io
+from apps.base.dendrometry_export import render_tree_dendrometry_csvs
 from apps.base.numparse import (
     coord_float, int_or_none, parse_decimal, positive_int_list,
 )
@@ -51,7 +52,6 @@ from apps.base.models import (
     parcel_sort_key,
 )
 from apps.piano_di_taglio import csv_plan
-from apps.piano_di_taglio.dendrometry import render_mark_dendrometry_csvs
 from apps.piano_di_taglio.mark_import import (
     MARK_CSV_SPECIES_HEADERS, MarkImportRow,
     auto_advance_to_marked as _auto_advance_to_marked,
@@ -627,7 +627,7 @@ def mark_dendrometry_export_view(request, item_id: int):
             return error
         row_ids, row_ids_ok = positive_int_list(body.get(FIELD_ROW_IDS))
         if not row_ids_ok:
-            return validation_error([S.ERR_MARK_DENDROMETRY_ROW_IDS])
+            return validation_error([S.ERR_TREE_DENDROMETRY_ROW_IDS])
 
     marks = (TreeMark.objects
              .filter(harvest_plan_item=item)
@@ -637,7 +637,7 @@ def mark_dendrometry_export_view(request, item_id: int):
         marks = marks.filter(id__in=set(row_ids))
 
     return csv_io.zip_csv_response(
-        render_mark_dendrometry_csvs(marks),
+        render_tree_dendrometry_csvs(marks),
         S.ZIP_FILE_MARK_DENDROMETRY.format(item.id),
     )
 

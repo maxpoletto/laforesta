@@ -553,6 +553,11 @@ same `tree_mark` records, optionally restricted by POSTed `row_ids`, and uses
 the shared server-side diameter-class and basal-area functions.
 Sorted by `Numero` ascending.
 
+Martellate and free surveys both mount the shared `TreeDetail` controller,
+which composes `TreePointsMap` with the reusable dendrometry renderers. Bosco
+detail pages consume those same graph renderers directly, preserving their
+chart layout, colors, legend, and summary calculations across all three uses.
+
 `Numero` is stored on `tree_mark.number`. `h misurata`
 carries the boolean `h_measured`, rendered in the table as a small
 filled / outlined dot.
