@@ -206,11 +206,12 @@ SESSION_COOKIE_AGE = 43200  # 12 hours
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/prelievi'
 
-# JSON CSV imports carry base64 file bytes in request bodies. Django's 2.5 MiB
-# default is too tight once base64 overhead is included, so keep an explicit
-# ceiling with a deployment override.
+# JSON CSV imports and Ipso multipart uploads carry operator-provided file
+# bytes in request bodies. Django's 2.5 MiB default is too tight, so keep an
+# explicit ceiling aligned with the Ipso upload default and allow deployment
+# overrides.
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get(
-    'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE', str(16 * 1024 * 1024),
+    'DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE', str(IPSO_UPLOAD_MAX_BYTES_DEFAULT),
 ))
 
 # --- allauth -----------------------------------------------------------------

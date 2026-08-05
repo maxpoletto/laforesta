@@ -94,7 +94,7 @@ def test_branding_text_and_asset_paths(monkeypatch):
 
 def test_data_upload_memory_size_default_and_override(monkeypatch):
     settings = load_settings(monkeypatch, DJANGO_DEBUG='1')
-    assert settings.DATA_UPLOAD_MAX_MEMORY_SIZE == 16 * 1024 * 1024
+    assert settings.DATA_UPLOAD_MAX_MEMORY_SIZE == 30 * 1024 * 1024
 
     settings = load_settings(
         monkeypatch,
