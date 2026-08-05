@@ -110,6 +110,7 @@ const S = {
   RESUME_RESUME: 'Riprendi',
   RESUME_EXPORT: 'Esporta',
   RESUME_DISCARD: 'Scarta',
+  RESUME_DISCARD_TITLE: 'Scarta sessione',
   RESUME_ARCHIVE_TITLE: 'Archivio locale',
   RESUME_ARCHIVE_BODY:
     'Sessioni chiuse conservate sul dispositivo. Puoi esportare di nuovo una copia CSV.',

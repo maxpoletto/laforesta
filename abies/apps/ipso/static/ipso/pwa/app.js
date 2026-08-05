@@ -42,6 +42,8 @@ const State = {
   pendingCameraPhotoPosition: null, // GPS position captured before camera opens
   observationPhotos: [],
   photoProcessingCount: 0,
+  pendingResumeDiscard: null,
+  resumeDiscardModalWired: false,
   direction: null,
   heading: null,
   bootReady: false,    // true once controls are wired and may be refreshed
@@ -2504,6 +2506,44 @@ function wireDone() {
 // Resume modal
 // ---------------------------------------------------------------------------
 
+function wireResumeDiscardModal() {
+  if (State.resumeDiscardModalWired) return;
+  const title = document.getElementById('discard-title');
+  const body = document.getElementById('discard-body');
+  const cancel = document.getElementById('discard-cancel');
+  const confirm = document.getElementById('discard-confirm');
+  if (!title || !body || !cancel || !confirm) return;
+  title.textContent = S.RESUME_DISCARD_TITLE;
+  body.textContent = S.RESUME_DISCARD_CONFIRM;
+  cancel.textContent = S.REC_CANCEL;
+  confirm.textContent = S.RESUME_DISCARD;
+  cancel.addEventListener('click', hideResumeDiscardModal);
+  confirm.addEventListener('click', confirmResumeDiscard);
+  State.resumeDiscardModalWired = true;
+}
+
+function showResumeDiscardModal(session, sessions) {
+  wireResumeDiscardModal();
+  State.pendingResumeDiscard = { session, sessions };
+  showModal('modal-confirm-discard');
+}
+
+function hideResumeDiscardModal() {
+  State.pendingResumeDiscard = null;
+  hideModal('modal-confirm-discard');
+}
+
+async function confirmResumeDiscard() {
+  const pending = State.pendingResumeDiscard;
+  if (!pending) return;
+  const { session: sess, sessions } = pending;
+  State.pendingResumeDiscard = null;
+  await Store.setSessionStatus(State.db, sess.id, Store.STATUS_ABANDONED);
+  sess.status = Store.STATUS_ABANDONED;
+  hideModal('modal-confirm-discard');
+  showResumeModal(sessions);
+}
+
 function showResumeModal(sessions) {
   sessions = startupActionSessions(sessions);
   if (sessions.length === 0) {
@@ -2592,11 +2632,8 @@ function showResumeModal(sessions) {
           showToast(S.TOAST_EXPORT_ERROR(e.message));
         }
       });
-      const discard = mkBtn(S.RESUME_DISCARD, 'btn-danger', async () => {
-        if (!window.confirm(S.RESUME_DISCARD_CONFIRM)) return;
-        await Store.setSessionStatus(State.db, s.id, Store.STATUS_ABANDONED);
-        s.status = Store.STATUS_ABANDONED;
-        showResumeModal(sessions);
+      const discard = mkBtn(S.RESUME_DISCARD, 'btn-danger', () => {
+        showResumeDiscardModal(s, sessions);
       });
       actions.appendChild(resume);
       actions.appendChild(exp);

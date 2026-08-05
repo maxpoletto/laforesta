@@ -15,6 +15,7 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
   `registerServiceWorker, watchServiceWorkerUpdates, activatePendingAppUpdate, ` +
+  `showResumeDiscardModal, confirmResumeDiscard, hideResumeDiscardModal, ` +
   `loadBearerToken, bearerHeaders };\n`;
 
 let pass = 0;
@@ -98,6 +99,11 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     return elements.get(id);
   };
   element('modal-confirm-end');
+  element('modal-confirm-discard').className = 'hidden';
+  element('discard-title');
+  element('discard-body');
+  element('discard-cancel');
+  element('discard-confirm');
   element('modal-resume').className = 'hidden';
   element('banner-reference').className = 'banner hidden';
   element('banner-storage').className = 'banner hidden';
@@ -170,6 +176,8 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     RESUME_RESUME: 'Riprendi',
     RESUME_EXPORT: 'Esporta',
     RESUME_DISCARD: 'Scarta',
+    RESUME_DISCARD_TITLE: 'Scarta sessione',
+    REC_CANCEL: 'Annulla',
     RESUME_ARCHIVE_TITLE: 'Archivio locale',
     RESUME_ARCHIVE_BODY: 'archive body',
     RESUME_STATUS_EXPORTED: 'esportata',
@@ -927,13 +935,12 @@ const session = {
         'failed resume export reports the formatting error');
 }
 
-// Discard requires confirmation before marking the session abandoned.
+// Discard opens an in-app confirmation modal before abandoning a session.
 {
-  const { context, events, buttons } = makeHarness();
+  const { context, events, elements, buttons } = makeHarness();
   const app = context.__ipsoAppTest;
   app.State.db = {};
   app.State.reference = {};
-  context.window.confirm = () => { events.push('confirm'); return false; };
   context.Store.setSessionStatus = async (_db, _id, status) => {
     events.push(['setSessionStatus', status]);
   };
@@ -942,7 +949,14 @@ const session = {
   const discard = buttons.find(b => b.textContent === 'Scarta');
   await discard.click();
 
-  check(events.includes('confirm'), 'resume discard asks for confirmation');
+  check(!elements.get('modal-confirm-discard').classList.contains('hidden'),
+        'resume discard opens the confirmation modal');
+  check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionStatus'),
+        'opening resume discard confirmation does not abandon the session');
+
+  await elements.get('discard-cancel').click();
+  check(elements.get('modal-confirm-discard').classList.contains('hidden'),
+        'cancelled resume discard closes the confirmation modal');
   check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionStatus'),
         'cancelled resume discard does not abandon the session');
 }
@@ -960,9 +974,12 @@ const session = {
 
   const discard = buttons.find(b => b.textContent === 'Scarta');
   await discard.click();
+  await elements.get('discard-confirm').click();
 
   check(events.some(e => Array.isArray(e) && e[1] === 'abandoned'),
         'confirmed resume discard marks the session abandoned');
+  check(elements.get('modal-confirm-discard').classList.contains('hidden'),
+        'confirmed resume discard closes the confirmation modal');
   check(elements.get('modal-resume').classList.contains('hidden'),
         'discarding the last active session closes the startup modal');
 }
