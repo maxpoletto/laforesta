@@ -13,9 +13,10 @@ view-persistence mechanisms, and how the layers fit together.
    chrome every map shares — the basemap layer + switcher (top-right), the
    localized zoom control, and an optional coordinate readout — and exposes
    `getLeafletMap() / getBasemap() / setBasemap() / syncBasemap()`, firing
-   `basemapchange` for cross-map sync; pages round-trip the active basemap
-   through the `mt=` URL param (`o`/`t`/`s`). It also holds `BASEMAPS`. Nothing else:
-   no measure, location, markers, or geometry.
+   `basemapchange` for user-initiated cross-map sync and
+   `basemapstylechange` for every actual layer change; pages round-trip the
+   active basemap through the `mt=` URL param (`o`/`t`/`s`). It also holds
+   `BASEMAPS`. Nothing else: no measure, location, markers, or geometry.
 
 2. **`base/js/map-tools.js` — opt-in tools.**  `attachMeasure(leaflet)`,
    `attachLocation(leaflet)`, and `attachSidebarToggle(leaflet, { sidebarId,
@@ -33,7 +34,8 @@ view-persistence mechanisms, and how the layers fit together.
    and reports view changes, exposes the unified click callback
    `onMapClick(latlng, feature|null)`, and opts into tools via `tools: { measure,
    location, sidebar }` (all off by default). It also provides a sample-area
-   marker layer with active-highlight for the maps that need it. Owns
+   marker layer with active-highlight for the maps that need it. It also
+   updates registered semantic marker layers when the basemap changes. Owns
    `PARCEL_STYLE` and `FIT_PADDING`.
 
 ```
@@ -52,7 +54,9 @@ Two patterns, picked by whether the thing *is* a map or *has* one:
   `super({ container, className, geojson, basemap, tools, initialView,
   onViewChange, onMapClick })`, adapting `onMapClick` to your page callbacks;
   override `setAreas(rows…)` to build markers via `_addAreaMarker(area, {
-  fillColor, fillOpacity, tooltip, onClick })`. The base owns marker
+  fillColor, fillTone, fillOpacity, tooltip, onClick })`. Use `fillTone:
+  'dark'|'light'` for green status markers that need the satellite contrast
+  palette. The base owns marker
   bookkeeping, `setActiveAreaId` / active-highlight, `fitParcels`,
   `invalidateSize`, view persistence, the `.leaflet` / `.wrapper` handles used
   for basemap sync, and `destroy`.
@@ -69,6 +73,23 @@ it directly and always re-fires the select callback (so re-clicking the active
 marker still notifies the page), while the public **`setActiveAreaId(id)`** is
 the page-driven path and is idempotent. Don't route the marker click through
 `setActiveAreaId` — the early-out would swallow a repeat selection.
+
+### Basemap-aware point colors
+
+`map-palette.js` owns the two semantic point tones. Each marker keeps its
+original green on OSM/topo and uses dark yellow or pale straw on satellite.
+Build standalone vector options with
+`semanticMarkerStyle(basemap, tone, style)`. In a `ParcelMap`, prefer
+`parcelMap.semanticMarkerStyle(tone, style)` and register app-owned layer groups
+with `registerSemanticMarkerLayer(layer)`; the built-in marker layer is already
+registered. HTML `DivIcon` markers can use the `mc-basemap-satellite` class
+which `MapCommon` maintains on the map container.
+
+The palette update runs only on `basemapstylechange`. With the default Canvas
+renderer, Leaflet coalesces the markers' `setStyle` calls into one redraw, so a
+basemap switch costs one linear pass over semantic point layers; pan, zoom, and
+filter updates incur no palette work. Do not use it for categorical colors
+(species, forest type, or data scales), which must remain stable.
 
 ## Adding a new map
 

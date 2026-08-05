@@ -64,6 +64,7 @@ export class RilevamentiMap extends ParcelMap {
         : this._areaTooltip(S.TOOLTIP_SAMPLE_AREA, area);
       this._addAreaMarker(area, {
         fillColor: isVisited ? VISITED_COLOR : UNVISITED_COLOR,
+        fillTone: isVisited ? 'dark' : 'light',
         fillOpacity: isVisited ? VISITED_FILL_OPACITY : UNVISITED_FILL_OPACITY,
         tooltip,
         onClick: (a) => this.onAreaSelect(a.id),

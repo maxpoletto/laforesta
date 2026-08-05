@@ -274,6 +274,8 @@ test-js:
 	node apps/mannesi/static/squadre/js/squadre.test.mjs
 	node apps/prelievi/static/prelievi/js/prelievi.test.mjs
 	node apps/base/static/base/js/prelievi-columns.test.mjs
+	node apps/base/static/base/js/map-palette.test.mjs
+	node apps/base/static/base/js/map-common.test.mjs
 	node apps/base/static/base/js/parcel-map.test.mjs
 	node apps/base/static/base/js/tree-points-map.test.mjs
 	node apps/base/static/base/js/map-tools.test.mjs

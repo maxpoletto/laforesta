@@ -3,8 +3,9 @@
  *
  * This is intentionally thin: ParcelMap owns basemap controls, parcel borders,
  * parcel hover labels, measure/location tools, fit/teardown, and marker layer
- * lifetime.  TreePointsMap only maps tree-like digest rows to dark-green
- * circle markers with a shared tooltip.
+ * lifetime. TreePointsMap only maps tree-like digest rows to semantic dark
+ * circle markers (green on OSM/topo, yellow on satellite) with a shared
+ * tooltip.
  */
 
 import { ParcelMap } from './parcel-map.js';
@@ -50,7 +51,7 @@ export class TreePointsMap extends ParcelMap {
   }
 
   /**
-   * Render one dark-green dot for every tree with finite Lat/Lon.
+   * Render one basemap-aware dark dot for every tree with finite Lat/Lon.
    * @param {Array<{id, row, number, species, diameter, height, lat, lon}>} trees
    */
   setTrees(trees) {
@@ -59,14 +60,14 @@ export class TreePointsMap extends ParcelMap {
       const lat = numericValue(tree.lat);
       const lon = numericValue(tree.lon);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      const marker = L.circleMarker([lat, lon], {
+      const marker = L.circleMarker([lat, lon], this.semanticMarkerStyle('dark', {
         radius: TREE_MARKER_RADIUS,
         color: TREE_MARKER_BORDER,
         weight: 1,
         opacity: TREE_MARKER_BORDER_OPACITY,
         fillColor: TREE_MARKER_COLOR,
         fillOpacity: TREE_MARKER_FILL_OPACITY,
-      });
+      }));
       marker.bindTooltip(treeTooltipContent(tree), { sticky: true, direction: 'top' });
       if (this.onTreeClick) {
         marker.on('click', (e) => {

@@ -98,6 +98,13 @@ opacity, so the imagery shows through. Don't inline a style block in a new map
 renderer; reuse the shared `PARCEL_STYLE` so the look stays consistent across
 maps and basemaps.
 
+**Point-marker palette.** Semantic dark/light-green points (trees,
+observations, and visited/unvisited sample areas) remain green on OSM and Topo,
+but switch to dark yellow / pale straw on Satellite so they remain visible over
+forest imagery. Categorical colors such as species and parcel types do not
+switch. Use the shared semantic marker helpers documented in
+[`ui-maps.md`](ui-maps.md), rather than testing the basemap in page code.
+
 ## Modals
 
 All forms display as 640px-wide overlay modals (`#modal-container`).

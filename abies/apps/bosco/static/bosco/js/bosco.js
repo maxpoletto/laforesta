@@ -2654,7 +2654,9 @@ function setObservationSummary(shown, total) {
 function renderObservationMarkers(observations) {
   clearObservationMarkers();
   if (!map?.leaflet) return;
-  observationMarkerLayer = L.layerGroup().addTo(map.leaflet);
+  observationMarkerLayer = map.registerSemanticMarkerLayer(
+    L.layerGroup().addTo(map.leaflet),
+  );
   for (const group of groupObservationMarkers(observations, OBSERVATION_OVERLAP_THRESHOLD_M)) {
     if (group.observations.length === 1) {
       renderSingleObservationMarker(group.observations[0]);
@@ -2666,7 +2668,8 @@ function renderObservationMarkers(observations) {
 
 function renderSingleObservationMarker(observation) {
   const marker = L.circleMarker(
-    [observation.lat, observation.lon], OBSERVATION_MARKER_STYLE,
+    [observation.lat, observation.lon],
+    map.semanticMarkerStyle('dark', OBSERVATION_MARKER_STYLE),
   );
   marker.bindTooltip(observationTooltip(observation), {
     direction: 'top', offset: [0, -5],
@@ -2688,6 +2691,7 @@ function renderObservationGroupMarker(group) {
 
 function clearObservationMarkers() {
   if (observationMarkerLayer) {
+    map?.unregisterSemanticMarkerLayer(observationMarkerLayer);
     observationMarkerLayer.remove();
     observationMarkerLayer = null;
   }
@@ -2914,10 +2918,14 @@ function renderObservationPhotoMap(host, observation, photos) {
     basemap: currentState?.basemap,
     tools: {},
   });
-  const pointLayer = L.layerGroup().addTo(photoMap.leaflet);
+  const pointLayer = photoMap.registerSemanticMarkerLayer(
+    L.layerGroup().addTo(photoMap.leaflet),
+  );
   const points = [];
   const obsLatLng = [observation[FIELD_LAT], observation[FIELD_LON]];
-  L.circleMarker(obsLatLng, OBSERVATION_MARKER_STYLE)
+  L.circleMarker(
+    obsLatLng, photoMap.semanticMarkerStyle('dark', OBSERVATION_MARKER_STYLE),
+  )
     .bindTooltip(S.BOSCO_OBSERVATION_DETAIL_TITLE, { direction: 'top' })
     .addTo(pointLayer);
   points.push(obsLatLng);

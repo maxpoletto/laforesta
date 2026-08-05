@@ -2,12 +2,15 @@
 //
 // Provides map creation with the standard chrome every abies map shares — the
 // basemap layer + switcher, the zoom control, and an optional coordinate
-// readout — plus basemap get/set/sync (firing `basemapchange` for cross-map
-// sync).  The heavier opt-in tools (measure, location, sidebar toggle) live in
-// map-tools.js; the parcel/marker abstraction in parcel-map.js.
+// readout — plus basemap get/set/sync. User choices fire `basemapchange` for
+// cross-map sync; `basemapstylechange` fires for both direct and synchronized
+// changes so vector layers can adapt their contrast. The heavier opt-in tools
+// (measure, location, sidebar toggle) live in map-tools.js; the parcel/marker
+// abstraction in parcel-map.js.
 
 import * as S from './strings.js';
 import { fmtCoord } from './format.js';
+import { markerFillColor } from './map-palette.js';
 
 const $ = id => document.getElementById(id);
 
@@ -37,6 +40,7 @@ const MapCommon = (function() {
     };
     // Display order in the BasemapControl row.
     const BASEMAP_ORDER = ['osm', 'topo', 'satellite'];
+    const SATELLITE_CLASS = 'mc-basemap-satellite';
 
     // Create a map wrapper that abstracts the underlying map library.
     function create(elementId, options = {}) {
@@ -54,6 +58,17 @@ const MapCommon = (function() {
         currentBasemap.addTo(leafletMap);
         let basemapControlInstance = null;
 
+        function applyBasemapAppearance(name, notify = true) {
+            const container = leafletMap.getContainer();
+            container?.classList?.toggle(SATELLITE_CLASS, name === 'satellite');
+            container?.style?.setProperty?.(
+                '--mc-semantic-marker-dark', markerFillColor(name, 'dark'));
+            container?.style?.setProperty?.(
+                '--mc-semantic-marker-light', markerFillColor(name, 'light'));
+            if (notify) leafletMap.fire('basemapstylechange', { name });
+        }
+        applyBasemapAppearance(activeBasemapName, false);
+
         // --- Basemap functions ---
         function createBasemapLayer(name) {
             const basemap = BASEMAPS[name] || BASEMAPS.satellite;
@@ -61,11 +76,12 @@ const MapCommon = (function() {
         }
 
         function setBasemap(name) {
-            if (!BASEMAPS[name]) return;
+            if (!BASEMAPS[name] || name === activeBasemapName) return;
             leafletMap.removeLayer(currentBasemap);
             currentBasemap = createBasemapLayer(name);
             currentBasemap.addTo(leafletMap);
             activeBasemapName = name;
+            applyBasemapAppearance(name);
         }
 
         // Keep the basemap layer and the control's visual state in lockstep,

@@ -53,6 +53,7 @@ export class GriglieMap extends ParcelMap {
     for (const area of areas) {
       this._addAreaMarker(area, {
         fillColor: MARKER_COLOR,
+        fillTone: 'dark',
         fillOpacity: MARKER_FILL_OPACITY,
         tooltip: this._areaTooltip(S.TOOLTIP_SAMPLE_AREA, area),
         onClick: (a) => { if (this.onAreaClick) this.onAreaClick(a); },

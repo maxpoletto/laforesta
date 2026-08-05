@@ -47,12 +47,18 @@ function makeFakeMap() {
 MapCommon.create = (el, opts) => {
   lastCreateOpts = opts;
   lastMap = makeFakeMap();
+  const leaflet = lastMap;
+  let activeBasemap = opts.basemap;
   return {
     leaflet: lastMap,
-    getLeafletMap: () => lastMap,
-    getBasemap: () => opts.basemap,
-    setBasemap() {},
-    syncBasemap() {},
+    getLeafletMap: () => leaflet,
+    getBasemap: () => activeBasemap,
+    setBasemap(name) {
+      if (name === activeBasemap) return;
+      activeBasemap = name;
+      leaflet.fire('basemapstylechange', { name });
+    },
+    syncBasemap(name) { this.setBasemap(name); },
   };
 };
 
@@ -63,16 +69,17 @@ function fakeLayerGroup() {
     addTo() { return this; },
     clearLayers() { this.layers.length = 0; },
     addLayer(l) { this.layers.push(l); },
+    eachLayer(callback) { this.layers.forEach(callback); },
   };
 }
 let lastParcelLayer = null;
 function fakeMarker(latlng, style) {
   return {
-    latlng, style: { ...style }, handlers: {},
+    latlng, style: { ...style }, options: { ...style }, handlers: {},
     bindTooltip(t) { this.tooltip = t; return this; },
     on(ev, cb) { this.handlers[ev] = cb; return this; },
     addTo(layer) { layer.addLayer(this); return this; },
-    setStyle(s) { Object.assign(this.style, s); },
+    setStyle(s) { Object.assign(this.style, s); Object.assign(this.options, s); },
     bringToFront() { this.front = true; },
     click() { this.handlers.click?.({}); },
   };
@@ -253,6 +260,26 @@ check(m.markers.get(a2.id).front === false,
 m._clearMarkers();
 check(m.markers.size === 0 && m.markerLayer.layers.length === 0,
       '_clearMarkers: empties markers map + layer');
+
+// --- Semantic marker palette follows basemap changes -----------------------
+const paletteMap = newMap({ basemap: 'topo' });
+paletteMap._addAreaMarker(a1, {
+  fillColor: '#2d5d2c', fillTone: 'dark', fillOpacity: 0.8,
+});
+paletteMap._addAreaMarker(a2, {
+  fillColor: '#8fbf8e', fillTone: 'light', fillOpacity: 0.5,
+});
+check(paletteMap.markers.get(a1.id).style.fillColor === '#2d5d2c'
+      && paletteMap.markers.get(a2.id).style.fillColor === '#8fbf8e',
+      'semantic sample markers retain dark/light green on topo');
+paletteMap.wrapper.syncBasemap('satellite');
+check(paletteMap.markers.get(a1.id).style.fillColor === '#d6a800'
+      && paletteMap.markers.get(a2.id).style.fillColor === '#f0dda0',
+      'semantic sample markers switch to dark/pale yellow on satellite');
+paletteMap.wrapper.syncBasemap('osm');
+check(paletteMap.markers.get(a1.id).style.fillColor === '#2d5d2c'
+      && paletteMap.markers.get(a2.id).style.fillColor === '#8fbf8e',
+      'semantic sample markers restore their exact greens on OSM');
 
 // --- Teardown (tools torn down before the map is removed) -------------------
 const d = newMap({ tools: { measure: true, location: true } });

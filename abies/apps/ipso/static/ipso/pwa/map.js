@@ -58,6 +58,7 @@ function createOrientationMap(opts) {
   const onFeatureClick = opts.onFeatureClick;
 
   let initPromise = null;
+  let mapPalette = null;
   let wrapper = null;
   let leaflet = null;
   let parcelsLayer = null;
@@ -80,8 +81,12 @@ function createOrientationMap(opts) {
   async function init() {
     if (typeof L === 'undefined') throw new Error(S.MAP_ERROR_LEAFLET_MISSING);
     try {
-      const mod = await import('/static/base/js/map-common.js');
-      const MapCommon = mod.default || mod.MapCommon || mod;
+      const [mapModule, paletteModule] = await Promise.all([
+        import('/static/base/js/map-common.js'),
+        import('/static/base/js/map-palette.js'),
+      ]);
+      const MapCommon = mapModule.default || mapModule.MapCommon || mapModule;
+      mapPalette = paletteModule;
       wrapper = MapCommon.create(elementId, {
         basemap: readBasemap(),
         leafletOptions: { preferCanvas: true, zoomControl: false },
@@ -89,6 +94,10 @@ function createOrientationMap(opts) {
       leaflet = wrapper.getLeafletMap();
       leaflet.setView([38.6, 16.3], 10);
       leaflet.on('basemapchange', (e) => writeBasemap(e.name));
+      leaflet.on('basemapstylechange', (e) => {
+        mapPalette.refreshSemanticMarkers(recordsLayer, e.name);
+        mapPalette.refreshSemanticMarkers(positionLayer, e.name);
+      });
       L.control.scale({ metric: true, imperial: false }).addTo(leaflet);
       setupPaiPane();
       parcelsLayer = L.geoJSON(null, {
@@ -163,13 +172,17 @@ function createOrientationMap(opts) {
     for (const rec of records) {
       const point = recordLatLng(rec);
       if (!point) continue;
-      const marker = L.circleMarker(point, {
+      const baseStyle = {
         radius: 5,
         color: '#1f5b1a',
         weight: 2,
         fillColor: green ? '#2e8b27' : '#d6a02a',
         fillOpacity: 0.9,
-      }).addTo(recordsLayer);
+      };
+      const style = green
+        ? mapPalette.semanticMarkerStyle(wrapper.getBasemap(), 'dark', baseStyle)
+        : baseStyle;
+      const marker = L.circleMarker(point, style).addTo(recordsLayer);
       const label = formatRecordLabel ? formatRecordLabel(rec) : '';
       if (label && popup) {
         const content = document.createElement('div');
@@ -289,20 +302,20 @@ function createOrientationMap(opts) {
     if (!currentFix) return;
     const latlng = [currentFix.lat, currentFix.lon];
     const radius = Math.max(3, Math.round(currentFix.acc || 0));
-    L.circle(latlng, {
+    L.circle(latlng, mapPalette.semanticMarkerStyle(wrapper.getBasemap(), 'dark', {
       radius,
       color: '#1f5b1a',
       weight: 1,
       fillColor: '#2e8b27',
       fillOpacity: 0.12,
-    }).addTo(positionLayer);
-    L.circleMarker(latlng, {
+    })).addTo(positionLayer);
+    L.circleMarker(latlng, mapPalette.semanticMarkerStyle(wrapper.getBasemap(), 'dark', {
       radius: 7,
       color: '#ffffff',
       weight: 2,
       fillColor: '#1f5b1a',
       fillOpacity: 1,
-    }).addTo(positionLayer);
+    })).addTo(positionLayer);
     const heading = Number.isFinite(currentHeading)
       ? currentHeading
       : currentFix && Number.isFinite(currentFix.heading)

@@ -375,6 +375,12 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
+.mc-basemap-satellite .bosco-observation-aggregate-marker {
+  border-color: #6f5700;
+  background: var(--mc-semantic-marker-dark);
+  color: #111;
+}
+
 .bosco-observation-category-group {
   min-width: 0;
   margin: 0;

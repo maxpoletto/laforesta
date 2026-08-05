@@ -16,6 +16,7 @@
 import MapCommon from './map-common.js';
 import { parcelLabel } from './geo.js';
 import { attachMeasure, attachLocation, attachSidebarToggle } from './map-tools.js';
+import { refreshSemanticMarkers, semanticMarkerStyle } from './map-palette.js';
 
 export const MARKER_RADIUS = 7;
 const MARKER_BORDER = '#000';
@@ -107,6 +108,9 @@ export class ParcelMap {
 
     this._renderParcels();
     this.markerLayer = L.layerGroup().addTo(this.leaflet);
+    this._semanticMarkerLayers = new Set([this.markerLayer]);
+    this._onBasemapStyleChange = e => this._refreshSemanticMarkerLayers(e.name);
+    this.leaflet.on('basemapstylechange', this._onBasemapStyleChange);
 
     if (opts.initialView) {
       this.leaflet.setView(opts.initialView.center, opts.initialView.zoom);
@@ -163,6 +167,28 @@ export class ParcelMap {
     this.markers.clear();
   }
 
+  /** Build a semantic vector style for this map's current basemap. */
+  semanticMarkerStyle(tone, style = {}) {
+    return semanticMarkerStyle(this.wrapper.getBasemap(), tone, style);
+  }
+
+  /** Include an app-owned layer in automatic basemap palette updates. */
+  registerSemanticMarkerLayer(layer) {
+    this._semanticMarkerLayers.add(layer);
+    refreshSemanticMarkers(layer, this.wrapper.getBasemap());
+    return layer;
+  }
+
+  unregisterSemanticMarkerLayer(layer) {
+    this._semanticMarkerLayers.delete(layer);
+  }
+
+  _refreshSemanticMarkerLayers(basemap) {
+    for (const layer of this._semanticMarkerLayers) {
+      refreshSemanticMarkers(layer, basemap);
+    }
+  }
+
   /**
    * Add a sample-area circle marker.  Subclasses pass the fill style, tooltip,
    * and a click handler (receiving the area row).  The marker click sets the
@@ -170,11 +196,13 @@ export class ParcelMap {
    * re-fires `onClick` even for the already-active marker, matching prior
    * behaviour.
    */
-  _addAreaMarker(area, { fillColor, fillOpacity, tooltip, onClick }) {
-    const m = L.circleMarker([area.lat, area.lon], {
+  _addAreaMarker(area, { fillColor, fillTone = null, fillOpacity, tooltip, onClick }) {
+    const baseStyle = {
       radius: MARKER_RADIUS, color: MARKER_BORDER, weight: INACTIVE_WEIGHT,
       opacity: MARKER_BORDER_OPACITY, fillColor, fillOpacity,
-    });
+    };
+    const style = fillTone ? this.semanticMarkerStyle(fillTone, baseStyle) : baseStyle;
+    const m = L.circleMarker([area.lat, area.lon], style);
     if (tooltip) m.bindTooltip(tooltip, { direction: 'top', offset: [0, -5] });
     m.on('click', (e) => {
       L.DomEvent.stopPropagation(e);
@@ -222,12 +250,17 @@ export class ParcelMap {
       this._toolHandles.forEach(h => h.destroy());
       this._toolHandles = [];
     }
-    if (this.leaflet) { this.leaflet.remove(); this.leaflet = null; }
+    if (this.leaflet) {
+      this.leaflet.off('basemapstylechange', this._onBasemapStyleChange);
+      this.leaflet.remove();
+      this.leaflet = null;
+    }
     this.mapEl?.remove();
     this.mapEl = null;
     this.wrapper = null;
     this.parcelLayer = null;
     this.markerLayer = null;
+    this._semanticMarkerLayers.clear();
     this.markers.clear();
   }
 

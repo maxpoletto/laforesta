@@ -12,6 +12,7 @@
  */
 import * as S from './strings.js';
 import { fmtDecimal1, fmtDecimal2, fmtInt } from './format.js';
+import { refreshSemanticMarkers, semanticMarkerStyle } from './map-palette.js';
 
 const $ = id => document.getElementById(id);
 
@@ -135,6 +136,11 @@ export function attachLocation(leaflet) {
   let marker = null;
   let circle = null;
 
+  function currentBasemap() {
+    return leaflet.getContainer()?.classList?.contains('mc-basemap-satellite')
+      ? 'satellite' : 'osm';
+  }
+
   function clearGraphics() {
     if (marker) { leaflet.removeLayer(marker); marker = null; }
     if (circle) { leaflet.removeLayer(circle); circle = null; }
@@ -160,9 +166,13 @@ export function attachLocation(leaflet) {
 
   function onFound(e) {
     clearGraphics();
-    circle = L.circle(e.latlng, { ...LOCATION_CIRCLE_STYLE, radius: e.accuracy })
+    circle = L.circle(e.latlng, semanticMarkerStyle(
+      currentBasemap(), 'dark', { ...LOCATION_CIRCLE_STYLE, radius: e.accuracy },
+    ))
       .addTo(leaflet);
-    marker = L.circleMarker(e.latlng, LOCATION_MARKER_STYLE).addTo(leaflet);
+    marker = L.circleMarker(
+      e.latlng, semanticMarkerStyle(currentBasemap(), 'dark', LOCATION_MARKER_STYLE),
+    ).addTo(leaflet);
     marker.bindTooltip(
       `<b>${S.MAP_LOCATION_CURRENT}</b><br>${
         S.MAP_LOCATION_ACCURACY_LABEL(fmtInt(Math.round(e.accuracy)))}`,
@@ -175,15 +185,22 @@ export function attachLocation(leaflet) {
     stop();
   }
 
+  function onBasemapStyleChange(e) {
+    refreshSemanticMarkers(circle, e.name);
+    refreshSemanticMarkers(marker, e.name);
+  }
+
   const control = new (iconButtonControl(LOCATION_ICON, S.MAP_LOCATION_TITLE, toggle))();
   leaflet.addControl(control);
   leaflet.on('locationfound', onFound);
   leaflet.on('locationerror', onError);
+  leaflet.on('basemapstylechange', onBasemapStyleChange);
 
   return {
     destroy() {
       leaflet.off('locationfound', onFound);
       leaflet.off('locationerror', onError);
+      leaflet.off('basemapstylechange', onBasemapStyleChange);
       leaflet.removeControl(control);
       stop();
     },

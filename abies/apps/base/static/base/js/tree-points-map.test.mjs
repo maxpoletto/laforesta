@@ -41,19 +41,30 @@ global.document = {
 
 let lastMap = null;
 function makeFakeMap() {
+  const handlers = {};
   return {
-    on() { return this; },
+    on(name, callback) { (handlers[name] ||= []).push(callback); return this; },
+    off(name, callback) {
+      handlers[name] = (handlers[name] || []).filter(item => item !== callback);
+      return this;
+    },
+    fire(name, detail) { for (const callback of handlers[name] || []) callback(detail); },
     fitBounds(bounds, opts) { this.fitted = { bounds, opts }; return this; },
     remove() { this.removed = true; },
   };
 }
 MapCommon.create = () => {
   lastMap = makeFakeMap();
+  let basemap = 'satellite';
   return {
     getLeafletMap: () => lastMap,
-    getBasemap: () => 'satellite',
-    setBasemap() {},
-    syncBasemap() {},
+    getBasemap: () => basemap,
+    setBasemap(name) {
+      if (name === basemap) return;
+      basemap = name;
+      lastMap.fire('basemapstylechange', { name });
+    },
+    syncBasemap(name) { this.setBasemap(name); },
   };
 };
 
@@ -63,6 +74,7 @@ function fakeLayerGroup() {
     addTo() { return this; },
     addLayer(layer) { this.layers.push(layer); },
     clearLayers() { this.layers.length = 0; },
+    eachLayer(callback) { this.layers.forEach(callback); },
   };
 }
 function fakeBounds(valid) {
@@ -71,11 +83,13 @@ function fakeBounds(valid) {
 function fakeMarker(latlng, style) {
   return {
     latlng,
-    style,
+    style: { ...style },
+    options: { ...style },
     handlers: {},
     bindTooltip(content, options) { this.tooltip = { content, options }; return this; },
     on(event, handler) { this.handlers[event] = handler; return this; },
     addTo(layer) { layer.addLayer(this); return this; },
+    setStyle(update) { Object.assign(this.style, update); Object.assign(this.options, update); },
     click() { this.handlers.click?.({}); },
   };
 }
@@ -129,8 +143,11 @@ check(map.markerLayer.layers.length === 2,
 const first = map.markerLayer.layers[0];
 check(first.latlng[0] === 38.1 && first.latlng[1] === 16.2,
       'setTrees uses [lat, lon] marker coordinates');
-check(first.style.fillColor === '#2d5d2c' && first.style.fillOpacity === 0.85,
-      'tree marker uses the shared dark-green style');
+check(first.style.fillColor === '#d6a800' && first.style.fillOpacity === 0.85,
+      'tree marker uses the shared dark-yellow satellite style');
+map.wrapper.syncBasemap('topo');
+check(first.style.fillColor === '#2d5d2c',
+      'tree marker restores the shared dark-green style on topo');
 check(first.tooltip.options.sticky === true,
       'tree marker tooltip is sticky like parcel hover labels');
 first.click();
