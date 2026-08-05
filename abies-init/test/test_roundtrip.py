@@ -26,9 +26,10 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from convert_laforesta import (
-    COL_ACTIVE, COL_CREW, COL_PARCEL, COL_TRACTOR_NAME, OUT_CREWS,
-    OUT_HARVESTS, OUT_HARVEST_PLAN_ITEMS, OUT_MARKS_DIR, OUT_PRESERVED,
-    OUT_REGIONS, OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS, OUT_TRACTORS,
+    ACTIVE_CREW_YEAR, COL_ACTIVE, COL_CREW, COL_DATA, COL_H_MEASURED,
+    COL_PARCEL, COL_TRACTOR_NAME, EXTRA_CREWS, OUT_CREWS, OUT_HARVESTS,
+    OUT_HARVEST_PLAN_ITEMS, OUT_MARKS_DIR, OUT_PRESERVED, OUT_REGIONS,
+    OUT_SAMPLED_TREES, OUT_SPECIES, OUT_SURVEYS, OUT_TRACTORS,
     SRC_HARVESTS, SRC_MARTELLATE_DIR, SURVEY_LUCA, SURVEY_SABATINO, main,
 )
 
@@ -43,15 +44,6 @@ EXPECTED_PAI_MINOR_SPECIES = {
     'Noce',
     'Pioppo Tremulo',
 }
-EXPECTED_ACTIVE_CREWS = {
-    'Campese X2',
-    'Manno',
-    'Mix Max',
-    'Ns Operai',
-    'Zaffino 4x4',
-    'Zaffino-Santaguida',
-}
-
 pytestmark = pytest.mark.skipif(
     not LEGACY_DIR.is_dir(),
     reason=f'legacy data dir {LEGACY_DIR} not present',
@@ -63,6 +55,15 @@ def _legacy_region_wide_harvests() -> int:
         1 for row in _rows(LEGACY_DIR / SRC_HARVESTS)
         if (row.get(COL_PARCEL) or '').strip() in ('', 'X')
     )
+
+
+def _legacy_active_crews() -> set[str]:
+    return {
+        (row.get(COL_CREW) or '').strip()
+        for row in _rows(LEGACY_DIR / SRC_HARVESTS)
+        if (row.get(COL_CREW) or '').strip()
+        and (row.get(COL_DATA) or '').strip().startswith(f'{ACTIVE_CREW_YEAR}-')
+    } | set(EXTRA_CREWS)
 
 
 def _rows(path: Path) -> list[dict]:
@@ -115,13 +116,22 @@ def test_sanity_counts(converted):
     # (guards against a regression that silently drops the special case).
     assert any(r['Matricina'] == 'True' for r in tree_rows)
     assert {r['Pressler'] for r in tree_rows} == {'2'}
+    h_measured_by_survey = {}
+    for row in tree_rows:
+        h_measured_by_survey.setdefault(row['Rilevamento'], set()).add(
+            row[COL_H_MEASURED]
+        )
+    assert h_measured_by_survey == {
+        SURVEY_SABATINO: {'false'},
+        SURVEY_LUCA: {'true'},
+    }
     assert 'Pino Laricio' not in {r['Genere'] for r in tree_rows}
 
     # Crews: only crews used in 2026 and the explicit new crew are active.
     crew_rows = _rows(out_dir / OUT_CREWS)
     assert {
         r[COL_CREW] for r in crew_rows if r[COL_ACTIVE] == 'true'
-    } == EXPECTED_ACTIVE_CREWS
+    } == _legacy_active_crews()
 
     # Tractors: exactly the hard-coded La Foresta tractors.
     tractor_rows = _rows(out_dir / OUT_TRACTORS)
@@ -166,6 +176,7 @@ def test_sanity_counts(converted):
     assert 'Pino Laricio' not in preserved_species
     assert {'Pino Nero', 'Pino Strobo'} <= preserved_species
     assert EXPECTED_PAI_MINOR_SPECIES <= preserved_species
+    assert {r[COL_H_MEASURED] for r in preserved_rows} == {'false'}
     numbers_by_parcel = {}
     for row in preserved_rows:
         key = (row['Compresa'], row['Particella'])
@@ -178,14 +189,15 @@ def test_sanity_counts(converted):
 def test_bootstrap_actually_persists(converted):
     """A real (non --check) load persists the expected reference rows."""
     from apps.base.models import (
-        HarvestPlanItem, Region, Survey, Tractor, Tree, TreePreserved,
+        HarvestPlanItem, Region, Survey, Tractor, TreeSample,
     )
     from apps.prelievi.models import Harvest
 
     out_dir, counts = converted
     call_command('bootstrap', str(out_dir))
     assert Region.objects.count() == 3
-    assert Survey.objects.count() == 2
+    survey_names = set(Survey.objects.values_list('name', flat=True))
+    assert {SURVEY_SABATINO, SURVEY_LUCA} <= survey_names
     assert list(Survey.objects.filter(active=True).values_list('name', flat=True)) == [
         SURVEY_SABATINO,
     ]
@@ -206,6 +218,7 @@ def test_bootstrap_actually_persists(converted):
     assert HarvestPlanItem.objects.count() == counts[OUT_HARVEST_PLAN_ITEMS]
 
     # Preserved trees (PAI).
-    assert Tree.objects.filter(preserved=True).count() > 0
-    assert Tree.objects.filter(preserved=True).count() == counts[OUT_PRESERVED]
-    assert TreePreserved.objects.count() == counts[OUT_PRESERVED]
+    preserved = TreeSample.objects.filter(preserved_number__isnull=False)
+    assert preserved.count() > 0
+    assert preserved.count() == counts[OUT_PRESERVED]
+    assert preserved.filter(h_measured=True).count() == 0

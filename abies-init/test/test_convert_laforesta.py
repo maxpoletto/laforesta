@@ -5,14 +5,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from convert_laforesta import (
-    COL_ACC_M, COL_ACTIVE, COL_CREW, COL_DAMAGED, COL_DATA, COL_D_CM,
-    COL_EXTRA_NOTE, COL_HARVEST_PSR, COL_H_MEASURED, COL_H_M, COL_LAT,
-    COL_LON, COL_MANUFACTURER, COL_MODEL, COL_NUMBER, COL_OPERATOR,
-    COL_PARCEL, COL_PRODUCT, COL_PROT, COL_QUINTALS, COL_REGION, COL_SPECIES,
-    COL_TRACTOR_NAME, COL_VDP, OUT_CREWS, OUT_HARVESTS, OUT_MARKS_DIR,
-    OUT_PRESERVED, OUT_SPECIES, OUT_TRACTORS, SRC_CREWS, SRC_MARTELLATE_DIR,
-    SRC_PAI, _canonical_species, _convert_crews, _convert_harvests,
-    _convert_martellate, _convert_preserved, _convert_species,
+    COL_ACC_M, COL_ACTIVE, COL_AREA_HA, COL_CLASS, COL_CREW, COL_DAMAGED,
+    COL_DATA, COL_D_CM, COL_EXTRA_NOTE, COL_HARVEST_PSR, COL_H_MEASURED,
+    COL_H_M, COL_HIGHFOREST, COL_INTERVAL, COL_LAT, COL_LON, COL_MANUFACTURER,
+    COL_MODEL, COL_NUMBER, COL_OPERATOR, COL_PARCEL, COL_PRODUCT, COL_PROT,
+    COL_QUINTALS, COL_REGION, COL_SAMPLE_AREA, COL_SPECIES, COL_STANDARDS,
+    COL_TRACTOR_NAME, COL_VDP, COPPICE_COMPARTO, LEGACY_TREE_D,
+    LEGACY_TREE_H, LEGACY_TREE_L10, LEGACY_TREE_N, LEGACY_TREE_POLL,
+    OUT_CREWS, OUT_HARVESTS, OUT_MARKS_DIR, OUT_PRESERVED,
+    OUT_SAMPLED_TREES, OUT_SPECIES, OUT_TRACTORS, SRC_CREWS, SRC_MARTELLATE_DIR,
+    OUT_PARCELS, SRC_PAI, SRC_TREES_CALCULATED, SRC_TREES_HEIGHTS,
+    SURVEY_LUCA, SURVEY_SABATINO, _canonical_species, _convert_crews,
+    _convert_harvests, _convert_martellate, _convert_parcels,
+    _convert_preserved, _convert_sampled_trees, _convert_species,
     _convert_tractors,
 )
 
@@ -50,6 +55,62 @@ def test_species_converter_drops_pino_laricio(tmp_path):
     assert {'Pino Nero', 'Pino Marittimo', 'Pino Strobo'} <= species
 
 
+def test_parcel_converter_emits_canonical_numeric_and_coppice_fields(tmp_path):
+    out_dir = tmp_path / 'canonical'
+    out_dir.mkdir()
+    parcels = [
+        {
+            COL_REGION: 'Serra',
+            COL_CLASS: COPPICE_COMPARTO,
+            COL_PARCEL: '1',
+            COL_AREA_HA: '17,9',
+            COL_INTERVAL: '18',
+            COL_STANDARDS: '75',
+        },
+    ]
+
+    assert _convert_parcels(parcels, out_dir) == 1
+
+    row = _rows(out_dir / OUT_PARCELS)[0]
+    assert row[COL_AREA_HA] == '17.9'
+    assert row[COL_INTERVAL] == '18'
+    assert row[COL_STANDARDS] == '75'
+
+
+def test_sampled_tree_converter_marks_height_sources(tmp_path):
+    src_dir = tmp_path / 'legacy'
+    out_dir = tmp_path / 'canonical'
+    src_dir.mkdir()
+    out_dir.mkdir()
+
+    _write_csv(
+        src_dir / SRC_TREES_CALCULATED,
+        [
+            COL_REGION, COL_PARCEL, COL_SAMPLE_AREA, LEGACY_TREE_N,
+            LEGACY_TREE_POLL, LEGACY_TREE_D, LEGACY_TREE_H, LEGACY_TREE_L10,
+            COL_SPECIES, COL_HIGHFOREST,
+        ],
+        [['Serra', '1', '8', '9', '', '31', '18', '4', 'Abete', 'True']],
+    )
+    _write_csv(
+        src_dir / SRC_TREES_HEIGHTS,
+        [
+            COL_REGION, COL_PARCEL, COL_SAMPLE_AREA, LEGACY_TREE_D,
+            LEGACY_TREE_H, COL_SPECIES, COL_HIGHFOREST,
+        ],
+        [['Serra', '1', '8', '31', '18', 'Abete', 'True']],
+    )
+
+    assert _convert_sampled_trees(src_dir, out_dir) == 2
+
+    rows = _rows(out_dir / OUT_SAMPLED_TREES)
+    measured_by_survey = {row['Rilevamento']: row[COL_H_MEASURED] for row in rows}
+    assert measured_by_survey == {
+        SURVEY_SABATINO: 'false',
+        SURVEY_LUCA: 'true',
+    }
+
+
 def test_preserved_converter_normalizes_pine_aliases(tmp_path):
     src_dir = tmp_path / 'legacy'
     out_dir = tmp_path / 'canonical'
@@ -78,6 +139,8 @@ def test_preserved_converter_normalizes_pine_aliases(tmp_path):
         'Pino Marittimo',
         'Abete',
     ]
+    assert {r[COL_H_MEASURED] for r in rows} == {'false'}
+
 
 def test_crews_converter_marks_2026_crews_and_extra_crew_active(tmp_path):
     src_dir = tmp_path / 'legacy'

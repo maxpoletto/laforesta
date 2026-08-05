@@ -367,8 +367,12 @@ def _parcel_cell(row: dict, col: str) -> str:
             return ''
     if col == COL_HARVEST_MECHANISM:
         return (row.get(col) or DEFAULT_HARVEST_MECHANISM).strip()
-    source = LEGACY_COL_INTERVAL if col == COL_INTERVAL else col
-    return (row.get(source) or '').strip()
+    if col == COL_INTERVAL:
+        return (row.get(COL_INTERVAL) or row.get(LEGACY_COL_INTERVAL) or '').strip()
+    value = (row.get(col) or '').strip()
+    if col == COL_AREA_HA:
+        return _decimal_dot(value)
+    return value
 
 
 def _convert_sample_grids(out_dir: Path) -> int:
@@ -434,8 +438,8 @@ def _convert_sampled_trees(src_dir: Path, out_dir: Path) -> int:
     """
     header = [
         COL_SURVEY, COL_REGION, COL_PARCEL, COL_SAMPLE_AREA, COL_TREE, COL_SHOOT,
-        COL_STANDARD, COL_D_CM, COL_H_M, COL_L10_MM, COL_PRESSLER,
-        COL_SPECIES, COL_HIGHFOREST,
+        COL_STANDARD, COL_D_CM, COL_H_M, COL_H_MEASURED, COL_L10_MM,
+        COL_PRESSLER, COL_SPECIES, COL_HIGHFOREST,
     ]
     rows: list[list] = []
     rows += _calculated_tree_rows(_read(src_dir / SRC_TREES_CALCULATED))
@@ -461,6 +465,7 @@ def _calculated_tree_rows(trees: list[dict]) -> list[list]:
             standard,                                    # Matricina
             (r.get(LEGACY_TREE_D) or '').strip(),       # D_cm
             (r.get(LEGACY_TREE_H) or '').strip(),       # H_m
+            'false',                                    # H_measured (calculated)
             (r.get(LEGACY_TREE_L10) or '').strip(),     # L10_mm
             PRESSLER_DEFAULT,                           # Pressler
             _canonical_species(r.get(COL_SPECIES) or ''),
@@ -486,6 +491,7 @@ def _heights_tree_rows(trees: list[dict]) -> list[list]:
             '',         # Matricina (blank → False)
             (r.get(LEGACY_TREE_D) or '').strip(),   # D_cm
             (r.get(LEGACY_TREE_H) or '').strip(),   # H_m
+            'true',     # H_measured (field-measured heights)
             '',         # L10_mm (blank → 0)
             PRESSLER_DEFAULT,  # Pressler
             _canonical_species(r.get(COL_SPECIES) or ''),
@@ -714,7 +720,7 @@ def _convert_preserved(src_dir: Path, out_dir: Path) -> int:
             '',
             (r.get(LEGACY_PAI_D) or '').strip(),
             h_m,
-            'true' if h_m else 'false',
+            'false',
             lon,
             lat,
             '',
