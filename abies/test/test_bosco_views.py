@@ -1,6 +1,8 @@
 """Tests for Bosco API views."""
 
 import base64
+import gzip
+import json
 import re
 from datetime import date as date_type, datetime, timezone
 from decimal import Decimal
@@ -24,8 +26,9 @@ from apps.base.models import (
 from apps.base.preserved_trees import PRESERVED_SURVEY_NAME
 from config import strings as S
 from config.constants import (
-    DATA_ID, DELETES, DIGEST_OBSERVATIONS, DIGEST_PARCELS,
-    DIGEST_PRESERVED_TREES, FIELD_ACC_M,
+    COLUMNS, DATA_ID, DELETES, DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
+    FIELD_ACC_M,
     FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_CLIENT_RECORD_ID,
     FIELD_CONTENT_TYPE, FIELD_DATE,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_H_M, FIELD_HEIGHT_PX,
@@ -35,7 +38,7 @@ from config.constants import (
     FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
     FIELD_SPECIES_ID, FIELD_TAKEN_AT,
     FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML, MESSAGE, PATCHES, RECORD,
-    ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
+    ROWS, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 )
 
 
@@ -58,6 +61,10 @@ def _pai_row(
         h_measured=h_measured, lat=lat, lon=lon, acc_m=acc_m,
         operator=operator, note=note, version=version,
     )
+
+
+def _read_gzip_json(response):
+    return json.loads(gzip.decompress(b''.join(response.streaming_content)))
 
 
 @pytest.fixture
@@ -870,6 +877,57 @@ def test_pai_save_updates_preserved_tree(writer_client, parcels, species):
     assert DigestStatus.objects.get(name=DIGEST_PRESERVED_TREES).stale is True
 
 
+def test_pai_edit_refreshes_every_survey_observing_shared_tree(
+        writer_client, parcels, species, tmp_path, settings):
+    settings.DIGEST_DIR = tmp_path
+    tree = Tree.objects.create(species=species[0])
+    pai = _pai_row(tree, parcels[0], number=7)
+    old_survey_id = pai.sample.survey_id
+    related_survey = Survey.objects.create(name='Related tree survey')
+    related_sample = Sample.objects.create(
+        survey=related_survey, sample_area=None, date=date_type(2024, 9, 15),
+    )
+    related = TreeSample.objects.create(
+        sample=related_sample, tree=tree, parcel=parcels[1], number=88,
+        d_cm=30, h_m=Decimal('20.00'),
+    )
+    for survey_id in (old_survey_id, related_survey.id):
+        response = writer_client.get(f'/api/campionamenti/trees/{survey_id}/')
+        assert response.status_code == 200
+
+    resp = writer_client.post('/api/bosco/pai/save/', {
+        ROW_ID: str(pai.id), VERSION: str(pai.version),
+        FIELD_SPECIES_ID: str(species[1].id),
+        FIELD_PARCEL_ID: str(parcels[0].id), FIELD_NUMBER: '7',
+        FIELD_DATE: '2024-10-02', FIELD_D_CM: '45', FIELD_H_M: '21',
+        FIELD_LAT: '38,2', FIELD_LON: '16,2',
+    }, content_type='application/json')
+
+    assert resp.status_code == 200, resp.content
+    pai.refresh_from_db()
+    affected_survey_ids = {
+        old_survey_id, related_survey.id, pai.sample.survey_id,
+    }
+    assert all(
+        DigestStatus.objects.get(name=f'sampled_trees_{survey_id}').stale
+        for survey_id in affected_survey_ids
+    )
+    old_rows = _read_gzip_json(
+        writer_client.get(f'/api/campionamenti/trees/{old_survey_id}/')
+    )[ROWS]
+    related_data = _read_gzip_json(
+        writer_client.get(f'/api/campionamenti/trees/{related_survey.id}/')
+    )
+    new_rows = _read_gzip_json(
+        writer_client.get(f'/api/campionamenti/trees/{pai.sample.survey_id}/')
+    )[ROWS]
+    assert old_rows == []
+    assert related_data[ROWS][0][0] == related.id
+    species_column = related_data[COLUMNS].index(S.COL_SPECIES)
+    assert related_data[ROWS][0][species_column] == species[1].common_name
+    assert new_rows[0][0] == pai.id
+
+
 def test_pai_save_rejects_duplicate_number_in_parcel(writer_client, parcels, species):
     tree = Tree.objects.create(
         species=species[0],
@@ -950,6 +1008,34 @@ def test_pai_delete_removes_preserved_sample(writer_client, parcels, species):
         DATA_ID: DIGEST_PRESERVED_TREES,
         ROW_ID: pai.id,
     }]
+
+
+def test_pai_delete_regenerates_corresponding_free_survey(
+        writer_client, parcels, species, tmp_path, settings):
+    settings.DIGEST_DIR = tmp_path
+    tree = Tree.objects.create(species=species[0])
+    pai = _pai_row(tree, parcels[0], number=9)
+    survey_id = pai.sample.survey_id
+    trees_url = f'/api/campionamenti/trees/{survey_id}/'
+
+    before = _read_gzip_json(writer_client.get(trees_url))
+    assert [row[0] for row in before[ROWS]] == [pai.id]
+
+    resp = writer_client.post(
+        '/api/bosco/pai/delete/',
+        {ROW_ID: str(pai.id), VERSION: str(pai.version)},
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200
+    stale_names = (
+        f'sampled_trees_{survey_id}', 'samples', 'surveys',
+        DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+        DIGEST_PRESERVED_TREES, DIGEST_OBSERVATIONS, 'audit',
+    )
+    assert all(DigestStatus.objects.get(name=name).stale for name in stale_names)
+    after = _read_gzip_json(writer_client.get(trees_url))
+    assert after[ROWS] == []
 
 
 def _stream_text(resp):

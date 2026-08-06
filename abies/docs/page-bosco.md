@@ -371,7 +371,10 @@ mode-switch.
 
   The lookup spans all surveys. New observations created with **+ Aggiungi**
   are written to the canonical free survey `Alberi da preservare`; other
-  surveys may also contain preserved-tree observations.
+  surveys may also contain preserved-tree observations. Bosco/PAI writes also
+  invalidate the affected surveys' `sampled_trees_<id>` digests, the sample and
+  survey summaries, dendrometry digests, and the audit digest. Editing a shared
+  physical tree invalidates every survey that contains an observation of it.
 
   Columns: `row_id`, `version`, `Tree id`, `Parcel id`, `Species id`,
   `Compresa`, `Particella`, `Specie`, `Numero`, `Data`,

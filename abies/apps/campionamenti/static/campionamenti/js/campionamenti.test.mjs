@@ -152,6 +152,8 @@ class MockElement {
     }
   }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
+  setAttribute(name, value) { this[name] = String(value); }
+  removeAttribute(name) { delete this[name]; }
   dispatchEvent(event) {
     event.target ||= this;
     for (const fn of this._listeners[event.type] || []) fn(event);
@@ -283,6 +285,16 @@ function buildGridModal() {
   return root;
 }
 
+function buildTreeForm(rowId) {
+  const form = el('form', { id: 'campionamenti-tree-form' });
+  const input = el('input');
+  input.name = ROW_ID;
+  input.value = rowId;
+  form.appendChild(input);
+  form.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  return form;
+}
+
 const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
@@ -292,7 +304,7 @@ const templates = {
 
 globalThis.document = {
   documentElement: { lang: 'it' },
-  body: { dataset: { csrf: 'csrf-token', role: 'reader' } },
+  body: { dataset: { csrf: 'csrf-token', role: 'writer' } },
   head: { appendChild: link => links.push(link) },
   createElement: tag => el(tag),
   createDocumentFragment: () => el('fragment'),
@@ -333,6 +345,16 @@ class MockSortableTable {
     this.onSort = opts.onSort;
     if (opts.controlsStart) opts.container.appendChild(opts.controlsStart);
     if (opts.controlsEnd) opts.container.appendChild(opts.controlsEnd);
+    const actions = opts.columns.find(column => column.key === '_actions');
+    if (actions && opts.data.length) {
+      const row = el('div', {
+        className: 'sortable-table-row', dataset: { index: '0' },
+      });
+      const cell = el('div');
+      actions.renderCell(cell, null, opts.data[0]);
+      row.appendChild(cell);
+      opts.container.appendChild(row);
+    }
   }
   setData(rows) { this._allData = rows; this.data = rows; }
   filter(fn) { this.data = this._allData.filter(fn); }
@@ -354,7 +376,11 @@ globalThis.__gridPlannerInstances = [];
 globalThis.__rilevamentiMapInstances = [];
 globalThis.__treeDetailInstances = [];
 globalThis.DOMParser = class {
-  parseFromString() {
+  parseFromString(source) {
+    const treeRowId = source.match(/data-test-tree-row-id="([^"]*)"/)?.[1];
+    if (treeRowId !== undefined) {
+      return { body: { childNodes: [buildTreeForm(treeRowId)] } };
+    }
     return { body: { childNodes: [buildGridModal()] } };
   }
 };
@@ -404,6 +430,9 @@ const payloads = new Map([
   )],
   ['/api/geo/terreni.geojson', { type: 'FeatureCollection', features: [] }],
   ['/api/campionamenti/grid/form/', { html: '<div id=\"campionamenti-grid-modal\"></div>' }],
+  ['/api/campionamenti/tree/form/201/', {
+    html: '<form data-test-tree-row-id=\"\"></form>',
+  }],
 ]);
 
 const treeColumns = [
@@ -513,6 +542,26 @@ eq(detail.opts.pointColumnNames, { number: S.COL_TREE_NUM },
    'tree detail maps the sampled-tree number column');
 eq(detail.opts.speciesNames, ['Abete bianco', 'Faggio'],
    'tree detail receives the global species palette');
+
+const editIcon = contentEl.querySelector(
+  '[data-target="trees-table-host"] .action-edit',
+);
+fetches.length = 0;
+await editIcon.click();
+await flushAsyncWork();
+eq(fetches, ['/api/campionamenti/tree/form/201/'],
+   'tree pencil fetches the edit form for its tree-sample row_id');
+eq(modalEl.querySelector('form'), null,
+   'tree pencil refuses an add-shaped form with an empty row_id');
+
+payloads.set('/api/campionamenti/tree/form/201/', {
+  html: '<form data-test-tree-row-id="201"></form>',
+});
+await editIcon.click();
+await flushAsyncWork();
+eq(modalEl.querySelector('[name="row_id"]').value, '201',
+   'tree pencil accepts a form carrying the requested row_id');
+await modalEl.querySelector('[data-action="cancel"]').click();
 
 const search = contentEl.querySelector('.table-search');
 search.value = 'Faggio';

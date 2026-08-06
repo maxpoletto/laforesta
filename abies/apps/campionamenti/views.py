@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods, require_POST
@@ -23,14 +24,17 @@ from apps.base import csv_io
 from apps.base.auth import require_writer
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
 from apps.base.digests import (
-    build_grid_record, build_sample_area_record, build_sample_record,
-    build_survey_record, build_tree_sample_record,
+    build_grid_record, build_preserved_tree_record, build_sample_area_record,
+    build_sample_record, build_survey_record, build_tree_sample_record,
     mark_stale, serve_digest,
 )
 from apps.base.numparse import (
     coord_float, int_or_none, parse_decimal, positive_int_list,
 )
-from apps.base.preserved_trees import latest_preserved_tree_sample
+from apps.base.preserved_trees import (
+    PRESERVED_SURVEY_NAME, latest_preserved_tree_sample,
+    latest_preserved_tree_samples,
+)
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.base.responses import (
     conflict_response, csv_error_list, parse_json_body, row_delete,
@@ -48,7 +52,7 @@ from apps.campionamenti.tree_validation import (
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
-    PRESSLER_DEFAULT,
+    DIGEST_PRESERVED_TREES, PRESSLER_DEFAULT,
     FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
     FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DESCRIPTION, FIELD_D_CM,
@@ -209,7 +213,7 @@ def tree_save_view(request):
     if errors:
         return _validation_error(errors, ts_id, request, body)
 
-    sample = _find_or_create_sample(parsed)
+    sample = _find_or_create_sample(parsed, ts_id=ts_id)
     if sample is None:
         return _validation_error(
             [S.ERR_AREA_OUT_OF_SURVEY], ts_id, request, body,
@@ -281,6 +285,22 @@ def tree_save_view(request):
     )
     if preserved_error:
         return _validation_error([preserved_error], ts_id, request, body)
+
+    preserved_keys = set()
+    preserved_tree_ids = set()
+    if ts_id is not None:
+        original_ts = TreeSample.objects.filter(id=ts_id).first()
+        if original_ts is not None:
+            preserved_tree_ids.add(original_ts.tree_id)
+            if original_ts.preserved_number is not None:
+                preserved_keys.add(
+                    (original_ts.parcel_id, original_ts.preserved_number)
+                )
+    if parsed[FIELD_PRESERVED]:
+        preserved_keys.add((parcel_id, parsed[FIELD_NUMBER]))
+    preserved_before = _preserved_cache_state(
+        preserved_keys, preserved_tree_ids,
+    )
 
     if parsed[FIELD_COPPICE] and not ts_id and existing_tree is not None:
         existing_shoots = set(TreeSample.objects.filter(
@@ -379,13 +399,21 @@ def tree_save_view(request):
     # Build the cache-update payload — see CLAUDE.md §"Optimistic table
     # updates".  Re-fetch with select_related so build_tree_sample_record
     # doesn't N+1 on attributes the digest expects.
-    fresh_ts_qs = TreeSample.objects.filter(
+    fresh_ts = list(TreeSample.objects.filter(
         id__in=created_or_updated_ids,
     ).select_related(
         'sample', 'sample__sample_area__parcel__region',
         'parcel__region', 'tree__species',
+    ))
+    records = [build_tree_sample_record(ts) for ts in fresh_ts]
+    if ts_id is not None or parsed[FIELD_PRESERVED]:
+        preserved_tree_ids.update(ts.tree_id for ts in fresh_ts)
+    preserved_after = _preserved_cache_state(
+        preserved_keys, preserved_tree_ids,
     )
-    records = [build_tree_sample_record(ts) for ts in fresh_ts_qs]
+    preserved_patches, preserved_deletes = _preserved_cache_changes(
+        preserved_before, preserved_after,
+    )
     sample.refresh_from_db()
     sample.survey  # touch to avoid lazy load in build_survey_record
     sample_record = build_sample_record(sample)
@@ -398,7 +426,9 @@ def tree_save_view(request):
             *row_patches(f'sampled_trees_{sample.survey_id}', records),
             row_patch('samples', sample_record[0], sample_record),
             row_patch('surveys', survey_record[0], survey_record),
+            *preserved_patches,
         ],
+        deletes=preserved_deletes,
     )
 
 
@@ -428,16 +458,25 @@ def tree_delete_view(request, ts_id: int):
     sample = ts.sample
     survey = sample.survey
     survey_id = survey.id
+    preserved_keys = (
+        {(ts.parcel_id, ts.preserved_number)}
+        if ts.preserved_number is not None else set()
+    )
+    preserved_before = _preserved_cache_state(preserved_keys, set())
     ts.delete()
     # N. alberi just dropped; surveys.N_aree_visitate may also change
     # if this was the last tree on its area.
     mark_stale(
         f'sampled_trees_{survey_id}', 'samples', 'surveys',
-        *BOSCO_DENDROMETRY_DIGESTS, 'audit',
+        *BOSCO_TREE_DIGESTS, 'audit',
     )
     sample.refresh_from_db()
     sample_record = build_sample_record(sample)
     survey_record = build_survey_record(survey)
+    preserved_after = _preserved_cache_state(preserved_keys, set())
+    preserved_patches, preserved_deletes = _preserved_cache_changes(
+        preserved_before, preserved_after,
+    )
     return success_response(
         request, body,
         data_id=f'sampled_trees_{survey_id}',
@@ -445,8 +484,12 @@ def tree_delete_view(request, ts_id: int):
         patches=[
             row_patch('samples', sample_record[0], sample_record),
             row_patch('surveys', survey_record[0], survey_record),
+            *preserved_patches,
         ],
-        deletes=[row_delete(f'sampled_trees_{survey_id}', ts_id)],
+        deletes=[
+            row_delete(f'sampled_trees_{survey_id}', ts_id),
+            *preserved_deletes,
+        ],
     )
 
 
@@ -778,7 +821,10 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'show_ceduo': True,
         'show_l10': True,
         'ceduo_checked': tree.coppice if tree else False,
-        'pai_checked': ts.preserved_number is not None if ts else False,
+        'pai_checked': (
+            ts.preserved_number is not None
+            if ts else survey.name == PRESERVED_SURVEY_NAME
+        ),
         'edit_species_name': tree.species.common_name if tree else '',
         'edit_species_id': tree.species_id if tree else '',
         'edit_species_density': tree.species.density if tree else '',
@@ -1142,7 +1188,38 @@ def _resolve_preserved_identity_tree(
     return tree, None
 
 
-def _find_or_create_sample(parsed):
+def _preserved_cache_state(preserved_keys, tree_ids):
+    """Return current PAI digest records affected by a tree-sample write."""
+    scope = Q()
+    if tree_ids:
+        scope |= Q(tree_id__in=tree_ids)
+    for parcel_id, preserved_number in preserved_keys:
+        scope |= Q(
+            parcel_id=parcel_id, preserved_number=preserved_number,
+        )
+    if not scope.children:
+        return {}
+    rows = (
+        latest_preserved_tree_samples()
+        .filter(scope)
+        .select_related('sample', 'parcel__region', 'tree__species')
+    )
+    return {ts.id: build_preserved_tree_record(ts) for ts in rows}
+
+
+def _preserved_cache_changes(before, after):
+    patches = [
+        row_patch(DIGEST_PRESERVED_TREES, row_id, after[row_id])
+        for row_id in sorted(after)
+    ]
+    deletes = [
+        row_delete(DIGEST_PRESERVED_TREES, row_id)
+        for row_id in sorted(before.keys() - after.keys())
+    ]
+    return patches, deletes
+
+
+def _find_or_create_sample(parsed, *, ts_id=None):
     """Return the Sample row for the parsed survey scope, creating it if needed.
 
     Structured surveys group by (survey, sample_area).  Unstructured surveys
@@ -1152,7 +1229,20 @@ def _find_or_create_sample(parsed):
     survey = Survey.objects.filter(id=parsed[FIELD_SURVEY_ID]).first()
     if survey is None:
         return None
-    sample_date = parsed.get(FIELD_DATE) or date_type.today()
+    current_ts = None
+    if ts_id is not None:
+        current_ts = (
+            TreeSample.objects
+            .select_related('sample')
+            .filter(id=ts_id)
+            .first()
+        )
+    sample_date = parsed.get(FIELD_DATE)
+    if sample_date is None:
+        if current_ts is not None and current_ts.sample.survey_id == survey.id:
+            sample_date = current_ts.sample.date
+        else:
+            sample_date = date_type.today()
     if survey.sample_grid_id is None:
         if parsed[FIELD_SAMPLE_AREA_ID] is not None:
             return None
@@ -1160,10 +1250,26 @@ def _find_or_create_sample(parsed):
             return None
         if not Parcel.objects.filter(id=parsed[FIELD_PARCEL_ID]).exists():
             return None
-        sample, _ = Sample.objects.get_or_create(
+        # CSV imports and Bosco/PAI intentionally create separate free-survey
+        # samples, so (survey, date) is not unique.  An unchanged edit must
+        # stay in its exact sample; additions and date changes use the oldest
+        # matching sample, creating one only when none exists.
+        if (
+            current_ts is not None
+            and current_ts.sample.survey_id == survey.id
+            and current_ts.sample.sample_area_id is None
+            and current_ts.sample.date == sample_date
+        ):
+            return current_ts.sample
+        sample = (
+            Sample.objects
+            .filter(sample_area=None, survey=survey, date=sample_date)
+            .order_by('id')
+            .first()
+        )
+        return sample or Sample.objects.create(
             sample_area=None, survey=survey, date=sample_date,
         )
-        return sample
 
     if parsed[FIELD_SAMPLE_AREA_ID] is None:
         return None

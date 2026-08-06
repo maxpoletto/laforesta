@@ -1732,6 +1732,13 @@ async function showEditTreeForm(tsId) {
   inForm = true;
   const form = await fetchModalForm(`${TREE_FORM_URL}${tsId}/`);
   if (!form) { finishForm(); return; }
+  const formRowId = form.querySelector(`[name="${ROW_ID}"]`)?.value;
+  if (String(formRowId) !== String(tsId)) {
+    dismissModal();
+    finishForm();
+    showError(S.ERROR_GENERIC);
+    return;
+  }
   onDismiss(finishForm);
   wireTreeForm(form);
 }

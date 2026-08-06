@@ -342,6 +342,17 @@ continues from prior samples. "+ Aggiungi pollone" adds rows.
 
 Submit: "Salva" / "Salva e continua" (batch entry).
 
+For a free survey, an edit whose date is unchanged stays in its original
+sample. A new manual row, or an edit moved to another date, uses the oldest
+existing sample for that survey and date, creating one only if needed. There
+may legitimately be several same-date samples because each CSV import and each
+Bosco/PAI entry creates its own sample.
+
+New rows in the canonical free survey `Alberi da preservare` default the PAI
+checkbox on, so they immediately participate in the parcel-scoped preserved
+tree identity and appear in Bosco/PAI. The checkbox remains editable. Other
+free surveys continue to default it off.
+
 ### Cross-sample tree identity
 
 Within a single sample area, a physical tree carries the same
@@ -448,8 +459,8 @@ active survey when Section 3 expands.
 | Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Force-refresh all three via `cache.load` (no records returned); the `sampled_trees_<id>` reload fires the Section 3 table's `onUpdate`; Section 2 summary + map re-rendered; survey pulldown rebuilt |
 | Area save (create/update) | `sample_areas`, `grids`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | All three via `applySideEffects`; survey pulldown rebuilt; both maps re-rendered if affected |
 | Area delete | `sample_areas`, `grids`, `surveys`, `audit` | Same as area save |
-| Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | All three via `applySideEffects`; Section 2 map re-rendered |
-| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | Same as tree save |
+| Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Sampled tree, sample, survey, and affected current PAI rows via `applySideEffects`; Section 2 map re-rendered |
+| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Same as tree save; a removed current PAI row is deleted or replaced by the preceding observation |
 
 ### `grids.json`
 

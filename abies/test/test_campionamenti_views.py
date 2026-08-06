@@ -5,6 +5,7 @@ import csv
 import gzip
 import io
 import json
+import re
 import zipfile
 from datetime import date
 from decimal import Decimal
@@ -13,6 +14,7 @@ import pytest
 from django.test import Client
 
 from apps.base import csv_io
+from apps.base.digests import build_preserved_tree_record
 from apps.campionamenti import csv_grid, csv_trees
 from apps.base.models import (
     DigestStatus, Parcel, Sample, SampleArea, SampleGrid, Survey, Tree,
@@ -419,6 +421,28 @@ class TestTreeForm:
         assert 'name="number" id="id_number"' in html
         assert 'id="id_tree_pick"' not in html
         assert parcels[0].name in html
+        preserved = re.search(
+            r'<input[^>]*type="checkbox"[^>]*name="preserved"[^>]*>', html,
+        )
+        assert preserved is not None
+        assert 'checked' not in preserved.group(0)
+
+    def test_canonical_preserved_survey_defaults_pai_on(
+            self, writer_client, parcels, species):
+        from apps.base.preserved_trees import get_preserved_tree_survey
+        survey = get_preserved_tree_survey()
+
+        resp = writer_client.get(
+            f'/api/campionamenti/tree/form/?survey={survey.id}'
+        )
+
+        assert resp.status_code == 200
+        preserved = re.search(
+            r'<input[^>]*type="checkbox"[^>]*name="preserved"[^>]*>',
+            resp.json()[HTML],
+        )
+        assert preserved is not None
+        assert 'checked' in preserved.group(0)
 
     def test_unstructured_form_suggests_number_within_default_date_sample(
             self, writer_client, parcels, species):
@@ -545,6 +569,31 @@ class TestTreeForm:
         assert 'data-name="' in tag
         assert f'name="version" value="{ts.version}"' in html
 
+    def test_unstructured_edit_form_identifies_preserved_row(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='Free preserved survey')
+        sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        ts = TreeSample.objects.create(
+            sample=sample, tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], number=67, preserved_number=67,
+            d_cm=44, h_m=Decimal('20.00'), version=3,
+        )
+
+        resp = writer_client.get(f'/api/campionamenti/tree/form/{ts.id}/')
+
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert f'name="row_id" value="{ts.id}"' in html
+        assert 'name="tree_pick"' not in html
+        assert f'name="version" value="{ts.version}"' in html
+        preserved = re.search(
+            r'<input[^>]*type="checkbox"[^>]*name="preserved"[^>]*>', html,
+        )
+        assert preserved is not None
+        assert 'checked' in preserved.group(0)
+
 
 class TestTreeSave:
     @staticmethod
@@ -612,10 +661,13 @@ class TestTreeSave:
         })
 
         assert resp.status_code == 200, resp.content
-        ts = TreeSample.objects.get(id=resp.json()[ROW_ID])
+        payload = resp.json()
+        ts = TreeSample.objects.get(id=payload[ROW_ID])
         assert ts.tree_id == preserved_tree.id
         assert ts.preserved_number == 7
         assert Tree.objects.count() == n_trees_before
+        pai_patch = _patch(payload, DIGEST_PRESERVED_TREES, ts.id)
+        assert pai_patch[RECORD] == build_preserved_tree_record(ts)
 
     def test_create_preserved_tree_rejects_species_conflict(
             self, writer_client, sample_setup, species,
@@ -765,6 +817,101 @@ class TestTreeSave:
         assert samples.count() == 2
         assert samples[0].sample_id == samples[1].sample_id
         assert samples[0].tree_id != samples[1].tree_id
+
+    def test_unstructured_add_handles_multiple_same_date_samples(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='Free survey with imports')
+        first_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        second_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        for sample, number in ((first_sample, 1), (second_sample, 2)):
+            TreeSample.objects.create(
+                sample=sample, tree=Tree.objects.create(species=species[0]),
+                parcel=parcels[0], number=number,
+                d_cm=30, h_m=Decimal('20.00'),
+            )
+
+        resp = self._post(writer_client, {
+            ROW_ID: '', VERSION: '0', FIELD_SURVEY_ID: str(survey.id),
+            FIELD_SAMPLE_AREA_ID: '', FIELD_PARCEL_ID: str(parcels[0].id),
+            FIELD_SPECIES_ID: str(species[0].id), FIELD_NUMBER: '67',
+            FIELD_DATE: '2026-08-05', FIELD_D_CM: '44', FIELD_H_M: '20',
+            'l10_mm': '0', FIELD_HIGHFOREST: 'true', FIELD_PRESERVED: '',
+            FIELD_LAT: '38,55830', FIELD_LON: '16,31110',
+        })
+
+        assert resp.status_code == 200, resp.content
+        created = TreeSample.objects.get(id=resp.json()[ROW_ID])
+        assert created.sample_id == first_sample.id
+
+    def test_unstructured_edit_stays_in_exact_same_date_sample(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='Free PAI survey')
+        first_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        TreeSample.objects.create(
+            sample=first_sample, tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], number=1, d_cm=30, h_m=Decimal('20.00'),
+        )
+        target_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        target = TreeSample.objects.create(
+            sample=target_sample, tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], number=67, preserved_number=67,
+            d_cm=40, h_m=Decimal('20.00'),
+        )
+
+        resp = self._post(writer_client, {
+            ROW_ID: str(target.id), VERSION: str(target.version),
+            FIELD_SURVEY_ID: str(survey.id), FIELD_SAMPLE_AREA_ID: '',
+            FIELD_PARCEL_ID: str(parcels[0].id),
+            FIELD_SPECIES_ID: str(species[0].id), FIELD_NUMBER: '67',
+            FIELD_DATE: '2026-08-05', FIELD_D_CM: '44', FIELD_H_M: '21',
+            'l10_mm': '0', FIELD_HIGHFOREST: 'true',
+            FIELD_PRESERVED: 'true', FIELD_LAT: '38,55830',
+            FIELD_LON: '16,31110',
+        })
+
+        assert resp.status_code == 200, resp.content
+        target.refresh_from_db()
+        assert target.sample_id == target_sample.id
+        assert target.d_cm == 44
+        pai_patch = _patch(resp.json(), DIGEST_PRESERVED_TREES, target.id)
+        assert pai_patch[RECORD] == build_preserved_tree_record(target)
+
+    def test_unstructured_edit_removing_pai_deletes_cached_row(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='Free PAI removal survey')
+        sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        target = TreeSample.objects.create(
+            sample=sample, tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], number=67, preserved_number=67,
+            d_cm=40, h_m=Decimal('20.00'),
+        )
+
+        resp = self._post(writer_client, {
+            ROW_ID: str(target.id), VERSION: str(target.version),
+            FIELD_SURVEY_ID: str(survey.id), FIELD_SAMPLE_AREA_ID: '',
+            FIELD_PARCEL_ID: str(parcels[0].id),
+            FIELD_SPECIES_ID: str(species[0].id), FIELD_NUMBER: '67',
+            FIELD_DATE: '2026-08-05', FIELD_D_CM: '44', FIELD_H_M: '21',
+            'l10_mm': '0', FIELD_HIGHFOREST: 'true', FIELD_PRESERVED: '',
+            FIELD_LAT: '38,55830', FIELD_LON: '16,31110',
+        })
+
+        assert resp.status_code == 200, resp.content
+        target.refresh_from_db()
+        assert target.preserved_number is None
+        assert {
+            DATA_ID: DIGEST_PRESERVED_TREES, ROW_ID: target.id,
+        } in resp.json()[DELETES]
 
     def test_unstructured_tree_number_may_repeat_on_another_date(
             self, writer_client, parcels, species):
@@ -2188,6 +2335,59 @@ class TestTreeDelete:
         # TreeSample gone, but the parent Tree row survives.
         assert not TreeSample.objects.filter(id=ts_id).exists()
         assert Tree.objects.count() == tree_count_before
+
+    def test_delete_preserved_sample_regenerates_pai_digest(
+            self, writer_client, sample_setup, tmp_path, settings):
+        settings.DIGEST_DIR = tmp_path
+        ts = TreeSample.objects.get(sample=sample_setup['sample'])
+        ts.preserved_number = ts.number
+        ts.save(update_fields=['preserved_number'])
+        before = _read_gzip_json(
+            writer_client.get('/api/bosco/preserved-trees/data/')
+        )
+        assert [row[0] for row in before[ROWS]] == [ts.id]
+
+        resp = self._post(writer_client, ts.id)
+
+        assert resp.status_code == 200
+        assert {
+            DATA_ID: DIGEST_PRESERVED_TREES, ROW_ID: ts.id,
+        } in resp.json()[DELETES]
+        after = _read_gzip_json(
+            writer_client.get('/api/bosco/preserved-trees/data/')
+        )
+        assert after[ROWS] == []
+
+    def test_delete_current_pai_patches_preceding_observation(
+            self, writer_client, parcels, species):
+        survey = Survey.objects.create(name='PAI observation history')
+        tree = Tree.objects.create(species=species[0])
+        old_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 1, 1),
+        )
+        old = TreeSample.objects.create(
+            sample=old_sample, tree=tree, parcel=parcels[0],
+            number=12, preserved_number=12,
+            d_cm=30, h_m=Decimal('20.00'),
+        )
+        current_sample = Sample.objects.create(
+            survey=survey, sample_area=None, date=date(2026, 8, 5),
+        )
+        current = TreeSample.objects.create(
+            sample=current_sample, tree=tree, parcel=parcels[0],
+            number=12, preserved_number=12,
+            d_cm=40, h_m=Decimal('24.00'),
+        )
+
+        resp = self._post(writer_client, current.id)
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert {
+            DATA_ID: DIGEST_PRESERVED_TREES, ROW_ID: current.id,
+        } in payload[DELETES]
+        pai_patch = _patch(payload, DIGEST_PRESERVED_TREES, old.id)
+        assert pai_patch[RECORD] == build_preserved_tree_record(old)
 
     def test_delete_saves_nonce(self, writer_client, sample_setup):
         from apps.base.models import TreeSample

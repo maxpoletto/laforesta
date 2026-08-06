@@ -51,8 +51,9 @@ from apps.base.responses import (
 )
 from config import strings as S
 from config.constants import (
-    DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY,
-    DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
+    BOSCO_TREE_DIGESTS, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
+    DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
     FIELD_ACC_M, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_CHECKSUM,
     FIELD_CLIENT_RECORD_ID, FIELD_CONTENT_TYPE, FIELD_DATE, FIELD_D_CM,
     FIELD_ESTIMATED_BIRTH_YEAR, FIELD_EXISTING_PHOTO_IDS, FIELD_H_M,
@@ -740,6 +741,7 @@ def pai_save_view(request):
     if errors:
         return validation_error(errors, html=_render_pai_form(request, row_id, body))
 
+    affected_survey_ids = set()
     with transaction.atomic():
         if row_id is None:
             tree = Tree.objects.create(
@@ -777,6 +779,10 @@ def pai_save_view(request):
                     html=_render_pai_form(request, fresh_pai.id),
                 )
             tree = pai.tree
+            affected_survey_ids.update(
+                TreeSample.objects.filter(tree=tree)
+                .values_list('sample__survey_id', flat=True)
+            )
             tree.species_id = values[FIELD_SPECIES_ID]
             tree.estimated_birth_year = values[FIELD_ESTIMATED_BIRTH_YEAR]
             tree.coppice = False
@@ -797,7 +803,11 @@ def pai_save_view(request):
             pai.note = values[FIELD_NOTE]
             pai.version += 1
             pai.save()
-        mark_stale(DIGEST_PRESERVED_TREES)
+        affected_survey_ids.update(
+            TreeSample.objects.filter(tree=tree)
+            .values_list('sample__survey_id', flat=True)
+        )
+        _mark_pai_tree_write_stale(affected_survey_ids)
 
     pai = _preserved_tree_qs().get(id=pai.id)
     return success_response(
@@ -829,8 +839,9 @@ def pai_delete_view(request):
                 data_id=DIGEST_PRESERVED_TREES, row_id=fresh_pai.id,
                 record=build_preserved_tree_record(fresh_pai),
             )
+        survey_id = pai.sample.survey_id
         pai.delete()
-        mark_stale(DIGEST_PRESERVED_TREES)
+        _mark_pai_tree_write_stale({survey_id})
 
     return success_response(
         request, body, data_id=DIGEST_PRESERVED_TREES, row_id=row_id,
@@ -1188,6 +1199,17 @@ def _preserved_tree_qs(*, for_update=False):
 def _pai_sample(sample_date):
     survey = get_preserved_tree_survey()
     return Sample.objects.create(sample_area=None, survey=survey, date=sample_date)
+
+
+def _mark_pai_tree_write_stale(survey_ids):
+    """Invalidate every digest affected by a Bosco/PAI tree write."""
+    sampled_tree_digests = [
+        f'sampled_trees_{survey_id}' for survey_id in sorted(set(survey_ids))
+    ]
+    mark_stale(
+        *sampled_tree_digests, 'samples', 'surveys',
+        *BOSCO_TREE_DIGESTS, 'audit',
+    )
 
 
 def _satellite_json_response(request, region_id, filename):
