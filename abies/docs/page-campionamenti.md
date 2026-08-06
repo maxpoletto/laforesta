@@ -212,8 +212,8 @@ the visible summary.
 
 Columns: compresa, particella, area di campionamento, n. albero
 (`tree_sample.number`), specie, tipo (fustaia / ceduo), pollone, matricina, D
-(cm), h (m), L10 (mm), V (m³), m (q), PAI, Lat/Lon. Pressler coefficient is not
-displayed.
+(cm), h (m), L10 (mm), V (m³), m (q), PAI, Lat, Lon, Acc. (m). Pressler
+coefficient is not displayed. Missing legacy accuracy is shown as `-`.
 
 Pollone value is blank (not 0) for high forest (fustaia) rows.
 
@@ -533,8 +533,9 @@ writes whose sample's survey matches.
 Columns: `row_id`, `version`, `Sample area`, `Data campione`,
 `Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,
 `Coppice`, `Pollone`, `Matricina`, `D (cm)`, `h (m)`, `L10 (mm)`, `V (m³)`,
-`m (q)`, `PAI`, `Lat`, `Lon`. Structured rows derive parcel/area display
-from the sample area, with row coordinates falling back to area coordinates.
+`m (q)`, `PAI`, `Lat`, `Lon`, `Acc. (m)`. Structured rows derive parcel/area
+display from the sample area, with row coordinates falling back to area
+coordinates.
 Unstructured rows derive parcel display and coordinates from the `TreeSample`
 row, with `Sample area` null and `N. area` blank. Sort: by `Compresa`,
 `Particella`, `N. area`, `N. albero`, `Pollone`.
@@ -544,9 +545,10 @@ row, with `Sample area` null and `N. area` blank. Sort: by `Compresa`,
 localized display label derived from the same value.
 `V (m³)` and `m (q)` are NULL for ceduo rows (per `database.md`
 invariant).  `Lat`, `Lon` come from row-level `TreeSample` coordinates
-if set, else fall back to the sample-area center.  `Data campione` is `sample.date`
-(useful for cross-tab tracking even when Section 3 isn't narrowed
-to a single area).
+if set, else fall back to the sample-area center. `Acc. (m)` is the nullable
+row-level GPS accuracy and has no sample-area fallback; the UI displays null
+as `-`. `Data campione` is `sample.date` (useful for cross-tab tracking even
+when Section 3 isn't narrowed to a single area).
 
 The page uses this digest for the Section 3 sortable table and, for free
 surveys, the tree map and client-side dendrometric summary. CSV exports are

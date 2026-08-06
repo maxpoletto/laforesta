@@ -283,7 +283,7 @@ class TestGenerateMarkTreesForItem:
                 date='2025-06-15', d_cm=40, h_m=Decimal('22.5'),
                 h_measured=True,
                 volume_m3=Decimal('1.5'), mass_q=Decimal('13.5'),
-                lat=38.4, lon=16.1, operator='Mario',
+                lat=38.4, lon=16.1, acc_m=4, operator='Mario',
             ),
             TreeMark.objects.create(
                 harvest_plan_item=fustaia_item, tree=trees[1],
@@ -303,7 +303,7 @@ class TestGenerateMarkTreesForItem:
             ),
         ]
 
-    def test_output_columns(self, fustaia_item, tmp_path, settings):
+    def test_output_columns(self, marks, fustaia_item, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path
         generate_mark_trees_for_item(fustaia_item.id)
         data = _load(tmp_path / f'mark_trees_{fustaia_item.id}.json.gz')
@@ -311,8 +311,13 @@ class TestGenerateMarkTreesForItem:
         for c in (ROW_ID, 'version', S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER,
                   S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
                   S.COL_V_M3, S.COL_MASS_Q, S.COL_LAT, S.COL_LON,
-                  S.COL_OPERATOR):
+                  S.COL_ACC_M, S.COL_OPERATOR):
             assert c in cols
+        assert cols[-4:] == [
+            S.COL_LAT, S.COL_LON, S.COL_ACC_M, S.COL_OPERATOR,
+        ]
+        acc_idx = cols.index(S.COL_ACC_M)
+        assert [row[acc_idx] for row in data[ROWS]] == [4, None, None]
 
     def test_region_wide_rows_carry_each_marks_parcel(
         self, plan, parcels, species, tmp_path, settings,

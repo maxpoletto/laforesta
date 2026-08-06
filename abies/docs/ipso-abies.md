@@ -197,6 +197,12 @@ The upload body contains:
   before the camera opens; gallery photos stay location-free, and photo EXIF
   GPS is ignored because mobile providers commonly strip it.
 
+Every tree save in `martellate`, `samples`, and `free_survey` requires a fresh
+device GPS fix. Ipso stores and uploads that fix's latitude, longitude, and
+browser-reported `acc_m`, rounded to whole metres. The Abies accuracy fields
+remain nullable so historical and non-Ipso imports without accuracy continue
+to load.
+
 Supported modes are:
 
 - `martellate` — marked trees for a harvest-plan item;

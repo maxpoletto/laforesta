@@ -49,7 +49,8 @@ import { GridPlanner } from './grid-planner.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js';
 import {
-  fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool, parseDecimal,
+  fmtAccuracyM, fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool,
+  parseDecimal,
 } from '../../base/js/format.js';
 import {
   applyTableState, createPage, navigateWithParams, readTableState, tableParamKeys,
@@ -144,6 +145,7 @@ const TREES_COLS = {
   [S.COL_PRESERVED]:         { label: S.COL_PRESERVED, type: 'boolean', width: '50px', formatter: fmtBool },
   [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtCoord },
   [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtCoord },
+  [S.COL_ACC_M]:       { label: S.COL_ACC_M, type: 'number', width: '75px', formatter: fmtAccuracyM },
   [VERSION]: { label: VERSION, hidden: true },
 };
 

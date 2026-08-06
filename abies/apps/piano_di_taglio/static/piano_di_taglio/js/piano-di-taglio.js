@@ -43,7 +43,7 @@ import {
   HYPSO_FUNC_LN, MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import {
-  fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
+  fmtAccuracyM, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
   fmtVolume, fmtArea, fmtMass, localISODate, parseDecimal,
 } from '../../base/js/format.js';
 import { buildPrelieviColumnDefs } from '../../base/js/prelievi-columns.js';
@@ -1530,6 +1530,7 @@ function appendMarkPopoverField(root, label, value) {
 }
 
 function formatMarkPopoverValue(name, value) {
+  if (name === S.COL_ACC_M) return fmtAccuracyM(value);
   if (value == null || value === '') return '—';
   if (name === S.COL_DATE) return formatDate(String(value));
   if (name === S.COL_NUMBER || name === S.COL_D_CM) return fmtInt(value);
@@ -1557,6 +1558,7 @@ function buildMarkTreeColumnDefs(columns, showParcel) {
     if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtDecimal3 }; continue; }
     if (name === S.COL_MASS_Q) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
     if (name === S.COL_LAT || name === S.COL_LON) { defs[name] = { label: name, type: 'number', width: '90px', formatter: fmtCoord }; continue; }
+    if (name === S.COL_ACC_M) { defs[name] = { label: name, type: 'number', width: '75px', formatter: fmtAccuracyM }; continue; }
     defs[name] = { label: name };
   }
   return defs;

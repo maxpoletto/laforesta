@@ -19,7 +19,9 @@ import {
   importWarningLines, isImportWarningResponse, showImportWarningModal,
   withImportWarningsConfirmed,
 } from '../../base/js/import-warnings.js';
-import { fmtCoord, fmtDecimal2, fmtInt } from '../../base/js/format.js';
+import {
+  fmtAccuracyM, fmtCoord, fmtDecimal2, fmtInt,
+} from '../../base/js/format.js';
 import { sortFeaturesByArea } from '../../base/js/geo.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
 import { TreePointsMap, treePointsFromDigest } from '../../base/js/tree-points-map.js';
@@ -105,11 +107,11 @@ const COLUMN_DEFS = {
 const PREVIEW_COLUMNS = [
   S.IPSO_COL_SEQ, S.COL_DATE, S.COL_PARCEL, FIELD_SAMPLE_AREA_ID,
   S.COL_SPECIES, S.COL_NUMBER, S.COL_D_CM, S.COL_H_M, S.COL_LAT, S.COL_LON,
-  S.IPSO_COL_ACCURACY,
+  S.COL_ACC_M,
 ];
 const OBSERVATION_PREVIEW_COLUMNS = [
   S.IPSO_COL_SEQ, S.COL_DATE, S.COL_TEXT, S.COL_OBSERVATION_CATEGORIES,
-  S.COL_PHOTO_COUNT, S.COL_LAT, S.COL_LON, S.IPSO_COL_ACCURACY,
+  S.COL_PHOTO_COUNT, S.COL_LAT, S.COL_LON, S.COL_ACC_M,
 ];
 const OBSERVATION_PREVIEW_COLUMN_DEFS = {
   [S.IPSO_COL_SEQ]: { label: S.IPSO_COL_SEQ, type: 'number', width: '70px', className: 'num', formatter: intValue },
@@ -119,7 +121,7 @@ const OBSERVATION_PREVIEW_COLUMN_DEFS = {
   [S.COL_PHOTO_COUNT]: { label: S.COL_PHOTO_COUNT, type: 'number', width: '80px', className: 'num', formatter: intValue },
   [S.COL_LAT]: { label: S.COL_LAT, type: 'number', width: '115px', formatter: coordValue },
   [S.COL_LON]: { label: S.COL_LON, type: 'number', width: '115px', formatter: coordValue },
-  [S.IPSO_COL_ACCURACY]: { label: S.IPSO_COL_ACCURACY, type: 'number', width: '80px', className: 'num', formatter: intValue },
+  [S.COL_ACC_M]: { label: S.COL_ACC_M, type: 'number', width: '80px', className: 'num', formatter: fmtAccuracyM },
 };
 
 const PREVIEW_COLUMN_DEFS = {
@@ -133,7 +135,7 @@ const PREVIEW_COLUMN_DEFS = {
   [S.COL_H_M]: { label: S.COL_H_M, type: 'number', width: '90px', className: 'num', formatter: decimal2Value },
   [S.COL_LAT]: { label: S.COL_LAT, type: 'number', width: '115px', formatter: coordValue },
   [S.COL_LON]: { label: S.COL_LON, type: 'number', width: '115px', formatter: coordValue },
-  [S.IPSO_COL_ACCURACY]: { label: S.IPSO_COL_ACCURACY, type: 'number', width: '80px', className: 'num', formatter: intValue },
+  [S.COL_ACC_M]: { label: S.COL_ACC_M, type: 'number', width: '80px', className: 'num', formatter: fmtAccuracyM },
 };
 
 let table = null;

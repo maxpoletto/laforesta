@@ -95,7 +95,6 @@ export const IPSO_IMPORT_SAMPLES_CONFIRM = 'Importare i dati nel rilevamento sel
 export const IPSO_IMPORT_FREE_SURVEY_CONFIRM = 'Importare i dati nel rilevamento libero selezionato?';
 export const IPSO_IMPORT_OBSERVATIONS_CONFIRM = 'Importare le osservazioni?';
 export const IPSO_COL_SEQ = '#';
-export const IPSO_COL_ACCURACY = 'Acc.';
 export const IPSO_EMPTY_VALUE = '-';
 
 // Validation (client-side)
@@ -416,6 +415,7 @@ export const COL_DATE_FIRST      = 'Data primo';
 export const COL_DATE_LAST       = 'Data ultimo';
 export const COL_LAT             = 'Lat';
 export const COL_LON             = 'Lon';
+export const COL_ACC_M           = 'Acc. (m)';
 export const COL_AREA_HA         = 'Area (ha)';
 export const COL_AREA_CAD_HA     = 'Area cat. (ha)';
 export const COL_AVE_AGE         = 'Età media (a)';

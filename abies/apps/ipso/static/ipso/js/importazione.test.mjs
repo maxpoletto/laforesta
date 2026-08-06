@@ -581,6 +581,13 @@ await flushSeveral();
 
 const detailEl = contentEl.querySelector('[data-role="detail"]');
 eq(tableInstances.at(-1).data.length, 3, 'opening an upload renders the preview table rows');
+const previewColumns = tableInstances.at(-1).columns;
+const previewAccColumn = previewColumns.find(column => column.key === S.COL_ACC_M);
+const previewLonIndex = previewColumns.findIndex(column => column.key === S.COL_LON);
+eq(previewColumns.indexOf(previewAccColumn), previewLonIndex + 1,
+   'Ipso preview accuracy is immediately after longitude');
+eq(previewAccColumn.formatter(null), '-',
+   'Ipso preview null accuracy is displayed as a dash');
 check(Boolean(detailEl.querySelector('.ipso-record-map-host')), 'opening an upload renders a preview map host');
 eq(latestTreeMarkers().map(marker => marker.latlng), [[38.1, 16.1], [38.3, 16.3]],
    'preview map renders only records with finite coordinates');

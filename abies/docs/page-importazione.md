@@ -28,12 +28,12 @@ The navigation badge counts uploads still in `received` state.
 The lower panel shows session metadata, staged-file errors if files are missing
 or corrupt, and a sortable preview of uploaded records. The preview includes
 record id, date, parcel, sample area, species, number, diameter/height,
-coordinates, and GPS accuracy when present. Observation previews show text,
-categories, photo count, coordinates, and GPS accuracy. Ipso observation
-position comes from the initial device GPS fix captured when the observation
-form opens, with save-time GPS used only as a fallback; camera photos may also
-carry device GPS metadata captured before the camera opens. Ipso ignores photo
-EXIF GPS.
+coordinates, and GPS accuracy under `Acc. (m)`. A missing accuracy is shown as
+`-`. Observation previews use the same position columns alongside text,
+categories, and photo count. Ipso observation position comes from the initial
+device GPS fix captured when the observation form opens, with save-time GPS
+used only as a fallback; camera photos may also carry device GPS metadata
+captured before the camera opens. Ipso ignores photo EXIF GPS.
 
 Target selectors appear only when the current user can import and the upload is
 still `received`.

@@ -977,7 +977,7 @@ SAMPLED_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_SAMPLE_AREA,
                         S.COL_COPPICE_SHOOT,
                         S.COL_COPPICE_STD, S.COL_D_CM, S.COL_H_M, S.COL_L10_MM,
                         S.COL_PRESSLER, S.COL_V_M3, S.COL_MASS_Q,
-                        S.COL_PRESERVED, S.COL_LAT, S.COL_LON]
+                        S.COL_PRESERVED, S.COL_LAT, S.COL_LON, S.COL_ACC_M]
 
 
 def build_tree_sample_record(ts) -> list:
@@ -1011,7 +1011,7 @@ def build_tree_sample_record(ts) -> list:
         float(ts.volume_m3) if ts.volume_m3 is not None else None,
         float(ts.mass_q) if ts.mass_q is not None else None,
         ts.preserved_number is not None,
-        lat, lon,
+        lat, lon, ts.acc_m,
     ]
 
 
@@ -1236,7 +1236,7 @@ def generate_hypso_params() -> None:
 MARK_TREE_COLUMNS = [ROW_ID, VERSION, S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER,
                      S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED,
                      S.COL_V_M3, S.COL_MASS_Q,
-                     S.COL_LAT, S.COL_LON, S.COL_OPERATOR]
+                     S.COL_LAT, S.COL_LON, S.COL_ACC_M, S.COL_OPERATOR]
 
 
 def build_tree_mark_record(tm) -> list:
@@ -1250,7 +1250,7 @@ def build_tree_mark_record(tm) -> list:
         tm.d_cm, float(tm.h_m), tm.h_measured,
         float(tm.volume_m3) if tm.volume_m3 is not None else None,
         float(tm.mass_q) if tm.mass_q is not None else None,
-        tm.lat, tm.lon, tm.operator,
+        tm.lat, tm.lon, tm.acc_m, tm.operator,
     ]
 
 

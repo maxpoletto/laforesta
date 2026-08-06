@@ -239,7 +239,11 @@ The modal displays:
 
    The table lists `tree_mark` rows under this item. Columns:
 
-       Data; Particella; Numero; Specie; D (cm); h (m); h misurata; V (m³); m (q); Lat; Lon; Operatore
+       Data; Particella; Numero; Specie; D (cm); h (m); h misurata;
+       V (m³); m (q); Lat; Lon; Acc. (m); Operatore
+
+   GPS accuracy is stored as integer metres; missing legacy values are shown
+   as `-`.
 
    `Particella` is shown only for region-wide items, where it identifies the
    parcel stored on each individual mark. It is hidden for parcel-scoped items
@@ -548,7 +552,9 @@ cheap.
 that touch this item.
 
 Columns: `row_id`, `version`, `Data`, `Particella`, `Numero`, `Specie`, `D (cm)`,
-`h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Operatore`.
+`h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Acc. (m)`,
+`Operatore`. Accuracy is nullable for legacy rows and is displayed as `-` when
+missing.
 
 `Particella` carries `tree_mark.parcel.name`. The client displays it in the
 table and map popover only for region-wide plan items and hides the redundant

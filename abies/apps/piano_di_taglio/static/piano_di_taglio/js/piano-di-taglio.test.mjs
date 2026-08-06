@@ -467,12 +467,12 @@ function itemPayload(id) {
 function markDigest(id, overrides = {}) {
   const row = [
     id * 100 + 1, 1, '2026-01-01', '11', 1, 'Abete bianco', 30, 20,
-    true, 1.2, 8.5, 38.1, 16.2, 'Operatore',
+    true, 1.2, 8.5, 38.1, 16.2, 4, 'Operatore',
   ];
   const columns = [
     ROW_ID, VERSION, S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER, S.COL_SPECIES,
     S.COL_D_CM, S.COL_H_M, S.COL_H_MEASURED, S.COL_V_M3, S.COL_MASS_Q,
-    S.COL_LAT, S.COL_LON, S.COL_OPERATOR,
+    S.COL_LAT, S.COL_LON, S.COL_ACC_M, S.COL_OPERATOR,
   ];
   for (const [name, value] of Object.entries(overrides)) {
     row[columns.indexOf(name)] = value;
@@ -766,6 +766,15 @@ async function finish() {
   );
   check(scopedParcel?.hidden,
         'parcel-scoped mark table hides the redundant parcel column');
+  const markColumns = tableInstances.at(-1).columns;
+  const markAccColumn = markColumns.find(column => column.key === S.COL_ACC_M);
+  const markLonIndex = markColumns.findIndex(column => column.key === S.COL_LON);
+  eq(markColumns.indexOf(markAccColumn), markLonIndex + 1,
+     'mark accuracy is immediately after longitude');
+  eq(markAccColumn.formatter(null), '-',
+     'mark null accuracy is displayed as a dash');
+  eq(markAccColumn.formatter(4), '4',
+     'mark accuracy is displayed as integer metres');
   await finish();
 
   const regionItem = deferItem(13);

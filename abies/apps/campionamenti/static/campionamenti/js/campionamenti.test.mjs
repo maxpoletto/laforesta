@@ -336,10 +336,12 @@ globalThis.history = {
     globalThis.location = { pathname: u.pathname, search: u.search };
   },
 };
+const tableInstances = [];
 class MockSortableTable {
   constructor(opts) {
     this._allData = opts.data;
     this.data = opts.data;
+    this.columns = opts.columns;
     this.currentSort = opts.sort || null;
     this.currentPage = 1;
     this.onSort = opts.onSort;
@@ -355,6 +357,7 @@ class MockSortableTable {
       row.appendChild(cell);
       opts.container.appendChild(row);
     }
+    tableInstances.push(this);
   }
   setData(rows) { this._allData = rows; this.data = rows; }
   filter(fn) { this.data = this._allData.filter(fn); }
@@ -437,11 +440,11 @@ const payloads = new Map([
 
 const treeColumns = [
   ROW_ID, S.COL_SAMPLE_AREA, S.COL_REGION, S.COL_TREE_NUM, S.COL_SPECIES,
-  S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_LAT, S.COL_LON,
+  S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_LAT, S.COL_LON, S.COL_ACC_M,
 ];
 const freeTreeDigest = digest(treeColumns, [
-  [201, null, 'A', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2],
-  [202, null, 'A', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3],
+  [201, null, 'A', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4],
+  [202, null, 'A', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3, null],
 ]);
 
 function response(data, lastModified = 'v1') {
@@ -532,6 +535,21 @@ const treesHeaderSummary = contentEl.querySelector(
 );
 eq(treesHeaderSummary.textContent, '(2 alberi)',
    'free survey tree header omits the sample-area wording');
+
+const treeTable = tableInstances.find(table =>
+  table.columns.some(column => column.key === S.COL_ACC_M));
+const treeAccColumn = treeTable.columns.find(
+  column => column.key === S.COL_ACC_M,
+);
+const treeLonIndex = treeTable.columns.findIndex(
+  column => column.key === S.COL_LON,
+);
+eq(treeTable.columns.indexOf(treeAccColumn), treeLonIndex + 1,
+   'sampled-tree accuracy is immediately after longitude');
+eq(treeAccColumn.formatter(null), '-',
+   'sampled-tree null accuracy is displayed as a dash');
+eq(treeAccColumn.formatter(4), '4',
+   'sampled-tree accuracy is displayed as integer metres');
 
 eq(globalThis.__treeDetailInstances.length, 1,
    'free survey mounts one shared tree-detail component below the table');

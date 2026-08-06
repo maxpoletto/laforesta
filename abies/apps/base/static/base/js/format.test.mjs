@@ -3,7 +3,7 @@
 
 process.env.TZ = 'Europe/Rome';
 
-const { localISODate } = await import('./format.js');
+const { fmtAccuracyM, localISODate } = await import('./format.js');
 
 let passed = 0;
 let failed = 0;
@@ -25,6 +25,10 @@ eq(localISODate(cestAfterMidnight), '2026-07-10',
 const winterMorning = new Date('2026-01-10T07:05:00Z');
 eq(localISODate(winterMorning), '2026-01-10',
    'localISODate pads month and day');
+
+eq(fmtAccuracyM(null), '-', 'fmtAccuracyM renders null as a dash');
+eq(fmtAccuracyM(''), '-', 'fmtAccuracyM renders blank as a dash');
+eq(fmtAccuracyM(7), '7', 'fmtAccuracyM renders integer metres');
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

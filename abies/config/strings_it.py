@@ -691,6 +691,7 @@ COL_DATE_LAST       = 'Data ultimo'
 COL_NUMBER          = 'Numero'
 COL_LAT             = 'Lat'              # paired with CSV_COL_LAT
 COL_LON             = 'Lon'              # paired with CSV_COL_LON
+COL_ACC_M           = 'Acc. (m)'         # display label; CSV uses CSV_COL_ACC_M
 COL_SURVEY          = 'Rilevamento'
 COL_SAMPLE_AREA     = 'Area di saggio'
 COL_SAMPLE_AREA_HA  = 'Area saggi (ha)'

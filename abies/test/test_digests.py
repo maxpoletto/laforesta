@@ -5,6 +5,7 @@ import json
 import math
 from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
+from importlib import import_module
 from pathlib import Path
 
 import pytest
@@ -132,6 +133,63 @@ class TestStaleness:
 
         assert not DigestStatus.objects.filter(name=name).exists()
         assert not (tmp_path / f'{name}.json.gz').exists()
+
+    def test_accuracy_schema_migration_stales_dynamic_tree_digests(
+        self, parcels, species,
+    ):
+        plan = HarvestPlan.objects.create(
+            name='Piano', year_start=2026, year_end=2026,
+        )
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, parcel=parcels[0], year_planned=2026,
+        )
+        marked_tree = Tree.objects.create(species=species[0])
+        TreeMark.objects.create(
+            harvest_plan_item=item, tree=marked_tree, parcel=parcels[0],
+            number=1, date='2026-06-15', d_cm=30, h_m=Decimal('18.0'),
+        )
+        survey = Survey.objects.create(name='Rilevamento')
+        sample = Sample.objects.create(survey=survey, date='2026-06-15')
+        sampled_tree = Tree.objects.create(species=species[0])
+        TreeSample.objects.create(
+            sample=sample, tree=sampled_tree, parcel=parcels[0],
+            number=1, d_cm=30, h_m=Decimal('18.0'),
+        )
+
+        mark_status = DigestStatus.objects.create(
+            name=f'mark_trees_{item.id}', stale=False, dirty_seq=7,
+        )
+        empty_sample_status = DigestStatus.objects.create(
+            name='sampled_trees_999999', stale=False, dirty_seq=3,
+        )
+        migration = import_module(
+            'apps.base.migrations.0021_refresh_tree_position_digests',
+        )
+
+        class CurrentApps:
+            @staticmethod
+            def get_model(app_label, model_name):
+                assert app_label == 'base'
+                models = {
+                    'DigestStatus': DigestStatus,
+                    'TreeMark': TreeMark,
+                    'TreeSample': TreeSample,
+                }
+                return models[model_name]
+
+        migration.mark_tree_position_digests_stale(CurrentApps(), None)
+
+        mark_status.refresh_from_db()
+        empty_sample_status.refresh_from_db()
+        sample_status = DigestStatus.objects.get(
+            name=f'sampled_trees_{survey.id}',
+        )
+        assert (mark_status.stale, mark_status.dirty_seq) == (True, 8)
+        assert (
+            empty_sample_status.stale,
+            empty_sample_status.dirty_seq,
+        ) == (True, 4)
+        assert (sample_status.stale, sample_status.dirty_seq) == (True, 1)
 
     def test_concurrent_mark_during_regeneration_survives(
         self, db, settings, tmp_path, monkeypatch,
@@ -547,7 +605,7 @@ class TestGenerateBoscoDigests:
         ts = TreeSample.objects.create(
             sample=sample, tree=tree, parcel=parcels[0], number=12,
             d_cm=30, h_m=Decimal('17.50'),
-            lat=38.1, lon=16.2,
+            lat=38.1, lon=16.2, acc_m=6,
         )
 
         generate_sampled_trees_for_survey(survey.id)
@@ -558,9 +616,10 @@ class TestGenerateBoscoDigests:
             ts.id, ts.version, None, '2026-07-16',
             parcels[0].region.name, parcels[0].name, '',
             12, species[0].common_name, S.TYPE_HIGHFOREST, False,
-            0, False, 30, 17.5, 0, 2.0, None, None, False, 38.1, 16.2,
+            0, False, 30, 17.5, 0, 2.0, None, None, False, 38.1, 16.2, 6,
         ]]
         assert cols[2] == S.COL_SAMPLE_AREA
+        assert cols[-3:] == [S.COL_LAT, S.COL_LON, S.COL_ACC_M]
 
     def test_unstructured_samples_are_excluded_from_dendrometry(
             self, parcels, species, tmp_path, settings,
