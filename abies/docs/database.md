@@ -223,13 +223,12 @@ explicitly reuses the same `tree_id`.
     `harvest`. See that table for details.
   - `note` carries free-text annotations from the import — typically used by
     coppice continuation rows (e.g., `Cont. intervento 2028`).
-  - Deletion is **blocked at the schema level** if any child row exists:
-    all three child FKs (`tree_mark.harvest_plan_item_id`,
-    `harvest_transition.harvest_plan_item_id`,
-    `harvest.harvest_plan_item_id`) are ON DELETE PROTECT. The per-item
-    UI also disables the trash icon unless `state = planned`, since
-    `state > planned` always implies at least one child row exists; the
-    DB constraint is the belt-and-suspenders backstop.
+  - Deletion is **blocked at the schema level** while a linked
+    `tree_mark` or `harvest` exists: both foreign keys use ON DELETE PROTECT.
+    Lifecycle state alone is not a deletion condition because it remains
+    advanced after those substantive records are removed. System-managed
+    `harvest_transition` history belongs to the item and uses ON DELETE
+    CASCADE, so it requires no separate user action.
   - The View/Edit-harvest-plan-item modal carries an "Esporta"
     button that dumps the item's `tree_mark` and `harvest` rows as a
     zip (see `piano-di-taglio.md`). The dangerous-delete flow reuses
@@ -244,7 +243,8 @@ explicitly reuses the same `tree_id`.
     open/close pairs when an admin reopens it.
   - `date` is a user-specified date.
   - `note` is user-specified text, often a regional permit number.
-  - ON DELETE PROTECT from `harvest_plan_item` (see deletion note above).
+  - ON DELETE CASCADE from `harvest_plan_item`: transition rows are
+    system-managed lifecycle history and disappear with their owning item.
 
 - harvest_detail: (id:int, description:text, interval:int nullable)
   - A reusable harvest instruction, e.g., "Preferentially cut white firs of

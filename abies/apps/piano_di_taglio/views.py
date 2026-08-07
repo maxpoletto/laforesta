@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.db.models.deletion import ProtectedError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods, require_POST
@@ -73,6 +74,7 @@ from config.constants import (
     DIGEST_FUTURE_PRODUCTION,
     FIELD_ACC_M,
     FIELD_COPPICE_FILE,
+    FIELD_CHECK_ONLY,
     FIELD_D_CM,
     FIELD_DAMAGED,
     FIELD_DATE,
@@ -173,38 +175,53 @@ def plan_save_view(request):
     )
 
 
+def _items_have_deletion_dependencies(items) -> bool:
+    """Whether plan items still own user-entered marks or harvests."""
+    return (
+        TreeMark.objects.filter(harvest_plan_item__in=items).exists()
+        or Harvest.objects.filter(harvest_plan_item__in=items).exists()
+    )
+
+
 @login_required
 @require_writer
 @require_POST
 def plan_delete_view(request, plan_id: int):
-    """Delete a HarvestPlan.  Gated: every item must be in state `planned`.
+    """Delete a HarvestPlan when its items have no marks or harvests.
 
-    The CSV-download forced-step is handled client-side: the JS download
-    of `plan_export_view` precedes this call.  We still verify the gate
-    server-side so a hand-crafted POST cannot bypass it.
+    The CSV-download forced-step is handled client-side. Worksite transitions
+    are owned lifecycle history and cascade with their plan items; user-entered
+    marks and harvests must be removed explicitly.
     """
     body, error = parse_json_body(request)
     if error:
         return error
+    check_only = is_truthy(body.get(FIELD_CHECK_ONLY))
     plan = HarvestPlan.objects.filter(id=plan_id).first()
     if plan is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if plan.version != submitted_version(body):
+    if not check_only and plan.version != submitted_version(body):
         return conflict_response(
             data_id='harvest_plans', row_id=plan.id,
             record=build_harvest_plan_record(plan),
         )
 
-    bad = HarvestPlanItem.objects.filter(harvest_plan=plan).exclude(
-        state=HarvestPlanItemState.PLANNED,
-    ).exists()
-    if bad:
-        return validation_error([S.ERR_PLAN_HAS_ACTIVE_ITEMS])
+    items = HarvestPlanItem.objects.filter(harvest_plan=plan)
+    if _items_have_deletion_dependencies(items):
+        return validation_error([S.ERR_PLAN_HAS_DEPENDENCIES])
+    if check_only:
+        return JsonResponse({})
 
     with transaction.atomic():
-        # HarvestPlanItem and ParcelPlanDetail both cascade to HarvestPlan.
-        plan.delete()
-        mark_stale('harvest_plans', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
+        try:
+            # Plan items, their transitions, and ParcelPlanDetail cascade.
+            plan.delete()
+        except ProtectedError:
+            return validation_error([S.ERR_PLAN_HAS_DEPENDENCIES])
+        mark_stale(
+            'harvest_plans', 'harvest_plan_items',
+            DIGEST_FUTURE_PRODUCTION, 'audit',
+        )
     return success_response(
         request, body,
         data_id='harvest_plans', row_id=plan_id,
@@ -502,21 +519,20 @@ def _validation_error_messages(exc: ValidationError) -> list[str]:
 @require_writer
 @require_POST
 def item_delete_view(request, item_id: int):
-    """Delete a HarvestPlanItem.  Gated: state must be PLANNED.
+    """Delete an item after its marks and harvests have been removed.
 
-    A non-PLANNED item also typically has TreeMark / Harvest /
-    HarvestTransition rows that the FK PROTECT cascade would refuse;
-    the user must clear those first.  The CSV-download forced-step is
-    client-side (precedes this call); the server only enforces the
-    state gate.
+    State alone is not a blocker. Worksite transitions are owned lifecycle
+    history and cascade automatically; marks and harvests remain protected
+    user data that must be removed explicitly.
     """
     body, error = parse_json_body(request)
     if error:
         return error
+    check_only = is_truthy(body.get(FIELD_CHECK_ONLY))
     item = HarvestPlanItem.objects.filter(id=item_id).first()
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if item.version != submitted_version(body):
+    if not check_only and item.version != submitted_version(body):
         item = (HarvestPlanItem.objects
                 .select_related('parcel__region', 'parcel__eclass',
                                 'region', 'harvest_plan')
@@ -525,13 +541,17 @@ def item_delete_view(request, item_id: int):
             data_id='harvest_plan_items', row_id=item.id,
             record=build_harvest_plan_item_record(item),
         )
-    if item.state != HarvestPlanItemState.PLANNED:
-        return validation_error([S.ERR_PLAN_ITEM_STATE_NOT_PLANNED])
+    if _items_have_deletion_dependencies(
+        HarvestPlanItem.objects.filter(id=item.id),
+    ):
+        return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
+    if check_only:
+        return JsonResponse({})
 
     with transaction.atomic():
         try:
             item.delete()
-        except Exception:
+        except ProtectedError:
             return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
         mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 

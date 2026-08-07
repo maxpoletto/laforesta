@@ -534,11 +534,6 @@ export const IMPORT_LABEL             = 'Importa';
 export const DELETE_PLAN_TITLE   = 'Elimina piano';
 export const DELETE_PLAN_WARNING = name =>
   `Il piano "${name}" e tutte le sue voci saranno eliminati definitivamente.`;
-export const ERR_PLAN_HAS_ACTIVE_ITEMS =
-  'Il piano contiene voci non in stato "pianificato". ' +
-  'Elimina prima le voci dipendenti.';
-export const ERR_PLAN_ITEM_STATE_NOT_PLANNED =
-  'La voce non è in stato "pianificato"; eliminazione non consentita.';
 export const DELETE_ITEM_TITLE = 'Elimina intervento';
 export const DELETE_ITEM_WARNING = (year, region, parcel) =>
   `L'intervento ${year} ${region}${parcel ? ` ${parcel}` : ''} sarà eliminato definitivamente.`;

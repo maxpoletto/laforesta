@@ -36,7 +36,8 @@ import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION, FIELD_ERRORS, FIELD_FILE,
+  FIELD_CHECK_ONLY, FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION,
+  FIELD_ERRORS, FIELD_FILE,
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
   COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_ROW_IDS, FIELD_SPECIES,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
@@ -473,41 +474,38 @@ const ITEM_COL_DEFS = (() => {
 // Dangerous-delete flow.
 // ---------------------------------------------------------------------------
 
-function onDeletePlan() {
-  if (activePlanId == null) return;
-  const row = planRow(activePlanId);
-  if (!row) return;
-
-  // Surface the server's "must all be planned" gate up front so the
-  // user doesn't have to walk through the confirm modal.
-  if (planHasActiveItems(activePlanId)) {
-    showError(S.ERR_PLAN_HAS_ACTIVE_ITEMS);
-    return;
+async function deletionAllowed(url) {
+  try {
+    const { data, status } = await postJSON(url, { [FIELD_CHECK_ONLY]: true });
+    if (status !== 200) {
+      showError(data?.[MESSAGE] || S.ERROR_GENERIC);
+      return false;
+    }
+    return true;
+  } catch (_err) {
+    showError(S.ERROR_NETWORK);
+    return false;
   }
+}
 
+async function onDeletePlan() {
+  if (activePlanId == null) return;
+  const planId = activePlanId;
+  if (!await deletionAllowed(`${PLAN_DELETE_URL}${planId}/`)) return;
+  if (activePlanId !== planId) return;
+
+  const row = planRow(planId);
+  if (!row) return;
   const planName = row[plansData.columns.indexOf(S.COL_NAME)];
   showCascadeDeleteModal({
     title: S.DELETE_PLAN_TITLE,
     warning: S.DELETE_PLAN_WARNING(planName),
-    onExport: () => downloadPlanExport(activePlanId),
-    onDelete: () => doDeletePlan(),
+    onExport: () => downloadPlanExport(planId),
+    onDelete: () => doDeletePlan(planId),
   });
 }
 
-/** True if any item in this plan has advanced past `planned`. */
-function planHasActiveItems(planId) {
-  if (!itemsData) return false;
-  const c = itemsData.columns;
-  const planCol = c.indexOf(S.COL_HARVEST_PLAN);
-  const stateCol = c.indexOf(S.COL_STATE);
-  const planned = S.STATE_PLANNED;
-  return itemsData.rows.some(r =>
-    r[planCol] === planId && r[stateCol] !== planned,
-  );
-}
-
-async function doDeletePlan() {
-  const id = activePlanId;
+async function doDeletePlan(id) {
   await deleteRowWithVersion(
     PLANS_ID, id, `${PLAN_DELETE_URL}${id}/`,
     {
@@ -653,30 +651,24 @@ function toggleField(form, selector, visible) {
 }
 
 // ---------------------------------------------------------------------------
-// Per-item dangerous-delete flow.  Server's `state = planned` gate is
-// the source of truth; we surface it client-side so the operator gets
-// an immediate explanation instead of a generic 400.
+// Per-item dangerous-delete flow. The server checks actual marks/harvests;
+// transition history is owned metadata and cascades with the item.
 // ---------------------------------------------------------------------------
 
-function confirmDeleteItem(itemId) {
+async function confirmDeleteItem(itemId) {
   if (!itemsData) return;
+  if (!await deletionAllowed(`${ITEM_DELETE_URL}${itemId}/`)) return;
+
   const c = itemsData.columns;
   const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
   if (!row) return;
-
-  if (row[c.indexOf(S.COL_STATE)] !== S.STATE_PLANNED) {
-    showError(S.ERR_PLAN_ITEM_STATE_NOT_PLANNED);
-    return;
-  }
 
   const compresa = row[c.indexOf(S.COL_REGION)];
   const parcel = row[c.indexOf(S.COL_PARCEL)];
   const year = row[c.indexOf(S.COL_YEAR_PLANNED)];
 
-  // Per-item delete is only allowed when state == planned, in which
-  // case the item has no marks / harvests / transitions (DB-level
-  // PROTECT blocks otherwise).  Nothing to back up → skip the
-  // forced-download step.
+  // Marks/harvests are checked server-side. Once they are gone there is no
+  // substantive row to back up, so this flow does not force an export.
   showCascadeDeleteModal({
     title: S.DELETE_ITEM_TITLE,
     warning: S.DELETE_ITEM_WARNING(year, compresa, parcel || ''),

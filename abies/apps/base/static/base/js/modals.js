@@ -49,7 +49,11 @@ export function showError(message) {
   btn.className = 'btn';
   btn.textContent = S.DISMISS;
   btn.addEventListener('click', dismiss);
-  frag.appendChild(btn);
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+  actions.appendChild(btn);
+  frag.appendChild(actions);
 
   show(frag);
 }

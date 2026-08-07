@@ -129,6 +129,7 @@ export const HYPSO_FUNC_LN = 'ln';
 // Form / JSON-body field names.  Match HTML form `name=` attributes and
 // JSON request-body keys; client and server must agree on every name.
 export const FIELD_ID                    = 'id';
+export const FIELD_CHECK_ONLY            = 'check_only';
 export const FIELD_NAME                  = 'name';
 export const FIELD_DATE                  = 'date';
 export const FIELD_DESCRIPTION           = 'description';

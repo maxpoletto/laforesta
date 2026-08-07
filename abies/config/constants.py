@@ -79,6 +79,7 @@ IPSO_ERROR_TOO_LARGE       = 'too_large'
 # JSON request-body keys; client and server must agree on every name.
 # Lowercase to match the wire format.
 FIELD_ID                    = 'id'
+FIELD_CHECK_ONLY            = 'check_only'
 FIELD_NAME                  = 'name'
 FIELD_DATE                  = 'date'
 FIELD_DESCRIPTION           = 'description'

@@ -593,10 +593,11 @@ class HarvestTransition(models.Model):
     """Open / close event on a HarvestPlanItem cantiere.
 
     Reopened cantieri retain each opening and closing event. The item's
-    `state` is updated server-side when a transition row is written.
+    `state` is updated server-side when a transition row is written. These
+    system-managed events are owned by the item and cascade when it is deleted.
     """
     harvest_plan_item = models.ForeignKey(
-        HarvestPlanItem, on_delete=models.PROTECT,
+        HarvestPlanItem, on_delete=models.CASCADE,
         related_name='transitions',
     )
     open = models.BooleanField(help_text='True = Apri cantiere, False = Chiudi cantiere.')

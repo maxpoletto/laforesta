@@ -207,7 +207,10 @@ function buildPageTemplate() {
     el('label', { className: 'pdt-pulldown-label' }),
     el('select', { id: 'pdt-plan-select' }),
   ]);
-  frag.appendChild(el('div', { className: 'pdt-header' }, [headerLeft]));
+  frag.appendChild(el('div', { className: 'pdt-header' }, [
+    headerLeft,
+    el('button', { dataset: { action: 'delete-plan' } }),
+  ]));
   frag.appendChild(el('div', { dataset: { target: 'description' } }));
   frag.appendChild(el('div', { dataset: { target: 'no-plans' } }));
   for (const key of ['f', 'c']) {
@@ -290,6 +293,21 @@ function buildConfirmTemplate() {
   return frag;
 }
 
+function buildCascadeTemplate() {
+  const frag = el('fragment');
+  frag.appendChild(el('h2', { dataset: { field: 'title' } }));
+  frag.appendChild(el('p', { dataset: { field: 'warning' } }));
+  frag.appendChild(el('p', { dataset: { field: 'export-required' } }));
+  const actions = el('div', { className: 'form-actions' });
+  actions.appendChild(el('button', { dataset: { action: 'cancel' } }));
+  actions.appendChild(el('button', { dataset: { action: 'export' } }));
+  actions.appendChild(el('button', {
+    disabled: true, dataset: { action: 'delete' },
+  }));
+  frag.appendChild(actions);
+  return frag;
+}
+
 function buildMarkPopoverTemplate() {
   const frag = el('fragment');
   frag.appendChild(el('div', { className: 'pdt-mark-popover-fields', dataset: { target: 'fields' } }));
@@ -311,6 +329,7 @@ const templates = {
   'tmpl-tree-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
   'tmpl-pdt-mark-popover': { content: buildMarkPopoverTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
+  'tmpl-cascade-delete-modal': { content: buildCascadeTemplate() },
 };
 
 globalThis.document = {
@@ -413,7 +432,9 @@ async function flushSeveral(times = 4) {
 }
 
 const S = await import(staticModule('base/js/strings.js'));
-const { COL_COPPICE, ROW_ID, VERSION } = await import(staticModule('base/js/constants.js'));
+const {
+  COL_COPPICE, FIELD_CHECK_ONLY, MESSAGE, ROW_ID, VERSION,
+} = await import(staticModule('base/js/constants.js'));
 
 const planColumns = [ROW_ID, S.COL_NAME, S.COL_DESCRIPTION, S.COL_YEAR_START, S.COL_YEAR_END];
 const planDigest = { columns: planColumns, rows: [[10, 'Piano', '', 2026, 2029]] };
@@ -456,6 +477,7 @@ const markLoads = new Map();
 const markDataOverrides = new Map();
 const prelieviLoads = [];
 const fetchUrls = [];
+const deletionChecks = new Map();
 let exportedDendrometryRowIds = null;
 let dendrometryExportCalls = 0;
 function deferItem(id) { const d = deferred(); itemLoads.set(`/api/piano-di-taglio/item/data/${id}/`, d); return d; }
@@ -485,10 +507,10 @@ function prelieviDigest() {
     rows: [[2101, 1, 21, '2026-01-01', 1.1], [2201, 1, 22, '2026-01-02', 2.2]],
   };
 }
-function response(data, lastModified = 'v1') {
+function response(data, lastModified = 'v1', status = 200) {
   return {
-    status: 200,
-    ok: true,
+    status,
+    ok: status >= 200 && status < 300,
     headers: { get: h => h === 'Last-Modified' ? lastModified : null },
     json: async () => data,
   };
@@ -648,6 +670,15 @@ globalThis.fetch = async (url, options = {}) => {
   if (url === '/api/impostazioni/hypso-params/data/') return response({ columns: [], rows: [] });
   if (url === '/api/species/data/') return response(speciesDigest);
   if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
+  if (options.method === 'POST' && (
+    String(url).includes('/plan/delete/') || String(url).includes('/item/delete/')
+  )) {
+    const body = JSON.parse(options.body || '{}');
+    if (body[FIELD_CHECK_ONLY]) {
+      const check = deletionChecks.get(url) || { data: {}, status: 200 };
+      return response(check.data, 'v1', check.status);
+    }
+  }
   if (url === '/api/piano-di-taglio/mark/delete/' && options.method === 'POST') {
     const body = JSON.parse(options.body || '{}');
     const rowId = Number(body[ROW_ID]);
@@ -709,6 +740,7 @@ async function finish() {
   exportedDendrometryRowIds = null;
   dendrometryExportCalls = 0;
   markDataOverrides.clear();
+  deletionChecks.clear();
   delete globalThis.L;
   leafletMaps = [];
   leafletMarkerGroups = [];
@@ -748,6 +780,69 @@ async function finish() {
     ['Esporta', '+ Aggiungi'],
     'calendar add button is in TableWrapper toolbar immediately after export',
   );
+
+  const planCheckUrl = '/api/piano-di-taglio/plan/delete/10/';
+  deletionChecks.set(planCheckUrl, {
+    status: 400,
+    data: { [MESSAGE]: 'Elimina prima martellate e prelievi.' },
+  });
+  contentEl.querySelector('[data-action="delete-plan"]').click();
+  await flushAsyncWork();
+  eq(
+    modalEl.querySelector('.modal-error')?.textContent,
+    'Elimina prima martellate e prelievi.',
+    'blocked plan deletion explains dependencies before offering export',
+  );
+  check(!modalEl.querySelector('[data-action="export"]'),
+        'blocked plan deletion does not offer an incomplete calendar export');
+  modalEl.querySelector('.form-actions')?.children[0]?.click();
+
+  deletionChecks.set(planCheckUrl, { status: 200, data: {} });
+  contentEl.querySelector('[data-action="delete-plan"]').click();
+  await flushAsyncWork();
+  eq(
+    modalEl.querySelector('[data-field="title"]')?.textContent,
+    S.DELETE_PLAN_TITLE,
+    'eligible plan deletion enters the standard export-and-delete flow',
+  );
+  check(Boolean(modalEl.querySelector('[data-action="export"]')),
+        'eligible plan deletion requires its calendar export');
+  modalEl.querySelector('[data-action="cancel"]')?.click();
+
+  const calendarTable = contentEl.querySelector('[data-target="table-f"] .table-scroll');
+  const activeItemRow = el('tr', { className: 'sortable-table-row' });
+  activeItemRow.dataset.index = '0';
+  const deleteItem = el('span', { className: 'action-icon action-delete' });
+  activeItemRow.appendChild(deleteItem);
+  calendarTable.appendChild(activeItemRow);
+
+  const itemCheckUrl = '/api/piano-di-taglio/item/delete/1/';
+  deletionChecks.set(itemCheckUrl, {
+    status: 400,
+    data: { [MESSAGE]: 'Elimina prima martellate e prelievi associati.' },
+  });
+  deleteItem.click();
+  await flushAsyncWork();
+  eq(
+    modalEl.querySelector('.modal-error')?.textContent,
+    'Elimina prima martellate e prelievi associati.',
+    'blocked item deletion explains dependencies before confirmation',
+  );
+  check(!modalEl.querySelector('[data-action="delete"]'),
+        'blocked item deletion does not offer a destructive confirmation');
+  modalEl.querySelector('.form-actions')?.children[0]?.click();
+
+  deletionChecks.set(itemCheckUrl, { status: 200, data: {} });
+  deleteItem.click();
+  await flushAsyncWork();
+  eq(
+    modalEl.querySelector('[data-field="title"]')?.textContent,
+    S.DELETE_ITEM_TITLE,
+    'eligible advanced item enters the standard confirmation flow',
+  );
+  check(Boolean(modalEl.querySelector('[data-action="delete"]')),
+        'advanced items remain deletable after their marks and harvests are removed');
+  modalEl.querySelector('[data-action="cancel"]')?.click();
   await finish();
   document.body.dataset.role = previousRole;
 }

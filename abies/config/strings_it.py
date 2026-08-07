@@ -310,9 +310,9 @@ ERR_AREA_NUMBER_DUPLICATE = 'Numero area già presente in questa compresa.'
 ERR_PLAN_NAME_REQUIRED = 'Nome piano obbligatorio.'
 ERR_PLAN_NAME_DUPLICATE = 'Esiste già un piano con questo nome.'
 ERR_PLAN_YEAR_RANGE = 'Anno fine deve essere maggiore o uguale ad anno inizio.'
-ERR_PLAN_HAS_ACTIVE_ITEMS = (
-    'Il piano contiene voci non in stato "pianificato". '
-    'Elimina prima le voci dipendenti.'
+ERR_PLAN_HAS_DEPENDENCIES = (
+    'Prima di eliminare il piano, elimina le martellate e i prelievi '
+    'associati alle sue voci.'
 )
 ERR_PLAN_NOT_FOUND = 'Piano non trovato.'
 ERR_CSV_WHOLE_REGION_REQUIRES_FLAG = (
@@ -331,12 +331,9 @@ ERR_CSV_PLAN_ITEM_REGION_REQUIRES_FLAG = (
     'Danneggiato o Fitosanitario.'
 )
 ERR_PLAN_ITEM_NOT_FOUND = 'Voce di piano non trovata.'
-ERR_PLAN_ITEM_STATE_NOT_PLANNED = (
-    'La voce non è in stato "pianificato"; eliminazione non consentita.'
-)
 ERR_PLAN_ITEM_HAS_DEPS = (
-    'La voce ha martellate, prelievi o transizioni di cantiere associati; '
-    'eliminale prima.'
+    'Prima di eliminare la voce, elimina le martellate e i prelievi '
+    'associati.'
 )
 ERR_PLAN_ITEM_LINKED_HARVESTS_INVARIANT = (
     'La voce ha prelievi associati: compresa, particella e flag non possono '

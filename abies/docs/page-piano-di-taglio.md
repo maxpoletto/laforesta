@@ -47,12 +47,15 @@ year_start.
 Clicking on pencil leads to the "Modifica piano" modal (below).
 
 Click on trash leads to the same flow as deleting grids and samples in the
-samples page (henceforth, "dangerous delete flow"). If any harvest plan item is
-in a state other than planned, then deletion is not allowed: prompt user to
-delete dependencies first. If all harvest plan items are just planned, then
-allow delete but force CSV download first. (Implementation note: the warning
-modals in the dangerous delete flow should share a template, parameterized with
-the type of object.)
+samples page (henceforth, "dangerous delete flow"). If any plan item still has
+martellate or prelievi, deletion is not allowed and the user is prompted to
+delete those records first. This live server check happens before the delete
+modal is shown, so a blocked plan never offers the calendar-only export as if
+it were a complete backup. Item state alone is not a blocker, and implicit
+cantiere-transition history is deleted automatically with its item. Once the
+user-managed dependencies are gone, allow deletion but force the plan CSV
+download first. (Implementation note: the warning modals in the dangerous
+delete flow should share a template, parameterized with the type of object.)
 
 Clicking [+ Nuovo piano] leads to the "Nuovo piano" modal (below).
 
@@ -134,20 +137,22 @@ Clicking on a row (or its pencil icon) navigates to the full-page
 "view/edit harvest plan item" view (which surfaces marks/prelievi
 and the state-transition buttons).
 
-The per-row trash icon is disabled (with an explanatory tooltip) unless
-`state = planned`. Items with any `tree_mark`, `harvest`, or
-`harvest_transition` row are blocked at the DB level (ON DELETE PROTECT —
-see `database.md`); the user must delete those dependencies one at a time
-first, exporting data per row if they want to keep a record. In practice
-plan-item deletion only happens to clean up after demo/test runs.
+The per-row trash icon is available in every lifecycle state. Clicking it
+runs a live server dependency check before any confirmation is shown. The
+server blocks deletion while `tree_mark` or `harvest` rows remain; their
+protected foreign keys ensure that user-entered records cannot be lost
+accidentally.
+The user must delete those dependencies one at a time first, exporting them if
+they want to keep a record. `harvest_transition` rows are implicit lifecycle
+history, have no separate user-facing delete action, and cascade automatically
+with the item. Item state alone does not block deletion because it remains
+advanced after its substantive dependencies have been removed.
 
-Because a deletable item is always in `state = planned` (and therefore
-has no marks / harvests / transitions to back up), the per-item delete
-confirmation does **not** include the forced-CSV-download step that the
-plan-level delete has. The confirmation modal just shows the warning
-and `[Annulla] [Elimina]`. Per-row Esporta remains available from
-the view/edit modal header for operators who want a backup before
-manual deletion of dependent rows.
+Once the marks and harvests are gone there is no substantive child row to back
+up, so the per-item confirmation does **not** include the forced-CSV-download
+step that the plan-level delete has. The modal just shows the warning and
+`[Annulla] [Elimina]`. Per-row Esporta remains available from the view/edit
+header while dependent records still exist.
 
 #### "Add-harvest-plan-item" modal
 

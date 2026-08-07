@@ -1,7 +1,7 @@
 """Tests for the Piano di taglio backend endpoints.
 
 Covers plan CRUD, plan CSV import, plan-level Esporta, plan-item
-CRUD (including the state-gated delete), per-item Esporta, and the
+CRUD (including dependency-gated deletion), per-item Esporta, and the
 cantiere transition save view.  All write paths share the digest-stale
 contract and the nonce-idempotency contract.
 """
@@ -33,7 +33,8 @@ from apps.piano_di_taglio.mark_import import (
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_COPPICE_FILE, FIELD_CREW_ID,
+    COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_CHECK_ONLY, FIELD_COPPICE_FILE,
+    FIELD_CREW_ID,
     FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DESCRIPTION,
     FIELD_FILE, FIELD_HIGHFOREST_FILE, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
@@ -77,6 +78,24 @@ def _csv_rows(raw):
     return list(csv.reader(
         io.StringIO(raw.decode('utf-8')), delimiter=delimiter,
     ))
+
+
+def _create_mark(item, species):
+    tree = Tree.objects.create(species=species)
+    return TreeMark.objects.create(
+        harvest_plan_item=item, tree=tree, parcel=item.parcel,
+        number=1, date=date_type(2025, 6, 1), d_cm=30,
+        h_m=Decimal('20'), operator='Operatore',
+    )
+
+
+def _create_harvest(item, product, crew):
+    return Harvest.objects.create(
+        date=date_type(2025, 7, 1), product=product, crew=crew,
+        parcel=item.parcel, harvest_plan_item=item,
+        mass_q=Decimal('10.00'), volume_m3=Decimal('1.000'),
+        damaged=item.damaged, unhealthy=item.unhealthy, psr=item.psr,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +200,39 @@ class TestPlanCRUD:
         assert resp.status_code == 400
         assert resp.json()[STATUS] == STATUS_CONFLICT
 
+    def test_delete_check_only_blocks_before_export_when_item_has_mark(
+        self, writer_client, plan, planned_item, species,
+    ):
+        _create_mark(planned_item, species[0])
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({FIELD_CHECK_ONLY: True}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_PLAN_HAS_DEPENDENCIES
+        assert HarvestPlan.objects.filter(id=plan.id).exists()
+
+    def test_delete_check_only_allows_transition_without_deleting(
+        self, writer_client, plan, planned_item,
+    ):
+        HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True,
+            date=date_type(2025, 1, 1),
+        )
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({FIELD_CHECK_ONLY: True}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {}
+        assert HarvestPlan.objects.filter(id=plan.id).exists()
+
     def test_delete_allowed_when_all_planned(self, writer_client, plan, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/plan/delete/{plan.id}/',
@@ -212,7 +264,13 @@ class TestPlanCRUD:
         assert resp.json()[STATUS] == STATUS_CONFLICT
         assert HarvestPlan.objects.filter(id=plan.id).exists()
 
-    def test_delete_blocked_when_active_item(self, writer_client, plan, planned_item):
+    def test_delete_allows_advanced_item_and_cascades_transition(
+        self, writer_client, plan, planned_item,
+    ):
+        transition = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True,
+            date=date_type(2025, 1, 1),
+        )
         planned_item.state = HarvestPlanItemState.OPEN
         planned_item.save()
         resp = writer_client.post(
@@ -220,8 +278,42 @@ class TestPlanCRUD:
             data=json.dumps({VERSION: plan.version}),
             content_type='application/json',
         )
+
+        assert resp.status_code == 200
+        assert not HarvestPlan.objects.filter(id=plan.id).exists()
+        assert not HarvestTransition.objects.filter(id=transition.id).exists()
+
+    def test_delete_blocked_when_item_has_mark(
+        self, writer_client, plan, planned_item, species,
+    ):
+        _create_mark(planned_item, species[0])
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({VERSION: plan.version}),
+            content_type='application/json',
+        )
+
         assert resp.status_code == 400
-        assert S.ERR_PLAN_HAS_ACTIVE_ITEMS in resp.json()[MESSAGE]
+        message = resp.json()[MESSAGE]
+        assert message == S.ERR_PLAN_HAS_DEPENDENCIES
+        assert all(word in message for word in ('martellate', 'prelievi'))
+        assert 'transizioni' not in message
+        assert HarvestPlan.objects.filter(id=plan.id).exists()
+
+    def test_delete_blocked_when_item_has_harvest(
+        self, writer_client, plan, planned_item, products, crews,
+    ):
+        _create_harvest(planned_item, products[0], crews[0])
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/plan/delete/{plan.id}/',
+            data=json.dumps({VERSION: plan.version}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_PLAN_HAS_DEPENDENCIES
         assert HarvestPlan.objects.filter(id=plan.id).exists()
 
 
@@ -940,6 +1032,39 @@ class TestItemCRUD:
         assert planned_item.parcel_id == parcels[0].id
         assert planned_item.note != 'target changed'
 
+    def test_delete_check_only_blocks_before_confirmation_with_harvest(
+        self, writer_client, planned_item, products, crews,
+    ):
+        _create_harvest(planned_item, products[0], crews[0])
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({FIELD_CHECK_ONLY: True}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_PLAN_ITEM_HAS_DEPS
+        assert HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+
+    def test_delete_check_only_allows_transition_without_deleting(
+        self, writer_client, planned_item,
+    ):
+        HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True,
+            date=date_type(2025, 1, 1),
+        )
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({FIELD_CHECK_ONLY: True}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {}
+        assert HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+
     def test_delete_planned(self, writer_client, planned_item):
         resp = writer_client.post(
             f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
@@ -971,7 +1096,13 @@ class TestItemCRUD:
         assert resp.json()[STATUS] == STATUS_CONFLICT
         assert HarvestPlanItem.objects.filter(id=planned_item.id).exists()
 
-    def test_delete_blocked_when_not_planned(self, writer_client, planned_item):
+    def test_delete_allows_not_planned_and_cascades_transition(
+        self, writer_client, planned_item,
+    ):
+        transition = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True,
+            date=date_type(2025, 1, 1),
+        )
         planned_item.state = HarvestPlanItemState.OPEN
         planned_item.version += 1
         planned_item.save()
@@ -980,9 +1111,43 @@ class TestItemCRUD:
             data=json.dumps({VERSION: planned_item.version}),
             content_type='application/json',
         )
+
+        assert resp.status_code == 200
+        assert not HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+        assert not HarvestTransition.objects.filter(id=transition.id).exists()
+
+    def test_delete_blocked_when_item_has_mark(
+        self, writer_client, planned_item, species,
+    ):
+        _create_mark(planned_item, species[0])
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({VERSION: planned_item.version}),
+            content_type='application/json',
+        )
+
         assert resp.status_code == 400
-        assert (S.ERR_PLAN_ITEM_STATE_NOT_PLANNED
-                in resp.json()[MESSAGE])
+        message = resp.json()[MESSAGE]
+        assert message == S.ERR_PLAN_ITEM_HAS_DEPS
+        assert all(word in message for word in ('martellate', 'prelievi'))
+        assert 'transizioni' not in message
+        assert HarvestPlanItem.objects.filter(id=planned_item.id).exists()
+
+    def test_delete_blocked_when_item_has_harvest(
+        self, writer_client, planned_item, products, crews,
+    ):
+        _create_harvest(planned_item, products[0], crews[0])
+
+        resp = writer_client.post(
+            f'/api/piano-di-taglio/item/delete/{planned_item.id}/',
+            data=json.dumps({VERSION: planned_item.version}),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()[MESSAGE] == S.ERR_PLAN_ITEM_HAS_DEPS
+        assert HarvestPlanItem.objects.filter(id=planned_item.id).exists()
 
     def test_item_data_view(self, writer_client, planned_item):
         resp = writer_client.get(

@@ -191,13 +191,14 @@ globalThis.document = {
   addEventListener: () => {},
   removeEventListener: () => {},
   createElement: (tag) => new MockElement(tag),
+  createDocumentFragment: () => new MockElement('fragment'),
 };
 
 // Import after mocking document — ES module evaluation happens at import time
 // for modals.js which caches document.getElementById('modal-container').
 import { showConfirmModal, showCascadeDeleteModal, wireActions } from './ui-widgets.js';
 // Access dismiss directly to reset state between tests.
-import { dismiss as dismissModal } from './modals.js';
+import { dismiss as dismissModal, showError } from './modals.js';
 
 function resetModal() {
   modalShown = null;
@@ -213,6 +214,25 @@ function findByDataset(el, key, value) {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// showError
+// ---------------------------------------------------------------------------
+
+console.log('showError');
+
+resetModal();
+showError('Operazione non consentita');
+assertEqual(
+  modalShown.querySelector('.modal-error')?.textContent,
+  'Operazione non consentita',
+  'error message is shown',
+);
+const errorActions = modalShown.querySelector('.form-actions');
+assertEqual(errorActions !== null, true,
+  'dismiss button uses the standard spaced action row');
+assertEqual(errorActions?.children.length, 1,
+  'error action row contains only the dismiss button');
 
 // ---------------------------------------------------------------------------
 // showConfirmModal
