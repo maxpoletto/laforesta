@@ -289,7 +289,7 @@ def _free_survey_record_values(
         return None
     row = parsed_tree_row(
         area=None, parcel=parcel, row_date=measurements.date, species=sp,
-        coppice=parcel.eclass.coppice, preserved=False, number=values.number,
+        coppice=False, preserved=False, number=values.number,
         shoot=values.shoot, standard=False,
         d_cm=values.d_cm, h_m=values.h_m,
         h_measured=values.h_measured,
@@ -336,7 +336,7 @@ def _sample_record_values(
     if values is None:
         return None
     coppice_value = record.get(FIELD_COPPICE)
-    coppice = area.parcel.eclass.coppice if coppice_value is None else bool(coppice_value)
+    coppice = False if coppice_value is None else bool(coppice_value)
     return parsed_tree_row(
         area=area, row_date=measurements.date, species=sp, coppice=coppice,
         preserved=bool(record.get(FIELD_PRESERVED)), number=values.number,

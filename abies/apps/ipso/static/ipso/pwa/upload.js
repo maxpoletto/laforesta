@@ -300,7 +300,7 @@ function sampleRecordContext(reference, sess, tree, parcelId) {
     : area ? area[FIELD_SAMPLE_AREA_ID] : null;
   const coppice = typeof tree[FIELD_COPPICE] === 'boolean'
     ? tree[FIELD_COPPICE]
-    : area && typeof area[FIELD_COPPICE] === 'boolean' ? area[FIELD_COPPICE] : null;
+    : false;
   return {
     [FIELD_SAMPLE_AREA_ID]: sampleAreaId,
     [FIELD_COPPICE]: coppice,

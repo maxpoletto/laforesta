@@ -72,7 +72,7 @@ Protected data endpoints require the shared bearer:
 `reference.json` contains the current Abies reference bundle used by Ipso:
 
 - active species, including canonical Abies species IDs;
-- parcels, regions, parcel IDs, and coppice flags;
+- parcels, regions, parcel IDs, and coppice-management flags;
 - active hypsometric parameters;
 - sampling surveys, sample grids, sample areas, and existing max tree numbers;
 - PAI preserved-tree context;
@@ -203,6 +203,14 @@ browser-reported `acc_m`, rounded to whole metres. The Abies accuracy fields
 remain nullable so historical and non-Ipso imports without accuracy continue
 to load.
 
+Ipso currently records every tree as high forest (`coppice=false`). Parcel
+economic management never determines individual-tree morphology:
+coppice-managed parcels may contain high-forest trees. The parcel and sample-
+area coppice flags remain in `reference.json` as management metadata, but the
+recording path does not use them to classify a tree. Coppice sampling must be
+introduced later as an explicit recording workflow rather than inferred from
+the parcel.
+
 Supported modes are:
 
 - `martellate` — marked trees for a harvest-plan item;
@@ -266,7 +274,7 @@ the next sample-local number.
   that the sample area belongs to the selected survey/parcel. They do not
   impose a plain `(sample area, number)` uniqueness rule because coppice shoots
   are represented in Abies as separate rows by `shoot`; the current Ipso
-  sample UI does not record multiple shoots for one number.
+  sample UI records only high-forest trees and does not record shoots.
 - Free-survey ordinary rows may omit `number`. On import, Abies assigns the
   next number after the explicit ordinary-tree numbers reserved by that upload.
   If a free row supplies a number, it must be positive and unused within that

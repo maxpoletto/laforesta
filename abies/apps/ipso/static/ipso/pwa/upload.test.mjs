@@ -354,7 +354,7 @@ checkThrows(
   check(record.parcel_id === 100, 'record payload preserves its recorded parcel ID');
   check(record.species_id === 10, 'record payload preserves its recorded species ID');
   check(record.sample_area_id === 123, 'record payload preserves its recorded sample-area ID');
-  check(record.coppice === false, 'record payload preserves recorded sample-area context');
+  check(record.coppice === false, 'record payload preserves the high-forest flag');
 }
 
 // Pre-v7 rows remain uploadable through the old name-resolution fallback.

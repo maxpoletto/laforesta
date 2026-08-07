@@ -333,12 +333,14 @@ check(
     hypso_param_set_id: null, lat: 38.5, lon: 16.3, acc_m: 5,
     numero: null, gruppo: '', particella: '1', region_id: 1,
     parcel_id: 100, species_id: 10, preserved: true,
-    sample_area_id: null, coppice: null,
+    sample_area_id: null, coppice: false,
   });
 
   check(row.preserved === true, 'addTree returns the preserved flag');
   check(db.trees.get(row.id).preserved === true,
         'addTree persists the preserved flag in IndexedDB');
+  check(row.coppice === false && db.trees.get(row.id).coppice === false,
+        'addTree persists the recorded high-forest flag');
   check(db.sessions.get('s1').tree_count === 1,
         'addTree updates the free-survey session tree count');
 }

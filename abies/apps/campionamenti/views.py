@@ -785,8 +785,10 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
     selected_parcel = (
         ts.parcel if ts else (parcel_choices[0] if parcel_choices else None)
     ) if is_unstructured else area.parcel
-    is_coppice = bool(selected_parcel and selected_parcel.eclass.coppice)
-    default_species_id = None if ts else _default_species_id(species, is_coppice)
+    parcel_is_coppice = bool(selected_parcel and selected_parcel.eclass.coppice)
+    default_species_id = (
+        None if ts else _default_species_id(species, parcel_is_coppice)
+    )
     default_species = next((sp for sp in species if sp.id == default_species_id), None)
     if is_unstructured:
         prior_trees = []
@@ -813,7 +815,9 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'sample_date': sample.date if sample else date_type.today(),
         'prior_trees': prior_trees,
         'next_number': next_number,
-        'fustaia_default': not is_coppice,
+        # Parcel economic management and tree morphology are independent.
+        # Coppice remains an explicit operator choice, never a parcel default.
+        'fustaia_default': True,
         'default_species_id': default_species_id,
         # Shared _tree_fields.html context.
         'selected_species_id': default_species_id,

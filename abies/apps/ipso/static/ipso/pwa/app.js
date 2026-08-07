@@ -1853,8 +1853,9 @@ function currentRecord() {
     lon: gps ? gps.lon : null,
     acc_m: gps ? gps.acc_m : null,
     [FIELD_SAMPLE_AREA_ID]: sampleArea ? sampleArea[FIELD_SAMPLE_AREA_ID] : null,
-    [FIELD_COPPICE]: sampleArea && typeof sampleArea[FIELD_COPPICE] === 'boolean'
-      ? sampleArea[FIELD_COPPICE] : null,
+    // Ipso currently records only single-stem high-forest trees. Parcel
+    // management is not a tree-morphology property.
+    [FIELD_COPPICE]: false,
   };
 }
 

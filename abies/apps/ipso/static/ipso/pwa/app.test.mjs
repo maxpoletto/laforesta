@@ -224,6 +224,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     IPSO_REF_SAMPLING: 'sampling',
     IPSO_REF_SURVEYS: 'surveys',
     IPSO_REF_SAMPLE_AREAS: 'sample_areas',
+    IPSO_REF_SAMPLE_AREA_MAX_NUMBERS: 'sample_area_max_numbers',
     IPSO_REF_PAI: 'pai',
     IPSO_REF_PRESERVED_TREES: 'preserved_trees',
     IPSO_REF_OBSERVATION_CATEGORIES: 'observation_categories',
@@ -579,6 +580,38 @@ const session = {
   check(record.species_id === 10, 'record captures canonical species ID');
   check(record.specie === 'Abete' && record.particella === '1',
         'record retains names for display and CSV export');
+}
+
+// A parcel's management class never determines the recorded tree morphology.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.reference = {
+    ...referenceFixture(),
+    sampling: {
+      surveys: [{ survey_id: 7, sample_grid_id: 70 }],
+      sample_areas: [{
+        sample_area_id: 123, sample_grid_id: 70,
+        region_id: 1, parcel_id: 100, compresa: 'Serra', particella: '1',
+        number: 'A1', coppice: true,
+      }],
+    },
+  };
+  app.State.session = {
+    ...session, status: 'open', mode: 'samples', region_id: 1,
+    work_package_id: 'sampling_survey:7',
+  };
+  app.State.specie = 'Abete';
+  app.State.override = {
+    getMode: () => 'manual', getManual: () => '123',
+  };
+  app.State.numpad = {
+    value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
+  };
+
+  const sampleRecord = app.currentRecord();
+  check(sampleRecord.coppice === false,
+        'sample recording stays high forest in a coppice-managed parcel');
 }
 
 // A waiting service worker is exposed as an explicit footer update action.

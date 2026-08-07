@@ -45,9 +45,11 @@ Writers and admins can import received uploads:
 - `Martellate`: requires a harvest-plan item destination and creates marked
   trees.
 - `Rilevamenti predefiniti`: requires a structured survey destination and
-  creates sampled trees via the CSV import core.
+  creates sampled trees via the CSV import core. The Ipso PWA records trees as
+  high forest regardless of parcel management.
 - `Rilevamenti liberi`: requires an unstructured survey destination and creates
-  one null-area sample for the uploaded session.
+  one null-area sample for the uploaded session; the PWA records these trees as
+  high forest too.
 - `Osservazioni`: requires no destination and creates observation rows,
   category assignments, and photo metadata/files.
 

@@ -1277,13 +1277,10 @@ class TestTreeFormPriorTrees:
         # The next new-tree number still considers trees already in the sample.
         assert 'data-next="2"' in html
 
-    def test_ceduo_default_on_for_coppice_parcel(
+    def test_ceduo_default_off_for_coppice_parcel(
         self, writer_client, sample_setup, regions, eclasses,
     ):
-        """For parcels whose eclass is coppice, the Ceduo checkbox
-        defaults to CHECKED (spec §"Manual tree + sample entry":
-        "Defaults to fustaia, except in parcels whose eclass.coppice =
-        true, where it defaults to ceduo")."""
+        """Parcel management does not default an individual tree to ceduo."""
         coppice_eclass = next(e for e in eclasses if e.coppice)
         coppice_parcel = Parcel.objects.create(
             name='99', region=regions[0], eclass=coppice_eclass,
@@ -1302,7 +1299,7 @@ class TestTreeFormPriorTrees:
         idx = html.find('id="tf-ceduo"')
         assert idx >= 0
         tag = html[max(0, idx - 200):idx + 200]
-        assert 'checked' in tag
+        assert 'checked' not in tag
 
     def test_ceduo_default_off_for_non_coppice_parcel(
         self, writer_client, sample_setup,

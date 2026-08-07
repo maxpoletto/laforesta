@@ -322,6 +322,10 @@ specie, ceduo checkbox (toggles coppice shoot block), D (cm), h (m), L10 (mm,
 optional), Pressler coeff (defaults to per-species default), lat/lon (shared
 component), PAI checkbox.
 
+New trees always default to fustaia, including in coppice-managed parcels.
+Parcel economic management and individual-tree morphology are independent;
+the operator must select **Ceduo** explicitly when recording coppice shoots.
+
 For fustaia trees whose species has Tabacchi hypsometric params, a live V/m
 preview (`V = X.XX m³ · m = X.X q`) recomputes as D/h/specie change. V via
 the Tabacchi formula in JS (`volume.js`); m = V × density from `species.json`,

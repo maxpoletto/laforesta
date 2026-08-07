@@ -263,6 +263,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
                   if p['compresa'] == 'Capistrano' and p['particella'] == '1')
     assert parcel['region_id'] == regions[0].id
     assert parcel['parcel_id'] == parcels[0].id
+    assert parcel[FIELD_COPPICE] is False
     assert data['ipsometrica']['Capistrano']['Abete'] == {
         'a': 7.0, 'b': -4.0, 'hypso_param_set_id': active.id,
     }
@@ -334,7 +335,7 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
         'lat': 38.51234,
         'lon': 16.12345,
         'r_m': 15,
-        'coppice': False,
+        FIELD_COPPICE: False,
     }]
     assert data['pai']['preserved_trees'] == [{
         FIELD_TREE_PRESERVED_ID: preserved.id,
@@ -2860,7 +2861,7 @@ def test_samples_import_rejects_staged_missing_number(
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_samples_import_supports_coppice_parcels(
+def test_samples_import_records_highforest_in_coppice_parcels(
         writer_client, regions, eclasses, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     coppice_parcel = Parcel.objects.create(
@@ -2888,13 +2889,15 @@ def test_samples_import_supports_coppice_parcels(
 
     assert resp.status_code == 200
     ts = TreeSample.objects.select_related('tree').get()
-    assert ts.tree.coppice is True
-    assert ts.volume_m3 is None
-    assert ts.mass_q is None
+    assert ts.tree.coppice is False
+    assert ts.shoot == 0
+    assert ts.standard is False
+    assert ts.volume_m3 is not None
+    assert ts.mass_q is not None
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_samples_import_supports_coppice_shoots_with_same_number(
+def test_samples_import_supports_explicit_coppice_shoots_with_same_number(
         writer_client, regions, eclasses, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     coppice_parcel = Parcel.objects.create(
@@ -2908,7 +2911,7 @@ def test_samples_import_supports_coppice_shoots_with_same_number(
         session_id='22222222-2222-4222-8222-222222222225',
         record_overrides={
             FIELD_SAMPLE_AREA_ID: area.id,
-            'coppice': True,
+            FIELD_COPPICE: True,
             FIELD_SHOOT: 1,
         },
     )
@@ -3157,11 +3160,18 @@ def test_free_survey_import_warns_before_parcel_mismatch(
 
 @override_settings(IPSO_SECRET='test-token')
 def test_writer_imports_free_survey_upload_into_unstructured_survey(
-        writer_client, writer_user, parcels, species, settings, tmp_path):
+        writer_client, writer_user, parcels, regions, eclasses, species,
+        settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey = Survey.objects.create(name='Ipso free import target')
+    coppice_parcel = Parcel.objects.create(
+        name='Ipso-C', region=regions[0],
+        eclass=next(e for e in eclasses if e.coppice),
+        area_ha=Decimal('1.0'), intervention_interval=18,
+        standards_per_ha=75,
+    )
     payload = _upload_payload(
-        parcels, species, mode=IPSO_MODE_FREE_SURVEY,
+        [coppice_parcel], species, mode=IPSO_MODE_FREE_SURVEY,
         session_id='59595959-5959-4595-8595-595959595959',
         record_overrides={
             FIELD_NUMBER: None,
@@ -3214,8 +3224,9 @@ def test_writer_imports_free_survey_upload_into_unstructured_survey(
     assert len(rows) == 2
     assert rows[0].number == 1
     assert rows[0].preserved_number is None
-    assert rows[0].parcel == parcels[0]
+    assert rows[0].parcel == coppice_parcel
     assert rows[0].tree.species == species[0]
+    assert rows[0].tree.coppice is False
     assert rows[0].h_measured is False
     assert rows[0].lat == 38.51234
     assert rows[0].lon == 16.12345
@@ -3226,6 +3237,7 @@ def test_writer_imports_free_survey_upload_into_unstructured_survey(
     assert rows[1].number == 2
     assert rows[1].preserved_number == 7
     assert rows[1].parcel == parcels[1]
+    assert rows[1].tree.coppice is False
     assert rows[1].h_measured is True
     assert rows[1].lat == 38.61234
     assert rows[1].lon == 16.22345
