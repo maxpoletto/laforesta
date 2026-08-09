@@ -505,6 +505,11 @@ given `harvest_plan_item_id`):
 | Item delete | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` (row removed) |
 | Transition save (Apri/Chiudi/Riapri) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
 | Harvest save (from Prelievi page) | `prelievi`, `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` (cross-domain) |
+| Mark save/delete | `mark_trees_<item-id>`, `harvest_plan_items`, `future_production`, `audit` | Mark row via `patches`/`deletes`; materialized item via `patches` |
+| Mark CSV import | same as mark save/delete | Affected mark/item caches force-refreshed (bulk path) |
+| Species save (Impostazioni) | all existing `mark_trees_*` plus shared species/Bosco/Prelievi digests and `audit` | Full `mark_trees_*` cache family evicted |
+| Parcel metadata save (Bosco) | `parcels`, `harvest_plan_items`, `future_production`, `audit` | `parcels` patched; plan-item and future caches evicted |
+| Diameter-class setting save (Impostazioni) | all existing `mark_trees_*`, `parcel_dendrometry`, all existing `sampled_trees_*`, `audit` | Full affected chart-cache families evicted; lazy regeneration on next open |
 
 `harvest_plan_item.volume_actual_m3` and `volume_marked_m3` are
 materialized aggregates updated in the write path (not computed at
@@ -556,7 +561,11 @@ cheap.
 
 `tree_mark` rows for one harvest_plan_item. Pattern mirrors campionamenti's
 `sampled_trees_<survey_id>` digest. Invalidated on `tree_mark` writes
-that touch this item.
+that touch this item, species-name changes, and diameter-class setting changes.
+The digest carries top-level `diameter_class_mode` metadata so its lazy-loaded
+chart uses the same convention that produced server exports. Setting/species
+responses evict existing `mark_trees_*` client entries, and the next modal open
+regenerates them on demand.
 
 Columns: `row_id`, `version`, `Data`, `Particella`, `Numero`, `Specie`, `D (cm)`,
 `h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Acc. (m)`,

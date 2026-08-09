@@ -219,6 +219,14 @@ def species_save(request):
         request, body, model=Species, data_id=FIELD_SPECIES, values=parsed,
         row_fn=_species_row,
         stale=('prelievi', FIELD_SPECIES, *BOSCO_SPECIES_DIGESTS, 'audit'),
+        stale_prefixes=(DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES),
+        invalidates={
+            FIELD_DATA_IDS: ['prelievi', *BOSCO_SPECIES_DIGESTS],
+            FIELD_PREFIXES: [
+                DIGEST_PREFIX_MARK_TREES,
+                DIGEST_PREFIX_SAMPLED_TREES,
+            ],
+        },
         unique_field=FIELD_COMMON_NAME,
         unique_value=parsed[FIELD_COMMON_NAME],
         unique_error=S.ERR_SPECIES_NAME_DUPLICATE,
@@ -402,13 +410,16 @@ def dendrometry_save(request):
             survey.version += 1
             survey.save()
             changed.append(survey)
-        mark_stale(*BOSCO_DENDROMETRY_DIGESTS, 'surveys', 'audit')
+        mark_stale(DIGEST_PARCELS, *BOSCO_DENDROMETRY_DIGESTS, 'surveys', 'audit')
     return success_response(
         request, body,
         patches=[
             row_patch('surveys', survey.id, build_survey_record(survey))
             for survey in changed
         ],
+        invalidates={
+            FIELD_DATA_IDS: [DIGEST_PARCELS, *BOSCO_DENDROMETRY_DIGESTS],
+        },
         extra={MESSAGE: S.DENDROMETRY_SAVED},
     )
 

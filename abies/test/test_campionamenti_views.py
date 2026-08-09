@@ -14,7 +14,7 @@ import pytest
 from django.test import Client
 
 from apps.base import csv_io
-from apps.base.digests import build_preserved_tree_record
+from apps.base.digests import SAMPLED_TREE_COLUMNS, build_preserved_tree_record
 from apps.campionamenti import csv_grid, csv_trees
 from apps.base.models import (
     DigestStatus, Parcel, Sample, SampleArea, SampleGrid, SiteSettings, Survey,
@@ -1602,6 +1602,16 @@ class TestTreeSaveCoppice:
             shoot=2, standard=True,
             number=15, d_cm=6, h_m=Decimal('8.50'), l10_mm=12,
         )
+        second_survey = Survey.objects.create(
+            name='Second campaign shared tree', sample_grid=s['grid'],
+        )
+        second_sample = Sample.objects.create(
+            sample_area=s['area'], survey=second_survey, date=date(2025, 1, 2),
+        )
+        TreeSample.objects.create(
+            sample=second_sample, tree=tree, parcel=s['area'].parcel,
+            shoot=1, number=15, d_cm=7, h_m=Decimal('9.00'),
+        )
         n_ts_before = TreeSample.objects.count()
         resp = self._post(writer_client, {
             ROW_ID: str(ts1.id),
@@ -1629,6 +1639,14 @@ class TestTreeSaveCoppice:
         # The shared Tree's species was updated by the edit.
         tree.refresh_from_db()
         assert tree.species_id == species[0].id
+        sibling_patch = _patch(resp.json(), f'sampled_trees_{s["survey"].id}', ts2.id)
+        assert sibling_patch[RECORD][SAMPLED_TREE_COLUMNS.index(S.COL_SPECIES)] == (
+            species[0].common_name
+        )
+        assert f'sampled_trees_{second_survey.id}' in (
+            resp.json()['invalidates']['data_ids']
+        )
+        assert DigestStatus.objects.get(name=f'sampled_trees_{second_survey.id}').stale
 
 
 class TestGridSave:
@@ -2199,6 +2217,7 @@ class TestRecordShape:
         s['survey'].refresh_from_db()
         assert survey_record == build_survey_record(s['survey'])
         assert len(survey_record) == len(SURVEY_COLUMNS)
+        _assert_stale(DIGEST_PARCELS)
 
     def test_area_save_returns_records(self, writer_client, sample_setup):
         from apps.base.digests import (
@@ -2222,7 +2241,7 @@ class TestRecordShape:
         assert _patch(payload, 'grids', s['grid'].id)[RECORD] == build_grid_record(s['grid'])
         s['survey'].refresh_from_db()
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
-        _assert_stale(DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
+        _assert_stale(DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
 
     def test_grid_save_returns_record(self, writer_client, db):
         from apps.base.digests import build_grid_record
@@ -2291,7 +2310,7 @@ class TestRecordShape:
         payload = resp.json()
         s['survey'].refresh_from_db()
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
-        _assert_stale(DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
+        _assert_stale(DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
 
     def test_survey_edit_conflict_returns_current_patch(self, writer_client, sample_setup):
         from apps.base.digests import build_survey_record
@@ -2326,7 +2345,7 @@ class TestRecordShape:
         s['survey'].refresh_from_db()
         assert _patch(payload, 'samples', s['sample'].id)[RECORD] == build_sample_record(s['sample'])
         assert _patch(payload, 'surveys', s['survey'].id)[RECORD] == build_survey_record(s['survey'])
-        _assert_stale(DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
+        _assert_stale(DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS)
 
 
 class TestTreeDelete:

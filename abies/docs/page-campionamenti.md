@@ -459,14 +459,16 @@ active survey when Section 3 expands.
 | Grid edit (rename) | `grids`, `audit` | `grids` via `patches`; pulldown option text updated |
 | Grid delete | `grids`, `sample_areas`, `audit` | `grids` (row removed) |
 | Grid CSV import (areas) | `grids`, `sample_areas`, `surveys`, `audit` | All three via `patches` |
-| Survey save (create) | `surveys`, `grids`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` + `grids` via `applySideEffects` |
-| Survey edit (rename) | `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` via `patches`; pulldown option text updated |
-| Survey delete | `sampled_trees_<id>`, `samples`, `surveys`, `grids`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | Force-refresh via `cache.load` (cascade) |
-| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Force-refresh all three via `cache.load` (no records returned); the `sampled_trees_<id>` reload fires the Section 3 table's `onUpdate`; Section 2 summary + map re-rendered; survey pulldown rebuilt |
-| Area save (create/update) | `sample_areas`, `grids`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | All three via `applySideEffects`; survey pulldown rebuilt; both maps re-rendered if affected |
-| Area delete | `sample_areas`, `grids`, `surveys`, `audit` | Same as area save |
-| Tree save (create/update) | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Sampled tree, sample, survey, and affected current PAI rows via `applySideEffects`; Section 2 map re-rendered |
-| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Same as tree save; a removed current PAI row is deleted or replaced by the preceding observation |
+| Survey save (create) | `surveys`, `grids`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` + `grids` patched; full aggregate caches evicted |
+| Survey edit (rename) | `surveys`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | `surveys` patched; full aggregate caches evicted |
+| Survey delete | `sampled_trees_<id>`, `samples`, `surveys`, `grids`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | Survey row deleted; full aggregate caches evicted and cascade data refreshed |
+| Survey CSV import (trees) | `sampled_trees_<id>`, `samples`, `surveys`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Bulk tree/sample/survey caches force-refreshed; `parcels` evicted |
+| Area save (create/update) | `sample_areas`, `grids`, `surveys`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `audit` | Area/grid/survey rows patched; `parcels` evicted; maps re-rendered if affected |
+| Area delete | `sample_areas`, `grids`, `surveys`, `audit` | Area row deleted; grid/survey summary rows patched |
+| Tree save (create/update) | every `sampled_trees_<id>` containing the shared physical tree, `samples`, `surveys`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Current survey tree/sibling rows, sample, survey, and current PAI rows patched; other affected survey caches and `parcels` evicted |
+| Tree delete | `sampled_trees_<id>`, `samples`, `surveys`, `parcels`, `parcel_dendrometry`, `parcel_dendrometry_points`, `preserved_trees`, `audit` | Same direct row/summary patches as tree save; removed PAI row deleted or replaced; `parcels` evicted |
+| Species save (Impostazioni) | all existing `sampled_trees_*` and `mark_trees_*`, shared species/Bosco/Prelievi digests, `audit` | Both dynamic client-cache families evicted |
+| Diameter-class setting save (Impostazioni) | all existing `sampled_trees_*` and `mark_trees_*`, `parcel_dendrometry`, `audit` | All affected chart-cache families evicted; lazy regeneration on next open |
 
 ### `grids.json`
 
@@ -533,8 +535,11 @@ loading the heavy per-survey tree digest.
 One digest per survey, denormalized for Section 3.  Lazily fetched
 the first time a given `s=<id>` enters scope (either via URL on page
 entry or via Section 2 pulldown change), and cached client-side per
-survey for the rest of the session.  Invalidated on `tree_sample`
-writes whose sample's survey matches.
+survey for the rest of the session. Invalidated on relevant `tree_sample`
+writes, on species-name changes, and on diameter-class setting changes. A
+shared physical-tree edit invalidates every survey that contains that tree;
+the current survey receives sibling-row patches while other affected client
+caches are evicted.
 
 Columns: `row_id`, `version`, `Sample area`, `Data campione`,
 `Compresa`, `Particella`, `N. area`, `N. albero`, `Specie`, `Tipo`,

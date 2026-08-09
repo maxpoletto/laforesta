@@ -7,7 +7,7 @@ import json
 from django.db import transaction
 from django.http import JsonResponse
 
-from apps.base.digests import mark_stale
+from apps.base.digests import mark_stale, mark_stale_prefixes
 from apps.base.middleware import save_nonce
 from apps.base.numparse import int_or_none
 from config import strings as S
@@ -42,6 +42,7 @@ def save_model_response(
         values: dict,
         row_fn,
         stale: tuple[str, ...] = (),
+        stale_prefixes: tuple[str, ...] = (),
         row_id: int | None = None,
         unique_field: str | None = None,
         unique_value=None,
@@ -49,6 +50,7 @@ def save_model_response(
         unique_case_insensitive: bool = False,
         conflict_fn=None,
         extra_patches=None,
+        invalidates: dict | None = None,
         extra: dict | None = None,
 ) -> JsonResponse:
     """Create/update a small TimestampedModel and return the standard write
@@ -90,13 +92,15 @@ def save_model_response(
             obj = model.objects.create(**values)
         if stale:
             mark_stale(*stale)
+        if stale_prefixes:
+            mark_stale_prefixes(*stale_prefixes)
 
     patches = [row_patch(data_id, obj.id, row_fn(obj))]
     if extra_patches:
         patches.extend(extra_patches(obj) if callable(extra_patches) else extra_patches)
     return success_response(
         request, body, data_id=data_id, row_id=obj.id, patches=patches,
-        extra=extra,
+        invalidates=invalidates, extra=extra,
     )
 
 

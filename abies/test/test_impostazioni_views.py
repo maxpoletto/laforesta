@@ -26,8 +26,9 @@ from config.constants import (
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
     FIELD_PRESSLER_DEFAULT, FIELD_SPECIES, FIELD_SORT_ORDER,
     FIELD_MODEL, FIELD_NAME, FIELD_NONCE, FIELD_PASSWORD1,
-    FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME, FIELD_YEAR,
-    HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID, STATUS, STATUS_CONFLICT,
+    FIELD_PASSWORD2, FIELD_ROLE, FIELD_SURVEY_IDS, FIELD_USERNAME,
+    FIELD_YEAR, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
+    STATUS, STATUS_CONFLICT,
     IPSO_REF_OBSERVATION_CATEGORIES, STATUS_VALIDATION_ERROR, VERSION,
 )
 
@@ -339,6 +340,8 @@ class TestSpecies:
         assert 'Abete' in resp.json()[HTML]
 
     def test_save_create(self, writer_client, db):
+        for name in ('mark_trees_17', 'sampled_trees_23'):
+            DigestStatus.objects.create(name=name)
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             FIELD_COMMON_NAME: 'Faggio', FIELD_LATIN_NAME: 'Fagus sylvatica',
             FIELD_DENSITY: '10.5', FIELD_ACTIVE: 'true',
@@ -348,9 +351,17 @@ class TestSpecies:
         for name in (
                 'prelievi', FIELD_SPECIES, DIGEST_PARCEL_DENDROMETRY,
                 DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
-                'audit',
+                'mark_trees_17', 'sampled_trees_23', 'audit',
         ):
             assert DigestStatus.objects.get(name=name).stale is True
+
+        assert resp.json()['invalidates'] == {
+            'data_ids': [
+                'prelievi', DIGEST_PARCEL_DENDROMETRY,
+                DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
+            ],
+            'prefixes': ['mark_trees_', 'sampled_trees_'],
+        }
 
     def test_save_accepts_locale_comma(self, writer_client, db):
         """The it-locale form submits a comma density; stored canonically

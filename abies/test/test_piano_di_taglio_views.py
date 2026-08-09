@@ -21,7 +21,7 @@ from django.db import IntegrityError
 from django.test import Client
 
 from apps.base import csv_io
-from apps.base.digests import build_tree_mark_record
+from apps.base.digests import build_tree_mark_record, mark_stale
 from apps.base.models import (
     DigestStatus, HarvestDetail, HarvestPlan, HarvestPlanItem,
     HarvestPlanItemState, HarvestTransition, Parcel, ParcelPlanDetail, SiteSettings, Tree,
@@ -1659,6 +1659,26 @@ class TestDigestInvalidation:
         r1 = writer_client.get(url)
         r2 = writer_client.get(url, HTTP_IF_MODIFIED_SINCE=r1['Last-Modified'])
         assert r2.status_code == 304
+
+    def test_regenerated_digest_ignores_stale_http_validator(
+        self, writer_client, planned_item, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        url = '/api/piano-di-taglio/items/data/'
+        assert writer_client.get(url).status_code == 200
+        planned_item.note = 'contenuto rigenerato'
+        planned_item.save(update_fields=['note'])
+        mark_stale('harvest_plan_items')
+
+        response = writer_client.get(
+            url,
+            HTTP_IF_MODIFIED_SINCE='Fri, 01 Jan 2100 00:00:00 GMT',
+        )
+
+        assert response.status_code == 200
+        data = _read_gzip_json(response)
+        row = next(row for row in data[ROWS] if row[0] == planned_item.id)
+        assert row[data[COLUMNS].index(S.COL_EXTRA_NOTE)] == 'contenuto rigenerato'
 
     def test_mark_edit_and_delete_reach_the_digest(
         self, writer_client, planned_item, species, tmp_path, settings,

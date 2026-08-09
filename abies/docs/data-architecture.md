@@ -37,6 +37,12 @@ name IN (...)`. This is the only write-path cost.  `dirty_seq` is a
 monotonic token; the read path uses it to detect a write that landed mid
 regeneration (see below).
 
+Dynamic families (`sampled_trees_<survey-id>` and
+`mark_trees_<item-id>`) use `mark_stale_prefixes()`. It updates every existing
+`DigestStatus` row with the requested prefix. A never-read dynamic digest has
+neither a status row nor a file and will be generated from current data on its
+first request, so no placeholder status rows are needed.
+
 **The "affected digests" set is whatever the digest's generator reads,
 transitively.** A write to table T must invalidate every digest D whose
 `generate_D()` reads T — directly or via a join.  Forgetting one is a silent
@@ -64,7 +70,11 @@ Read path (conditional GET for a digest):
 1. Check stale flag for the requested digest (one PK lookup).
 2. If not stale: normal If-Modified-Since check against file mtime, return 304
    or 200.
-3. If stale: regenerate the digest, then serve the new file. Regeneration
+3. If stale (or the file is absent): regenerate the digest and always serve the
+   new file with 200, ignoring `If-Modified-Since` for that response. HTTP dates
+   have one-second precision, so applying the validator after regeneration can
+   otherwise return a false 304 when old and new files share an mtime second.
+   Regeneration
    proceeds as follows:
    a. Snapshot `dirty_seq` for the digest.
    b. Generate the digest and write it to a temp file (gzip-compressed).
@@ -150,11 +160,17 @@ stale (`0`) and returns a conflict instead of weakening optimistic locking.
 
 Payload is always JSON.
 
-**Success** (200): `{ data_id, row_id, patches: [{ data_id, row_id, record }], deletes: [{ data_id, row_id }] }`.
+**Success** (200): `{ data_id, row_id, patches: [{ data_id, row_id, record }],
+deletes: [{ data_id, row_id }], invalidates: { data_ids: [...], prefixes: [...] } }`.
 The top-level `data_id`/`row_id` identify the primary entity; row payloads
 travel only through `patches` and `deletes`. The client applies every patch
-and re-renders touched views. Other digests update on the next background
-conditional GET unless the response carries their rows too.
+and re-renders touched views. `invalidates` is optional and evicts full cached
+digests by exact ID or dynamic-family prefix; it is used when a write changes a
+whole aggregate, schema/column set, global interpretation, or too many rows for
+a safe optimistic patch. Eviction also invalidates an in-flight fetch snapshot,
+and the next `cache.load()` is unconditional. Other digests update on the next
+background conditional GET unless the response carries their rows or explicitly
+invalidates them.
 
 **Validation error** (400): `{ status: "validation_error", message, html }`.
 Modal re-displays the form with the error. Rare — client-side
@@ -200,6 +216,14 @@ When a write also bumps a *materialised* value in another digest
 (e.g., a tree-save changes `samples.N_alberi`), the response carries
 those side-effect rows as additional patches. The client patches every
 affected cache and re-renders the touched views.
+
+When the affected value is a full-table aggregate or changes membership or
+column shape, return `invalidates` instead. Server staleness and client
+invalidation are complementary: `mark_stale()` / `mark_stale_prefixes()` make
+the next read regenerate the file, while the response prevents the current SPA
+session from rendering an old in-memory copy first. An ID must not be both
+invalidated and patched in the same response because invalidations are applied
+first and remove the patch target.
 
 **The contract that prevents drift.**  Extract a `build_<digest>_record`
 helper in `apps/base/digests.py` and call it from BOTH the digest

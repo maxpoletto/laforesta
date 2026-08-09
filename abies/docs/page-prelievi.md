@@ -143,7 +143,7 @@ Bottom-of-form button layout.
 |---|---|---|
 | Harvest save (create or update) | `prelievi`, `audit`; + `harvest_plan_items`, `future_production` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
 | Harvest delete | same as save | `prelievi` via `deletes`; `harvest_plan_items` via `patches` |
-| Species save (Impostazioni → Specie) | `prelievi`, `species`, `audit` | — |
+| Species save (Impostazioni → Specie) | `prelievi`, `species`, Bosco species digests, every existing `sampled_trees_*` / `mark_trees_*`, `audit` | `species` row patched; all dependent full/dynamic caches evicted |
 | Tractor save (Impostazioni → Trattori) | `prelievi`, `audit` | — |
 | Crew save (Squadre → Personale) | `prelievi`, `audit` | — |
 

@@ -198,6 +198,10 @@ following the standard Abies idiom:
    Writers see `Modifica` only for parcel detail, where it opens the standard
    metadata form. `Comparto` is editable there; `Governo` is derived from the
    selected comparto. Region detail is aggregate-only and has no edit action.
+   Saving parcel area or governance patches `parcels` optimistically and marks
+   `harvest_plan_items` plus `future_production` stale because both denormalize
+   parcel area/type (including region-wide area totals). Those two full client
+   caches are evicted by the save response.
 
 2. **Dendrometria** (closed by default)
    - Species filter: a not very tall checkbox list of species to be displayed in
@@ -345,7 +349,9 @@ mode-switch.
 
 - **`parcels.json`** — denormalized parcel table.  Drives the
   Caratteristiche heatmap (parcel-level metrics) and the per-parcel
-  page's *Metadati* section.  Invalidated on `parcel` writes.
+  page's *Metadati* section. Invalidated on `parcel` writes and on changes to
+  the active/default structured survey, its sample-area radius/parcel, or its
+  coppice tree rows because `Ceppaie / ha` is materialized here.
 
   Columns: `row_id`, `version`, `Region id`, `Compresa`, `Particella`, `Classe`,
   `Coppice`, `Area (ha)`, `Area cat. (ha)`, `Età media (a)`, `Località`,

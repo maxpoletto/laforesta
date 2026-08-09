@@ -69,10 +69,11 @@ structured surveys.
 Below the multiselect is an `Aggiorna` submit button that causes the user's
 selection to go into effect.
 
-Updating this setting invalidates the `parcel_dendrometry.json` and
-`parcel_dendrometry_points.json` digests used by Bosco. The latter may also be
-driven by Parametri ipsometrici when a computed parameter set opts the Altezze
-chart into its source surveys.
+Updating this setting invalidates `parcels.json` (whose `Ceppaie / ha` value is
+materialized from the selected surveys), `parcel_dendrometry.json`, and
+`parcel_dendrometry_points.json`. The latter may also be driven by Parametri
+ipsometrici when a computed parameter set opts the Altezze chart into its
+source surveys. A successful save evicts those full client caches.
 
 ## Hypsometric parameters (Parametri ipsometrici)
 

@@ -151,14 +151,15 @@ def _resolve_generator(name: str):
     return None
 
 
-def regenerate_if_stale(name: str) -> Path:
-    """Return the path to *name*'s digest, regenerating first if stale."""
+def _regenerate_if_stale(name: str) -> tuple[Path, bool]:
+    """Return ``(path, regenerated)`` for *name*'s digest."""
     dest = _dest(name)
     gen = _resolve_generator(name)
     if gen is None:
         raise ValueError(f'unknown digest: {name!r}')
     status, _ = DigestStatus.objects.get_or_create(name=name)
-    if status.stale or not dest.exists():
+    regenerated = status.stale or not dest.exists()
+    if regenerated:
         seq = status.dirty_seq
         gen()
         # Compare-and-swap on the token snapshotted *before* generating: a
@@ -168,7 +169,12 @@ def regenerate_if_stale(name: str) -> Path:
         # file was renamed into place atomically before this clear, so a
         # crash here over-reports staleness but never serves a stale digest.
         DigestStatus.objects.filter(name=name, dirty_seq=seq).update(stale=False)
-    return dest
+    return dest, regenerated
+
+
+def regenerate_if_stale(name: str) -> Path:
+    """Return the path to *name*'s digest, regenerating first if stale."""
+    return _regenerate_if_stale(name)[0]
 
 
 def serve_digest(request, name: str):
@@ -183,12 +189,17 @@ def serve_digest(request, name: str):
     The conditional GET below still answers 304 for unchanged digests, so
     suppressing the browser cache costs no bandwidth.
     """
+    path, regenerated = _regenerate_if_stale(name)
     return conditional_file_response(
         request,
-        regenerate_if_stale(name),
+        path,
         content_type='application/json',
         content_encoding='gzip',
         cache_control=CACHE_NO_STORE,
+        # HTTP dates have one-second precision. A stale digest regenerated in
+        # the same second as its predecessor could otherwise match the
+        # client's validator and incorrectly return 304 with changed content.
+        force_response=regenerated,
     )
 
 

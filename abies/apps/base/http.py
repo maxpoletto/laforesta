@@ -16,9 +16,12 @@ def conditional_file_response(
         content_type: str,
         cache_control: str,
         content_encoding: str | None = None,
+        force_response: bool = False,
 ) -> FileResponse | HttpResponse:
     mtime = os.path.getmtime(path)
-    response = not_modified_response(request, mtime, cache_control=cache_control)
+    response = None if force_response else not_modified_response(
+        request, mtime, cache_control=cache_control,
+    )
     if response is not None:
         return response
 

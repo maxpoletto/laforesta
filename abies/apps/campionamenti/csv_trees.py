@@ -22,7 +22,8 @@ from apps.base.refdata import GENERE_MAP
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
 from config import strings as S
 from config.constants import (
-    BOSCO_TREE_DIGESTS, FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
+    BOSCO_TREE_DIGESTS, DIGEST_PARCELS,
+    FIELD_ACC_M, FIELD_AREA, FIELD_COPPICE, FIELD_DATE,
     FIELD_D_CM, FIELD_H_M, FIELD_H_MEASURED, FIELD_L10_MM, FIELD_LAT, FIELD_LON,
     FIELD_MASS_Q, FIELD_NOTE,
     FIELD_NUMBER, FIELD_OPERATOR, FIELD_PARCEL, FIELD_PRESERVED_NUMBER,
@@ -457,6 +458,7 @@ def apply(survey, parsed) -> dict:
 
         mark_stale(
             f'sampled_trees_{survey.id}', 'samples', 'surveys',
+            DIGEST_PARCELS,
             *BOSCO_TREE_DIGESTS, 'audit',
         )
     return {'n_samples': len(sample_by_area), 'n_trees': n_trees}
@@ -499,6 +501,7 @@ def apply_unstructured(survey, parsed) -> dict:
 
         mark_stale(
             f'sampled_trees_{survey.id}', 'samples', 'surveys',
+            DIGEST_PARCELS,
             *BOSCO_TREE_DIGESTS, 'audit',
         )
     return {'n_samples': 1, 'n_trees': len(parsed)}

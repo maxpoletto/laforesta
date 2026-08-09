@@ -592,7 +592,12 @@ def test_parcel_metadata_save_updates_parcel_and_returns_patch(writer_client, pa
     assert patch[ROW_ID] == parcel.id
     assert patch[RECORD] == build_parcel_record(parcel)
     assert DigestStatus.objects.get(name=DIGEST_PARCELS).stale is True
+    assert DigestStatus.objects.get(name='harvest_plan_items').stale is True
+    assert DigestStatus.objects.get(name='future_production').stale is True
     assert DigestStatus.objects.get(name='audit').stale is True
+    assert data['invalidates'] == {
+        'data_ids': ['harvest_plan_items', 'future_production'],
+    }
 
 
 def test_parcel_metadata_save_updates_coppice_fields(writer_client, regions, eclasses):

@@ -55,7 +55,7 @@ from config.constants import (
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PARCELS, DIGEST_PRESERVED_TREES,
     FIELD_ACC_M, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_CHECKSUM,
-    FIELD_CLIENT_RECORD_ID, FIELD_CONTENT_TYPE, FIELD_DATE, FIELD_D_CM,
+    FIELD_CLIENT_RECORD_ID, FIELD_CONTENT_TYPE, FIELD_DATA_IDS, FIELD_DATE, FIELD_D_CM,
     FIELD_ESTIMATED_BIRTH_YEAR, FIELD_EXISTING_PHOTO_IDS, FIELD_H_M,
     FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME,
     FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME,
@@ -175,11 +175,16 @@ def parcel_metadata_save_view(request):
             setattr(parcel, field, value)
         parcel.version += 1
         parcel.save(update_fields=[*values.keys(), VERSION])
-        mark_stale(DIGEST_PARCELS, 'audit')
+        # Area and governance are denormalized into plan-item and future-
+        # production rows (including region-wide aggregate area).
+        mark_stale(
+            DIGEST_PARCELS, 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit',
+        )
 
     return success_response(
         request, body, data_id=DIGEST_PARCELS, row_id=parcel.id,
         patches=[row_patch(DIGEST_PARCELS, parcel.id, build_parcel_record(parcel))],
+        invalidates={FIELD_DATA_IDS: ['harvest_plan_items', DIGEST_FUTURE_PRODUCTION]},
     )
 
 
@@ -815,6 +820,10 @@ def pai_save_view(request):
         patches=[row_patch(
             DIGEST_PRESERVED_TREES, pai.id, build_preserved_tree_record(pai),
         )],
+        invalidates={FIELD_DATA_IDS: [
+            DIGEST_PARCELS,
+            *(f'sampled_trees_{survey_id}' for survey_id in sorted(affected_survey_ids)),
+        ]},
     )
 
 
@@ -846,6 +855,9 @@ def pai_delete_view(request):
     return success_response(
         request, body, data_id=DIGEST_PRESERVED_TREES, row_id=row_id,
         deletes=[row_delete(DIGEST_PRESERVED_TREES, row_id)],
+        invalidates={FIELD_DATA_IDS: [
+            DIGEST_PARCELS, f'sampled_trees_{survey_id}',
+        ]},
     )
 
 
@@ -1208,6 +1220,7 @@ def _mark_pai_tree_write_stale(survey_ids):
     ]
     mark_stale(
         *sampled_tree_digests, 'samples', 'surveys',
+        DIGEST_PARCELS,
         *BOSCO_TREE_DIGESTS, 'audit',
     )
 
