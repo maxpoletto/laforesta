@@ -400,7 +400,7 @@ display totals.
 
 - tree_mark: (id:int, harvest_plan_item_id:int, tree_id:int, parcel_id:int,
   number:int nullable, lat:real nullable, lon:real nullable,
-  acc_m:int nullable, date:date, d_cm:int, h_m:decimal,
+  acc_m:int nullable, date:date, d_cm:int, h_m:decimal nullable,
   h_measured:bool, volume_m3:decimal nullable, mass_q:decimal nullable,
   operator:string, import_fingerprint:string nullable)
   - A (high-forest) tree being marked for felling. PK is the synthetic
@@ -418,15 +418,23 @@ display totals.
     marks are unique within a harvest-plan item:
     `UNIQUE(harvest_plan_item_id, number)`. Multiple null numbers are allowed.
   - `date` is the day the mark was recorded.
-  - `d_cm` and `h_m` indicate size at time of marking.
+  - `d_cm` and `h_m` indicate size at time of marking. `h_m` may be null when
+    no measured height or active hypsometric parameters are available. Unknown
+    height is not represented as zero.
   - `h_measured` records whether `h_m` came from a hypsometer measurement in
     the field (true) or from the active hypsometric parameter set (false).
     During mark entry, `h_m` is auto-populated from that set, keyed by (region,
     species) (see "Hypsometric parameters" below), and the operator may
-    override; saving an override sets `h_measured = true`.
+    override; saving an override sets `h_measured = true`. The
+    `tree_mark_h_measured_false_without_h_m` constraint requires
+    `h_measured = false` when `h_m` is null.
   - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
-    at write time. `mass_q` is `volume_m3 × species.density`. Both are
-    always non-null since marks only exist in high-forest parcels.
+    at write time. `mass_q` is `volume_m3 × species.density`. The
+    `tree_mark_no_derived_values_without_h_m` constraint requires both to
+    remain null when height is unknown. Both are also null when no Tabacchi
+    equation supports the species.
+    Aggregate volume treats null values as no volume contribution; it does not
+    infer a zero-volume tree.
   - `lat`, `lon`, `acc_m`, `parcel_id`, and `operator` are populated from the
     offline-first `ipso` PWA at marking time (see `ipso/`) or from manual/CSV
     entry. `acc_m` is the reported GPS accuracy in meters; null when the source

@@ -213,7 +213,11 @@ the parcel.
 
 Supported modes are:
 
-- `martellate` — marked trees for a harvest-plan item;
+- `martellate` — marked trees for a harvest-plan item. Height is optional in
+  this mode: when no active (region, species) equation is available and the
+  operator has no measurement, Ipso records `h_m=null` and
+  `h_measured=false`. Abies preserves that state and leaves volume and mass
+  null;
 - `samples` — predefined/grid-based tree surveys;
 - `free_survey` — free/unstructured tree surveys;
 - `observations` — point observations with text, categories, GPS, and
@@ -236,7 +240,9 @@ item. A logged-in Abies user can view upload metadata and previews. Import or
 rejection requires writer permission, and the import endpoints perform the final
 mode-specific validation against the selected target. Martellate rows must fit
 the selected harvest-plan item scope: exact parcel for parcel items, or same
-region for region-wide items. Predefined sample rows must fit the selected
+region for region-wide items. A Martellate row may omit height only when
+`h_measured=false`; other tree-survey modes continue to require a positive
+height. Predefined sample rows must fit the selected
 survey grid; if the session records the survey chosen in Ipso, selecting
 another survey is only accepted when it uses the same grid. Free-survey rows
 must be imported into an unstructured survey, where the import creates one

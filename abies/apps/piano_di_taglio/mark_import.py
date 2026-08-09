@@ -30,7 +30,7 @@ class MarkImportRow:
     species: Species
     number: int | None
     d_cm: int
-    h_m: Decimal
+    h_m: Decimal | None
     h_measured: bool
     lat: float | None
     lon: float | None
@@ -56,7 +56,7 @@ def mark_parcel_matches_item(item: HarvestPlanItem, parcel: Parcel) -> bool:
 
 def csv_mark_fingerprint(
         *, source_row: int, date: date_type, parcel_id: int, species_id: int,
-        number: int | None, d_cm: int, h_m: Decimal, h_measured: bool,
+        number: int | None, d_cm: int, h_m: Decimal | None, h_measured: bool,
         lat: float | None, lon: float | None, acc_m: int | None, operator: str,
 ) -> str:
     """Fingerprint every canonical CSV field plus its stable row position."""
@@ -69,7 +69,8 @@ def csv_mark_fingerprint(
         'species_id': species_id,
         'number': number,
         'd_cm': d_cm,
-        'h_m': format(h_m.quantize(Decimal('0.01')), 'f'),
+        'h_m': (format(h_m.quantize(Decimal('0.01')), 'f')
+                if h_m is not None else None),
         'h_measured': h_measured,
         'lat': lat,
         'lon': lon,
@@ -186,7 +187,11 @@ def mark_number_duplicate_errors(
     return errors
 
 
-def mark_volume_and_mass(d_cm: int, h_m: Decimal, species: Species):
+def mark_volume_and_mass(
+        d_cm: int, h_m: Decimal | None, species: Species,
+):
+    if h_m is None:
+        return None, None
     try:
         volume_m3 = tabacchi_volume_m3(d_cm, h_m, species.common_name)
         mass_q = tree_mass_q(volume_m3, species.density)

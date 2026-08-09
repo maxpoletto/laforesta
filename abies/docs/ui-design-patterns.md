@@ -44,6 +44,11 @@ with the `.ms-auto` utility.
 
 ## Tabular data
 
+When a nullable numeric value means unavailable or not measured, while zero
+has a real numeric meaning, HTML tables render it as `-`. JSON digests retain
+`null`, and CSV exports use an empty field rather than the display
+placeholder. Page-specific documentation identifies the nullable columns.
+
 All tabular data uses sortable-table. All fields are sortable.
 
 Search input sits above the table (left). Debounced (500ms), filters

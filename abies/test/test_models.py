@@ -391,6 +391,40 @@ class TestConstraints:
                 lat=38.5, lon=16.3, acc_m=-1,
             )
 
+    def test_tree_mark_null_height_requires_unmeasured_flag(
+            self, parcels, species,
+    ):
+        planned_item = self._plan_item(parcels[0])
+        TreeMark.objects.create(
+            harvest_plan_item=planned_item,
+            tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[0], date='2026-07-05', d_cm=30,
+            h_m=None, h_measured=False, operator='Mario',
+        )
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeMark.objects.create(
+                harvest_plan_item=planned_item,
+                tree=Tree.objects.create(species=species[0]),
+                parcel=parcels[0], date='2026-07-05', d_cm=31,
+                h_m=None, h_measured=True, operator='Mario',
+            )
+
+        with pytest.raises(IntegrityError), transaction.atomic():
+            TreeMark.objects.create(
+                harvest_plan_item=planned_item,
+                tree=Tree.objects.create(species=species[0]),
+                parcel=parcels[0], date='2026-07-05', d_cm=32,
+                h_m=None, h_measured=False,
+                volume_m3=Decimal('0.1000'), mass_q=Decimal('0.100'),
+                operator='Mario',
+            )
+
+        mark = TreeMark.objects.get(h_m__isnull=True)
+        assert mark.h_measured is False
+        assert mark.volume_m3 is None
+        assert mark.mass_q is None
+
     def test_tree_mark_coordinate_pair_and_range_checked(
             self, parcels, species,
     ):

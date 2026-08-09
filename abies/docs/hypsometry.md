@@ -22,7 +22,9 @@ but cannot match exactly (JS float vs Python Decimal); the bound is locked by
 
 The parameters a and b are obtained by regression over a set of sampled trees,
 per (region, species) pair. If a (region, species) pair lacks parameters, that
-is fine: heights are then measured or estimated manually.
+is fine: a marked-tree height can be measured or entered manually, or stored as
+unknown (`h_m=NULL`, `h_measured=false`). An unknown height leaves its
+Tabacchi volume and mass unknown too.
 
 Historically the parameters were computed from samples taken while creating a
 harvest plan (pdg-2026) and stored in a "regressions" CSV file like this:
@@ -170,7 +172,9 @@ coefficients flowed through).
 - The "Nuovo albero martellato" form auto-populates `h = a·ln(D) + b` from the
   single active parameter set (keyed by region + species) instead of a per-plan
   table. The field stays editable; an override sets `h_measured = true`; a
-  missing (region, species) entry leaves h blank for manual entry.
+  missing (region, species) entry leaves h blank. A mark can be saved in that
+  state; Abies stores null height, volume, and mass while retaining the diameter
+  for tree-count and basal-area summaries.
 
 ## Synchronization with Ipso
 

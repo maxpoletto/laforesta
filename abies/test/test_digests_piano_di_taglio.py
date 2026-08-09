@@ -344,6 +344,23 @@ class TestGenerateMarkTreesForItem:
             parcels[0].name, parcels[1].name,
         ]
 
+    def test_unknown_height_is_serialized_as_null(
+            self, fustaia_item, species, tmp_path, settings,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        tree = Tree.objects.create(species=species[0])
+        TreeMark.objects.create(
+            harvest_plan_item=fustaia_item, tree=tree,
+            parcel=fustaia_item.parcel, number=1,
+            date='2026-06-15', d_cm=40, h_m=None,
+            h_measured=False, volume_m3=None, mass_q=None, operator='Mario',
+        )
+        generate_mark_trees_for_item(fustaia_item.id)
+        data = _load(tmp_path / f'mark_trees_{fustaia_item.id}.json.gz')
+        row = data[ROWS][0]
+        assert row[data[COLUMNS].index(S.COL_H_M)] is None
+        assert row[data[COLUMNS].index(S.COL_V_M3)] is None
+
     def test_schema_migration_stales_tracked_and_untracked_digests(
         self, plan, parcels, species,
     ):

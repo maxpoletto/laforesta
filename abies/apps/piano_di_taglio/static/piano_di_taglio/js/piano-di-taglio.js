@@ -1535,6 +1535,15 @@ function formatMarkPopoverValue(name, value) {
   return String(value);
 }
 
+function nullableMarkFormatter(formatter) {
+  return (value) => (
+    value == null || value === '' ? '-' : formatter(value)
+  );
+}
+
+const fmtNullableMarkDecimal2 = nullableMarkFormatter(fmtDecimal2);
+const fmtNullableMarkDecimal3 = nullableMarkFormatter(fmtDecimal3);
+
 function buildMarkTreeColumnDefs(columns, showParcel) {
   const hidden = new Set([VERSION]);
   if (!showParcel) hidden.add(S.COL_PARCEL);
@@ -1545,10 +1554,10 @@ function buildMarkTreeColumnDefs(columns, showParcel) {
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
     if (name === S.COL_NUMBER) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
     if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtInt }; continue; }
-    if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
+    if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtNullableMarkDecimal2 }; continue; }
     if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
-    if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtDecimal3 }; continue; }
-    if (name === S.COL_MASS_Q) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtDecimal2 }; continue; }
+    if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtNullableMarkDecimal3 }; continue; }
+    if (name === S.COL_MASS_Q) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtNullableMarkDecimal2 }; continue; }
     if (name === S.COL_LAT || name === S.COL_LON) { defs[name] = { label: name, type: 'number', width: '90px', formatter: fmtCoord }; continue; }
     if (name === S.COL_ACC_M) { defs[name] = { label: name, type: 'number', width: '75px', formatter: fmtAccuracyM }; continue; }
     defs[name] = { label: name };
@@ -1617,8 +1626,8 @@ function wireHypsoAutoH(form, hypsoParams) {
 
   h.addEventListener('input', () => {
     if (programmaticH) return;
-    userEditedH = true;
-    if (hMeasHidden) hMeasHidden.value = '1';
+    userEditedH = String(h.value || '').trim() !== '';
+    if (hMeasHidden) hMeasHidden.value = userEditedH ? '1' : '0';
   });
   d.addEventListener('input', autoFillH);
   sp.addEventListener('change', () => { userEditedH = false; autoFillH(); });
@@ -1641,9 +1650,10 @@ async function wireMarkForm(form, itemId) {
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, MARK_SAVE_URL, {
     validate: (body) => {
-      // A mark needs D and h > 0.
+      // A mark needs D; h is optional, but must be positive when supplied.
       if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;
-      if (!(parseDecimal(body.h_m) > 0)) return S.ERR_H_POSITIVE;
+      const hRaw = String(body.h_m || '').trim();
+      if (hRaw && !(parseDecimal(hRaw) > 0)) return S.ERR_H_POSITIVE;
       return null;
     },
     onSuccess(data, isSaveAndAdd) {

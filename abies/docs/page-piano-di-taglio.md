@@ -247,8 +247,11 @@ The modal displays:
        Data; Particella; Numero; Specie; D (cm); h (m); h misurata;
        V (m³); m (q); Lat; Lon; Acc. (m); Operatore
 
-   GPS accuracy is stored as integer metres; missing legacy values are shown
-   as `-`.
+   GPS accuracy is stored as integer metres. In the HTML table, an unavailable
+   height, volume, mass, or GPS accuracy is shown as `-`; zero retains its
+   numeric meaning and is never used as a missing-value sentinel. CSV exports
+   leave nullable
+   numeric fields empty.
 
    `Particella` is shown only for region-wide items, where it identifies the
    parcel stored on each individual mark. It is hidden for parcel-scoped items
@@ -275,8 +278,10 @@ The modal displays:
    universe, so a
    species keeps the same color across Bosco, Prelievi, and marks. Mark
    diameters use the same site-wide **Classi diametriche** setting as Bosco and
-   Rilevamenti; volume is the sum of `tree_mark.volume_m3` (NULL contributes zero),
-   and basal area is summed from each tree's actual diameter, `π × (D/200)²`.
+   Rilevamenti. A tree with unknown height remains in the tree-count and basal-
+   area distributions because both use its diameter; its NULL volume
+   contributes nothing to the volume chart or total. Basal area is summed from
+   each tree's actual diameter, `π × (D/200)²`.
 
    As in Bosco detail, one species color legend is displayed above the charts.
    It is informational rather than a second set of checkbox filters: the marks
@@ -316,8 +321,11 @@ The modal displays:
    Each row becomes one `tree_mark` row under this `harvest_plan_item`.
    `Compresa`/`Particella` from the CSV must match the item's
    region/parcel (or fall inside its region for region-wide items).
-   `volume_m3` and `mass_q` are computed server-side via Tabacchi
-   (`apps/base/tabacchi.py`) from `(D_cm, H_m, Genere)` + species density.
+   `H_m` may be empty only when `H_measured` is false. It is then stored as
+   SQL NULL, along with `volume_m3` and `mass_q`. Otherwise those derived
+   fields are computed server-side via Tabacchi
+   (`apps/base/tabacchi.py`) from `(D_cm, H_m, Genere)` plus species
+   density. A blank `H_m` remains blank when exported.
    `Catastrofata` is ignored at row level (the item's `damaged` flag
    governs).
 
@@ -377,13 +385,13 @@ parameter set, keyed by (region, species) — served by the `hypso_params`
 digest, not a per-plan table (see [`hypsometry.md`](hypsometry.md)). Field
 stays editable; operator overrides set `h_measured = true`. If the active set
 has no entry for the (region, species) pair — or no set is active — h is blank
-(required manual entry).
+and may be saved as unknown. The server stores SQL NULL for height, volume, and
+mass and normalizes `h_measured = false`.
 
 Live V/m preview, same pattern as campionamenti: Tabacchi in JS (`volume.js`),
-mass derived from the stored 4-dp volume, server stores the client-provided
-values without recomputing. The same tree entered here vs imported from CSV
-(Python `tabacchi.py`) may differ by ≤1 ULP (≤0.0001 m³ / ≤0.001 q) — JS float
-vs Python Decimal — held in parity by `test/test_tabacchi.py`.
+mass derived from the stored 4-dp volume. The server does not trust the preview:
+it recomputes volume and mass through the same Python helper used by CSV
+imports.
 
 Recording a mark always creates a new `tree` row alongside `tree_mark`.
 
@@ -569,8 +577,9 @@ regenerates them on demand.
 
 Columns: `row_id`, `version`, `Data`, `Particella`, `Numero`, `Specie`, `D (cm)`,
 `h (m)`, `h misurata`, `V (m³)`, `m (q)`, `Lat`, `Lon`, `Acc. (m)`,
-`Operatore`. Accuracy is nullable for legacy rows and is displayed as `-` when
-missing.
+`Operatore`. Height and accuracy are nullable and are displayed as `-` when
+missing from the HTML table. Their CSV fields are empty rather than containing
+that display placeholder.
 
 `Particella` carries `tree_mark.parcel.name`. The client displays it in the
 table and map popover only for region-wide plan items and hides the redundant

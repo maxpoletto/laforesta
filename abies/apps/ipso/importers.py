@@ -29,7 +29,7 @@ from config.constants import (
 class TreeMeasurements:
     date: date_type
     d_cm: int
-    h_m: Decimal
+    h_m: Decimal | None
 
 
 _SAMPLE_PARSE_NUMBER_INVALID = 'sample_number_invalid'
@@ -257,14 +257,17 @@ def _payload_records(payload: dict) -> list | None:
     return records if isinstance(records, list) else None
 
 
-def record_measurements(record: dict) -> TreeMeasurements | None:
+def record_measurements(
+        record: dict, *, h_required: bool = True,
+) -> TreeMeasurements | None:
     try:
         row_date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
         d_cm = int(record.get(FIELD_D_CM))
         h_m = to_decimal(record.get(FIELD_H_M), '.')
     except (TypeError, ValueError):
         return None
-    if h_m is None or d_cm <= 0 or h_m <= 0:
+    if (d_cm <= 0 or (h_m is not None and h_m <= 0)
+            or (h_required and h_m is None)):
         return None
     return TreeMeasurements(date=row_date, d_cm=d_cm, h_m=h_m)
 

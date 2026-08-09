@@ -212,3 +212,15 @@ def test_record_measurements_rejects_bad_and_non_positive_values():
     assert record_measurements({
         FIELD_DATE: '2026-06-17', FIELD_D_CM: 42, FIELD_H_M: '0',
     }) is None
+    assert record_measurements({
+        FIELD_DATE: '2026-06-17', FIELD_D_CM: 42, FIELD_H_M: None,
+    }) is None
+
+
+def test_record_measurements_allows_optional_unknown_height():
+    measurements = record_measurements({
+        FIELD_DATE: '2026-06-17', FIELD_D_CM: 42, FIELD_H_M: None,
+    }, h_required=False)
+
+    assert measurements is not None
+    assert measurements.h_m is None

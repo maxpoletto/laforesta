@@ -2040,6 +2040,34 @@ def test_import_rejects_upload_mode_mismatch(
 
 
 @override_settings(IPSO_SECRET='test-token')
+def test_martellate_import_accepts_unknown_height(
+        writer_client, parcels, species, settings, tmp_path,
+):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    item = _harvest_item(parcels)
+    payload = _upload_payload(
+        parcels, species, mode=IPSO_MODE_MARTELLATE,
+        session_id='43434343-4343-4343-8343-434343434303',
+        record_overrides={FIELD_H_M: None, FIELD_H_MEASURED: False},
+    )
+    upload_response = _post_upload(Client(), payload)
+    assert upload_response.status_code == 200, upload_response.json()
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    resp = writer_client.post(
+        reverse('ipso-upload-import-martellate', args=[upload.id]),
+        data=json.dumps({FIELD_HARVEST_PLAN_ITEM_ID: item.id}),
+        content_type='application/json',
+    )
+
+    assert resp.status_code == 200, resp.content
+    mark = TreeMark.objects.get()
+    assert mark.h_m is None
+    assert mark.h_measured is False
+    assert mark.volume_m3 is None
+    assert mark.mass_q is None
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_abies_1_1_4_martellate_payload_uploads_and_imports(
         writer_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'

@@ -1340,6 +1340,30 @@ class TestItemExport:
         numero = rows[1][rows[0].index(S.CSV_COL_NUMBER)]
         assert numero == '1440', f'expected mark number 1440, got {numero!r}'
 
+    def test_export_unknown_height_as_blank(
+        self, writer_client, planned_item, species,
+    ):
+        TreeMark.objects.create(
+            harvest_plan_item=planned_item,
+            tree=Tree.objects.create(species=species[0]),
+            parcel=planned_item.parcel, number=1,
+            date=date_type(2025, 6, 1), d_cm=30,
+            h_m=None, h_measured=False, volume_m3=None, mass_q=None,
+            operator='Mario',
+        )
+
+        response = writer_client.get(
+            f'/api/piano-di-taglio/item/export/{planned_item.id}/',
+        )
+        archive = zipfile.ZipFile(io.BytesIO(response.content))
+        text = archive.read(
+            f'martellate_{planned_item.id}.csv',
+        ).decode('utf-8-sig')
+        delimiter, _ = csv_io.export_format()
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+
+        assert rows[1][rows[0].index(S.CSV_COL_H_M)] == ''
+
     def test_region_wide_harvest_export_is_importer_compatible(
         self, writer_client, plan, regions, crews, products, species,
     ):
@@ -1774,11 +1798,34 @@ class TestMarkSave:
         assert resp.status_code == 200
         assert TreeMark.objects.get().number is None
 
+    def test_create_mark_allows_unknown_height(
+        self, writer_client, planned_item, species,
+    ):
+        resp = writer_client.post(
+            self.SAVE_URL,
+            data=json.dumps(self._mark_body(
+                planned_item, species[0],
+                **{
+                    FIELD_H_M: '', FIELD_H_MEASURED: True,
+                    FIELD_VOLUME_M3: '99', FIELD_MASS_Q: '99',
+                    FIELD_NONCE: 'unknown-height',
+                },
+            )),
+            content_type='application/json',
+        )
+
+        assert resp.status_code == 200
+        mark = TreeMark.objects.get()
+        assert mark.h_m is None
+        assert mark.h_measured is False
+        assert mark.volume_m3 is None
+        assert mark.mass_q is None
+
     def test_rejects_zero_diameter_or_height(
         self, writer_client, planned_item, species,
     ):
         """A mark needs D and h > 0."""
-        for i, override in enumerate(({FIELD_D_CM: 0}, {FIELD_H_M: '0'})):
+        for i, override in enumerate(({FIELD_D_CM: 0}, {FIELD_H_M: 0})):
             resp = writer_client.post(
                 self.SAVE_URL,
                 data=json.dumps(self._mark_body(
@@ -2380,6 +2427,50 @@ class TestMarkCSVImport:
         assert tm.import_fingerprint is not None
         assert tm.number == 1
         assert tm.d_cm == 30
+
+    def test_import_accepts_unknown_height(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+             species[0].common_name, '30', '', '0', '', '', '', 'Mario'],
+        ])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 200
+        mark = TreeMark.objects.get()
+        assert mark.h_m is None
+        assert mark.h_measured is False
+        assert mark.volume_m3 is None
+        assert mark.mass_q is None
+        assert mark.import_fingerprint.startswith('v2:')
+
+    def test_import_rejects_measured_flag_without_height(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        parcel = parcels[0]
+        csv_bytes = self._csv_content([
+            ['01/06/2025', parcel.region.name, parcel.name, '0', '1',
+             species[0].common_name, '30', '', '1', '', '', '', 'Mario'],
+        ])
+
+        resp = self._post(writer_client, planned_item, csv_bytes)
+
+        assert resp.status_code == 400
+        assert TreeMark.objects.count() == 0
+
+    def test_null_height_changes_v2_fingerprint(self):
+        values = {
+            'source_row': 1, 'date': date_type(2025, 6, 1),
+            'parcel_id': 10, 'species_id': 20, 'number': 30, 'd_cm': 40,
+            'h_measured': False, 'lat': None, 'lon': None, 'acc_m': None,
+            'operator': 'Mario',
+        }
+        assert csv_mark_fingerprint(h_m=None, **values) != csv_mark_fingerprint(
+            h_m=Decimal('20'), **values,
+        )
 
     def test_import_rejects_missing_lon_header(
         self, writer_client, planned_item, species, parcels,

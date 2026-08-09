@@ -147,10 +147,14 @@ def _record_from_row(path: Path, index: int, reader, row: dict, parcels: dict, s
         raise CommandError(f'{path}: row {index}: unknown species {species_name}')
 
     d_cm = reader.integer(row.get('d_cm'))
-    h_m = reader.decimal(row.get('h_m'))
+    h_m, h_m_ok = reader.opt_decimal(row.get('h_m'))
+    h_measured = _optional_bool(
+        path, index, row.get('h_measured'), S.CSV_COL_H_MEASURED,
+    )
     if d_cm is None or d_cm <= 0:
         raise CommandError(f'{path}: row {index}: invalid {S.CSV_COL_D_CM}')
-    if h_m is None or h_m <= 0:
+    if (not h_m_ok or (h_m is not None and h_m <= 0)
+            or (h_m is None and h_measured)):
         raise CommandError(f'{path}: row {index}: invalid {S.CSV_COL_H_M}')
 
     record = {
@@ -161,8 +165,11 @@ def _record_from_row(path: Path, index: int, reader, row: dict, parcels: dict, s
         FIELD_SPECIES_ID: sp.id,
         FIELD_NUMBER: _optional_int(path, index, reader, row.get('number'), S.CSV_COL_NUMBER),
         FIELD_D_CM: d_cm,
-        FIELD_H_M: format(h_m.quantize(TREE_H_QUANTUM), 'f'),
-        FIELD_H_MEASURED: _optional_bool(path, index, row.get('h_measured'), S.CSV_COL_H_MEASURED),
+        FIELD_H_M: (
+            format(h_m.quantize(TREE_H_QUANTUM), 'f')
+            if h_m is not None else None
+        ),
+        FIELD_H_MEASURED: h_measured,
         FIELD_HYPSO_PARAM_SET_ID: None,
         FIELD_LAT: _optional_coord(path, index, reader, row.get('lat'), S.CSV_COL_LAT),
         FIELD_LON: _optional_coord(path, index, reader, row.get('lon'), S.CSV_COL_LON),

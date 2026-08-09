@@ -1554,8 +1554,11 @@ def _martellate_import_rows(
         if sp is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
-        measurements = record_measurements(record)
+        measurements = record_measurements(record, h_required=False)
         if measurements is None:
+            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
+            continue
+        if measurements.h_m is None and bool(record.get(FIELD_H_MEASURED)):
             errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
             continue
         number, number_error = _staged_mark_number(record, i)
@@ -2031,7 +2034,11 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     if d_cm is not None and d_cm <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_D_CM_POSITIVE.format(index))
 
-    h_m = _decimal(row, FIELD_H_M)
+    h_m = (
+        _opt_decimal(row, FIELD_H_M)
+        if mode == IPSO_MODE_MARTELLATE
+        else _decimal(row, FIELD_H_M)
+    )
     if h_m is not None and h_m <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_H_M_POSITIVE.format(index))
 

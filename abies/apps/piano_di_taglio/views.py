@@ -858,7 +858,9 @@ def mark_save_view(request):
     item_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
     species_id = int_or_none(body.get(FIELD_SPECIES_ID))
     d_cm = int_or_none(body.get(FIELD_D_CM))
-    h_m = parse_decimal(body.get(FIELD_H_M))
+    h_value = body.get(FIELD_H_M)
+    h_raw = '' if h_value is None else str(h_value).strip()
+    h_m = parse_decimal(h_raw)
     h_measured = is_truthy(body.get(FIELD_H_MEASURED))
     lat = coord_float(parse_decimal(body.get(FIELD_LAT)))
     lon = coord_float(parse_decimal(body.get(FIELD_LON)))
@@ -877,8 +879,10 @@ def mark_save_view(request):
         errors.append(S.ERR_MARK_SPECIES_REQUIRED)
     if d_cm is None or d_cm <= 0:
         errors.append(S.ERR_MARK_D_REQUIRED)
-    if h_m is None or h_m <= 0:
+    if h_raw and (h_m is None or h_m <= 0):
         errors.append(S.ERR_MARK_H_REQUIRED)
+    if h_m is None:
+        h_measured = False
     if not operator:
         errors.append(S.ERR_MARK_OPERATOR_REQUIRED)
     if not date_raw:
@@ -1148,8 +1152,9 @@ def mark_csv_import_view(request):
             continue
 
         d_cm = reader.integer(row.get('d_cm'))
-        h_m = reader.decimal(row.get('h_m'))
-        if d_cm is None or h_m is None or d_cm <= 0 or h_m <= 0:
+        h_m, h_m_ok = reader.opt_decimal(row.get('h_m'))
+        if (d_cm is None or d_cm <= 0 or not h_m_ok
+                or (h_m is not None and h_m <= 0)):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
             continue
@@ -1166,6 +1171,11 @@ def mark_csv_import_view(request):
             continue
         lat = coord_float(lat_raw)
         lon = coord_float(lon_raw)
+        if h_m is None and h_measured:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(
+                i, f'{S.CSV_COL_H_M}/{S.CSV_COL_H_MEASURED}',
+            ))
+            continue
         h_measured = bool(h_measured)
 
         numero, numero_error = _parse_csv_mark_number(reader, row)
@@ -1182,10 +1192,12 @@ def mark_csv_import_view(request):
                 h_measured=h_measured, lat=lat, lon=lon, acc_m=acc_m,
                 operator=operator,
             ),
-            legacy_fingerprints=(legacy_csv_mark_fingerprint(
-                date=date, species_name=species_name, d_cm=d_cm, h_m=h_m,
-                lat=lat, lon=lon, operator=operator,
-            ),),
+            legacy_fingerprints=(
+                (legacy_csv_mark_fingerprint(
+                    date=date, species_name=species_name, d_cm=d_cm, h_m=h_m,
+                    lat=lat, lon=lon, operator=operator,
+                ),) if h_m is not None else ()
+            ),
         ))
 
     if errors:

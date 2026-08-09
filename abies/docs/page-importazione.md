@@ -28,8 +28,9 @@ The navigation badge counts uploads still in `received` state.
 The lower panel shows session metadata, staged-file errors if files are missing
 or corrupt, and a sortable preview of uploaded records. The preview includes
 record id, date, parcel, sample area, species, number, diameter/height,
-coordinates, and GPS accuracy under `Acc. (m)`. A missing accuracy is shown as
-`-`. Observation previews use the same position columns alongside text,
+coordinates, and GPS accuracy under `Acc. (m)`. A missing height or accuracy
+is shown as `-`. Observation previews use the same position columns alongside
+text,
 categories, and photo count. Ipso observation position comes from the initial
 device GPS fix captured when the observation form opens, with save-time GPS
 used only as a fallback; camera photos may also carry device GPS metadata
@@ -71,7 +72,10 @@ Target consistency is enforced at import time:
 
 - `Martellate`: every row must match the selected harvest-plan item. For a
   parcel-scoped item, each row must use that parcel. For a region-wide item,
-  each row must use a parcel in that region.
+  each row must use a parcel in that region. Height may be absent only with
+  `h_measured=false`; import then stores null height, volume, and mass. The
+  preview table shows the missing height as `-`, while its downloadable CSV
+  field remains empty.
 - `Rilevamenti predefiniti`: rows must use sample areas in the selected
   survey's grid. If the Ipso session records the survey chosen by the operator,
   importing into a different survey is allowed only when both surveys use the

@@ -1287,7 +1287,7 @@ def build_tree_mark_record(tm) -> list:
     return [
         tm.id, tm.version, tm.date.isoformat(), tm.parcel.name, tm.number,
         tm.tree.species.common_name,
-        tm.d_cm, float(tm.h_m), tm.h_measured,
+        tm.d_cm, float_or_none(tm.h_m), tm.h_measured,
         float(tm.volume_m3) if tm.volume_m3 is not None else None,
         float(tm.mass_q) if tm.mass_q is not None else None,
         tm.lat, tm.lon, tm.acc_m, tm.operator,

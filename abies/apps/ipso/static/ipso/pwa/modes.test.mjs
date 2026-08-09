@@ -46,6 +46,12 @@ check(freeSurvey.autoHeight === true,
 check(IpsoModes.get(IPSO_MODE_FREE_SURVEY).localOnly !== true,
       "free-survey mode is uploadable");
 
+const martellate = allModes.find((mode) =>
+  mode.id === IPSO_MODE_MARTELLATE
+);
+check(Boolean(martellate), "martellate mode is present");
+check(martellate.hRequired === false,
+      "martellate mode permits trees with unknown height");
 
 const observations = allModes.find((mode) =>
   mode.id === IPSO_MODE_OBSERVATIONS

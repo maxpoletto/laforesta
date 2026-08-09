@@ -763,7 +763,9 @@ class TreeMark(TimestampedModel):
     number = models.IntegerField(null=True, blank=True)
     date = models.DateField()
     d_cm = models.IntegerField()
-    h_m = models.DecimalField(max_digits=5, decimal_places=2)
+    h_m = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
     h_measured = models.BooleanField(default=False)
     volume_m3 = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
     mass_q = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
@@ -787,6 +789,23 @@ class TreeMark(TimestampedModel):
             models.UniqueConstraint(
                 fields=['harvest_plan_item', 'number'],
                 name='uniq_tree_mark_item_number',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(h_m__isnull=False) |
+                    models.Q(h_measured=False)
+                ),
+                name='tree_mark_h_measured_false_without_h_m',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(h_m__isnull=False) |
+                    (
+                        models.Q(volume_m3__isnull=True) &
+                        models.Q(mass_q__isnull=True)
+                    )
+                ),
+                name='tree_mark_no_derived_values_without_h_m',
             ),
             *_coordinate_constraints('tree_mark'),
         ]

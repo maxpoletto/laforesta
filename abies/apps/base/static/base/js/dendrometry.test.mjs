@@ -45,18 +45,20 @@ assertEqual(diameterClassCm(18, 'legacy-or-invalid'), 20,
             'unknown digest metadata falls back to centered classes');
 assertClose(basalAreaM2(20), Math.PI * 0.01, 1e-12, 'basal area uses tree diameter');
 
-const columns = ['row_id', S.COL_SPECIES, S.COL_D_CM, S.COL_V_M3];
+const columns = [
+  'row_id', S.COL_SPECIES, S.COL_D_CM, S.COL_H_M, S.COL_V_M3,
+];
 const marked = [
-  [1, 'Abete', 18, 0.1],
-  [2, 'Abete', 22, 0.2],
-  [3, 'Faggio', 30, null],
+  [1, 'Abete', 18, 12, 0.1],
+  [2, 'Abete', 22, 15, 0.2],
+  [3, 'Faggio', 30, null, null],
 ];
 const rows = aggregateTreeDendrometry(marked, columns, {
   allSpeciesNames: ['Abete', 'Castagno', 'Faggio'],
 });
 assertEqual(rows.map(row => [row.species, row.diameterClassCm, row.treeCount]),
             [['Abete', 20, 2], ['Faggio', 30, 1]],
-            'marked trees aggregate by species and class');
+            'unknown-height trees remain in diameter-class counts');
 const shiftedRows = aggregateTreeDendrometry(marked, columns, {
   diameterClassMode: DIAMETER_CLASS_SHIFTED_UP,
 });
@@ -66,6 +68,8 @@ assertEqual(shiftedRows.map(row => [row.species, row.diameterClassCm, row.treeCo
 assertEqual(rows.map(row => row.volumeM3), [0.3, 0], 'null mark volume contributes zero');
 assertClose(rows[0].basalAreaM2, basalAreaM2(18) + basalAreaM2(22), 1e-6,
             'basal area sums individual diameters');
+assertClose(rows[1].basalAreaM2, basalAreaM2(30), 1e-6,
+            'unknown-height trees remain in basal-area totals');
 assertEqual(rows.map(row => row.color),
             [dendrometrySpeciesColor(0), dendrometrySpeciesColor(2)],
             'colors stay stable in the full species universe');
