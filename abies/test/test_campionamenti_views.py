@@ -17,15 +17,15 @@ from apps.base import csv_io
 from apps.base.digests import build_preserved_tree_record
 from apps.campionamenti import csv_grid, csv_trees
 from apps.base.models import (
-    DigestStatus, Parcel, Sample, SampleArea, SampleGrid, Survey, Tree,
-    TreeSample, UsedNonce,
+    DigestStatus, Parcel, Sample, SampleArea, SampleGrid, SiteSettings, Survey,
+    Tree, TreeSample, UsedNonce,
 )
 from config import strings as S
 from config.constants import (
-    COLUMNS, COL_COPPICE, COL_SURVEY_ID, DATA_ID, DELETES,
-    DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    COLUMNS, COL_COPPICE, COL_SURVEY_ID, DATA_ID, DELETES, DIAMETER_CLASS_SHIFTED_DOWN,
+    DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES,
-    FIELD_ALTITUDE_M, FIELD_DATE,
+    FIELD_ALTITUDE_M, FIELD_DATE, FIELD_DIAMETER_CLASS_MODE,
     FIELD_DEFAULT_DATE, FIELD_DESCRIPTION, FIELD_D_CM, FIELD_ERRORS, FIELD_FILE,
     FIELD_HIGHFOREST, FIELD_H_M, FIELD_H_MEASURED,
     FIELD_LAT, FIELD_LON, FIELD_MASS_Q, FIELD_NAME, FIELD_NONCE, FIELD_NOTE,
@@ -349,6 +349,25 @@ class TestSurveyDendrometryExport:
             response, S.CSV_FILE_DENDROMETRY_TREE_COUNT,
         ) == [
             [S.COL_SPECIES, '30'],
+            [selected.tree.species.common_name, '1'],
+        ]
+
+    def test_export_honors_configured_shifted_classes(
+        self, reader_client, sample_setup,
+    ):
+        settings_obj = SiteSettings.load()
+        settings_obj.diameter_class_mode = DIAMETER_CLASS_SHIFTED_DOWN
+        settings_obj.save(update_fields=[FIELD_DIAMETER_CLASS_MODE])
+        selected = TreeSample.objects.get(sample__survey=sample_setup['survey'])
+        selected.d_cm = 16
+        selected.save(update_fields=[FIELD_D_CM])
+        response = reader_client.post(
+            f'/api/campionamenti/survey/dendrometry/export/{sample_setup["survey"].id}/',
+            data=json.dumps({FIELD_ROW_IDS: [selected.id]}),
+            content_type='application/json',
+        )
+        assert self._zip_rows(response, S.CSV_FILE_DENDROMETRY_TREE_COUNT) == [
+            [S.COL_SPECIES, '20'],
             [selected.tree.species.common_name, '1'],
         ]
 

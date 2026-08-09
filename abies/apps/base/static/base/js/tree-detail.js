@@ -12,6 +12,7 @@ import {
   renderDendrometryBarCharts, renderDendrometryLegend,
   renderDendrometrySummaryInfo,
 } from './dendrometry.js';
+import { FIELD_DIAMETER_CLASS_MODE } from './constants.js';
 import { TreePointsMap, treePointsFromDigest } from './tree-points-map.js';
 import * as S from './strings.js';
 
@@ -29,6 +30,7 @@ export class TreeDetail {
   }) {
     this.container = container;
     this.columns = digest?.columns || [];
+    this.diameterClassMode = digest?.[FIELD_DIAMETER_CLASS_MODE];
     this.geojson = geojson;
     this.basemap = basemap;
     this.speciesNames = speciesNames;
@@ -103,6 +105,7 @@ export class TreeDetail {
     const legend = this.root.querySelector('[data-target="dendrometry-species"]');
     const rows = aggregateTreeDendrometry(this.rows, this.columns, {
       allSpeciesNames: this.speciesNames,
+      diameterClassMode: this.diameterClassMode,
     });
 
     if (this.exportButton) this.exportButton.disabled = !this.rows.length;

@@ -83,6 +83,25 @@ lists surveys only when they have measured non-coppice tree rows, and displays
 that eligible-row count. Fully documented — behavior, the compute→accept flow,
 the CSV format, and the served digest — in [`hypsometry.md`](hypsometry.md).
 
+## Diameter classes (Classi diametriche)
+
+Visible to writers and admins, immediately below Parametri ipsometrici. The
+radio control selects one site-wide five-centimetre class convention used by
+every diameter-class chart and export:
+
+- `centered`: class 20 contains integer diameters 18–22 cm;
+- `shifted_up`: class 20 contains 20–24 cm;
+- `shifted_down`: class 20 contains 16–20 cm.
+
+`Salva` writes `SiteSettings.diameter_class_mode` and records the change in the
+audit history. A changed value marks `parcel_dendrometry.json` and every
+existing `mark_trees_<item-id>.json` / `sampled_trees_<survey-id>.json` stale.
+The response also evicts those exact/prefixed in-memory caches. The raw
+height/diameter points digest is unaffected because it contains no diameter
+classes. Each affected digest is recomputed on demand on the next relevant
+Bosco, Martellate, or Rilevamenti navigation; both ZIP CSV exporters read the
+setting directly for the requested export.
+
 ## App users
 
 This section is visible only to admins.

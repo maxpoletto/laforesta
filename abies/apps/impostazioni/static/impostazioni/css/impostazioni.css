@@ -48,3 +48,22 @@
   gap: 1.5rem;
   margin-bottom: 0;
 }
+
+.settings-radio-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.settings-radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-radio-option input {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 2px;
+}

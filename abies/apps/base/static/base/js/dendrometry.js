@@ -10,6 +10,10 @@ import * as S from './strings.js';
 import {
   chartSeriesColor, renderStackedBar, speciesColorMap as chartSpeciesColorMap,
 } from './charts.js';
+import {
+  DIAMETER_CLASS_CENTERED, DIAMETER_CLASS_SHIFTED_DOWN,
+  DIAMETER_CLASS_SHIFTED_UP,
+} from './constants.js';
 import { columnMap, toNumber } from './digests.js';
 import { fmtDecimal1, fmtDecimal2, fmtInt, fmtVolume } from './format.js';
 
@@ -28,8 +32,15 @@ export function dendrometryChartKey(speciesId, diameterClassCm) {
   return `${speciesId}|${diameterClassCm}`;
 }
 
-export function diameterClassCm(dCm) {
-  return Math.floor((Number(dCm) + 2) / 5) * 5;
+const DIAMETER_CLASS_OFFSETS = {
+  [DIAMETER_CLASS_CENTERED]: 2,
+  [DIAMETER_CLASS_SHIFTED_UP]: 0,
+  [DIAMETER_CLASS_SHIFTED_DOWN]: 4,
+};
+
+export function diameterClassCm(dCm, mode = DIAMETER_CLASS_CENTERED) {
+  const offset = DIAMETER_CLASS_OFFSETS[mode] ?? DIAMETER_CLASS_OFFSETS[DIAMETER_CLASS_CENTERED];
+  return Math.floor((Number(dCm) + offset) / 5) * 5;
 }
 
 export function basalAreaM2(dCm) {
@@ -38,7 +49,9 @@ export function basalAreaM2(dCm) {
 }
 
 /** Aggregate individual tree digest rows for dendrometry displays. */
-export function aggregateTreeDendrometry(rows, columns, { allSpeciesNames = [] } = {}) {
+export function aggregateTreeDendrometry(
+  rows, columns, { allSpeciesNames = [], diameterClassMode = DIAMETER_CLASS_CENTERED } = {},
+) {
   const c = columnMap(columns);
   const groups = new Map();
   const speciesNames = new Map();
@@ -47,7 +60,7 @@ export function aggregateTreeDendrometry(rows, columns, { allSpeciesNames = [] }
     const species = String(row[c[S.COL_SPECIES]] || '').trim();
     const diameter = toNumber(row[c[S.COL_D_CM]]);
     if (!species || diameter == null || diameter <= 0) continue;
-    const diameterClass = diameterClassCm(diameter);
+    const diameterClass = diameterClassCm(diameter, diameterClassMode);
     const speciesId = species;
     const key = dendrometryChartKey(speciesId, diameterClass);
     const group = groups.get(key) || {

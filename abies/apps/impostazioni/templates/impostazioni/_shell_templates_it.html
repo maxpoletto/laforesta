@@ -177,6 +177,35 @@ S (string constants) provided by the shell's render context.
     </div>
   </section>
 
+  <section data-settings-section="diameter-classes">
+    {% include "base/_partials/_collapsible_header.html" with section="" title="Classi diametriche" %}
+    <div class="collapsible-body">
+      <p class="settings-summary">Le classi diametriche sono:</p>
+      <form class="settings-source-form"
+            data-role="diameter-classes-form"
+            data-success-label="Classi diametriche aggiornate.">
+        <div class="settings-radio-list">
+          <label class="settings-radio-option">
+            <input type="radio" name="diameter_class_mode" value="centered">
+            <span>centrate: la classe 20 comprende i diametri 18–22 cm.</span>
+          </label>
+          <label class="settings-radio-option">
+            <input type="radio" name="diameter_class_mode" value="shifted_up">
+            <span>spostate verso l’alto: la classe 20 comprende i diametri 20–24 cm.</span>
+          </label>
+          <label class="settings-radio-option">
+            <input type="radio" name="diameter_class_mode" value="shifted_down">
+            <span>spostate verso il basso: la classe 20 comprende i diametri 16–20 cm.</span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+        </div>
+      </form>
+      <p class="mt-1" data-role="diameter-classes-msg"></p>
+    </div>
+  </section>
+
   <section data-settings-section="users" data-settings-entity>
     {% include "base/_partials/_collapsible_header.html" with section="" title="Utenti" %}
     <div class="collapsible-body">

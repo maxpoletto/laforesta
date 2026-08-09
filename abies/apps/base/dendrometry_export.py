@@ -4,7 +4,9 @@ from collections import defaultdict
 from decimal import Decimal
 
 from apps.base import csv_io
-from apps.base.digests import basal_area_m2, diameter_class_cm
+from apps.base.dendrometry import (
+    basal_area_m2, current_diameter_class_mode, diameter_class_cm,
+)
 from config import strings as S
 
 
@@ -22,10 +24,11 @@ def render_tree_dendrometry_csvs(trees) -> list[tuple[str, str]]:
     })
     species_names = set()
     diameter_classes = set()
+    diameter_class_mode = current_diameter_class_mode()
 
     for tree_row in trees:
         species = tree_row.tree.species.common_name
-        diameter_class = diameter_class_cm(tree_row.d_cm)
+        diameter_class = diameter_class_cm(tree_row.d_cm, diameter_class_mode)
         group = groups[(species, diameter_class)]
         group['tree_count'] += 1
         group['volume_m3'] += float(tree_row.volume_m3 or 0)

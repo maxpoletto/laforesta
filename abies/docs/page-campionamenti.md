@@ -205,9 +205,11 @@ The component consumes the rows retained by the table's filter, so table, map,
 charts, legend and totals remain synchronized. Its grey **Esporta** button
 downloads `riassunto_dendrometrico_rilevamento_<survey-id>.zip` containing
 `numero_alberi.csv`, `volume_m3.csv`, and `area_basimetrica_m2.csv`. Each CSV
-has species on rows and five-centimetre diameter classes on columns; species
-whose entire row is zero for that metric are omitted. With an active text
-filter, the client submits the displayed `tree_sample` IDs so the ZIP matches
+has species on rows and five-centimetre diameter classes on columns. Chart and
+ZIP boundaries follow the site-wide **Classi diametriche** setting; the export
+endpoint reads it directly. Species whose entire row is zero for that metric
+are omitted. With an active text filter, the client submits the displayed
+`tree_sample` IDs so the ZIP matches
 the visible summary.
 
 Columns: compresa, particella, area di campionamento, n. albero
@@ -543,6 +545,10 @@ coordinates.
 Unstructured rows derive parcel display and coordinates from the `TreeSample`
 row, with `Sample area` null and `N. area` blank. Sort: by `Compresa`,
 `Particella`, `N. area`, `N. albero`, `Pollone`.
+
+Top-level `diameter_class_mode` metadata tells the shared
+`TreeDetail` chart controller which convention to apply. After a setting save,
+the next open of an evicted survey digest regenerates it on demand.
 
 `row_id` = `tree_sample.id` (the synthetic id, see `database.md`).
 `Coppice` is the stable boolean copied from `tree.coppice`; `Tipo` is the

@@ -20,6 +20,9 @@ RECORD   = 'record'
 DATA_ID  = 'data_id'
 PATCHES  = 'patches'
 DELETES  = 'deletes'
+INVALIDATES = 'invalidates'
+FIELD_DATA_IDS = 'data_ids'
+FIELD_PREFIXES = 'prefixes'
 COLUMNS  = 'columns'
 ROWS     = 'rows'
 
@@ -165,6 +168,7 @@ FIELD_PASSWORD1             = 'password1'
 FIELD_PASSWORD2             = 'password2'
 FIELD_LANDING_PAGE          = 'landing_page'
 FIELD_DEFAULT_LANDING_PAGE  = 'default_landing_page'
+FIELD_DIAMETER_CLASS_MODE   = 'diameter_class_mode'
 FIELD_NONCE                 = 'nonce'
 FIELD_ROW_IDS               = 'row_ids'
 FIELD_POINTS                = 'points'
@@ -257,6 +261,11 @@ DIGEST_PRESERVED_TREES = 'preserved_trees'
 DIGEST_OBSERVATIONS = 'observations'
 DIGEST_HYPSO_PARAMS = 'hypso_params'
 
+# Dynamic digest prefixes. Keep these in one place so generation, server-side
+# invalidation, and client invalidation responses describe the same families.
+DIGEST_PREFIX_SAMPLED_TREES = 'sampled_trees_'
+DIGEST_PREFIX_MARK_TREES = 'mark_trees_'
+
 BOSCO_DENDROMETRY_DIGESTS = (
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS,
@@ -268,6 +277,14 @@ BOSCO_SPECIES_DIGESTS = BOSCO_TREE_DIGESTS
 
 # Domain defaults — locale-independent values the client and server must agree
 # on exactly (mirrored in constants.js).
+DIAMETER_CLASS_CENTERED = 'centered'
+DIAMETER_CLASS_SHIFTED_UP = 'shifted_up'
+DIAMETER_CLASS_SHIFTED_DOWN = 'shifted_down'
+DIAMETER_CLASS_MODES = (
+    DIAMETER_CLASS_CENTERED,
+    DIAMETER_CLASS_SHIFTED_UP,
+    DIAMETER_CLASS_SHIFTED_DOWN,
+)
 DEFAULT_RADIUS_M = 12  # sample-area radius (m) when none is supplied
 M2_PER_HA = 10000  # square metres per hectare
 PARCEL_WHOLE_REGION_MARK = 'X'  # region-wide plan/harvest parcel sentinel

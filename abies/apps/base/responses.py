@@ -13,7 +13,7 @@ from apps.base.numparse import int_or_none
 from config import strings as S
 from config.constants import (
     DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, FIELD_WARNINGS, HTML,
-    MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
+    INVALIDATES, MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
     STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR, STATUS_WARNING, VERSION,
 )
 
@@ -118,6 +118,7 @@ def success_response(
         row_id: int | None = None,
         patches: list[dict] | None = None,
         deletes: list[dict] | None = None,
+        invalidates: dict | None = None,
         extra: dict | None = None,
 ) -> JsonResponse:
     """HTTP 200 write response with generic cache changes and nonce save.
@@ -138,6 +139,8 @@ def success_response(
         response_data[PATCHES] = list(patches)
     if deletes:
         response_data[DELETES] = list(deletes)
+    if invalidates:
+        response_data[INVALIDATES] = invalidates
 
     nonce = body.get(FIELD_NONCE) if body else None
     if nonce:

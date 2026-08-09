@@ -19,6 +19,9 @@ export const RECORD   = 'record';
 export const DATA_ID  = 'data_id';
 export const PATCHES  = 'patches';
 export const DELETES  = 'deletes';
+export const INVALIDATES = 'invalidates';
+export const FIELD_DATA_IDS = 'data_ids';
+export const FIELD_PREFIXES = 'prefixes';
 export const COLUMNS  = 'columns';
 export const ROWS     = 'rows';
 
@@ -170,6 +173,7 @@ export const FIELD_TREE_PICK_EXISTING_ID = 'tree_pick_existing_id';
 export const FIELD_TREE_ID               = 'tree_id';
 export const FIELD_TREE_PRESERVED_ID     = 'tree_preserved_id';
 export const FIELD_D_CM                  = 'd_cm';
+export const FIELD_DIAMETER_CLASS_MODE   = 'diameter_class_mode';
 export const FIELD_H_M                   = 'h_m';
 export const FIELD_L10_MM                = 'l10_mm';
 export const FIELD_PRESSLER_COEFF         = 'pressler_coeff';
@@ -249,6 +253,9 @@ export const FIELD_USE_FOR_HEIGHT_PLOTS  = 'use_for_height_plots';
 
 // Domain defaults — locale-independent values the client and server must agree
 // on exactly (mirror of constants.py).
+export const DIAMETER_CLASS_CENTERED = 'centered';
+export const DIAMETER_CLASS_SHIFTED_UP = 'shifted_up';
+export const DIAMETER_CLASS_SHIFTED_DOWN = 'shifted_down';
 export const DEFAULT_RADIUS_M = 12;  // sample-area radius (m) when none is supplied
 export const M2_PER_HA = 10000;  // square metres per hectare
 export const PARCEL_WHOLE_REGION_MARK = 'X';  // region-wide plan/harvest parcel sentinel

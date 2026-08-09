@@ -30,7 +30,7 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COUNTS,
   FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
-  FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
+  FIELD_DIAMETER_CLASS_MODE, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE, FIELD_PRESSLER_DEFAULT,
   FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_PLANS,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
@@ -128,6 +128,7 @@ const SECTION_CONFIGS = {
   'future-production': { minRole: ROLE_WRITER, wire: wireFutureProductionSection },
   dendrometry: { minRole: ROLE_WRITER, wire: wireDendrometrySection },
   hypso: { minRole: ROLE_WRITER, wire: wireHypsoSection },
+  'diameter-classes': { minRole: ROLE_WRITER, wire: wireDiameterClassesSection },
   users: {
     minRole: ROLE_ADMIN,
     wire: root => wireEntitySection(root, ENTITY_SECTIONS.users),
@@ -602,6 +603,63 @@ function setFormEnabled(form, enabled) {
   for (const el of form.querySelectorAll('input, select, button')) {
     el.disabled = !enabled;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Diameter classes (writer+)
+// ---------------------------------------------------------------------------
+
+const DIAMETER_CLASSES = {
+  data: API + 'diameter-classes/data/',
+  save: API + 'diameter-classes/save/',
+};
+
+function wireDiameterClassesSection(root) {
+  const body = root.querySelector('.collapsible-body');
+  const form = body.querySelector('[data-role="diameter-classes-form"]');
+  const msg = body.querySelector('[data-role="diameter-classes-msg"]');
+  let loaded = false;
+
+  wireCollapsibleToggle(
+    root.querySelector('.collapsible-header'), body,
+    () => {
+      if (loaded) return;
+      loaded = true;
+      loadDiameterClasses(form);
+    },
+  );
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
+    const selected = form.querySelector(
+      'input[name="' + FIELD_DIAMETER_CLASS_MODE + '"]:checked',
+    );
+    const data = await postOrError(postJSON(DIAMETER_CLASSES.save, {
+      [FIELD_DIAMETER_CLASS_MODE]: selected?.value,
+      [FIELD_NONCE]: crypto.randomUUID(),
+    }));
+    if (data) msg.textContent = data[MESSAGE] || form.dataset.successLabel;
+  });
+}
+
+async function loadDiameterClasses(form) {
+  setFormEnabled(form, false);
+  let data;
+  try {
+    const resp = await fetch(DIAMETER_CLASSES.data);
+    if (!resp.ok) throw new Error(String(resp.status));
+    data = await resp.json();
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+
+  const mode = data[FIELD_DIAMETER_CLASS_MODE];
+  for (const radio of form.querySelectorAll('input[type="radio"]')) {
+    radio.checked = radio.value === mode;
+  }
+  setFormEnabled(form, true);
 }
 
 // ---------------------------------------------------------------------------

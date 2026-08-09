@@ -207,8 +207,9 @@ following the standard Abies idiom:
      charts is per hectare, otherwise for the whole parcel/region. (Default checked.)
 
    - Quantity charts: Three stacked-bar charts (stacked by species), for three
-     parameters, all with x-axis = diameter class (5 cm buckets centered on
-     multiples of 5 (E.g., diamater class 20 means 17.5 < d <= 22.5)).
+     parameters, all with x-axis = a five-centimetre diameter class. Class
+     boundaries follow the site-wide **Classi diametriche** setting documented
+     in `page-impostazioni.md` (centered, shifted up, or shifted down).
      - Tree count ("Numero alberi"), y-axis = number of trees
      - Tree total volume ("Volume totale"), y-axis = total volume
      - Tree basimetric area ("Area basimetrica"), y-axis = total basimetric area
@@ -405,8 +406,14 @@ mode-switch.
 
 - **`parcel_dendrometry.json`** — per-(parcel, survey, species, classe
   diametrica) aggregated stats.  Invalidated on `tree_sample` writes within any
-  of the involved surveys, and on change of dendtrometry surveys in the settings
-  page.
+  of the involved surveys, on change of dendrometry surveys, and when the
+  site-wide diameter-class mode changes.
+
+  The top-level `diameter_class_mode` metadata records the convention used to
+  build the rows, allowing all consumers to use the same interpretation. The
+  setting save evicts this full cache; its next Bosco read lazily regenerates
+  it. `parcel_dendrometry_points.json` is not invalidated by this setting because
+  it contains raw diameters, not classes.
 
   Columns: `row_id`, `Parcel id`, `Survey id`, `Species id`,
   `Compresa`, `Particella`, `Rilevamento`, `Area saggi (ha)`, `Specie`,

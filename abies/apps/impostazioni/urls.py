@@ -72,4 +72,10 @@ urlpatterns = [
          name='impostazioni-hypso-export'),
     path('hypso-params/clear/', views.hypso_params_clear,
          name='impostazioni-hypso-clear'),
+
+    # Diameter classes (writer+)
+    path('diameter-classes/data/', views.diameter_classes_data,
+         name='impostazioni-diameter-classes-data'),
+    path('diameter-classes/save/', views.diameter_classes_save,
+         name='impostazioni-diameter-classes-save'),
 ]

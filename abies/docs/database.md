@@ -24,6 +24,12 @@ audited and the contract that keeps that coverage complete.
 - site_settings: singleton runtime settings row.
   - `default_landing_page` is the blank-or-same-site app URL used when a user
     has no personal landing page.
+  - `diameter_class_mode` is `centered`, `shifted_up`, or `shifted_down` and
+    defines how integer centimetre diameters map into five-centimetre classes
+    across Bosco, Martellate, Rilevamenti, and their dendrometry CSV matrices.
+  - The singleton is history-tracked. Both setting fields appear in Controllo;
+    writes through Impostazioni attach the authenticated writer/admin as the
+    history user.
 
 ## Ipso staging
 

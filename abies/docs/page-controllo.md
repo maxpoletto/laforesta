@@ -51,6 +51,7 @@ dropping it from the config.
 | `base.Parcel` | `base_parcel` | `base_historicalparcel` | `Particella` | Parcel metadata. |
 | `base.SampleArea` | `base_samplearea` | `base_historicalsamplearea` | `Area di saggio` | Sample plot metadata. |
 | `base.SampleGrid` | `base_samplegrid` | `base_historicalsamplegrid` | `Griglia di campionamento` | Grid metadata. |
+| `base.SiteSettings` | `base_sitesettings` | `base_historicalsitesettings` | `Impostazioni sito` | Site landing-page default and diameter-class convention. |
 | `base.Species` | `base_species` | `base_historicalspecies` | `Specie` | Species reference table. |
 | `base.Survey` | `base_survey` | `base_historicalsurvey` | `Rilevamento` | Survey metadata. |
 | `base.Tractor` | `base_tractor` | `base_historicaltractor` | `Trattore` | Tractor reference table. |

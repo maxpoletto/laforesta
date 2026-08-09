@@ -17,7 +17,7 @@ from apps.base.landing import clean_landing_page, user_landing_page
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.digests import (
     HYPSO_PARAM_COLUMNS, build_harvest_plan_record, build_survey_record,
-    hypso_param_row, mark_stale, serve_digest,
+    hypso_param_row, mark_stale, mark_stale_prefixes, serve_digest,
 )
 from apps.base.responses import (
     parse_json_body, row_patch, save_model_response, success_response,
@@ -34,10 +34,13 @@ from apps.base.models import (
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
+    DIAMETER_CLASS_MODES,
     DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
-    DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COMMON_NAME,
     FIELD_COUNTS,
+    FIELD_DATA_IDS, FIELD_DIAMETER_CLASS_MODE,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID, FIELD_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_DEFAULT_LANDING_PAGE,
@@ -47,7 +50,7 @@ from config.constants import (
     FIELD_PRESSLER_DEFAULT, FIELD_REGIONS,
     FIELD_CURRENT_PASSWORD, FIELD_SORT_ORDER, PRESSLER_DEFAULT,
     FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
-    FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
+    FIELD_PREFIXES, FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
     FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR, FIELD_YEAR_END,
     FIELD_YEAR_START,
     HTML, IPSO_REF_OBSERVATION_CATEGORIES, MESSAGE, ROWS, ROW_ID, VERSION,
@@ -419,6 +422,54 @@ def _dendrometry_counts(survey_ids):
         FIELD_REGIONS: qs.values('sample__sample_area__parcel__region_id').distinct().count(),
         FIELD_PARCELS: qs.values('sample__sample_area__parcel_id').distinct().count(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Diameter classes (writer+)
+# ---------------------------------------------------------------------------
+
+DIAMETER_CLASS_INVALIDATIONS = {
+    FIELD_DATA_IDS: [DIGEST_PARCEL_DENDROMETRY],
+    FIELD_PREFIXES: [DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES],
+}
+
+
+@login_required
+@require_writer
+def diameter_classes_data(request):
+    return JsonResponse({
+        FIELD_DIAMETER_CLASS_MODE: SiteSettings.load().diameter_class_mode,
+    })
+
+
+@login_required
+@require_writer
+@require_POST
+def diameter_classes_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    mode = body.get(FIELD_DIAMETER_CLASS_MODE)
+    if mode not in DIAMETER_CLASS_MODES:
+        return _error(S.ERR_DIAMETER_CLASS_MODE_INVALID)
+
+    changed = False
+    with transaction.atomic():
+        settings_obj = _locked_site_settings()
+        if settings_obj.diameter_class_mode != mode:
+            settings_obj.diameter_class_mode = mode
+            settings_obj.save(update_fields=[FIELD_DIAMETER_CLASS_MODE])
+            mark_stale(DIGEST_PARCEL_DENDROMETRY, 'audit')
+            mark_stale_prefixes(
+                DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
+            )
+            changed = True
+
+    return success_response(
+        request, body,
+        invalidates=DIAMETER_CLASS_INVALIDATIONS if changed else None,
+        extra={MESSAGE: S.DIAMETER_CLASSES_SAVED},
+    )
 
 
 # ---------------------------------------------------------------------------

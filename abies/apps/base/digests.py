@@ -21,9 +21,12 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
-from django.db.models import Count, F, Sum
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
+from apps.base.dendrometry import (
+    basal_area_m2, current_diameter_class_mode, diameter_class_cm,
+)
 from apps.base.http import CACHE_NO_STORE, conditional_file_response
 from apps.base.models import DigestStatus, render_flag_note
 from apps.base.numparse import float_or_none
@@ -37,8 +40,10 @@ from config.constants import (
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
     DIGEST_PARCELS,
     DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORIES,
-    FIELD_CATEGORY_IDS, FIELD_FIRST_DATE, FIELD_ID, FIELD_LAST_DATE,
+    FIELD_CATEGORY_IDS, FIELD_DIAMETER_CLASS_MODE, FIELD_FIRST_DATE, FIELD_ID,
+    FIELD_LAST_DATE,
     FIELD_NAME, FIELD_NUMBER, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
@@ -94,8 +99,24 @@ def mark_stale(*names: str) -> None:
                 )
 
 
-_DYNAMIC_PREFIX_SAMPLED_TREES = 'sampled_trees_'
-_DYNAMIC_PREFIX_MARK_TREES    = 'mark_trees_'
+def mark_stale_prefixes(*prefixes: str) -> None:
+    """Mark existing dynamic digests whose names begin with a prefix stale.
+
+    Dynamic files acquire a DigestStatus row on their first read. Digests
+    never read have no file to invalidate and will use current data when first
+    generated, so this intentionally updates existing status rows only.
+    """
+    query = Q()
+    for prefix in prefixes:
+        query |= Q(name__startswith=prefix)
+    if prefixes:
+        DigestStatus.objects.filter(query).update(
+            stale=True, dirty_seq=F('dirty_seq') + 1,
+        )
+
+
+_DYNAMIC_PREFIX_SAMPLED_TREES = DIGEST_PREFIX_SAMPLED_TREES
+_DYNAMIC_PREFIX_MARK_TREES = DIGEST_PREFIX_MARK_TREES
 
 
 def _resolve_generator(name: str):
@@ -473,7 +494,7 @@ def _audit_configs() -> list:
     from apps.base.models import (
         Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet,
         Observation, ObservationCategory, Parcel, SampleArea, SampleGrid,
-        Species, Survey,
+        SiteSettings, Species, Survey,
         Tractor, User,
     )
     from apps.ipso.models import IpsoUpload
@@ -495,6 +516,10 @@ def _audit_configs() -> list:
             'username': S.LABEL_USERNAME, 'role': S.LABEL_ROLE,
             'landing_page': S.LABEL_LANDING_PAGE,
             'is_active': S.COL_ACTIVE,
+        }),
+        (SiteSettings, S.TABLE_SITE_SETTINGS, {
+            'default_landing_page': S.LABEL_DEFAULT_LANDING_PAGE,
+            FIELD_DIAMETER_CLASS_MODE: S.LABEL_DIAMETER_CLASS_MODE,
         }),
         (Crew, S.TABLE_CREW, {
             'name': S.LABEL_NAME, 'notes': S.LABEL_NOTES,
@@ -1031,7 +1056,11 @@ def generate_sampled_trees_for_survey(survey_id: int) -> None:
                     'sample__sample_area__number', FIELD_NUMBER, FIELD_SHOOT))
     rows = [build_tree_sample_record(ts) for ts in qs]
     _write_gzip_json(
-        {'columns': SAMPLED_TREE_COLUMNS, 'rows': rows},
+        {
+            'columns': SAMPLED_TREE_COLUMNS,
+            'rows': rows,
+            FIELD_DIAMETER_CLASS_MODE: current_diameter_class_mode(),
+        },
         _dest(f'sampled_trees_{survey_id}'),
     )
     logger.info('sampled_trees_%s.json.gz: %s rows', survey_id, len(rows))
@@ -1271,7 +1300,11 @@ def generate_mark_trees_for_item(item_id: int) -> None:
           .order_by(FIELD_NUMBER))
     rows = [build_tree_mark_record(tm) for tm in qs]
     _write_gzip_json(
-        {'columns': MARK_TREE_COLUMNS, 'rows': rows},
+        {
+            'columns': MARK_TREE_COLUMNS,
+            'rows': rows,
+            FIELD_DIAMETER_CLASS_MODE: current_diameter_class_mode(),
+        },
         _dest(f'mark_trees_{item_id}'),
     )
     logger.info('mark_trees_%s.json.gz: %s rows', item_id, len(rows))
@@ -1428,19 +1461,6 @@ DENDROMETRY_POINT_COLUMNS = [
 ]
 
 
-def diameter_class_cm(d_cm: int) -> int:
-    """5 cm diameter class centered on multiples of 5.
-
-    Integer diameters 18..22 map to class 20; 23..27 map to class 25.
-    """
-    return int((int(d_cm) + 2) // 5 * 5)
-
-
-def basal_area_m2(d_cm: int) -> float:
-    radius_m = float(d_cm) / 200.0
-    return math.pi * radius_m * radius_m
-
-
 def annual_increment_pct(d_cm: int, l10_mm: int, pressler_coeff) -> float | None:
     """Annual Pressler volume-growth percentage from outer-ten-rings width.
 
@@ -1498,12 +1518,16 @@ def _dendrometry_sample_area_coverage() -> dict[tuple[int, int], float]:
 
 def generate_parcel_dendrometry() -> None:
     coverage = _dendrometry_sample_area_coverage()
+    diameter_class_mode = current_diameter_class_mode()
     groups = {}
     for ts in _dendrometry_queryset():
         parcel = ts.sample.sample_area.parcel
         survey = ts.sample.survey
         species = ts.tree.species
-        key = (parcel.id, survey.id, species.id, diameter_class_cm(ts.d_cm))
+        key = (
+            parcel.id, survey.id, species.id,
+            diameter_class_cm(ts.d_cm, diameter_class_mode),
+        )
         group = groups.setdefault(key, {
             'parcel': parcel, 'survey': survey, 'species': species,
             'class_cm': key[3], 'n': 0, 'volume': 0.0, 'basal': 0.0,
@@ -1538,7 +1562,11 @@ def generate_parcel_dendrometry() -> None:
         ])
 
     _write_gzip_json(
-        {'columns': DENDROMETRY_COLUMNS, 'rows': rows},
+        {
+            'columns': DENDROMETRY_COLUMNS,
+            'rows': rows,
+            FIELD_DIAMETER_CLASS_MODE: diameter_class_mode,
+        },
         _dest(DIGEST_PARCEL_DENDROMETRY),
     )
     logger.info('%s.json.gz: %s rows', DIGEST_PARCEL_DENDROMETRY, len(rows))

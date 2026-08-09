@@ -9,7 +9,9 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 from config import strings as S
-from config.constants import DEFAULT_RADIUS_M, PRESSLER_DEFAULT
+from config.constants import (
+    DEFAULT_RADIUS_M, DIAMETER_CLASS_CENTERED, PRESSLER_DEFAULT,
+)
 
 _NATSORT_RE = re.compile(r'(\d+)')
 
@@ -147,6 +149,11 @@ class SiteSettings(models.Model):
         primary_key=True, default=1, editable=False,
     )
     default_landing_page = models.CharField(max_length=255, blank=True)
+    diameter_class_mode = models.CharField(
+        max_length=20,
+        default=DIAMETER_CLASS_CENTERED,
+    )
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = S.SITE_SETTINGS

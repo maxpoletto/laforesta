@@ -446,6 +446,7 @@ const freeTreeDigest = digest(treeColumns, [
   [201, null, 'A', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4],
   [202, null, 'A', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3, null],
 ]);
+freeTreeDigest.diameter_class_mode = 'shifted_up';
 
 function response(data, lastModified = 'v1') {
   return {
@@ -556,6 +557,8 @@ eq(globalThis.__treeDetailInstances.length, 1,
 const detail = globalThis.__treeDetailInstances[0];
 eq(detail.rows.map(row => row[0]), [201, 202],
    'tree detail starts with the sampled-tree table rows');
+eq(detail.opts.digest.diameter_class_mode, 'shifted_up',
+   'tree detail receives the server diameter-class mode metadata');
 eq(detail.opts.pointColumnNames, { number: S.COL_TREE_NUM },
    'tree detail maps the sampled-tree number column');
 eq(detail.opts.speciesNames, ['Abete bianco', 'Faggio'],

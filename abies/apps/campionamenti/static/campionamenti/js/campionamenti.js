@@ -19,6 +19,7 @@ import { show as showModal, showError, dismiss as dismissModal, onDismiss } from
 import * as S from '../../base/js/strings.js';
 import {
   COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
+  FIELD_DIAMETER_CLASS_MODE,
   FIELD_LAT, FIELD_LON,
   FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_ROW_IDS,
   FIELD_SAMPLE_GRID_ID, FIELD_SPECIES, FIELD_SURVEY_ID,
@@ -759,6 +760,7 @@ function mountTreeDetail(data) {
     digest: {
       columns: data.columns,
       rows: table?.getFilteredRows() || [],
+      [FIELD_DIAMETER_CLASS_MODE]: data[FIELD_DIAMETER_CLASS_MODE],
     },
     geojson: parcelsGeo,
     basemap: activeBasemap(),

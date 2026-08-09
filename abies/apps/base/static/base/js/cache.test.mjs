@@ -44,7 +44,7 @@ function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
 // --- Wire the model in as global fetch (what api.js fetchJSON calls) ---------
 const servers = new Map();   // url -> DigestServer
-globalThis.fetch = async (url, opts) => {
+const digestFetch = async (url, opts) => {
   const ims = opts?.headers?.['If-Modified-Since'] ?? null;
   const res = servers.get(url).serve(ims);
   return {
@@ -54,6 +54,7 @@ globalThis.fetch = async (url, opts) => {
     json: async () => res.body,
   };
 };
+globalThis.fetch = digestFetch;
 
 const cache = await import('./cache.js');
 
@@ -181,6 +182,69 @@ eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gon
      'delayed background response preserves newer optimistic patch');
   eq([...changed], [],
      'discarded background response is not reported as a cache change');
+  globalThis.fetch = digestFetch;
+}
+
+// Full-digest invalidation evicts exact IDs and dynamic families, not unrelated data.
+{
+  const exactId = 'diameter_parcel';
+  const prefixedA = 'diameter_mark_1';
+  const prefixedB = 'diameter_mark_2';
+  const keepId = 'diameter_points';
+  cache.set(exactId, digest([[1, 1, 10]]));
+  cache.set(prefixedA, digest([[1, 1, 20]]));
+  cache.set(prefixedB, digest([[1, 1, 30]]));
+  cache.set(keepId, digest([[1, 1, 40]]));
+
+  const updates = [];
+  const unsubscribe = cache.onUpdate(prefixedA, () => updates.push(cache.get(prefixedA)));
+  const touched = cache.applyResponseChanges({
+    invalidates: {
+      data_ids: [exactId],
+      prefixes: ['diameter_mark_'],
+    },
+  });
+  unsubscribe();
+
+  eq([...touched], [exactId, prefixedA, prefixedB],
+     'invalidation envelope reports every evicted cache entry');
+  eq([cache.get(exactId), cache.get(prefixedA), cache.get(prefixedB)],
+     [null, null, null], 'invalidation envelope evicts exact and prefixed entries');
+  eq(dcm(cache.get(keepId), 1), 40, 'invalidation envelope preserves unrelated data');
+  eq(updates, [null], 'invalidation envelope notifies subscribers after eviction');
+}
+
+// An invalidation must also discard a fetch that was already in flight. The
+// following unconditional load then obtains the newly regenerated digest.
+{
+  const id = freshDataId();
+  const url = `/api/${id}/`;
+  const server = new DigestServer(digest([[1, 1, 30]]));
+  servers.set(url, server);
+  cache.register(id, url);
+  await cache.load(id);
+
+  server.write(digest([[1, 2, 50]]));
+  let resolveFetch;
+  globalThis.fetch = () => new Promise(resolve => { resolveFetch = resolve; });
+  const pending = cache.load(id);
+  await Promise.resolve();
+
+  cache.applyResponseChanges({ invalidates: { data_ids: [id] } });
+  resolveFetch({
+    status: 200,
+    ok: true,
+    headers: { get: h => h === 'Last-Modified' ? '1000' : null },
+    json: async () => digest([[1, 1, 30]]),
+  });
+  await pending;
+  eq(cache.get(id), null,
+     'invalidation discards an older fetch response already in flight');
+
+  globalThis.fetch = digestFetch;
+  await cache.load(id);
+  eq(dcm(cache.get(id), 1), 50,
+     'post-invalidation load is unconditional and receives regenerated data');
 }
 
 console.log(`${pass} passed, ${failures.length} failed`);

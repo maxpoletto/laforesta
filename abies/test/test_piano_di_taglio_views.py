@@ -24,7 +24,7 @@ from apps.base import csv_io
 from apps.base.digests import build_tree_mark_record
 from apps.base.models import (
     DigestStatus, HarvestDetail, HarvestPlan, HarvestPlanItem,
-    HarvestPlanItemState, HarvestTransition, Parcel, ParcelPlanDetail, Tree,
+    HarvestPlanItemState, HarvestTransition, Parcel, ParcelPlanDetail, SiteSettings, Tree,
     TreeMark, UsedNonce,
 )
 from apps.piano_di_taglio.mark_import import (
@@ -33,7 +33,8 @@ from apps.piano_di_taglio.mark_import import (
 from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, FIELD_ACC_M, FIELD_CHECK_ONLY, FIELD_COPPICE_FILE,
+    COLUMNS, DATA_ID, DIAMETER_CLASS_SHIFTED_UP,
+    FIELD_ACC_M, FIELD_CHECK_ONLY, FIELD_COPPICE_FILE, FIELD_DIAMETER_CLASS_MODE,
     FIELD_CREW_ID,
     FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DESCRIPTION,
     FIELD_FILE, FIELD_HIGHFOREST_FILE, FIELD_H_M, FIELD_H_MEASURED,
@@ -1507,6 +1508,21 @@ class TestMarkDendrometryExport:
         volume_by_species = {row[0]: row[1:] for row in volume_rows[1:]}
         assert volume_by_species[species[0].common_name] == ['0,3', '0', '0']
         assert species[1].common_name not in volume_by_species
+
+    def test_export_honors_configured_shifted_classes(
+        self, writer_client, planned_item, species,
+    ):
+        settings_obj = SiteSettings.load()
+        settings_obj.diameter_class_mode = DIAMETER_CLASS_SHIFTED_UP
+        settings_obj.save(update_fields=[FIELD_DIAMETER_CLASS_MODE])
+        self._marks(planned_item, species)
+        response = writer_client.get(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+        )
+        tree_rows = self._zip_rows(response, S.CSV_FILE_DENDROMETRY_TREE_COUNT)
+        assert tree_rows[0] == [S.COL_SPECIES, '15', '20', '25', '30']
+        by_species = {row[0]: row[1:] for row in tree_rows[1:]}
+        assert by_species[species[0].common_name] == ['1', '1', '0', '0']
 
     def test_post_row_ids_exports_only_the_filtered_marks(
         self, writer_client, planned_item, species,

@@ -2,6 +2,9 @@
 
 import * as S from './strings.js';
 import {
+  DIAMETER_CLASS_SHIFTED_DOWN, DIAMETER_CLASS_SHIFTED_UP,
+} from './constants.js';
+import {
   aggregateTreeDendrometry, basalAreaM2, dendrometryBarChartData,
   dendrometryLegendItems, dendrometryMetricMatrix, dendrometrySpeciesColor,
   dendrometrySummaryLines, diameterClassCm,
@@ -32,6 +35,14 @@ console.log('dendrometry.js');
 
 assertEqual([diameterClassCm(18), diameterClassCm(22), diameterClassCm(23)],
             [20, 20, 25], 'diameter classes match Bosco');
+assertEqual([18, 19, 20, 24, 25].map(d => diameterClassCm(d, DIAMETER_CLASS_SHIFTED_UP)),
+            [15, 15, 20, 20, 25],
+            'shifted-up class uses its name as the lower integer bound');
+assertEqual([15, 16, 20, 21].map(d => diameterClassCm(d, DIAMETER_CLASS_SHIFTED_DOWN)),
+            [15, 20, 20, 25],
+            'shifted-down class uses its name as the upper integer bound');
+assertEqual(diameterClassCm(18, 'legacy-or-invalid'), 20,
+            'unknown digest metadata falls back to centered classes');
 assertClose(basalAreaM2(20), Math.PI * 0.01, 1e-12, 'basal area uses tree diameter');
 
 const columns = ['row_id', S.COL_SPECIES, S.COL_D_CM, S.COL_V_M3];
@@ -46,6 +57,12 @@ const rows = aggregateTreeDendrometry(marked, columns, {
 assertEqual(rows.map(row => [row.species, row.diameterClassCm, row.treeCount]),
             [['Abete', 20, 2], ['Faggio', 30, 1]],
             'marked trees aggregate by species and class');
+const shiftedRows = aggregateTreeDendrometry(marked, columns, {
+  diameterClassMode: DIAMETER_CLASS_SHIFTED_UP,
+});
+assertEqual(shiftedRows.map(row => [row.species, row.diameterClassCm, row.treeCount]),
+            [['Abete', 15, 1], ['Abete', 20, 1], ['Faggio', 30, 1]],
+            'tree aggregation honors digest mode metadata');
 assertEqual(rows.map(row => row.volumeM3), [0.3, 0], 'null mark volume contributes zero');
 assertClose(rows[0].basalAreaM2, basalAreaM2(18) + basalAreaM2(22), 1e-6,
             'basal area sums individual diameters');

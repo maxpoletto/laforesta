@@ -41,10 +41,12 @@ from config import strings as S
 from config.constants import (
     COLUMNS, COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION,
+    DIAMETER_CLASS_CENTERED, DIAMETER_CLASS_SHIFTED_DOWN,
+    DIAMETER_CLASS_SHIFTED_UP,
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_OBSERVATIONS, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PRESERVED_TREES, FIELD_CATEGORIES, FIELD_CATEGORY_IDS,
-    FIELD_ID, FIELD_NAME, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROWS,
+    FIELD_DIAMETER_CLASS_MODE, FIELD_ID, FIELD_NAME, FIELD_PHOTO_COUNT, FIELD_REGION_ID, ROWS,
     ROW_ID, VERSION,
 )
 
@@ -587,6 +589,14 @@ class TestGenerateBoscoDigests:
         assert diameter_class_cm(18) == 20
         assert diameter_class_cm(22) == 20
         assert diameter_class_cm(23) == 25
+        assert diameter_class_cm(19, DIAMETER_CLASS_SHIFTED_UP) == 15
+        assert diameter_class_cm(20, DIAMETER_CLASS_SHIFTED_UP) == 20
+        assert diameter_class_cm(24, DIAMETER_CLASS_SHIFTED_UP) == 20
+        assert diameter_class_cm(25, DIAMETER_CLASS_SHIFTED_UP) == 25
+        assert diameter_class_cm(15, DIAMETER_CLASS_SHIFTED_DOWN) == 15
+        assert diameter_class_cm(16, DIAMETER_CLASS_SHIFTED_DOWN) == 20
+        assert diameter_class_cm(20, DIAMETER_CLASS_SHIFTED_DOWN) == 20
+        assert diameter_class_cm(21, DIAMETER_CLASS_SHIFTED_DOWN) == 25
         assert annual_increment_pct(18, 9, 2) == 2.0
         assert annual_increment_pct(30, 15, 2) == 2.0
         assert annual_increment_pct(18, 0, 2) is None
@@ -612,6 +622,7 @@ class TestGenerateBoscoDigests:
 
         data = self._read(tmp_path, f'sampled_trees_{survey.id}')
         cols = data[COLUMNS]
+        assert data[FIELD_DIAMETER_CLASS_MODE] == DIAMETER_CLASS_CENTERED
         assert data[ROWS] == [[
             ts.id, ts.version, None, '2026-07-16',
             parcels[0].region.name, parcels[0].name, '',
@@ -678,6 +689,7 @@ class TestGenerateBoscoDigests:
         generate_parcel_dendrometry()
         data = self._read(tmp_path, DIGEST_PARCEL_DENDROMETRY)
         cols = data[COLUMNS]
+        assert data[FIELD_DIAMETER_CLASS_MODE] == DIAMETER_CLASS_CENTERED
         assert cols == [
             ROW_ID, COL_PARCEL_ID, COL_SURVEY_ID, COL_SPECIES_ID,
             S.COL_REGION, S.COL_PARCEL, S.COL_SURVEY, S.COL_SAMPLE_AREA_HA, S.COL_SPECIES,

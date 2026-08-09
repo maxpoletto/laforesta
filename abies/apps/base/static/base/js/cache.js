@@ -7,7 +7,10 @@
  */
 
 import { fetchJSON } from './api.js';
-import { DATA_ID, DELETES, PATCHES, RECORD, ROW_ID } from './constants.js';
+import {
+  DATA_ID, DELETES, FIELD_DATA_IDS, FIELD_PREFIXES, INVALIDATES, PATCHES,
+  RECORD, ROW_ID,
+} from './constants.js';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 
@@ -138,6 +141,7 @@ function applyFetchResult(dataId, snapshot, result) {
  * Supported keys:
  *   patches: [{data_id, row_id, record}]
  *   deletes: [{data_id, row_id}]
+ *   invalidates: {data_ids: [...], prefixes: [...]}
  *
  * Returns a Set of touched data IDs so page modules can update local mirrors
  * and re-render affected views.  Also fires each touched data ID's onUpdate
@@ -149,6 +153,20 @@ function applyFetchResult(dataId, snapshot, result) {
 export function applyResponseChanges(data) {
   const touched = new Set();
   if (!data) return touched;
+
+  const invalidations = data[INVALIDATES] || {};
+  const dataIds = new Set(invalidations[FIELD_DATA_IDS] || []);
+  const prefixes = invalidations[FIELD_PREFIXES] || [];
+  for (const dataId of [...store.keys()]) {
+    if (!dataIds.has(dataId) && !prefixes.some(prefix => dataId.startsWith(prefix))) {
+      continue;
+    }
+    // Removing the entry also invalidates any in-flight fetch snapshot. The
+    // next load is unconditional, so a same-second Last-Modified value cannot
+    // preserve data computed under an old global setting.
+    store.delete(dataId);
+    touched.add(dataId);
+  }
 
   for (const patch of data[PATCHES] || []) {
     const dataId = patch[DATA_ID];

@@ -274,8 +274,8 @@ The modal displays:
    builder, responsive side-by-side panel layout, and full-species color
    universe, so a
    species keeps the same color across Bosco, Prelievi, and marks. Mark
-   diameters use the same class formula as Bosco (`18..22 → 20`, `23..27 →
-   25`); volume is the sum of `tree_mark.volume_m3` (NULL contributes zero),
+   diameters use the same site-wide **Classi diametriche** setting as Bosco and
+   Rilevamenti; volume is the sum of `tree_mark.volume_m3` (NULL contributes zero),
    and basal area is summed from each tree's actual diameter, `π × (D/200)²`.
 
    As in Bosco detail, one species color legend is displayed above the charts.
@@ -295,7 +295,9 @@ The modal displays:
    Each CSV is a matrix with species on rows and a continuous sequence of
    five-centimetre diameter classes on columns; missing combinations are zero.
    Species whose entire row is zero for that metric are omitted. It uses the
-   active locale's CSV delimiter and decimal separator. With an active filter,
+   active locale's CSV delimiter and decimal separator. The endpoint reads the
+   current diameter-class setting directly, so exported matrix columns use the
+   same boundaries as the visible charts. With an active filter,
    the client POSTs the displayed mark row IDs so the ZIP exactly matches the
    visible summary. Without a filter it leaves row IDs unspecified and the
    server exports all marks; the endpoint also accepts GET for integrations.
