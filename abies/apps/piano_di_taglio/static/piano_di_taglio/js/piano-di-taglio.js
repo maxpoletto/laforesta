@@ -119,6 +119,7 @@ let itemPrelieviTable = null;
 let itemMarkTreesTable = null;
 let itemTreeDetail = null;
 let disposeEscape = null;
+let disposeItemKeyboard = null;
 let disposePageActions = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
@@ -191,6 +192,7 @@ function mountPage(el, params) {
 
 function destroyPage() {
   if (disposeEscape) { disposeEscape(); disposeEscape = null; }
+  if (disposeItemKeyboard) { disposeItemKeyboard(); disposeItemKeyboard = null; }
   if (disposePageActions) { disposePageActions(); disposePageActions = null; }
   destroyTables();
   destroyItemTables();
@@ -1014,11 +1016,14 @@ function openItemView(itemId, push = false) {
   if (push) syncURL(true);
   disposeEscape?.();
   disposeEscape = installEscapeHandler(() => closeItemView(true));
+  disposeItemKeyboard?.();
+  disposeItemKeyboard = installItemKeyboardHandler();
   renderItemView(itemId);
 }
 
 function closeItemView(push = false) {
   if (disposeEscape) { disposeEscape(); disposeEscape = null; }
+  if (disposeItemKeyboard) { disposeItemKeyboard(); disposeItemKeyboard = null; }
   destroyItemTables();
   itemRenderSeq += 1;
   activeItemId = null;
@@ -1072,6 +1077,67 @@ function itemRenderIsCurrent(itemId, seq) {
   return itemViewIsActive(itemId) && seq === itemRenderSeq;
 }
 
+export function harvestPlanItemNavigation(digest, itemId) {
+  const columns = digest?.columns || [];
+  const idIdx = columns.indexOf(ROW_ID);
+  const planIdx = columns.indexOf(S.COL_HARVEST_PLAN);
+  const yearIdx = columns.indexOf(S.COL_YEAR_PLANNED);
+  if (idIdx < 0 || planIdx < 0 || yearIdx < 0) {
+    return { previous: null, next: null };
+  }
+
+  const current = (digest?.rows || []).find(row => row[idIdx] === itemId);
+  if (!current) return { previous: null, next: null };
+
+  const year = row => {
+    const value = Number(row[yearIdx]);
+    return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+  };
+  const rows = digest.rows
+    .filter(row => row[planIdx] === current[planIdx])
+    .sort((a, b) => year(a) - year(b) || a[idIdx] - b[idIdx]);
+  const index = rows.findIndex(row => row[idIdx] === itemId);
+  return {
+    previous: index > 0 ? rows[index - 1] : null,
+    next: index >= 0 && index < rows.length - 1 ? rows[index + 1] : null,
+  };
+}
+
+function adjacentItemId(direction) {
+  const navigation = harvestPlanItemNavigation(itemsData, activeItemId);
+  const row = direction < 0 ? navigation.previous : navigation.next;
+  if (!row) return null;
+  return row[itemsData.columns.indexOf(ROW_ID)];
+}
+
+function navigateAdjacentItem(direction) {
+  const itemId = adjacentItemId(direction);
+  if (itemId != null) navigateToItem(itemId);
+}
+
+function installItemKeyboardHandler() {
+  const handler = (event) => {
+    if (document.getElementById('modal-container')?.classList.contains('open')) return;
+    if (isEditableKeyTarget(event.target)) return;
+    let direction = 0;
+    if (event.key === 'ArrowLeft') direction = -1;
+    else if (event.key === 'ArrowRight') direction = 1;
+    if (!direction) return;
+    const itemId = adjacentItemId(direction);
+    if (itemId == null) return;
+    event.preventDefault();
+    navigateToItem(itemId);
+  };
+  document.addEventListener('keydown', handler);
+  return () => document.removeEventListener('keydown', handler);
+}
+
+function isEditableKeyTarget(target) {
+  return Boolean(target?.closest) && [
+    'input', 'textarea', 'select', '[contenteditable="true"]',
+  ].some(selector => target.closest(selector));
+}
+
 async function renderItemView(itemId) {
   const el = document.getElementById('content');
   if (!el || !itemViewIsActive(itemId)) return;
@@ -1113,9 +1179,16 @@ async function renderItemView(itemId) {
     formatItemTitle(record, c);
 
   const card = frag.querySelector('.pdt-item-card');
+  const navigation = harvestPlanItemNavigation(itemsData, itemId);
+  const previousButton = frag.querySelector('[data-action="previous-item"]');
+  const nextButton = frag.querySelector('[data-action="next-item"]');
+  if (previousButton) previousButton.disabled = !navigation.previous;
+  if (nextButton) nextButton.disabled = !navigation.next;
   wireActions(card, {
     'edit-item': () => showItemEditForm(itemId),
     'export-item': () => downloadItemExport(itemId),
+    'previous-item': () => navigateAdjacentItem(-1),
+    'next-item': () => navigateAdjacentItem(1),
     'close-item': () => closeItemView(true),
   });
 

@@ -198,7 +198,14 @@ Full-page modal. Unlike others, this one is bookmarkable (for sharing) —
 see `i=N` in URL parameters.
 
 The modal header carries an "Esporta" button on the right (analogous
-to the plan-level one). It produces a zip of the item's per-row data:
+to the plan-level one), followed by previous/next arrows and the close
+button. The arrows move through the selected plan's interventions in
+chronological order (`year_planned`, then ID): left goes to the preceding
+intervention and right to the following one. The corresponding arrow is
+disabled at either end. The Left and Right arrow keys provide the same
+navigation unless a form field or another modal has focus.
+
+"Esporta" produces a zip of the item's per-row data:
 `martellate_<id>.csv` (one row per `tree_mark`) and
 `prelievi_<id>.csv` (one row per linked `harvest`, including its species
 and tractor breakdowns). The zip omits the item's own metadata, which is

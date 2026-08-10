@@ -783,6 +783,20 @@ input:focus, select:focus, textarea:focus {
   line-height: 1;
 }
 
+/* Previous/next controls shared by full-page detail views. */
+.detail-nav {
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.detail-nav:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .page-pulldown { width: 300px; }
 
 .page-pulldown-icon {

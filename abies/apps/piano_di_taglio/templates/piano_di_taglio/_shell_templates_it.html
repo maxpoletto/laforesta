@@ -219,8 +219,15 @@ render context.
       <div class="pdt-item-header-actions">
         <button type="button" class="btn btn-export"
                 data-action="export-item">{{ S.EXPORT }}</button>
+        <button type="button" class="btn detail-nav"
+                data-action="previous-item" aria-label="Intervento precedente"
+                title="Intervento precedente" disabled>‹</button>
+        <button type="button" class="btn detail-nav"
+                data-action="next-item" aria-label="Intervento successivo"
+                title="Intervento successivo" disabled>›</button>
         <button type="button" class="btn detail-close"
-                title="{{ S.DISMISS }}" data-action="close-item">×</button>
+                aria-label="{{ S.DISMISS }}" title="{{ S.DISMISS }}"
+                data-action="close-item">×</button>
       </div>
     </div>
     <dl class="pdt-item-meta" data-target="metadata"></dl>

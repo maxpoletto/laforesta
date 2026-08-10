@@ -185,12 +185,13 @@ class MockElement {
   }
 }
 
-function el(tag, { id = '', className = '', dataset = {}, type = '' } = {}, children = []) {
+function el(tag, { id = '', className = '', dataset = {}, type = '', disabled = false } = {}, children = []) {
   const node = new MockElement(tag);
   node.id = id;
   node.className = className;
   node.dataset = { ...dataset };
   node.type = type;
+  node.disabled = disabled;
   for (const child of children) node.appendChild(child);
   return node;
 }
@@ -226,9 +227,15 @@ function buildItemViewTemplate() {
   return el('fragment', {}, [
     el('div', { className: 'pdt-item-card' }, [
       el('div', { className: 'pdt-item-header' }, [
-        el('h2', { className: 'pdt-item-title', dataset: { field: 'title' } }),
-        el('button', { dataset: { action: 'export-item' } }),
-        el('button', { dataset: { action: 'close-item' } }),
+        el('div', { className: 'pdt-item-header-left' }, [
+          el('h2', { className: 'pdt-item-title', dataset: { field: 'title' } }),
+        ]),
+        el('div', { className: 'pdt-item-header-actions' }, [
+          el('button', { dataset: { action: 'export-item' } }),
+          el('button', { disabled: true, dataset: { action: 'previous-item' } }),
+          el('button', { disabled: true, dataset: { action: 'next-item' } }),
+          el('button', { dataset: { action: 'close-item' } }),
+        ]),
       ]),
       el('dl', { dataset: { target: 'metadata' } }),
       el('div', { dataset: { target: 'transitions' } }),
@@ -332,6 +339,8 @@ const templates = {
   'tmpl-cascade-delete-modal': { content: buildCascadeTemplate() },
 };
 
+const documentListeners = {};
+
 globalThis.document = {
   documentElement: { lang: 'it' },
   body: el('body', { dataset: { csrf: 'csrf-token', role: 'reader' } }),
@@ -339,8 +348,14 @@ globalThis.document = {
   createElement: tag => el(tag),
   createTextNode: text => { const node = el('#text'); node.textContent = text; return node; },
   createDocumentFragment: () => el('fragment'),
-  addEventListener() {},
-  removeEventListener() {},
+  addEventListener(type, fn) { (documentListeners[type] ||= []).push(fn); },
+  removeEventListener(type, fn) {
+    documentListeners[type] = (documentListeners[type] || []).filter(f => f !== fn);
+  },
+  dispatchEvent(event) {
+    event.target ||= this.body;
+    for (const fn of documentListeners[event.type] || []) fn(event);
+  },
   getElementById(id) {
     if (id === 'content') return contentEl;
     if (id === 'modal-container') return modalEl;
@@ -716,6 +731,27 @@ globalThis.fetch = async (url, options = {}) => {
 const pdt = await import(staticModule('piano_di_taglio/js/piano-di-taglio.js'));
 const cache = await import(staticModule('base/js/cache.js'));
 
+// Navigation is chronological, deterministic within a year, and plan-scoped.
+{
+  const otherPlan = itemRow(99, { region: 'Z', parcel: '99', year: 2025 });
+  otherPlan[itemColumns.indexOf(S.COL_HARVEST_PLAN)] = 11;
+  const digest = {
+    columns: itemColumns,
+    rows: [itemRows[1], itemRows[2], otherPlan, itemRows[0]],
+  };
+  let nav = pdt.harvestPlanItemNavigation(digest, 1);
+  eq([nav.previous?.[0] ?? null, nav.next?.[0] ?? null], [null, 11],
+     'first item has only a chronological successor');
+  nav = pdt.harvestPlanItemNavigation(digest, 11);
+  eq([nav.previous?.[0], nav.next?.[0]], [1, 2],
+     'same-year items use ID as a deterministic tie-breaker');
+  nav = pdt.harvestPlanItemNavigation(digest, 2);
+  eq([nav.previous?.[0] ?? null, nav.next?.[0] ?? null], [11, null],
+     'last item has only a chronological predecessor');
+  eq(digest.rows.map(row => row[0]), [2, 11, 99, 1],
+     'navigation does not mutate optimistic digest row order');
+}
+
 function titleText() {
   return contentEl.querySelector('[data-field="title"]')?.textContent || '';
 }
@@ -845,6 +881,76 @@ async function finish() {
   modalEl.querySelector('[data-action="cancel"]')?.click();
   await finish();
   document.body.dataset.role = previousRole;
+}
+
+// Detail arrows and arrow keys navigate within the active plan.
+{
+  const firstItem = deferItem(1);
+  const firstMarks = deferMarks(1);
+  await mountItem(1);
+  firstItem.resolve(itemPayload(1));
+  await flushAsyncWork();
+  firstMarks.resolve(markDigest(1));
+  await flushAsyncWork();
+
+  const headerActions = contentEl.querySelector('.pdt-item-header-actions');
+  eq(headerActions.children.map(child => child.dataset.action),
+     ['export-item', 'previous-item', 'next-item', 'close-item'],
+     'item navigation appears between export and close');
+  const previousButton = headerActions.querySelector('[data-action="previous-item"]');
+  const nextButton = headerActions.querySelector('[data-action="next-item"]');
+  check(previousButton.disabled, 'previous is disabled at the chronological start');
+  check(!nextButton.disabled, 'next is enabled before the chronological end');
+
+  const nextItem = deferItem(11);
+  const nextMarks = deferMarks(11);
+  nextButton.click();
+  eq(new URLSearchParams(location.search).get('i'), '11',
+     'next button updates the bookmarkable item URL');
+  nextItem.resolve(itemPayload(11));
+  await flushAsyncWork();
+  nextMarks.resolve(markDigest(11));
+  await flushAsyncWork();
+  eq(titleText(), expectedTitle(11), 'next button renders the following item');
+
+  let prevented = false;
+  document.dispatchEvent({
+    type: 'keydown', key: 'ArrowRight', target: el('input'),
+    preventDefault() { prevented = true; },
+  });
+  check(!prevented && new URLSearchParams(location.search).get('i') === '11',
+        'arrow keys do not navigate from editable fields');
+
+  modalEl.classList.add('open');
+  document.dispatchEvent({
+    type: 'keydown', key: 'ArrowLeft', target: document.body,
+    preventDefault() { prevented = true; },
+  });
+  modalEl.classList.remove('open');
+  eq(new URLSearchParams(location.search).get('i'), '11',
+     'arrow keys do not navigate behind an open modal');
+
+  const returnedItem = deferItem(1);
+  prevented = false;
+  document.dispatchEvent({
+    type: 'keydown', key: 'ArrowLeft', target: document.body,
+    preventDefault() { prevented = true; },
+  });
+  check(prevented, 'handled arrow-key navigation prevents browser scrolling');
+  eq(new URLSearchParams(location.search).get('i'), '1',
+     'left arrow key updates the URL to the preceding item');
+  returnedItem.resolve(itemPayload(1));
+  await flushAsyncWork();
+  eq(titleText(), expectedTitle(1), 'left arrow key renders the preceding item');
+
+  prevented = false;
+  document.dispatchEvent({
+    type: 'keydown', key: 'ArrowLeft', target: document.body,
+    preventDefault() { prevented = true; },
+  });
+  check(!prevented && new URLSearchParams(location.search).get('i') === '1',
+        'left arrow key is inert at the chronological start');
+  await finish();
 }
 
 // Per-tree parcels are useful only when the plan item covers a whole region.
