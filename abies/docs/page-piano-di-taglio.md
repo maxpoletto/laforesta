@@ -117,11 +117,11 @@ The sortable table has the following columns: `Anno previsto`, `Anno effettivo`,
 - `Volume martellato (m³)` is the materialized `volume_marked_m3`, or empty.
 - `Volume effettivo (m³)` is the materialized `volume_actual_m3`, or 0.
 
-A `Totali risultati` strip below each table sums `Volume previsto`, `Volume
+A `Totali` footer row in the high-forest table sums `Volume previsto`, `Volume
 martellato`, and `Volume effettivo` across the complete current search result,
-not just the visible pagination page. For coppice entries the first two totals
-are shown as `-` because those fields do not apply; actual volume is still
-summed. An empty search result shows zero for all three totals.
+not just the visible pagination page. Each value is aligned under its source
+column; an empty search result shows zero for all three totals. The coppice
+table has no totals row.
 
 The table toolbar includes a `+ Aggiungi` button for manually creating a new
 entry (see "Add-harvest-plan-item modal"). For example, after storms the forest

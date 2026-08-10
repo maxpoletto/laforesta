@@ -105,8 +105,8 @@ export class TableWrapper {
    *   for the default CSV format (see DEFAULT_CSV_FORMAT).
    * @param {function(string, boolean): void} [opts.onSort]
    * @param {function(string): void} [opts.onSearch]
-   * @param {function(HTMLElement, any[][]): void} [opts.renderSummary]
-   *   Renders a region below the table from all rows retained by its filters.
+   * @param {function(HTMLElement, any[][]): void} [opts.renderSummaryRow]
+   *   Renders a footer row from all rows retained by the table filters.
    */
   constructor(opts) {
     this.container = opts.container;
@@ -120,7 +120,7 @@ export class TableWrapper {
     this.csvFormat = { ...DEFAULT_CSV_FORMAT, ...(opts.csvFormat || {}) };
     this.onSort = opts.onSort || null;
     this.onSearch = opts.onSearch || null;
-    this.renderSummary = opts.renderSummary || null;
+    this.renderSummaryRow = opts.renderSummaryRow || null;
     this._searchText = opts.searchText || '';
     this._externalFilter = null;
     this._debounceTimer = null;
@@ -189,7 +189,7 @@ export class TableWrapper {
     this._table.sort(sort.column, col.type || 'string', sort.ascending);
     this._table.onSort = onSort;
     this._applySelectedRow();
-    this._renderSummary();
+    this._renderSummaryRow();
   }
 
   /** Current search text. */
@@ -248,12 +248,6 @@ export class TableWrapper {
       this._tableEl.classList.add('table-scroll-editable-rows');
     }
     this._el.appendChild(this._tableEl);
-
-    if (this.renderSummary) {
-      this._summaryEl = document.createElement('div');
-      this._summaryEl.className = 'table-summary';
-      this._el.appendChild(this._summaryEl);
-    }
 
     this.container.appendChild(this._el);
     if (digest) this._initTable(digest, sort);
@@ -367,7 +361,7 @@ export class TableWrapper {
       pageInfo: this.labels.pageInfo,
       onSort: (col, asc) => {
         this._applySelectedRow();
-        this._renderSummary();
+        this._renderSummaryRow();
         this.onSort?.(col, asc);
       },
       onPageChange: () => this._applySelectedRow(),
@@ -376,6 +370,7 @@ export class TableWrapper {
     if (this._toolbarEndEl) tableOptions.controlsEnd = this._toolbarEndEl;
 
     this._table = new window.SortableTable(tableOptions);
+    this._buildSummaryRow();
 
     // Set min-width so columns keep their specified widths and the wrapper
     // scrolls horizontally when the total exceeds the viewport.
@@ -395,7 +390,7 @@ export class TableWrapper {
     if (this._searchText) this._applyFilters();
     else {
       this._applySelectedRow();
-      this._renderSummary();
+      this._renderSummaryRow();
     }
   }
 
@@ -439,12 +434,37 @@ export class TableWrapper {
       });
     }
     this._applySelectedRow();
-    this._renderSummary();
+    this._renderSummaryRow();
   }
 
-  _renderSummary() {
-    if (!this._summaryEl || !this.renderSummary) return;
-    this.renderSummary(this._summaryEl, this.getFilteredRows());
+  _renderSummaryRow() {
+    if (!this._summaryEl || !this.renderSummaryRow) return;
+    this.renderSummaryRow(this._summaryEl, this.getFilteredRows());
+  }
+
+  _buildSummaryRow() {
+    this._summaryEl = null;
+    if (!this.renderSummaryRow) return;
+    const table = this._tableEl.querySelector('.sortable-table');
+    if (!table) return;
+
+    const foot = document.createElement('tfoot');
+    foot.className = 'table-summary';
+    const row = document.createElement('tr');
+    row.className = 'sortable-table-summary-row';
+    for (const col of this._stColumns.filter(column => !column.hidden)) {
+      const cell = document.createElement('td');
+      cell.className = [
+        'sortable-table-cell',
+        (col.type === 'number' || col.type === 'date') ? 'numeric' : '',
+        col.cellClassName || '',
+      ].filter(Boolean).join(' ');
+      cell.dataset.column = String(col.key ?? '');
+      row.appendChild(cell);
+    }
+    foot.appendChild(row);
+    table.appendChild(foot);
+    this._summaryEl = row;
   }
 
   _applySelectedRow() {

@@ -412,9 +412,9 @@ function buildTable(s) {
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
-    renderSummary: (container, rows) => {
-      renderItemVolumeSummary(container, itemsData.columns, rows);
-    },
+    renderSummaryRow: s === sections.f
+      ? (row, rows) => renderItemVolumeSummary(row, itemsData.columns, rows)
+      : null,
   });
   applyPlanFilter(s);
 }
@@ -480,14 +480,24 @@ export function harvestItemVolumeTotals(columns, rows) {
   };
 }
 
-function renderItemVolumeSummary(container, columns, rows) {
+function summaryCell(summaryRow, column) {
+  return [...summaryRow.children].find(cell => cell.dataset.column === column);
+}
+
+function renderItemVolumeSummary(summaryRow, columns, rows) {
   const totals = harvestItemVolumeTotals(columns, rows);
-  const frag = cloneTemplate('tmpl-pdt-volume-summary');
-  for (const [field, value] of Object.entries(totals)) {
-    frag.querySelector('[data-field="' + field + '"]').textContent =
-      value == null ? '-' : fmtVolume(value);
+  summaryRow.classList.add('pdt-volume-summary-row');
+  summaryCell(summaryRow, S.COL_YEAR_PLANNED)
+    ?.replaceChildren(cloneTemplate('tmpl-pdt-volume-summary'));
+  const volumeCells = [
+    [S.COL_VOLUME_PLANNED, totals.planned],
+    [S.COL_VOLUME_MARKED, totals.marked],
+    [S.COL_VOLUME_ACTUAL, totals.actual],
+  ];
+  for (const [column, value] of volumeCells) {
+    const cell = summaryCell(summaryRow, column);
+    if (cell) cell.textContent = value == null ? '-' : fmtDecimal2(value);
   }
-  container.replaceChildren(frag);
 }
 
 const ITEM_COL_DEFS = (() => {

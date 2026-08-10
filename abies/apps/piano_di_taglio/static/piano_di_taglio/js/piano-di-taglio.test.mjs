@@ -203,13 +203,9 @@ function section(key) {
 }
 
 function buildVolumeSummaryTemplate() {
-  return el('fragment', {}, [
-    el('div', { className: 'pdt-volume-summary' }, [
-      el('span', { dataset: { field: 'planned' } }),
-      el('span', { dataset: { field: 'marked' } }),
-      el('span', { dataset: { field: 'actual' } }),
-    ]),
-  ]);
+  const label = el('strong');
+  label.textContent = 'Totali';
+  return el('fragment', {}, [label]);
 }
 
 function buildPageTemplate() {
@@ -416,6 +412,9 @@ class MockSortableTable {
     this.onSort = opts.onSort;
     this.destroyed = false;
     appendMockControls(opts);
+    const wrapper = el('div', { className: 'sortable-table-wrapper' });
+    wrapper.appendChild(el('table', { className: 'sortable-table' }));
+    opts.container.appendChild(wrapper);
     tableInstances.push(this);
   }
   setData(rows) { this._allData = rows; this.data = rows; }
@@ -748,14 +747,11 @@ globalThis.fetch = async (url, options = {}) => {
 const pdt = await import(staticModule('piano_di_taglio/js/piano-di-taglio.js'));
 const cache = await import(staticModule('base/js/cache.js'));
 
-// Volume totals use only supplied rows and preserve not-applicable columns.
+// Volume totals use only the supplied result rows.
 {
   eq(pdt.harvestItemVolumeTotals(itemColumns, [itemRows[0], itemRows[1]]),
      { planned: 200, marked: 40, actual: 0 },
      'volume totals sum the supplied result rows');
-  eq(pdt.harvestItemVolumeTotals(itemColumns, [itemRows[5], itemRows[6]]),
-     { planned: null, marked: null, actual: 0 },
-     'volume totals distinguish not-applicable ceduo values from zero');
   eq(pdt.harvestItemVolumeTotals(itemColumns, []),
      { planned: 0, marked: 0, actual: 0 },
      'empty search results have zero totals');
@@ -846,19 +842,20 @@ async function finish() {
     ['Esporta', '+ Aggiungi'],
     'calendar add button is in TableWrapper toolbar immediately after export',
   );
-  const summaryValues = target => ['planned', 'marked', 'actual'].map(
-    field => target.querySelector('[data-field="' + field + '"]')?.textContent,
-  );
   const fustaiaSummary = contentEl.querySelector(
-    '[data-target="table-f"] .pdt-volume-summary',
+    '[data-target="table-f"] .pdt-volume-summary-row',
   );
-  const ceduoSummary = contentEl.querySelector(
-    '[data-target="table-c"] .pdt-volume-summary',
-  );
-  eq(summaryValues(fustaiaSummary), ['600,00 m³', '120,00 m³', '0,00 m³'],
-     'fustaia summary totals all current plan rows');
-  eq(summaryValues(ceduoSummary), ['-', '-', '0,00 m³'],
-     'ceduo summary marks inapplicable volumes and totals actual volume');
+  const summaryValues = [
+    S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
+  ].map(column => fustaiaSummary.children
+    .find(cell => cell.dataset.column === column)?.textContent);
+  eq(summaryValues, ['600,00', '120,00', '0,00'],
+     'fustaia summary totals all current plan rows in aligned columns');
+  eq(fustaiaSummary.querySelector('strong')?.textContent, 'Totali',
+     'fustaia summary uses the localized compact label');
+  check(!contentEl.querySelector(
+    '[data-target="table-c"] .pdt-volume-summary-row',
+  ), 'ceduo table omits the volume summary row');
 
   const planCheckUrl = '/api/piano-di-taglio/plan/delete/10/';
   deletionChecks.set(planCheckUrl, {

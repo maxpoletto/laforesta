@@ -58,6 +58,17 @@ class MockElement {
   appendChild(child) { this.children.push(child); return child; }
   replaceChildren(...children) { this.children = children; }
   remove() { this.removed = true; }
+  querySelector(sel) {
+    const matches = el => sel.startsWith('.')
+      ? el.classList.contains(sel.slice(1))
+      : el.tagName === sel;
+    for (const child of this.children) {
+      if (matches(child)) return child;
+      const nested = child.querySelector?.(sel);
+      if (nested) return nested;
+    }
+    return null;
+  }
   querySelectorAll() { return []; }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   removeEventListener(type, fn) {
@@ -375,7 +386,7 @@ const { TableWrapper } = await import('./table.js');
   );
 }
 
-// TableWrapper summaries render below the table and track filtered rows.
+// TableWrapper summaries render as aligned footer rows and track filters.
 {
   const previousSortableTable = window.SortableTable;
   window.SortableTable = class {
@@ -383,6 +394,9 @@ const { TableWrapper } = await import('./table.js');
       this._allData = opts.data;
       this.data = opts.data;
       this.currentSort = opts.sort || { column: 'name', ascending: true };
+      const table = new MockElement('table');
+      table.className = 'sortable-table';
+      opts.container.appendChild(table);
     }
     setData(rows) { this._allData = rows; this.data = rows; }
     filter(fn) { this.data = this._allData.filter(fn); }
@@ -400,16 +414,20 @@ const { TableWrapper } = await import('./table.js');
     },
     columnDefs: { amount: { type: 'number' } },
     inlineToolbar: false,
-    renderSummary: (summary, rows) => {
+    renderSummaryRow: (summary, rows) => {
       const ids = rows.map(row => row[0]);
       rendered.push(ids);
       summary.textContent = ids.join(',');
     },
   });
 
-  const summary = container.children[0].children[1];
-  check(summary.classList.contains('table-summary'),
-        'TableWrapper appends a standard summary region below the table');
+  const table = container.querySelector('.sortable-table');
+  const foot = table.children[0];
+  const summary = foot.children[0];
+  check(foot.classList.contains('table-summary'),
+        'TableWrapper appends a standard table footer');
+  eq(summary.children.map(cell => cell.dataset.column), ['name', 'amount'],
+     'TableWrapper footer cells align with visible columns');
   eq(rendered.at(-1), [1, 2, 3],
      'TableWrapper summary initially receives every row');
 
