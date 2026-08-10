@@ -82,8 +82,8 @@
     <div class="form-row">
       <div class="form-group">
         <label for="id_item_note">Note</label>
-        <input type="text" id="id_item_note" name="note" maxlength="255"
-               value="{{ item.note|default:'' }}">
+        <textarea id="id_item_note" name="note" rows="5"
+                  maxlength="255">{{ item.note|default:'' }}</textarea>
       </div>
     </div>
 

@@ -895,6 +895,22 @@ class TestItemCRUD:
         html = resp.json()[HTML]
         assert 'id="item-form"' in html
         assert f'name="harvest_plan_id" value="{plan.id}"' in html
+        assert '<textarea id="id_item_note" name="note" rows="5"' in html
+        assert 'maxlength="255"' in html
+
+    def test_edit_form_preserves_multiline_note(
+        self, writer_client, planned_item,
+    ):
+        planned_item.note = 'Prima riga\nSeconda riga'
+        planned_item.save(update_fields=['note'])
+
+        resp = writer_client.get(
+            f'/api/piano-di-taglio/item/form/{planned_item.id}/',
+        )
+
+        assert resp.status_code == 200
+        html = resp.json()[HTML]
+        assert '>Prima riga\nSeconda riga</textarea>' in html
 
     def test_create_fustaia_item(self, writer_client, plan, parcels):
         resp = self._save(writer_client, {
@@ -902,12 +918,13 @@ class TestItemCRUD:
             FIELD_PARCEL_ID: parcels[0].id,
             FIELD_YEAR_PLANNED: 2027,
             FIELD_VOLUME_PLANNED_M3: '150',
-            FIELD_NOTE: '',
+            FIELD_NOTE: 'Prima riga\nSeconda riga',
         })
         assert resp.status_code == 200
         data = resp.json()
         item = HarvestPlanItem.objects.get(id=data[ROW_ID])
         assert item.year_planned == 2027
+        assert item.note == 'Prima riga\nSeconda riga'
         assert float(item.volume_planned_m3) == 150.0
 
     def test_create_requires_compresa(self, writer_client, plan):

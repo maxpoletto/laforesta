@@ -169,7 +169,8 @@ Fields:
 - Damaged? checkbox ("Catastrofato") → `damaged`.
 - Unhealthy? checkbox ("Fitosanitario") → `unhealthy`.
 - Volume previsto (m³) (optional) → `volume_planned_m3`.
-- Note (optional) → `note`.
+- Note (optional, multiline resizable text area; 255 characters maximum) →
+  `note`.
 - State starts at `planned` (not user-editable on create).
 
 **Validation.** Compresa is always required. Particella is optional, and
