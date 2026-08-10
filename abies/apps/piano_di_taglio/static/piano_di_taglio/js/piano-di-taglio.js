@@ -1200,7 +1200,8 @@ async function renderItemView(itemId) {
   const yearPlanned = record[c.indexOf(S.COL_YEAR_PLANNED)];
   const yearActual = record[c.indexOf(S.COL_YEAR_ACTUAL)];
   const state = record[c.indexOf(S.COL_STATE)];
-  const note = record[c.indexOf(S.COL_NOTE)];
+  const flagNote = record[c.indexOf(S.COL_NOTE)];
+  const extraNote = record[c.indexOf(S.COL_EXTRA_NOTE)];
   const volPlanned = record[c.indexOf(S.COL_VOLUME_PLANNED)];
   const volMarked = record[c.indexOf(S.COL_VOLUME_MARKED)];
   const volActual = record[c.indexOf(S.COL_VOLUME_ACTUAL)];
@@ -1224,6 +1225,7 @@ async function renderItemView(itemId) {
     addMetaRow(meta, S.COL_PERIOD_Y, turno != null ? String(turno) : '');
   }
   addMetaRow(meta, S.COL_VOLUME_ACTUAL, fmtVolume(volActual));
+  const note = [flagNote, extraNote].filter(Boolean).join('\n');
   if (note) addMetaRow(meta, S.COL_NOTE, note);
 
   for (const t of transitions) {

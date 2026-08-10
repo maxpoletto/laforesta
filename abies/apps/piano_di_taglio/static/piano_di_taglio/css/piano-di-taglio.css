@@ -147,6 +147,7 @@
 }
 .pdt-item-meta dd {
   margin: 0;
+  white-space: pre-line;
 }
 
 .subsection-error {

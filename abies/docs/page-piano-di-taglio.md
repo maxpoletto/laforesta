@@ -218,7 +218,8 @@ The modal displays:
 1. **Harvest plan item metadata.** Read-only summary of plan name, region,
    parcel, `year_planned`, `date_actual`, current `state`, planned amount,
    `damaged`/`unhealthy`/`psr` flags rendered as the same comma-joined
-   string used in the calendar's `Note` column, free-text note. Pencil
+   string used in the calendar's `Note` column, and the `Altre note`
+   free-text value on a new line under the same `Note` heading. Pencil
    icon opens a modal edit form for the editable fields (region, parcel,
    year_planned, flags, volume_planned_m3, note); `state`, `date_actual`,
    and the materialized volumes are not user-editable.

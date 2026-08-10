@@ -462,21 +462,27 @@ const itemColumns = [
   S.COL_YEAR_PLANNED, S.COL_YEAR_ACTUAL, S.COL_REGION, S.COL_PARCEL,
   S.COL_PARCEL_AREA_HA, S.COL_TYPE, COL_COPPICE, S.COL_STATE, S.COL_NOTE,
   S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
-  S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y,
+  S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y, S.COL_EXTRA_NOTE,
 ];
 
-function itemRow(id, { region, parcel, year, state = S.STATE_MARKED, coppice = false }) {
+function itemRow(id, {
+  region, parcel, year, state = S.STATE_MARKED, coppice = false,
+  flagNote = '', extraNote = '',
+}) {
   return [
     id, 1, 10,
     year, null, region, parcel, coppice ? 10 : 12.5,
-    coppice ? S.TYPE_COPPICE : '', coppice, state, '',
+    coppice ? S.TYPE_COPPICE : '', coppice, state, flagNote,
     coppice ? null : 100, coppice ? null : 20, 0,
-    coppice ? 3 : null, coppice ? 12 : null,
+    coppice ? 3 : null, coppice ? 12 : null, extraNote,
   ];
 }
 
 const itemRows = [
-  itemRow(1, { region: 'A', parcel: '1', year: 2026 }),
+  itemRow(1, {
+    region: 'A', parcel: '1', year: 2026,
+    flagNote: 'Catastrofato', extraNote: 'Alberi sul confine.',
+  }),
   itemRow(2, { region: 'B', parcel: '2', year: 2027 }),
   itemRow(11, { region: 'C', parcel: '11', year: 2026 }),
   itemRow(12, { region: 'D', parcel: '12', year: 2027 }),
@@ -901,6 +907,16 @@ async function finish() {
   const nextButton = headerActions.querySelector('[data-action="next-item"]');
   check(previousButton.disabled, 'previous is disabled at the chronological start');
   check(!nextButton.disabled, 'next is enabled before the chronological end');
+  const metadata = contentEl.querySelector('[data-target="metadata"]');
+  const noteIndex = metadata.children.findIndex(
+    child => child.tagName === 'dt' && child.textContent === S.COL_NOTE,
+  );
+  eq(metadata.children[noteIndex + 1]?.textContent,
+     'Catastrofato\nAlberi sul confine.',
+     'item detail shows free text on a new line under Note');
+  check(!metadata.children.some(
+    child => child.tagName === 'dt' && child.textContent === S.COL_EXTRA_NOTE,
+  ), 'item detail does not add a separate Altre note heading');
 
   const nextItem = deferItem(11);
   const nextMarks = deferMarks(11);
