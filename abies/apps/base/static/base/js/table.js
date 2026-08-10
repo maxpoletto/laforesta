@@ -105,6 +105,8 @@ export class TableWrapper {
    *   for the default CSV format (see DEFAULT_CSV_FORMAT).
    * @param {function(string, boolean): void} [opts.onSort]
    * @param {function(string): void} [opts.onSearch]
+   * @param {function(HTMLElement, any[][]): void} [opts.renderSummary]
+   *   Renders a region below the table from all rows retained by its filters.
    */
   constructor(opts) {
     this.container = opts.container;
@@ -118,6 +120,7 @@ export class TableWrapper {
     this.csvFormat = { ...DEFAULT_CSV_FORMAT, ...(opts.csvFormat || {}) };
     this.onSort = opts.onSort || null;
     this.onSearch = opts.onSearch || null;
+    this.renderSummary = opts.renderSummary || null;
     this._searchText = opts.searchText || '';
     this._externalFilter = null;
     this._debounceTimer = null;
@@ -129,6 +132,7 @@ export class TableWrapper {
     this._table = null;
     this._el = null;
     this._tableEl = null;
+    this._summaryEl = null;
     this._selectedRowId = null;
     this._tableClickHandler = (e) => this._handleTableClick(e);
     this._tableClickWired = false;
@@ -185,6 +189,7 @@ export class TableWrapper {
     this._table.sort(sort.column, col.type || 'string', sort.ascending);
     this._table.onSort = onSort;
     this._applySelectedRow();
+    this._renderSummary();
   }
 
   /** Current search text. */
@@ -226,6 +231,7 @@ export class TableWrapper {
     }
     this._el?.remove();
     this._table = null;
+    this._summaryEl = null;
   }
 
   // -- Build ---------------------------------------------------------------
@@ -242,6 +248,12 @@ export class TableWrapper {
       this._tableEl.classList.add('table-scroll-editable-rows');
     }
     this._el.appendChild(this._tableEl);
+
+    if (this.renderSummary) {
+      this._summaryEl = document.createElement('div');
+      this._summaryEl.className = 'table-summary';
+      this._el.appendChild(this._summaryEl);
+    }
 
     this.container.appendChild(this._el);
     if (digest) this._initTable(digest, sort);
@@ -355,6 +367,7 @@ export class TableWrapper {
       pageInfo: this.labels.pageInfo,
       onSort: (col, asc) => {
         this._applySelectedRow();
+        this._renderSummary();
         this.onSort?.(col, asc);
       },
       onPageChange: () => this._applySelectedRow(),
@@ -380,7 +393,10 @@ export class TableWrapper {
     }
 
     if (this._searchText) this._applyFilters();
-    else this._applySelectedRow();
+    else {
+      this._applySelectedRow();
+      this._renderSummary();
+    }
   }
 
   _handleTableClick(e) {
@@ -416,15 +432,19 @@ export class TableWrapper {
 
     if (!terms.length && !this._externalFilter) {
       this._table.clearFilter();
-      this._applySelectedRow();
-      return;
+    } else {
+      this._table.filter(row => {
+        if (this._externalFilter && !this._externalFilter(row)) return false;
+        return terms.length === 0 || matchesSearch(row, terms, this._stColumns);
+      });
     }
-
-    this._table.filter(row => {
-      if (this._externalFilter && !this._externalFilter(row)) return false;
-      return terms.length === 0 || matchesSearch(row, terms, this._stColumns);
-    });
     this._applySelectedRow();
+    this._renderSummary();
+  }
+
+  _renderSummary() {
+    if (!this._summaryEl || !this.renderSummary) return;
+    this.renderSummary(this._summaryEl, this.getFilteredRows());
   }
 
   _applySelectedRow() {

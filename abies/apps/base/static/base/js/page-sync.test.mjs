@@ -375,6 +375,54 @@ const { TableWrapper } = await import('./table.js');
   );
 }
 
+// TableWrapper summaries render below the table and track filtered rows.
+{
+  const previousSortableTable = window.SortableTable;
+  window.SortableTable = class {
+    constructor(opts) {
+      this._allData = opts.data;
+      this.data = opts.data;
+      this.currentSort = opts.sort || { column: 'name', ascending: true };
+    }
+    setData(rows) { this._allData = rows; this.data = rows; }
+    filter(fn) { this.data = this._allData.filter(fn); }
+    clearFilter() { this.data = this._allData; }
+    destroy() {}
+  };
+
+  const rendered = [];
+  const container = new MockElement('div');
+  const wrapper = new TableWrapper({
+    container,
+    digest: {
+      columns: ['row_id', 'name', 'amount'],
+      rows: [[1, 'Pine', 10], [2, 'Fir', 20], [3, 'Oak', 30]],
+    },
+    columnDefs: { amount: { type: 'number' } },
+    inlineToolbar: false,
+    renderSummary: (summary, rows) => {
+      const ids = rows.map(row => row[0]);
+      rendered.push(ids);
+      summary.textContent = ids.join(',');
+    },
+  });
+
+  const summary = container.children[0].children[1];
+  check(summary.classList.contains('table-summary'),
+        'TableWrapper appends a standard summary region below the table');
+  eq(rendered.at(-1), [1, 2, 3],
+     'TableWrapper summary initially receives every row');
+
+  wrapper.setExternalFilter(row => row[2] >= 20);
+  eq(rendered.at(-1), [2, 3],
+     'TableWrapper summary follows external filters');
+  wrapper.setSearchText('fir');
+  eq(rendered.at(-1), [2],
+     'TableWrapper summary follows search within the external filter');
+
+  window.SortableTable = previousSortableTable;
+}
+
 // TableWrapper places add actions in the toolbar, immediately after export.
 {
   const previousSortableTable = window.SortableTable;

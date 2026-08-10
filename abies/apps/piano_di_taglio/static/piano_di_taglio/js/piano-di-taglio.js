@@ -412,6 +412,9 @@ function buildTable(s) {
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
+    renderSummary: (container, rows) => {
+      renderItemVolumeSummary(container, itemsData.columns, rows);
+    },
   });
   applyPlanFilter(s);
 }
@@ -453,6 +456,38 @@ function buildItemColumnDefs(columns, hiddenCols) {
     defs[name] = ITEM_COL_DEFS[name] || { label: name };
   }
   return defs;
+}
+
+export function harvestItemVolumeTotals(columns, rows) {
+  const sum = (column) => {
+    const index = columns.indexOf(column);
+    if (index < 0) return null;
+    if (!rows.length) return 0;
+    let hasValue = false;
+    let total = 0;
+    for (const row of rows) {
+      const value = row[index];
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      hasValue = true;
+      total += value;
+    }
+    return hasValue ? total : null;
+  };
+  return {
+    planned: sum(S.COL_VOLUME_PLANNED),
+    marked: sum(S.COL_VOLUME_MARKED),
+    actual: sum(S.COL_VOLUME_ACTUAL),
+  };
+}
+
+function renderItemVolumeSummary(container, columns, rows) {
+  const totals = harvestItemVolumeTotals(columns, rows);
+  const frag = cloneTemplate('tmpl-pdt-volume-summary');
+  for (const [field, value] of Object.entries(totals)) {
+    frag.querySelector('[data-field="' + field + '"]').textContent =
+      value == null ? '-' : fmtVolume(value);
+  }
+  container.replaceChildren(frag);
 }
 
 const ITEM_COL_DEFS = (() => {

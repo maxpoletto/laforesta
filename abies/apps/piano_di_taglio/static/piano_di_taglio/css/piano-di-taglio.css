@@ -90,6 +90,26 @@
   margin-top: 4px;
 }
 
+.pdt-volume-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 20px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-top: 2px solid var(--color-bosco-green);
+  background: var(--color-bosco-green-muted);
+  font-size: 0.9rem;
+}
+
+.pdt-volume-summary > strong {
+  margin-right: auto;
+}
+
+.pdt-volume-summary > span {
+  white-space: nowrap;
+}
+
 /* Allow two-word column headers (Anno effettivo, Volume previsto, …) to
    wrap at the space and centre them, instead of forcing single-line via
    the vendor default. */

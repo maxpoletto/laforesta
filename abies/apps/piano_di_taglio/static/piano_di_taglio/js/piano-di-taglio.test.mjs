@@ -202,6 +202,16 @@ function section(key) {
   return [header, body];
 }
 
+function buildVolumeSummaryTemplate() {
+  return el('fragment', {}, [
+    el('div', { className: 'pdt-volume-summary' }, [
+      el('span', { dataset: { field: 'planned' } }),
+      el('span', { dataset: { field: 'marked' } }),
+      el('span', { dataset: { field: 'actual' } }),
+    ]),
+  ]);
+}
+
 function buildPageTemplate() {
   const frag = el('fragment');
   const headerLeft = el('div', { className: 'pdt-header-left' }, [
@@ -331,6 +341,7 @@ const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
   'tmpl-pdt-page': { content: buildPageTemplate() },
+  'tmpl-pdt-volume-summary': { content: buildVolumeSummaryTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
   'tmpl-pdt-item-subsection': { content: buildSubsectionTemplate() },
   'tmpl-tree-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
@@ -737,6 +748,19 @@ globalThis.fetch = async (url, options = {}) => {
 const pdt = await import(staticModule('piano_di_taglio/js/piano-di-taglio.js'));
 const cache = await import(staticModule('base/js/cache.js'));
 
+// Volume totals use only supplied rows and preserve not-applicable columns.
+{
+  eq(pdt.harvestItemVolumeTotals(itemColumns, [itemRows[0], itemRows[1]]),
+     { planned: 200, marked: 40, actual: 0 },
+     'volume totals sum the supplied result rows');
+  eq(pdt.harvestItemVolumeTotals(itemColumns, [itemRows[5], itemRows[6]]),
+     { planned: null, marked: null, actual: 0 },
+     'volume totals distinguish not-applicable ceduo values from zero');
+  eq(pdt.harvestItemVolumeTotals(itemColumns, []),
+     { planned: 0, marked: 0, actual: 0 },
+     'empty search results have zero totals');
+}
+
 // Navigation is chronological, deterministic within a year, and plan-scoped.
 {
   const otherPlan = itemRow(99, { region: 'Z', parcel: '99', year: 2025 });
@@ -822,6 +846,19 @@ async function finish() {
     ['Esporta', '+ Aggiungi'],
     'calendar add button is in TableWrapper toolbar immediately after export',
   );
+  const summaryValues = target => ['planned', 'marked', 'actual'].map(
+    field => target.querySelector('[data-field="' + field + '"]')?.textContent,
+  );
+  const fustaiaSummary = contentEl.querySelector(
+    '[data-target="table-f"] .pdt-volume-summary',
+  );
+  const ceduoSummary = contentEl.querySelector(
+    '[data-target="table-c"] .pdt-volume-summary',
+  );
+  eq(summaryValues(fustaiaSummary), ['600,00 m³', '120,00 m³', '0,00 m³'],
+     'fustaia summary totals all current plan rows');
+  eq(summaryValues(ceduoSummary), ['-', '-', '0,00 m³'],
+     'ceduo summary marks inapplicable volumes and totals actual volume');
 
   const planCheckUrl = '/api/piano-di-taglio/plan/delete/10/';
   deletionChecks.set(planCheckUrl, {

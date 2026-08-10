@@ -148,6 +148,11 @@ Infrastructure:
   filename)`, `exportDigest(digest, exportCols, srcCols, filename,
   opts)`. Shared CSV export primitives; `TableWrapper.exportCSV()`
   is a separate mechanism.
+- **`table.js`**: `TableWrapper` owns filtering, sorting, pagination, and
+  table-level controls. Consumers that need aggregate information may pass
+  `renderSummary(container, filteredRows)`. The summary is rendered below
+  the table from the complete filtered row set, so it follows search and
+  external filters but is never sorted, paginated, or included in CSV data.
 
 Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
 use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
