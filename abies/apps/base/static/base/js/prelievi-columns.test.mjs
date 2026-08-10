@@ -24,7 +24,8 @@ function eq(actual, expected, msg) {
 const SPECIES = 'Abete Rosso';
 const TRACTOR = 'John Deere';
 const defs = buildPrelieviColumnDefs([
-  'row_id', VERSION, S.COL_PARCEL, S.COL_QUINTALS, SPECIES, TRACTOR,
+  'row_id', VERSION, S.COL_PARCEL, S.COL_QUINTALS, S.COL_VOLUME_M3,
+  SPECIES, TRACTOR,
   `${SPECIES} %`, `${TRACTOR} %`, S.COL_WORKSITE,
 ], [SPECIES]);
 
@@ -55,6 +56,8 @@ eq(defs[S.COL_PARCEL].className, CLASS_BOSCO_LINK, 'parcel column has Bosco link
 
 // Static quantity column keeps its own one-decimal format.
 eq(defs[S.COL_QUINTALS].formatter(1234), '1234,0', 'quintals one decimal');
+eq(defs[S.COL_QUINTALS].width, '90px', 'quintals match species column width');
+eq(defs[S.COL_VOLUME_M3].width, '90px', 'volume matches species column width');
 
 const totalColumns = [
   'row_id', S.COL_VDP, S.COL_QUINTALS, S.COL_VOLUME_M3,
