@@ -38,6 +38,15 @@ IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
 OBSERVATION_MEDIA_DIR = DATA_DIR / 'observation-media'
+API_READ_RATE_LIMIT = int(os.environ.get(
+    'ABIES_API_READ_RATE_LIMIT', '300',
+))
+API_WRITE_RATE_LIMIT = int(os.environ.get(
+    'ABIES_API_WRITE_RATE_LIMIT', '60',
+))
+API_RATE_WINDOW_S = int(os.environ.get(
+    'ABIES_API_RATE_WINDOW_S', '60',
+))
 IPSO_SECRET = os.environ.get('ABIES_IPSO_SECRET', '').strip()
 IPSO_UPLOAD_MAX_BYTES = int(os.environ.get(
     'ABIES_IPSO_UPLOAD_MAX_BYTES', str(IPSO_UPLOAD_MAX_BYTES_DEFAULT),

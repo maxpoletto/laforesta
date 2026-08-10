@@ -5,6 +5,7 @@ import time
 from datetime import timedelta
 from collections import defaultdict
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.utils import timezone
@@ -120,16 +121,16 @@ def save_nonce(nonce, user, response_data):
 # Rate limiting
 # ---------------------------------------------------------------------------
 
-RATE_LIMIT = 60        # max requests per window
-RATE_WINDOW_S = 60     # window size in seconds
 API_PREFIX = '/api/'
+SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
 
 
 class RateLimitMiddleware:
     """Per-user rate limiting on API endpoints.
 
-    Uses in-memory tracking -- suitable for single-process deployments.
-    Resets on server restart (acceptable for soft protection).
+    Uses separate safe-read and mutation quotas with in-memory tracking --
+    suitable for single-process deployments. Resets on server restart
+    (acceptable for soft protection).
     """
 
     def __init__(self, get_response):
@@ -142,15 +143,21 @@ class RateLimitMiddleware:
         if not hasattr(request, 'user') or not request.user.is_authenticated:
             return self.get_response(request)
 
-        user_id = request.user.pk
+        bucket = 'read' if request.method in SAFE_METHODS else 'write'
+        limit = (
+            settings.API_READ_RATE_LIMIT if bucket == 'read'
+            else settings.API_WRITE_RATE_LIMIT
+        )
+        key = (request.user.pk, bucket)
         now = time.monotonic()
-        cutoff = now - RATE_WINDOW_S
+        cutoff = now - settings.API_RATE_WINDOW_S
 
-        # Prune expired timestamps and check limit.
-        timestamps = [t for t in self._requests[user_id] if t > cutoff]
-        self._requests[user_id] = timestamps
+        # Reads and writes have separate quotas: detail-page fan-out must not
+        # consume the smaller quota protecting data-entry endpoints.
+        timestamps = [t for t in self._requests[key] if t > cutoff]
+        self._requests[key] = timestamps
 
-        if len(timestamps) >= RATE_LIMIT:
+        if len(timestamps) >= limit:
             return JsonResponse(
                 {STATUS: STATUS_RATE_LIMITED, MESSAGE: S.ERROR_RATE_LIMIT},
                 status=429,

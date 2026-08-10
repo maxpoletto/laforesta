@@ -259,7 +259,9 @@ Adjust names and ports as needed.
 
    Use separate values for prod and dev. In particular, do not reuse
    `DJANGO_SECRET_KEY`, `ABIES_IPSO_SECRET`, or OAuth redirect URIs between the
-   two instances. Optional knobs include `ABIES_IPSO_UPLOAD_MAX_BYTES`,
+   two instances. Optional knobs include `ABIES_API_READ_RATE_LIMIT`,
+   `ABIES_API_WRITE_RATE_LIMIT`, `ABIES_API_RATE_WINDOW_S`,
+   `ABIES_IPSO_UPLOAD_MAX_BYTES`,
    `ABIES_IPSO_UPLOAD_MAX_RECORDS`, `ABIES_IPSO_UPLOAD_RATE_LIMIT`,
    `ABIES_IPSO_UPLOAD_RATE_WINDOW_S`,
    `ABIES_IPSO_UPLOAD_TRUSTED_PROXIES`, `ABIES_IPSO_INBOX_DIR`,

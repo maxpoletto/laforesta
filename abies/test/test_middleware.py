@@ -165,6 +165,12 @@ def test_rate_limit_middleware_wraps_nonce_replay():
 
 
 class TestRateLimitMiddleware:
+    @pytest.fixture(autouse=True)
+    def _rate_limit_settings(self, settings):
+        settings.API_READ_RATE_LIMIT = 60
+        settings.API_WRITE_RATE_LIMIT = 60
+        settings.API_RATE_WINDOW_S = 60
+
     def test_under_limit_passes(self, admin_user):
         mw = RateLimitMiddleware(ok_response)
         for _ in range(5):
@@ -184,6 +190,29 @@ class TestRateLimitMiddleware:
         resp = mw(request)
         assert resp.status_code == 429
         assert json.loads(resp.content)[STATUS] == STATUS_RATE_LIMITED
+
+    def test_reads_and_writes_use_separate_quotas(
+        self, admin_user, settings,
+    ):
+        settings.API_READ_RATE_LIMIT = 2
+        settings.API_WRITE_RATE_LIMIT = 1
+        mw = RateLimitMiddleware(ok_response)
+
+        for _ in range(2):
+            request = RequestFactory().get('/api/prelievi/data/')
+            request.user = admin_user
+            assert mw(request).status_code == 200
+
+        request = RequestFactory().post('/api/prelievi/save/')
+        request.user = admin_user
+        assert mw(request).status_code == 200
+
+        request = RequestFactory().get('/api/prelievi/data/')
+        request.user = admin_user
+        assert mw(request).status_code == 429
+        request = RequestFactory().post('/api/prelievi/save/')
+        request.user = admin_user
+        assert mw(request).status_code == 429
 
     def test_non_api_path_not_limited(self, admin_user):
         mw = RateLimitMiddleware(ok_response)

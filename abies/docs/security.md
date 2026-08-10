@@ -67,9 +67,13 @@ characters), common password check, numeric-only check, similarity to username.
 
 ## Rate limiting
 
-django-axes handles login brute-force protection. Data entry endpoints are
-rate-limited per user (e.g., 60 requests/minute) to guard against runaway
-scripts or bugs.
+django-axes handles login brute-force protection. Authenticated API requests use
+separate per-user rate-limit buckets: safe reads default to 300 requests per
+minute, while mutations retain the stricter 60 requests per minute limit. This
+allows normal detail-page navigation without weakening protection for data
+entry. Configure the quotas with `ABIES_API_READ_RATE_LIMIT` and
+`ABIES_API_WRITE_RATE_LIMIT`, and their shared window with
+`ABIES_API_RATE_WINDOW_S`. Tracking is in memory and resets on process restart.
 
 ## Content security
 
