@@ -188,6 +188,12 @@ function section(key) {
   return [header, body];
 }
 
+function buildTableSummaryTemplate() {
+  const label = el('strong');
+  label.textContent = 'Totali';
+  return el('fragment', {}, [label]);
+}
+
 function buildConfirmTemplate() {
   const frag = el('fragment');
   frag.appendChild(el('p', { dataset: { field: 'message' } }));
@@ -242,6 +248,7 @@ const contentEl = el('main');
 const modalEl = el('div');
 const links = [];
 const templates = {
+  'tmpl-table-summary-label': { content: buildTableSummaryTemplate() },
   'tmpl-prelievi-page': { content: buildPrelieviTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
 };
@@ -270,16 +277,32 @@ const tableInstances = [];
 class MockSortableTable {
   constructor(opts) {
     this.container = opts.container;
+    this._allData = opts.data;
     this.data = opts.data;
     this.columns = opts.columns;
     this.onSort = opts.onSort;
     this.currentSort = opts.sort || { column: opts.columns.find(c => !c.hidden)?.key, ascending: true };
     this.filteredRows = opts.data;
+    const wrapper = el('div', { className: 'sortable-table-wrapper' });
+    wrapper.appendChild(el('table', { className: 'sortable-table' }));
+    opts.container.appendChild(wrapper);
     tableInstances.push(this);
   }
-  filter(fn) { this.lastFilter = fn; this.filteredRows = this.data.filter(fn); }
-  clearFilter() { this.lastFilter = null; this.filteredRows = this.data; }
-  setData(rows) { this.data = rows; this.filteredRows = rows; }
+  filter(fn) {
+    this.lastFilter = fn;
+    this.data = this._allData.filter(fn);
+    this.filteredRows = this.data;
+  }
+  clearFilter() {
+    this.lastFilter = null;
+    this.data = this._allData;
+    this.filteredRows = this.data;
+  }
+  setData(rows) {
+    this._allData = rows;
+    this.data = rows;
+    this.filteredRows = rows;
+  }
   sort(column, _type, ascending) {
     this.currentSort = { column, ascending };
     this.onSort?.(column, ascending);
@@ -533,6 +556,13 @@ function sliderTrackHidden() {
 function filteredIds() {
   return tableInstances.at(-1).filteredRows.map(row => row[0]);
 }
+function totalsRow() {
+  return contentEl.querySelector('.table-totals-row');
+}
+function totalValue(column) {
+  return totalsRow()?.children
+    .find(cell => cell.dataset.column === column)?.textContent;
+}
 
 eq(prelievi.boscoUrlForHarvestRow(digest.rows[1], digest.columns), '/bosco?c=10&v=1&pa=102',
    'boscoUrlForHarvestRow builds a parcel overlay URL from stable ids');
@@ -545,11 +575,21 @@ const expectedEndYear = Math.max(2022, currentYear);
 await prelievi.mount({ y1: '2021', y2: '2021' });
 eq(sliderValues(), [2021, 2021], 'mount applies explicit year range from URL');
 eq(filteredIds(), [2], 'mount filters table to explicit year range');
+eq(totalsRow()?.querySelector('strong')?.textContent, 'Totali',
+   'harvest footer uses the shared localized label');
+eq([
+  S.COL_QUINTALS, S.COL_VOLUME_M3, 'Abete', 'Abete Rosso', 'Tractor One',
+].map(totalValue), ['20,0', '2,00', '120,0', '0,0', '0,0'],
+   'harvest footer totals all requested numeric fields after year filtering');
 
 prelievi.onQueryChange({});
 eq(sliderValues(), [2020, expectedEndYear],
    'bare URL resets year slider to first data year and current year');
 eq(filteredIds(), [1, 2, 3], 'bare URL restores all years in the table filter');
+eq([
+  S.COL_QUINTALS, S.COL_VOLUME_M3, 'Abete', 'Abete Rosso', 'Tractor One',
+].map(totalValue), ['60,0', '6,00', '160,0', '150,0', '0,0'],
+   'harvest footer refreshes when filters are cleared');
 
 prelievi.onQueryChange({ y1: '2021' });
 eq(sliderValues(), [2021, expectedEndYear],

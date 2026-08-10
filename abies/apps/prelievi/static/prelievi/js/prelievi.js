@@ -3,7 +3,9 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import { TableWrapper } from '../../base/js/table.js';
+import {
+  matchesSearch, searchTerms, tableCellForColumn, TableWrapper,
+} from '../../base/js/table.js';
 import {
   deleteRowWithVersion, fetchModalForm, renderModalForm, showFormError,
   submitCsvImport,
@@ -28,9 +30,10 @@ import {
   FIELD_ROW_IDS, FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID,
   STATUS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
-import { CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs }
-  from '../../base/js/prelievi-columns.js';
-import { matchesSearch, searchTerms } from '../../base/js/table.js';
+import {
+  CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs,
+  formatHarvestColumnTotal, harvestColumnTotals,
+} from '../../base/js/prelievi-columns.js';
 import {
   aggregateTimeSeries, aggregateParcelSeries,
 } from './charts.js';
@@ -184,6 +187,7 @@ function showTableView(data, params) {
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => { syncURL(); _updateCharts(); },
+    renderSummaryRow: renderHarvestTotalsRow,
   });
 
   const searchInput = el.querySelector('#prelievi-search');
@@ -194,6 +198,18 @@ function showTableView(data, params) {
   filterParcelId = p.parcelId;
   table.setExternalFilter(pageFilter());
   _updateCharts();
+}
+
+function renderHarvestTotalsRow(summaryRow, rows, columns) {
+  summaryRow.classList.add('table-totals-row');
+  tableCellForColumn(summaryRow, S.COL_DATE)
+    ?.replaceChildren(cloneTemplate('tmpl-table-summary-label'));
+  for (const [column, total] of Object.entries(
+    harvestColumnTotals(columns, rows),
+  )) {
+    const cell = tableCellForColumn(summaryRow, column);
+    if (cell) cell.textContent = formatHarvestColumnTotal(column, total);
+  }
 }
 
 function destroyTable() {

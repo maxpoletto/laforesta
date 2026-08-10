@@ -31,6 +31,33 @@ export const STATIC_COLS = {
   [VERSION]:           { label: VERSION, hidden: true },
 };
 
+/** Numeric harvest columns that receive totals in the table footer. */
+export function harvestTotalColumns(columns) {
+  return columns.filter(name =>
+    name === S.COL_QUINTALS
+    || name === S.COL_VOLUME_M3
+    || (name !== ROW_ID && !STATIC_COLS[name] && !name.endsWith(' %'))
+  );
+}
+
+/** Sum each footer column over the supplied filtered harvest rows. */
+export function harvestColumnTotals(columns, rows) {
+  return Object.fromEntries(harvestTotalColumns(columns).map(name => {
+    const index = columns.indexOf(name);
+    const total = rows.reduce((sum, row) => {
+      const value = row[index];
+      const numeric = typeof value === 'number' && Number.isFinite(value);
+      return sum + (numeric ? value : 0);
+    }, 0);
+    return [name, total];
+  }));
+}
+
+/** Format footer values like their columns, retaining explicit zero totals. */
+export function formatHarvestColumnTotal(column, value) {
+  return column === S.COL_VOLUME_M3 ? fmtDecimal2(value) : fmtDecimal1(value);
+}
+
 /**
  * Build columnDefs from prelievi digest columns.
  * Known columns get labels/formatters from STATIC_COLS.

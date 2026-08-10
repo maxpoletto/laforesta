@@ -35,6 +35,12 @@ function sameColumns(a = [], b = []) {
   return a.every((value, index) => value === b[index]);
 }
 
+/** Find the cell for a digest column in a TableWrapper row. */
+export function tableCellForColumn(row, column) {
+  return [...(row?.children || [])]
+    .find(cell => cell.dataset.column === column) || null;
+}
+
 /** English defaults for all user-facing strings. */
 const DEFAULT_LABELS = {
   search: 'Filter',
@@ -105,7 +111,7 @@ export class TableWrapper {
    *   for the default CSV format (see DEFAULT_CSV_FORMAT).
    * @param {function(string, boolean): void} [opts.onSort]
    * @param {function(string): void} [opts.onSearch]
-   * @param {function(HTMLElement, any[][]): void} [opts.renderSummaryRow]
+   * @param {function(HTMLElement, any[][], string[]): void} [opts.renderSummaryRow]
    *   Renders a footer row from all rows retained by the table filters.
    */
   constructor(opts) {
@@ -439,7 +445,9 @@ export class TableWrapper {
 
   _renderSummaryRow() {
     if (!this._summaryEl || !this.renderSummaryRow) return;
-    this.renderSummaryRow(this._summaryEl, this.getFilteredRows());
+    this.renderSummaryRow(
+      this._summaryEl, this.getFilteredRows(), [...this._digestColumns],
+    );
   }
 
   _buildSummaryRow() {

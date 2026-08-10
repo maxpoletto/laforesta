@@ -57,6 +57,12 @@ e.g., "164,0"). Per-species and per-tractor quintal columns show blank for zero.
 VDP displays as an integer. Columns have fixed widths; the table scrolls
 horizontally when the viewport is too narrow.
 
+A column-aligned `Totali` footer sums `Q.li`, `Volume (m³)`, every displayed
+major-species column, and every tractor column across the complete current
+filter result, not just the visible pagination page. Values use the same decimal
+precision as their columns but omit unit suffixes, since the units are already
+in the headers. VDP is an identifier and is not summed.
+
 ### Add/edit form
 
 The add/edit form is laid out as a compact grid (three fields per row):

@@ -90,14 +90,6 @@
   margin-top: 4px;
 }
 
-.pdt-volume-summary-row .sortable-table-cell {
-  border-top: 2px solid var(--color-bosco-green);
-  border-bottom: 0;
-  background: var(--color-bosco-green-muted);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
 /* Allow two-word column headers (Anno effettivo, Volume previsto, …) to
    wrap at the space and centre them, instead of forcing single-line via
    the vendor default. */

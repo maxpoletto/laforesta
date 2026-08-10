@@ -202,7 +202,7 @@ function section(key) {
   return [header, body];
 }
 
-function buildVolumeSummaryTemplate() {
+function buildTableSummaryTemplate() {
   const label = el('strong');
   label.textContent = 'Totali';
   return el('fragment', {}, [label]);
@@ -337,7 +337,7 @@ const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
   'tmpl-pdt-page': { content: buildPageTemplate() },
-  'tmpl-pdt-volume-summary': { content: buildVolumeSummaryTemplate() },
+  'tmpl-table-summary-label': { content: buildTableSummaryTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
   'tmpl-pdt-item-subsection': { content: buildSubsectionTemplate() },
   'tmpl-tree-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
@@ -843,7 +843,7 @@ async function finish() {
     'calendar add button is in TableWrapper toolbar immediately after export',
   );
   const fustaiaSummary = contentEl.querySelector(
-    '[data-target="table-f"] .pdt-volume-summary-row',
+    '[data-target="table-f"] .table-totals-row',
   );
   const summaryValues = [
     S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
@@ -854,7 +854,7 @@ async function finish() {
   eq(fustaiaSummary.querySelector('strong')?.textContent, 'Totali',
      'fustaia summary uses the localized compact label');
   check(!contentEl.querySelector(
-    '[data-target="table-c"] .pdt-volume-summary-row',
+    '[data-target="table-c"] .table-totals-row',
   ), 'ceduo table omits the volume summary row');
 
   const planCheckUrl = '/api/piano-di-taglio/plan/delete/10/';

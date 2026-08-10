@@ -5,7 +5,10 @@
  * species/tractor quintal columns (blank zero, one decimal), which had
  * diverged.  Run: node prelievi-columns.test.mjs  (also via `make test-js`).
  */
-import { CLASS_BOSCO_LINK, buildPrelieviColumnDefs } from './prelievi-columns.js';
+import {
+  CLASS_BOSCO_LINK, buildPrelieviColumnDefs, formatHarvestColumnTotal,
+  harvestColumnTotals, harvestTotalColumns,
+} from './prelievi-columns.js';
 import * as S from './strings.js';
 import { VERSION } from './constants.js';
 
@@ -52,6 +55,28 @@ eq(defs[S.COL_PARCEL].className, CLASS_BOSCO_LINK, 'parcel column has Bosco link
 
 // Static quantity column keeps its own one-decimal format.
 eq(defs[S.COL_QUINTALS].formatter(1234), '1234,0', 'quintals one decimal');
+
+const totalColumns = [
+  'row_id', S.COL_VDP, S.COL_QUINTALS, S.COL_VOLUME_M3,
+  SPECIES, SPECIES + ' %', TRACTOR,
+];
+const totalRows = [
+  [1, 101, 10.5, 1.25, 7.5, 70, 3],
+  [2, 102, 2.5, null, 0, 0, 4],
+];
+eq(harvestTotalColumns(totalColumns),
+   [S.COL_QUINTALS, S.COL_VOLUME_M3, SPECIES, TRACTOR],
+   'harvest totals select quantities, volume, species, and tractors');
+eq(harvestColumnTotals(totalColumns, totalRows), {
+  [S.COL_QUINTALS]: 13, [S.COL_VOLUME_M3]: 1.25,
+  [SPECIES]: 7.5, [TRACTOR]: 7,
+}, 'harvest totals sum every selected numeric column');
+eq(formatHarvestColumnTotal(S.COL_QUINTALS, 13), '13,0',
+   'quintal footer total has one decimal');
+eq(formatHarvestColumnTotal(S.COL_VOLUME_M3, 1.25), '1,25',
+   'volume footer total has two decimals and no unit suffix');
+eq(formatHarvestColumnTotal(TRACTOR, 0), '0,0',
+   'dynamic footer total retains explicit zero');
 
 console.log(`${pass} passed, ${failures.length} failed`);
 for (const f of failures) console.error('  FAIL ' + f);

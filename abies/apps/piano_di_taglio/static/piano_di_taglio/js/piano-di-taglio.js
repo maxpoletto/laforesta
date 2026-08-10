@@ -9,7 +9,9 @@
  */
 
 import * as cache from '../../base/js/cache.js';
-import { searchTerms, TableWrapper } from '../../base/js/table.js';
+import {
+  searchTerms, tableCellForColumn, TableWrapper,
+} from '../../base/js/table.js';
 import {
   show as showModal, showError, dismiss as dismissModal,
 } from '../../base/js/modals.js';
@@ -413,7 +415,7 @@ function buildTable(s) {
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
     renderSummaryRow: s === sections.f
-      ? (row, rows) => renderItemVolumeSummary(row, itemsData.columns, rows)
+      ? (row, rows, columns) => renderItemVolumeSummary(row, columns, rows)
       : null,
   });
   applyPlanFilter(s);
@@ -480,22 +482,18 @@ export function harvestItemVolumeTotals(columns, rows) {
   };
 }
 
-function summaryCell(summaryRow, column) {
-  return [...summaryRow.children].find(cell => cell.dataset.column === column);
-}
-
 function renderItemVolumeSummary(summaryRow, columns, rows) {
   const totals = harvestItemVolumeTotals(columns, rows);
-  summaryRow.classList.add('pdt-volume-summary-row');
-  summaryCell(summaryRow, S.COL_YEAR_PLANNED)
-    ?.replaceChildren(cloneTemplate('tmpl-pdt-volume-summary'));
+  summaryRow.classList.add('table-totals-row');
+  tableCellForColumn(summaryRow, S.COL_YEAR_PLANNED)
+    ?.replaceChildren(cloneTemplate('tmpl-table-summary-label'));
   const volumeCells = [
     [S.COL_VOLUME_PLANNED, totals.planned],
     [S.COL_VOLUME_MARKED, totals.marked],
     [S.COL_VOLUME_ACTUAL, totals.actual],
   ];
   for (const [column, value] of volumeCells) {
-    const cell = summaryCell(summaryRow, column);
+    const cell = tableCellForColumn(summaryRow, column);
     if (cell) cell.textContent = value == null ? '-' : fmtDecimal2(value);
   }
 }

@@ -1,5 +1,5 @@
 {% comment %}
-Shared <template> elements cloned by JS — dialogs and tree dendrometry.
+Shared <template> elements cloned by JS — labels, dialogs, and tree dendrometry.
 Rendered once inside the shell; never displayed directly.
 {% endcomment %}
 
@@ -21,6 +21,10 @@ Rendered once inside the shell; never displayed directly.
     <button type="button" class="btn btn-delete"
             data-action="delete" disabled>{{ S.ACTION_DELETE }}</button>
   </div>
+</template>
+
+<template id="tmpl-table-summary-label">
+  <strong>Totali</strong>
 </template>
 
 <template id="tmpl-tree-dendrometry-summary">
