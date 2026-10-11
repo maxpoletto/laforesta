@@ -13,9 +13,10 @@ from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Min, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.utils.formats import date_format
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
@@ -339,17 +340,25 @@ def _open_cantieri():
     return (HarvestPlanItem.objects
             .filter(state__in=_OPEN_STATES)
             .select_related('parcel__region', 'region', 'harvest_plan')
+            .annotate(approval_date=Min(
+                'transitions__date', filter=Q(transitions__open=True),
+            ))
             .order_by('harvest_plan__name', 'year_planned', 'id'))
 
 
-def _cantiere_label(item) -> str:
+def _cantiere_label(item, approval_date) -> str:
     """Human-readable Cantiere pulldown label."""
-    plan = item.harvest_plan.name
     if item.parcel_id is not None:
         scope = f'{item.parcel.region.name} {item.parcel.name}'
     else:
         scope = f'{item.region.name} {S.LABEL_ALL_PARCELS}'
-    return f'{plan} · {item.year_planned} · {scope}'
+    label = f'{item.year_planned} · {scope}'
+    if approval_date is not None:
+        approval = S.LABEL_APPROVED_ON.format(
+            date_format(approval_date, 'SHORT_DATE_FORMAT'),
+        )
+        label += f' · {approval}'
+    return label
 
 
 def _cantiere_region_id(item) -> int:
@@ -364,13 +373,22 @@ def _cantiere_region_id(item) -> int:
 def _form_context(op_id=None, vals=None):
     """Build template context for the prelievi form."""
     op = None
+    current_cantiere_label = ''
     sp_pcts = {}
     tr_pcts = {}
 
     if op_id:
         op = Harvest.objects.select_related(
             'parcel__region', 'crew', 'product', 'harvest_plan_item',
+            'harvest_plan_item__parcel__region', 'harvest_plan_item__region',
+            'harvest_plan_item__harvest_plan',
         ).get(id=op_id)
+        if op.harvest_plan_item_id is not None:
+            approval_date = (op.harvest_plan_item.transitions
+                             .filter(open=True).aggregate(date=Min('date'))['date'])
+            current_cantiere_label = _cantiere_label(
+                op.harvest_plan_item, approval_date,
+            )
         sp_pcts = dict(
             HarvestSpecies.objects.filter(harvest=op).values_list(FIELD_SPECIES_ID, 'percent'),
         )
@@ -406,7 +424,7 @@ def _form_context(op_id=None, vals=None):
     cantieri = [
         {
             'id': it.id,
-            'label': _cantiere_label(it),
+            'label': _cantiere_label(it, it.approval_date),
             'damaged': it.damaged,
             'unhealthy': it.unhealthy,
             'psr': it.psr,
@@ -421,6 +439,7 @@ def _form_context(op_id=None, vals=None):
 
     return {
         'op': op,
+        'current_cantiere_label': current_cantiere_label,
         'vals': v,
         'default_record1': default_record1,
         'cantieri': cantieri,

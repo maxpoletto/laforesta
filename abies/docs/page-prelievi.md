@@ -73,8 +73,12 @@ The add/edit form is laid out as a compact grid (three fields per row):
 - Row 4: "VDP" numeric, "Altre note" text.
 
 **Cantiere pulldown.** Options are `harvest_plan_item` rows with `state ∈ {open,
-harvesting}`, rendered as `<Plan> · <Year> · <Region> <Parcel>` (or
-`<Region> (tutti)` for region-wide items). Required for new harvests.
+harvesting}`, rendered as
+`<Year> · <Region> <Parcel> · Approvato il <DD/MM/YYYY>` (or
+`<Region> (tutti)` for region-wide items). The approval date is the earliest
+opening (`open = true`) in the item's `harvest_transition` history, retained
+when a closed Cantiere is reopened. The selected option in an edit form uses
+the same label, including for closed Cantieri. Required for new harvests.
 
 - Parcel-scoped items: Particella pulldown hidden; parcel derived
   from the item.

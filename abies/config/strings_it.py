@@ -733,6 +733,7 @@ TYPE_COPPICE   = 'Ceduo'
 # Stand-in displayed in the Particella column for region-wide
 # HarvestPlanItem rows (region set, parcel NULL).
 LABEL_ALL_PARCELS = '(tutti)'  # form pulldown placeholder for region-wide
+LABEL_APPROVED_ON = 'Approvato il {}'
 # Canonical Particella value for region-wide items in CSV import/export
 # (round-trip marker) and in the calendar table display.  Single short
 # character chosen for narrow columns; localizable.

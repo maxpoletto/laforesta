@@ -31,9 +31,7 @@
                     data-psr="{{ op.harvest_plan_item.psr|yesno:'1,0' }}"
                     data-region-id="{% if op.harvest_plan_item.parcel_id %}{{ op.harvest_plan_item.parcel.region_id }}{% else %}{{ op.harvest_plan_item.region_id }}{% endif %}"
                     data-parcel-id="{{ op.harvest_plan_item.parcel_id|default_if_none:'' }}">
-              {{ op.harvest_plan_item.harvest_plan.name }} ·
-              {{ op.harvest_plan_item.year_planned }} ·
-              {% if op.harvest_plan_item.parcel_id %}{{ op.parcel.region.name }} {{ op.parcel.name }}{% else %}{{ op.harvest_plan_item.region.name }} (tutti){% endif %}
+              {{ current_cantiere_label }}
             </option>
           {% else %}
             <option value="">---</option>
