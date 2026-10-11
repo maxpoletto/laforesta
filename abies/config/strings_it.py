@@ -226,6 +226,7 @@ TABLE_OBSERVATION_CATEGORY = 'Categoria di osservazioni'
 TABLE_OBSERVATION = 'Osservazione'
 TABLE_HARVEST_PLAN = 'Piano di gestione'
 TABLE_HARVEST_PLAN_ITEM = 'Voce di piano'
+TABLE_HARVEST_TRANSITION = 'Transizione cantiere'
 TABLE_PARCEL = 'Particella'
 TABLE_SITE_SETTINGS = 'Impostazioni sito'
 TABLE_SAMPLE_GRID = 'Griglia di campionamento'
@@ -350,6 +351,8 @@ ERR_TRANSITION_INVALID_STATE = (
     'Transizione non consentita dallo stato attuale.'
 )
 ERR_TRANSITION_DATE_REQUIRED = 'Data della transizione obbligatoria.'
+ERR_OPENING_NOT_FOUND = 'Apertura cantiere non trovata per questo intervento.'
+ERR_OPENING_NOTE_INVALID = 'La nota di apertura deve contenere al massimo 255 caratteri.'
 ERR_CSV_NO_FILES = (
     'Nessun file CSV caricato. Allega almeno un file (fustaia o ceduo).'
 )
@@ -733,7 +736,8 @@ TYPE_COPPICE   = 'Ceduo'
 # Stand-in displayed in the Particella column for region-wide
 # HarvestPlanItem rows (region set, parcel NULL).
 LABEL_ALL_PARCELS = '(tutti)'  # form pulldown placeholder for region-wide
-LABEL_APPROVED_ON = 'Approvato il {}'
+LABEL_OPENED_ON = 'Aperto il {}'
+LABEL_WORKSITE_OPENED = 'Apertura cantiere'
 # Canonical Particella value for region-wide items in CSV import/export
 # (round-trip marker) and in the calendar table display.  Single short
 # character chosen for narrow columns; localizable.

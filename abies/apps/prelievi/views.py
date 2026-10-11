@@ -354,7 +354,7 @@ def _cantiere_label(item, approval_date) -> str:
         scope = f'{item.region.name} {S.LABEL_ALL_PARCELS}'
     label = f'{item.year_planned} · {scope}'
     if approval_date is not None:
-        approval = S.LABEL_APPROVED_ON.format(
+        approval = S.LABEL_OPENED_ON.format(
             date_format(approval_date, 'SHORT_DATE_FORMAT'),
         )
         label += f' · {approval}'
