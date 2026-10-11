@@ -249,6 +249,11 @@ explicitly reuses the same `tree_id`.
     open/close pairs when an admin reopens it.
   - `date` is a user-specified date.
   - `note` is user-specified text, often a regional permit number.
+  - Opening dates and notes can be corrected in the Intervento edit form,
+    guarded by the parent item's version. Corrections preserve the event ID
+    and lifecycle state. Events are audited in `base_historicalharvesttransition`.
+    The history-table migration snapshots existing events so their first
+    correction has a before value; snapshots do not appear as user writes.
   - ON DELETE CASCADE from `harvest_plan_item`: transition rows are
     system-managed lifecycle history and disappear with their owning item.
 

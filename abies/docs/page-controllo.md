@@ -44,6 +44,7 @@ dropping it from the config.
 | `base.Crew` | `base_crew` | `base_historicalcrew` | `Squadra` | Crew reference table. |
 | `base.HarvestPlan` | `base_harvestplan` | `base_historicalharvestplan` | `Piano di taglio` | Plan header. |
 | `base.HarvestPlanItem` | `base_harvestplanitem` | `base_historicalharvestplanitem` | `Voce piano di taglio` | Worksite/plan-item state and materialized volumes. |
+| `base.HarvestTransition` | `base_harvesttransition` | `base_historicalharvesttransition` | `Transizione cantiere` | Opening/closing events, including date and permit-note corrections. |
 | `base.HypsoParam` | `base_hypsoparam` | `base_historicalhypsoparam` | `Parametro ipsometrico` | Individual regression coefficients. |
 | `base.HypsoParamSet` | `base_hypsoparamset` | `base_historicalhypsoparamset` | `Set parametri ipsometrici` | Regression set metadata and archive/supersession state. |
 | `base.Observation` | `base_observation` | `base_historicalobservation` | `Osservazione` | Field observations. |
@@ -60,6 +61,11 @@ dropping it from the config.
 | `mannesi.ProductionCredit` | `mannesi_credits` | `mannesi_historicalproductioncredit` | `Acconto squadre` | Production credits/acconti. |
 | `mannesi.WorkHour` | `mannesi_hours` | `mannesi_historicalworkhour` | `Ore squadre` | Team work hours. |
 | `prelievi.Harvest` | `prelievi_harvest` | `prelievi_historicalharvest` | `Prelievo` | Harvest rows, including parcel and plan-item links. |
+
+Existing worksite transitions receive baseline snapshots when their history
+table is introduced. These snapshots establish before values for later edits;
+they do not appear as inserts performed by a user. Subsequent event writes
+include the responsible user and the full before/after record.
 
 ### Important non-tracked model types
 

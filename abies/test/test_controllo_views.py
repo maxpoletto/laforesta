@@ -7,7 +7,7 @@ import pytest
 from django.test import Client
 
 from apps.base.digests import generate_audit
-from apps.base.models import Crew
+from apps.base.models import Crew, SiteSettings
 from apps.prelievi.models import Harvest
 from config import strings as S
 from config.constants import (
@@ -53,6 +53,36 @@ class TestDataView:
     def test_requires_auth(self, db):
         resp = Client().get('/api/controllo/data/')
         assert resp.status_code == 302
+
+    def test_site_settings_history_uses_the_original_singleton_key(
+        self, writer_client, writer_user,
+    ):
+        site = SiteSettings(default_landing_page='/bosco')
+        site._history_user = writer_user
+        site.save()
+        site.default_landing_page = '/prelievi'
+        site.save()
+        site.delete()
+
+        response = writer_client.get('/api/controllo/data/')
+
+        assert response.status_code == 200
+        audit = json.loads(gzip.decompress(response.getvalue()))
+        cols = audit[COLUMNS]
+        events = {row[cols.index(S.COL_ACTION)]: row for row in audit[ROWS]
+                  if row[cols.index(S.COL_TABLE)] == S.TABLE_SITE_SETTINGS}
+        assert set(events) == {S.AUDIT_INSERT, S.AUDIT_UPDATE, S.AUDIT_DELETE}
+        insert, update, delete = (events[action] for action in (
+            S.AUDIT_INSERT, S.AUDIT_UPDATE, S.AUDIT_DELETE,
+        ))
+        assert insert[cols.index(S.COL_OLD_VALUE)] == ''
+        assert '/bosco' in insert[cols.index(S.COL_NEW_VALUE)]
+        assert '/bosco' in update[cols.index(S.COL_OLD_VALUE)]
+        assert '/prelievi' in update[cols.index(S.COL_NEW_VALUE)]
+        assert '/prelievi' in delete[cols.index(S.COL_OLD_VALUE)]
+        assert delete[cols.index(S.COL_NEW_VALUE)] == ''
+        assert all(row[cols.index(S.COL_USER)] == writer_user.username
+                   for row in events.values())
 
 
 # ---------------------------------------------------------------------------

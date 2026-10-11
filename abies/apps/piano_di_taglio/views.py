@@ -93,6 +93,8 @@ from config.constants import (
     FIELD_NOTE,
     FIELD_NUMBER,
     FIELD_OPEN,
+    FIELD_OPENING_DATE_PREFIX,
+    FIELD_OPENING_NOTE_PREFIX,
     FIELD_OPERATOR,
     FIELD_ROW_IDS,
     FIELD_PARCEL_ID,
@@ -425,6 +427,10 @@ def item_form_view(request, item_id: int | None = None):
             'item': item, 'plan': plan,
             'regions': regions, 'parcels': parcels,
             'today_year': date_type.today().year,
+            'openings': (item.transitions.filter(open=True).order_by('date', 'id')
+                         if item else []),
+            'opening_date_prefix': FIELD_OPENING_DATE_PREFIX,
+            'opening_note_prefix': FIELD_OPENING_NOTE_PREFIX,
         }, request=request,
     )})
 
@@ -460,20 +466,31 @@ def item_save_view(request):
                     data_id='harvest_plan_items', row_id=item.id,
                     record=build_harvest_plan_item_record(item),
                 )
+            # PSR is import-owned and absent from the manual edit form.
+            if FIELD_PSR not in body:
+                parsed['psr'] = item.psr
             invariant_errors = plan_item_harvest_invariant_errors(item, parsed)
             if invariant_errors:
                 return validation_error(invariant_errors)
+            opening_updates, opening_errors = _parse_opening_body(body, item)
+            if opening_errors:
+                return validation_error(opening_errors)
             for field, value in parsed.items():
                 setattr(item, field, value)
             item.version += 1
             try:
                 item.clean()
                 item.save()
+                for opening in opening_updates:
+                    opening.save(update_fields=['date', 'note'])
             except ValidationError as exc:
                 return validation_error(_validation_error_messages(exc))
             except IntegrityError:
                 return validation_error([S.ERROR_GENERIC])
         else:
+            if any(key.startswith((FIELD_OPENING_DATE_PREFIX, FIELD_OPENING_NOTE_PREFIX))
+                   for key in body):
+                return validation_error([S.ERR_OPENING_NOT_FOUND])
             plan_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
             if plan_id is None:
                 return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
@@ -505,6 +522,60 @@ def item_save_view(request):
             'harvest_plan_items', item.id, build_harvest_plan_item_record(item),
         )],
     )
+
+
+def _parse_opening_body(body, item):
+    """Validate corrections to existing openings owned by this item.
+
+    The item version guards these child edits too. Opening/closing state and
+    event identity stay server-owned; omitted fields retain their values.
+    """
+    submitted = {key for key in body if key.startswith((
+        FIELD_OPENING_DATE_PREFIX, FIELD_OPENING_NOTE_PREFIX,
+    ))}
+    if not submitted:
+        return [], []
+    openings = list(item.transitions.select_for_update().filter(open=True).order_by('id'))
+    allowed = {f'{prefix}{opening.id}' for opening in openings
+               for prefix in (FIELD_OPENING_DATE_PREFIX, FIELD_OPENING_NOTE_PREFIX)}
+    if submitted - allowed:
+        return [], [S.ERR_OPENING_NOT_FOUND]
+
+    updates, errors = [], []
+    for opening in openings:
+        date_key = f'{FIELD_OPENING_DATE_PREFIX}{opening.id}'
+        note_key = f'{FIELD_OPENING_NOTE_PREFIX}{opening.id}'
+        if date_key not in body and note_key not in body:
+            continue
+        date = opening.date
+        if date_key in body:
+            raw = str(body[date_key] or '').strip()
+            if not raw:
+                errors.append(S.ERR_TRANSITION_DATE_REQUIRED)
+                continue
+            try:
+                date = date_type.fromisoformat(raw)
+            except ValueError:
+                errors.append(S.ERR_DATE_INVALID)
+                continue
+        note = opening.note
+        if note_key in body:
+            note = body[note_key]
+            if not isinstance(note, str) or len(note.strip()) > 255:
+                errors.append(S.ERR_OPENING_NOTE_INVALID)
+                continue
+            note = note.strip()
+        if (date, note) == (opening.date, opening.note):
+            continue
+        if (opening.id == openings[0].id and date != opening.date
+                and item.date_actual == opening.date
+                and not item.tree_marks.exists()):
+            # Apri cantiere supplies date_actual when no marking date exists.
+            item.date_actual = date
+        opening.date = date
+        opening.note = note
+        updates.append(opening)
+    return updates, errors
 
 
 def _validation_error_messages(exc: ValidationError) -> list[str]:

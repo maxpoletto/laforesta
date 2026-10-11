@@ -474,6 +474,7 @@ def generate_species() -> None:
 # ---------------------------------------------------------------------------
 
 _ACTION_MAP = {'+': S.AUDIT_INSERT, '~': S.AUDIT_UPDATE, '-': S.AUDIT_DELETE}
+_AUDIT_BASELINE_REASON = 'initial-audit-baseline'
 
 
 def _tracked_models() -> set:
@@ -503,7 +504,7 @@ def _audit_configs() -> list:
     Field maps are selective: only domain-meaningful fields are shown.
     """
     from apps.base.models import (
-        Crew, HarvestPlan, HarvestPlanItem, HypsoParam, HypsoParamSet,
+        Crew, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
         Observation, ObservationCategory, Parcel, SampleArea, SampleGrid,
         SiteSettings, Species, Survey,
         Tractor, User,
@@ -580,6 +581,11 @@ def _audit_configs() -> list:
             'intervention_area_ha': S.COL_INTERVENTION_AREA_HA,
             'damaged': S.FLAG_DAMAGED, 'unhealthy': S.FLAG_UNHEALTHY,
             'psr': S.FLAG_PSR, 'note': S.COL_NOTE,
+        }),
+        (HarvestTransition, S.TABLE_HARVEST_TRANSITION, {
+            'harvest_plan_item_id': S.COL_WORKSITE,
+            'open': S.LABEL_WORKSITE_OPENED,
+            'date': S.COL_DATE, 'note': S.COL_NOTE,
         }),
         (Parcel, S.TABLE_PARCEL, {
             'name': S.COL_PARCEL, 'region_id': S.COL_REGION,
@@ -673,9 +679,17 @@ def _audit_rows(model, manager, table_label, field_labels, rows, row_id):
     """Append audit rows for one historical model.  Returns updated row_id."""
     prev_map: dict[int, object] = {}
     value_cache: dict[tuple[object, object], object | None] = {}
+    source_pk = model._meta.pk.attname
 
     for entry in manager.select_related('history_user').order_by('history_date', 'history_id'):
-        pk = entry.id
+        # The original row's key may be singleton_id; entry.pk instead
+        # identifies the individual history event.
+        pk = getattr(entry, source_pk)
+        # Migration snapshots establish the before value for existing rows;
+        # they are not user writes and must not appear as new audit events.
+        if entry.history_change_reason == _AUDIT_BASELINE_REASON:
+            prev_map[pk] = entry
+            continue
         ht = entry.history_type
         user = ''
         if entry.history_user:

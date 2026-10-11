@@ -231,6 +231,16 @@ The modal displays:
    year_planned, flags, volume_planned_m3, note); `state`, `date_actual`,
    and the materialized volumes are not user-editable.
 
+   The same edit form also exposes the date and note of each recorded
+   **Apertura cantiere**, including reopening events and openings of closed
+   items. Corrections update the existing event and preserve the current
+   lifecycle state. The item's version guards the entire save, so stale
+   forms cannot overwrite newer corrections. If the original opening supplied
+   `date_actual` and there are no marks, correcting its date also updates that
+   derived date. A date supplied by marks is preserved. Controllo records the
+   correcting user and the full before/after event, and Prelievi uses the
+   corrected approval date in its Cantiere labels.
+
    State labels: planned → "pianificato", marked → "martellato",
    open → "cantiere aperto", harvesting → "in prelievo",
    closed → "cantiere chiuso". Transitions normally move forward; admins
@@ -524,7 +534,7 @@ given `harvest_plan_item_id`):
 | Plan save (create/update) | `harvest_plans`, `audit`, `future_production` | `harvest_plans` via `patches` |
 | Plan delete | `harvest_plans`, `harvest_plan_items`, `audit`, `future_production` | `harvest_plans` (row removed); items force-refreshed via `cache.load` |
 | Plan CSV import | `harvest_plans`, `harvest_plan_items`, `audit`, `future_production` | Both force-refreshed via `cache.load` (bulk path) |
-| Item save (create/update) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
+| Item save (create/update, opening corrections) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
 | Item delete | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` (row removed) |
 | Transition save (Apri/Chiudi/Riapri) | `harvest_plan_items`, `audit`, `future_production` | `harvest_plan_items` via `patches` |
 | Harvest save (from Prelievi page) | `prelievi`, `harvest_plan_items`, `audit` | `harvest_plan_items` via `patches` (cross-domain) |

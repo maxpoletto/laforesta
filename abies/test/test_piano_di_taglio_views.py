@@ -9,6 +9,7 @@ contract and the nonce-idempotency contract.
 import base64
 import csv
 import gzip
+import importlib
 import io
 import json
 import zipfile
@@ -16,8 +17,9 @@ from datetime import date as date_type
 from decimal import Decimal
 
 import pytest
+from django.apps import apps as django_apps
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from django.test import Client
 
 from apps.base import csv_io
@@ -41,6 +43,7 @@ from config.constants import (
     FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_INTERVENTION_AREA_HA, FIELD_LAT, FIELD_LON, FIELD_MASS_Q,
     FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_NUMBER, FIELD_OPEN, FIELD_OPERATOR,
+    FIELD_OPENING_DATE_PREFIX, FIELD_OPENING_NOTE_PREFIX,
     FIELD_PARCEL_ID, FIELD_PRODUCT_ID, FIELD_PSR, FIELD_REGION_ID,
     FIELD_ROW_IDS, FIELD_SPECIES_ID, FIELD_UNHEALTHY,
     FIELD_VOLUME_M3, FIELD_VOLUME_PLANNED_M3, FIELD_YEAR_END,
@@ -138,6 +141,17 @@ def planned_item(plan, parcels):
         harvest_plan=plan, parcel=parcels[0], year_planned=2025,
         volume_planned_m3=Decimal('100.0'),
         state=HarvestPlanItemState.PLANNED,
+    )
+
+
+@pytest.fixture
+def opening_event(planned_item):
+    planned_item.state = HarvestPlanItemState.OPEN
+    planned_item.date_actual = date_type(2024, 9, 1)
+    planned_item.save()
+    return HarvestTransition.objects.create(
+        harvest_plan_item=planned_item, open=True,
+        date=planned_item.date_actual, note='Permesso 42',
     )
 
 
@@ -1291,6 +1305,294 @@ class TestTransitionSave:
 
         assert resp.status_code == 400
         assert S.ERR_DATE_INVALID in resp.json()[MESSAGE]
+
+
+# ---------------------------------------------------------------------------
+# Opening corrections in the Intervento edit form
+# ---------------------------------------------------------------------------
+
+class TestOpeningCorrections:
+    def _save(self, client, item, changes):
+        payload = {
+            ROW_ID: item.id, VERSION: item.version,
+            FIELD_PARCEL_ID: item.parcel_id,
+            FIELD_REGION_ID: item.region_id,
+            FIELD_YEAR_PLANNED: item.year_planned,
+            FIELD_VOLUME_PLANNED_M3: str(item.volume_planned_m3 or ''),
+            FIELD_DAMAGED: item.damaged, FIELD_UNHEALTHY: item.unhealthy,
+            FIELD_NOTE: item.note,
+        }
+        payload.update(changes)
+        return client.post(
+            '/api/piano-di-taglio/item/save/',
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    def test_form_exposes_each_opening_but_not_closing(
+        self, writer_client, planned_item, opening_event,
+    ):
+        closing = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=False, date='2024-12-01',
+        )
+        reopening = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True, date=date_type(2025, 1, 15),
+            note='Prelievi mancanti',
+        )
+        html = writer_client.get(
+            f'/api/piano-di-taglio/item/form/{planned_item.id}/',
+        ).json()[HTML]
+
+        for opening in (opening_event, reopening):
+            assert f'name="{FIELD_OPENING_DATE_PREFIX}{opening.id}" required' in html
+            assert f'name="{FIELD_OPENING_NOTE_PREFIX}{opening.id}"' in html
+            assert opening.date.isoformat() in html
+            assert opening.note in html
+        assert f'name="{FIELD_OPENING_DATE_PREFIX}{closing.id}"' not in html
+
+    @pytest.mark.parametrize('state', [
+        HarvestPlanItemState.OPEN, HarvestPlanItemState.HARVESTING,
+        HarvestPlanItemState.CLOSED,
+    ])
+    def test_correction_updates_detail_dropdown_and_audit_without_changing_state(
+        self, writer_client, writer_user, planned_item, opening_event, species,
+        state,
+    ):
+        planned_item.state = state
+        planned_item.save()
+        before_response = writer_client.get('/api/controllo/data/')
+        old_version = planned_item.version
+
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+            f'{FIELD_OPENING_NOTE_PREFIX}{opening_event.id}': 'Permesso 43',
+        })
+
+        assert response.status_code == 200, response.json()
+        planned_item.refresh_from_db()
+        opening_event.refresh_from_db()
+        assert planned_item.state == state
+        assert planned_item.version == old_version + 1
+        assert planned_item.date_actual == date_type(2024, 9, 15)
+        assert opening_event.date == date_type(2024, 9, 15)
+        assert opening_event.note == 'Permesso 43'
+        assert planned_item.transitions.count() == 1
+        assert opening_event.history.first().history_user == writer_user
+        detail = writer_client.get(
+            f'/api/piano-di-taglio/item/data/{planned_item.id}/',
+        ).json()
+        assert detail[TRANSITION_RECORDS] == [[
+            opening_event.id, planned_item.id, True, '2024-09-15', 'Permesso 43',
+        ]]
+        if state != HarvestPlanItemState.CLOSED:
+            html = writer_client.get('/api/prelievi/form/').json()[HTML]
+            assert S.LABEL_OPENED_ON.format('15/09/2024') in html
+            assert S.LABEL_OPENED_ON.format('01/09/2024') not in html
+
+        audit_response = writer_client.get(
+            '/api/controllo/data/',
+            HTTP_IF_MODIFIED_SINCE=before_response['Last-Modified'],
+        )
+        assert audit_response.status_code == 200
+        audit = _read_gzip_json(audit_response)
+        cols = audit[COLUMNS]
+        changes = [row for row in audit[ROWS]
+                   if row[cols.index(S.COL_TABLE)] == S.TABLE_HARVEST_TRANSITION
+                   and row[cols.index(S.COL_ACTION)] == S.AUDIT_UPDATE]
+        assert len(changes) == 1
+        row = changes[0]
+        assert row[cols.index(S.COL_USER)] == writer_user.username
+        assert '2024-09-01' in row[cols.index(S.COL_OLD_VALUE)]
+        assert 'Permesso 42' in row[cols.index(S.COL_OLD_VALUE)]
+        assert '2024-09-15' in row[cols.index(S.COL_NEW_VALUE)]
+        assert 'Permesso 43' in row[cols.index(S.COL_NEW_VALUE)]
+
+    def test_correction_preserves_a_marking_date(
+        self, writer_client, planned_item, opening_event, species,
+    ):
+        _create_mark(planned_item, species[0])
+        # Even equal dates have distinct sources: a mark is authoritative.
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+        })
+        assert response.status_code == 200, response.json()
+        planned_item.refresh_from_db()
+        assert planned_item.date_actual == date_type(2024, 9, 1)
+
+    def test_correction_preserves_psr_omitted_by_the_item_form(
+        self, writer_client, planned_item, opening_event, products, crews,
+    ):
+        planned_item.psr = True
+        planned_item.save()
+        _create_harvest(planned_item, products[0], crews[0])
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+        })
+        assert response.status_code == 200, response.json()
+        planned_item.refresh_from_db()
+        assert planned_item.psr is True
+
+    @pytest.mark.parametrize(('field', 'value', 'error'), [
+        (FIELD_OPENING_DATE_PREFIX, '', S.ERR_TRANSITION_DATE_REQUIRED),
+        (FIELD_OPENING_DATE_PREFIX, 'invalid', S.ERR_DATE_INVALID),
+        (FIELD_OPENING_NOTE_PREFIX, 'x' * 256, S.ERR_OPENING_NOTE_INVALID),
+        (FIELD_OPENING_NOTE_PREFIX, ['invalid'], S.ERR_OPENING_NOTE_INVALID),
+    ])
+    def test_invalid_correction_preserves_item_and_event(
+        self, writer_client, planned_item, opening_event, field, value, error,
+    ):
+        old_year, old_version = planned_item.year_planned, planned_item.version
+        response = self._save(writer_client, planned_item, {
+            FIELD_YEAR_PLANNED: old_year + 1,
+            f'{field}{opening_event.id}': value,
+        })
+        assert response.status_code == 400
+        assert error in response.json()[MESSAGE]
+        planned_item.refresh_from_db()
+        opening_event.refresh_from_db()
+        assert planned_item.year_planned == old_year
+        assert planned_item.version == old_version
+        assert opening_event.date == date_type(2024, 9, 1)
+        assert opening_event.note == 'Permesso 42'
+        assert opening_event.history.count() == 1
+
+    @pytest.mark.parametrize('foreign_item', [False, True])
+    def test_cannot_edit_a_closing_or_another_items_opening(
+        self, writer_client, planned_item, opening_event, foreign_item,
+    ):
+        target_item = planned_item
+        if foreign_item:
+            target_item = HarvestPlanItem.objects.create(
+                harvest_plan=planned_item.harvest_plan, parcel=planned_item.parcel,
+                year_planned=2026, state=HarvestPlanItemState.OPEN,
+            )
+        target = HarvestTransition.objects.create(
+            harvest_plan_item=target_item, open=foreign_item, date='2024-12-01',
+        )
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{target.id}': '2024-12-15',
+        })
+        assert response.status_code == 400
+        assert S.ERR_OPENING_NOT_FOUND in response.json()[MESSAGE]
+        target.refresh_from_db()
+        assert target.date == date_type(2024, 12, 1)
+
+    def test_stale_item_version_cannot_overwrite_an_opening(
+        self, writer_client, planned_item, opening_event,
+    ):
+        response = self._save(writer_client, planned_item, {
+            VERSION: planned_item.version - 1,
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+        })
+        assert response.status_code == 400
+        assert response.json()[STATUS] == STATUS_CONFLICT
+        opening_event.refresh_from_db()
+        assert opening_event.date == date_type(2024, 9, 1)
+        assert opening_event.history.count() == 1
+
+    def test_omitted_and_unchanged_openings_do_not_add_event_history(
+        self, writer_client, planned_item, opening_event,
+    ):
+        for changes in ({}, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-01',
+            f'{FIELD_OPENING_NOTE_PREFIX}{opening_event.id}': 'Permesso 42',
+        }):
+            response = self._save(writer_client, planned_item, changes)
+            assert response.status_code == 200, response.json()
+            planned_item.refresh_from_db()
+        assert opening_event.history.count() == 1
+
+    def test_reopening_corrections_keep_event_identity_and_original_date_source(
+        self, writer_client, planned_item, opening_event,
+    ):
+        closing = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=False, date='2024-12-01',
+        )
+        reopening = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True, date='2025-01-15',
+        )
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+            f'{FIELD_OPENING_DATE_PREFIX}{reopening.id}': '2025-01-20',
+        })
+        assert response.status_code == 200, response.json()
+        planned_item.refresh_from_db()
+        opening_event.refresh_from_db()
+        reopening.refresh_from_db()
+        closing.refresh_from_db()
+        assert planned_item.date_actual == date_type(2024, 9, 15)
+        assert opening_event.date == date_type(2024, 9, 15)
+        assert reopening.date == date_type(2025, 1, 20)
+        assert closing.date == date_type(2024, 12, 1)
+        assert planned_item.transitions.count() == 3
+
+    def test_invalid_second_opening_rolls_back_all_corrections(
+        self, writer_client, planned_item, opening_event,
+    ):
+        reopening = HarvestTransition.objects.create(
+            harvest_plan_item=planned_item, open=True, date='2025-01-15',
+        )
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+            f'{FIELD_OPENING_DATE_PREFIX}{reopening.id}': 'invalid',
+        })
+        assert response.status_code == 400
+        planned_item.refresh_from_db()
+        opening_event.refresh_from_db()
+        assert planned_item.date_actual == date_type(2024, 9, 1)
+        assert opening_event.date == date_type(2024, 9, 1)
+        assert opening_event.history.count() == 1
+
+    def test_reader_cannot_correct_an_opening(
+        self, reader_client, planned_item, opening_event,
+    ):
+        response = self._save(reader_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+        })
+        assert response.status_code == 403
+        opening_event.refresh_from_db()
+        assert opening_event.date == date_type(2024, 9, 1)
+
+    def test_new_item_cannot_create_or_change_an_opening(
+        self, writer_client, planned_item, opening_event,
+    ):
+        response = self._save(writer_client, planned_item, {
+            ROW_ID: '', FIELD_HARVEST_PLAN_ID: planned_item.harvest_plan_id,
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+        })
+        assert response.status_code == 400
+        assert S.ERR_OPENING_NOT_FOUND in response.json()[MESSAGE]
+        assert HarvestPlanItem.objects.count() == 1
+
+    def test_existing_event_baseline_supplies_before_value_without_fake_insert(
+        self, writer_client, planned_item, opening_event,
+    ):
+        from types import SimpleNamespace
+
+        opening_event.history.all().delete()
+        migration = importlib.import_module(
+            'apps.base.migrations.0025_historicalharvesttransition',
+        )
+        migration.snapshot_existing_transitions(
+            django_apps, SimpleNamespace(connection=connection),
+        )
+        audit = _read_gzip_json(writer_client.get('/api/controllo/data/'))
+        cols = audit[COLUMNS]
+        assert not any(row[cols.index(S.COL_TABLE)] == S.TABLE_HARVEST_TRANSITION
+                       for row in audit[ROWS])
+
+        response = self._save(writer_client, planned_item, {
+            f'{FIELD_OPENING_DATE_PREFIX}{opening_event.id}': '2024-09-15',
+            f'{FIELD_OPENING_NOTE_PREFIX}{opening_event.id}': 'Permesso 43',
+        })
+        assert response.status_code == 200, response.json()
+        audit = _read_gzip_json(writer_client.get('/api/controllo/data/'))
+        rows = [row for row in audit[ROWS]
+                if row[cols.index(S.COL_TABLE)] == S.TABLE_HARVEST_TRANSITION]
+        assert len(rows) == 1
+        assert rows[0][cols.index(S.COL_ACTION)] == S.AUDIT_UPDATE
+        assert '2024-09-01' in rows[0][cols.index(S.COL_OLD_VALUE)]
+        assert 'Permesso 42' in rows[0][cols.index(S.COL_OLD_VALUE)]
+        assert '2024-09-15' in rows[0][cols.index(S.COL_NEW_VALUE)]
 
 
 # ---------------------------------------------------------------------------
