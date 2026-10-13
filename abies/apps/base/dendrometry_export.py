@@ -10,7 +10,7 @@ from apps.base.dendrometry import (
 from config import strings as S
 
 
-def render_tree_dendrometry_csvs(trees) -> list[tuple[str, str]]:
+def render_tree_dendrometry_csvs(trees, *, diameter_class_mode=None) -> list[tuple[str, str]]:
     """Return tree-count, volume, and basal-area CSV matrices.
 
     Every matrix uses species on rows and a continuous sequence of 5 cm
@@ -24,7 +24,8 @@ def render_tree_dendrometry_csvs(trees) -> list[tuple[str, str]]:
     })
     species_names = set()
     diameter_classes = set()
-    diameter_class_mode = current_diameter_class_mode()
+    if diameter_class_mode is None:
+        diameter_class_mode = current_diameter_class_mode()
 
     for tree_row in trees:
         species = tree_row.tree.species.common_name

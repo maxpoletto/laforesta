@@ -308,9 +308,19 @@ The modal displays:
    contributes nothing to the volume chart or total. Basal area is summed from
    each tree's actual diameter, `π × (D/200)²`.
 
+   When the item's current marked trees span more than one distinct parcel,
+   the summary shows a **Particelle:** pulldown. Its default is **Tutte**,
+   followed by the marked parcels in natural order (for example `2`, `2a`,
+   `10`). Tutte combines all of the item's marked parcels. Selecting one
+   parcel scopes the three charts, species legend, and summary totals to its
+   trees. The table and map continue to follow Filtra. The parcel list comes
+   from the complete marking and remains available when Filtra narrows the
+   visible rows; the summary then uses the intersection of both selections.
+   Single-parcel and empty markings have no visible parcel selector.
+
    As in Bosco detail, one species color legend is displayed above the charts.
    It is informational rather than a second set of checkbox filters: the marks
-   table's **Filtra** input is the sole control for the visible species.
+   table's **Filtra** input and the selected parcel determine the visible trees.
    Beneath the charts, the shared Bosco summaries show Alberi totali, Volume
    totale, and the two stacked basal-area lines (Area totale and Diametro
    medio with σ); these totals follow the active filter too.
@@ -322,14 +332,24 @@ The modal displays:
    - `volume_m3.csv`
    - `area_basimetrica_m2.csv`
 
+   For N distinct marked parcels with N > 1, the ZIP also contains these same
+   three files in each `particella_<name>/` folder, ordered naturally. Thus it
+   contains N+1 sets of three tables: the combined set at the top level and
+   one set per marked parcel. Folder names are sanitized and disambiguated if
+   necessary. Export includes every parcel set regardless of the parcel
+   selected for viewing. A single marked parcel retains the original three-
+   file archive.
+
    Each CSV is a matrix with species on rows and a continuous sequence of
    five-centimetre diameter classes on columns; missing combinations are zero.
    Species whose entire row is zero for that metric are omitted. It uses the
    active locale's CSV delimiter and decimal separator. The endpoint reads the
    current diameter-class setting directly, so exported matrix columns use the
    same boundaries as the visible charts. With an active filter,
-   the client POSTs the displayed mark row IDs so the ZIP exactly matches the
-   visible summary. Without a filter it leaves row IDs unspecified and the
+   the client POSTs the mark row IDs retained by Filtra, so the combined and
+   per-parcel tables use the same filtered trees. The sets for all marked
+   parcels remain present, including header-only tables for parcels with no
+   retained rows. Without a filter it leaves row IDs unspecified and the
    server exports all marks; the endpoint also accepts GET for integrations.
 
    Each row has pencil / trash icons. Editing or deleting an individual
@@ -614,13 +634,18 @@ The browser aggregates the filtered rows in this digest for the map and
 `Riassunto dendrometrico`; no second dendrometry digest is generated. The ZIP
 endpoint (`/api/piano-di-taglio/mark/dendrometry/export/<item-id>/`) queries the
 same `tree_mark` records, optionally restricted by POSTed `row_ids`, and uses
-the shared server-side diameter-class and basal-area functions.
+the shared server-side diameter-class and basal-area functions. Multi-parcel
+exports discover the complete marking's parcels before applying row-ID filters
+and group the retained trees by parcel. All sets in one ZIP use a single
+snapshot of the current diameter-class setting.
 Sorted by `Numero` ascending.
 
 Martellate and free surveys both mount the shared `TreeDetail` controller,
 which composes `TreePointsMap` with the reusable dendrometry renderers. Bosco
 detail pages consume those same graph renderers directly, preserving their
 chart layout, colors, legend, and summary calculations across all three uses.
+The Intervento view enables TreeDetail's optional parcel summary selector;
+free-survey consumers retain the combined summary.
 
 `Numero` is stored on `tree_mark.number`. `h misurata`
 carries the boolean `h_measured`, rendered in the table as a small

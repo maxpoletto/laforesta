@@ -1551,6 +1551,7 @@ async function appendItemTreeDetail(
     digest: data,
     geojson,
     speciesNames,
+    parcelSummary: true,
     onTreeClick: (tree) => {
       showMarkTreePopover(
         itemId, tree.row, data.columns, showActions, showParcel,

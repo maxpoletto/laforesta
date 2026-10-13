@@ -24,6 +24,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
 from apps.base import csv_io
+from apps.base.dendrometry import current_diameter_class_mode
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
 from apps.base.numparse import (
     coord_float, int_or_none, parse_decimal, positive_int_list,
@@ -51,6 +52,7 @@ from apps.base.models import (
     Species,
     Tree,
     TreeMark,
+    natural_sort_key,
     parcel_sort_key,
 )
 from apps.piano_di_taglio import csv_plan
@@ -707,8 +709,9 @@ def item_export_view(request, item_id: int):
 
 @login_required
 @require_http_methods(['GET', 'POST'])
+@transaction.atomic
 def mark_dendrometry_export_view(request, item_id: int):
-    """Zip the mark dendrometry matrices, optionally for selected row IDs."""
+    """Zip combined and, for multi-parcel marks, per-parcel matrices."""
     item = HarvestPlanItem.objects.filter(id=item_id).first()
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
@@ -726,11 +729,37 @@ def mark_dendrometry_export_view(request, item_id: int):
              .filter(harvest_plan_item=item)
              .select_related('tree__species')
              .order_by('tree__species__common_name', 'd_cm', 'id'))
+    parcels = sorted(
+        marks.order_by().values('parcel_id', 'parcel__name').distinct(),
+        key=lambda parcel: natural_sort_key(parcel['parcel__name']),
+    )
     if row_ids is not None:
         marks = marks.filter(id__in=set(row_ids))
+    marks = list(marks)
+    diameter_class_mode = current_diameter_class_mode()
+    files = render_tree_dendrometry_csvs(marks, diameter_class_mode=diameter_class_mode)
+    if len(parcels) > 1:
+        parcel_marks = {parcel['parcel_id']: [] for parcel in parcels}
+        for mark in marks:
+            parcel_marks[mark.parcel_id].append(mark)
+        folders = set()
+        for parcel in parcels:
+            folder = S.CSV_DIR_DENDROMETRY_PARCEL.format(
+                _safe_filename(parcel['parcel__name']),
+            )
+            while folder.casefold() in folders:
+                folder += f'_{parcel["parcel_id"]}'
+            folders.add(folder.casefold())
+            files.extend(
+                (f'{folder}/{filename}', content)
+                for filename, content in render_tree_dendrometry_csvs(
+                    parcel_marks[parcel['parcel_id']],
+                    diameter_class_mode=diameter_class_mode,
+                )
+            )
 
     return csv_io.zip_csv_response(
-        render_tree_dendrometry_csvs(marks),
+        files,
         S.ZIP_FILE_MARK_DENDROMETRY.format(item.id),
     )
 

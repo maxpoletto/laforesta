@@ -751,6 +751,7 @@ CSV_FILE_REGRESSION = 'equazioni_ipsometro.csv'
 CSV_FILE_DENDROMETRY_TREE_COUNT = 'numero_alberi.csv'
 CSV_FILE_DENDROMETRY_VOLUME = 'volume_m3.csv'
 CSV_FILE_DENDROMETRY_BASAL_AREA = 'area_basimetrica_m2.csv'
+CSV_DIR_DENDROMETRY_PARCEL = 'particella_{}'
 ZIP_FILE_MARK_DENDROMETRY = 'riassunto_dendrometrico_{}.zip'
 ZIP_FILE_SURVEY_DENDROMETRY = 'riassunto_dendrometrico_rilevamento_{}.zip'
 

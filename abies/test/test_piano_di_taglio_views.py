@@ -12,6 +12,7 @@ import gzip
 import importlib
 import io
 import json
+import math
 import zipfile
 from datetime import date as date_type
 from decimal import Decimal
@@ -1796,7 +1797,7 @@ class TestItemExport:
 
 
 class TestMarkDendrometryExport:
-    def _marks(self, planned_item, species):
+    def _marks(self, planned_item, species, parcels=None):
         specs = [
             (species[0], 18, '0.1'),
             (species[0], 22, '0.2'),
@@ -1807,7 +1808,7 @@ class TestMarkDendrometryExport:
             marks.append(TreeMark.objects.create(
                 harvest_plan_item=planned_item,
                 tree=Tree.objects.create(species=tree_species),
-                parcel=planned_item.parcel,
+                parcel=parcels[number - 1] if parcels else planned_item.parcel,
                 number=number,
                 date=date_type(2025, 6, number),
                 d_cm=diameter,
@@ -1820,6 +1821,33 @@ class TestMarkDendrometryExport:
                 operator='Mario',
             ))
         return marks
+
+    def _multi_parcel_marks(self, planned_item, species, parcels):
+        region, eclass = planned_item.parcel.region, planned_item.parcel.eclass
+        parcel10 = Parcel.objects.create(name='10', region=region, eclass=eclass, area_ha=10)
+        parcel2a = Parcel.objects.create(name='2a', region=region, eclass=eclass, area_ha=10)
+        involved = [parcel10, parcels[1], parcel2a]
+        planned_item.region = region
+        planned_item.parcel = None
+        planned_item.damaged = True
+        planned_item.save()
+        marks = self._marks(planned_item, species, involved)
+        marks[2].h_m = None
+        marks[2].mass_q = None
+        marks[2].save(update_fields=['h_m', 'mass_q'])
+        marks.append(TreeMark.objects.create(
+            harvest_plan_item=planned_item,
+            tree=Tree.objects.create(species=species[0]),
+            parcel=parcels[1], number=4, date=date_type(2025, 6, 4),
+            d_cm=20, h_m=Decimal('20'), volume_m3=Decimal('0.3'),
+            mass_q=Decimal('1'), operator='Mario',
+        ))
+        return involved, marks
+
+    def _metric_total(self, response, filename):
+        return sum(float(cell.replace(',', '.'))
+                   for row in self._zip_rows(response, filename)[1:]
+                   for cell in row[1:])
 
     def _zip_rows(self, response, filename):
         zf = zipfile.ZipFile(io.BytesIO(response.content))
@@ -1866,6 +1894,83 @@ class TestMarkDendrometryExport:
         assert tree_rows[0] == [S.COL_SPECIES, '15', '20', '25', '30']
         by_species = {row[0]: row[1:] for row in tree_rows[1:]}
         assert by_species[species[0].common_name] == ['1', '1', '0', '0']
+
+    def test_multiple_parcels_export_combined_and_individual_metrics(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        self._multi_parcel_marks(planned_item, species, parcels)
+        response = writer_client.get(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+        )
+        assert response.status_code == 200
+        names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
+        metrics = [S.CSV_FILE_DENDROMETRY_TREE_COUNT, S.CSV_FILE_DENDROMETRY_VOLUME,
+                   S.CSV_FILE_DENDROMETRY_BASAL_AREA]
+        assert names == metrics + [
+            f'{folder}/{metric}'
+            for folder in ('particella_2', 'particella_2a', 'particella_10')
+            for metric in metrics
+        ]
+        for folder, count, volume, diameters in [
+            ('', 4, 0.6, [18, 22, 30, 20]),
+            ('particella_2/', 2, 0.5, [22, 20]),
+            ('particella_2a/', 1, 0, [30]),
+            ('particella_10/', 1, 0.1, [18]),
+        ]:
+            assert self._metric_total(response, folder + metrics[0]) == count
+            assert self._metric_total(response, folder + metrics[1]) == pytest.approx(volume)
+            assert self._metric_total(response, folder + metrics[2]) == pytest.approx(
+                sum(math.pi * (diameter / 200) ** 2 for diameter in diameters), abs=0.0001,
+            )
+
+    def test_region_wide_item_with_one_marked_parcel_keeps_three_files(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        planned_item.region = parcels[0].region
+        planned_item.parcel = None
+        planned_item.damaged = True
+        planned_item.save()
+        self._marks(planned_item, species, [parcels[0]] * 3)
+        response = writer_client.get(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+        )
+        assert response.status_code == 200
+        assert len(zipfile.ZipFile(io.BytesIO(response.content)).namelist()) == 3
+
+    def test_filtered_export_keeps_all_parcel_sets_and_restricts_their_data(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        _, marks = self._multi_parcel_marks(planned_item, species, parcels)
+        response = writer_client.post(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+            data=json.dumps({FIELD_ROW_IDS: [marks[0].id]}), content_type='application/json',
+        )
+        assert response.status_code == 200
+        assert len(zipfile.ZipFile(io.BytesIO(response.content)).namelist()) == 12
+        for metric in (S.CSV_FILE_DENDROMETRY_TREE_COUNT, S.CSV_FILE_DENDROMETRY_VOLUME,
+                       S.CSV_FILE_DENDROMETRY_BASAL_AREA):
+            assert self._zip_rows(response, metric) == self._zip_rows(
+                response, f'particella_10/{metric}',
+            )
+            assert self._zip_rows(response, f'particella_2/{metric}') == [[S.COL_SPECIES]]
+            assert self._zip_rows(response, f'particella_2a/{metric}') == [[S.COL_SPECIES]]
+
+    def test_parcel_filename_collisions_do_not_overwrite_tables(
+        self, writer_client, planned_item, species, parcels,
+    ):
+        involved, _ = self._multi_parcel_marks(planned_item, species, parcels)
+        for parcel, name in zip(involved, ['2/3', '2?3', '2_3']):
+            parcel.name = name
+            parcel.save(update_fields=['name'])
+        response = writer_client.get(
+            f'/api/piano-di-taglio/mark/dendrometry/export/{planned_item.id}/',
+        )
+        assert response.status_code == 200
+        names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
+        assert len(names) == len(set(names)) == 12
+        folders = {name.split('/')[0] for name in names if '/' in name}
+        assert len(folders) == 3
+        assert all(folder.startswith('particella_2_3') for folder in folders)
 
     def test_post_row_ids_exports_only_the_filtered_marks(
         self, writer_client, planned_item, species,

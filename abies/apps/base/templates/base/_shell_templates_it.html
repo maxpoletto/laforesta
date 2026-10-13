@@ -34,6 +34,12 @@ Rendered once inside the shell; never displayed directly.
       <button type="button" class="btn btn-export"
               data-action="export-dendrometry">{{ S.EXPORT }}</button>
     </div>
+    <label class="tree-dendrometry-parcels" data-target="dendrometry-parcels" hidden>
+      Particelle:
+      <select data-target="dendrometry-parcel-select">
+        <option value="">Tutte</option>
+      </select>
+    </label>
     <p class="subsection-note" data-target="dendrometry-status" hidden></p>
     <div class="dendrometry-species-row" data-target="dendrometry-species-row">
       <span class="dendrometry-species-label">{{ S.COL_SPECIES }}:</span>

@@ -265,6 +265,13 @@ function buildDendrometrySummaryTemplate() {
     el('h3'),
     el('button', { className: 'btn btn-export', dataset: { action: 'export-dendrometry' } }),
   ]));
+  const allParcels = el('option');
+  allParcels.textContent = 'Tutte';
+  const parcelControl = el('label', {
+    className: 'tree-dendrometry-parcels', dataset: { target: 'dendrometry-parcels' },
+  }, [el('select', { dataset: { target: 'dendrometry-parcel-select' } }, [allParcels])]);
+  parcelControl.hidden = true;
+  summary.appendChild(parcelControl);
   summary.appendChild(el('p', { dataset: { target: 'dendrometry-status' } }));
   summary.appendChild(el('div', {
     className: 'dendrometry-species-row', dataset: { target: 'dendrometry-species-row' },
@@ -1294,6 +1301,8 @@ async function finish() {
      'summary renders one shared species legend');
   eq(contentEl.querySelectorAll('.tree-dendrometry-summary input').length, 0,
      'species legend has no checkbox controls');
+  eq(contentEl.querySelector('[data-target="dendrometry-parcels"]').hidden, true,
+     'single-parcel marking does not offer a parcel selector');
   eq(contentEl.querySelectorAll('.pdt-dendrometry-table').length, 0,
      'summary does not render matrix tables');
   const chartInfo = contentEl.querySelectorAll('.dendrometry-chart-info');
@@ -1331,6 +1340,100 @@ async function finish() {
   eq(dendrometryExportCalls, 2, 'filtered dendrometry export is requested');
   eq(exportedDendrometryRowIds, [1102],
      'dendrometry export submits only rows in the active filter');
+  await finish();
+}
+
+// A multi-parcel mark offers naturally ordered summary scopes; export keeps
+// the complete table-filter scope, independent of the selected summary parcel.
+{
+  installLeafletMock();
+  const item = deferItem(13);
+  const marks = deferMarks(13);
+  const digest = markDigest(13);
+  const c = name => digest.columns.indexOf(name);
+  const first = digest.rows[0];
+  first[c(S.COL_PARCEL)] = '10';
+  for (const [id, parcel, species, diameter, volume] of [
+    [1302, '2a', 'Faggio', 40, null],
+    [1303, '2', 'Abete bianco', 20, 0.3],
+    [1304, '2', 'Abete bianco', 22, 0.5],
+  ]) {
+    const row = [...first];
+    row[c(ROW_ID)] = id;
+    row[c(S.COL_PARCEL)] = parcel;
+    row[c(S.COL_SPECIES)] = species;
+    row[c(S.COL_D_CM)] = diameter;
+    row[c(S.COL_V_M3)] = volume;
+    if (volume == null) {
+      row[c(S.COL_H_M)] = null;
+      row[c(S.COL_LAT)] = null;
+      row[c(S.COL_LON)] = null;
+    }
+    digest.rows.push(row);
+  }
+  await mountItem(13);
+  item.resolve(itemPayload(13));
+  await flushAsyncWork();
+  marks.resolve(digest);
+  await flushSeveral();
+
+  const control = contentEl.querySelector('[data-target="dendrometry-parcels"]');
+  const select = control.querySelector('select');
+  const info = contentEl.querySelectorAll('.dendrometry-chart-info');
+  const exportButton = contentEl.querySelector('[data-action="export-dendrometry"]');
+  eq(control.hidden, false, 'multi-parcel marking shows the summary selector');
+  eq(select.children.map(option => option.textContent), ['Tutte', '2', '2a', '10'],
+     'summary parcels are distinct and in natural order');
+  eq(select.value, '', 'multi-parcel summary defaults to Tutte');
+  eq(info[0].children.map(line => line.textContent), ['Alberi totali: 4'],
+     'Tutte counts every marked tree, including the tree without coordinates');
+  eq(info[1].children.map(line => line.textContent), ['Volume totale: 2,00 m³'],
+     'Tutte sums volumes across all parcels');
+  eq(info[2].children[0].textContent, 'Area totale: 0,27 m²',
+     'Tutte sums basal area across all parcels');
+
+  select.value = '2';
+  select.dispatchEvent({ type: 'change' });
+  eq(info[0].children.map(line => line.textContent), ['Alberi totali: 2'],
+     'a parcel selection counts only that parcel');
+  eq(info[1].children.map(line => line.textContent), ['Volume totale: 0,80 m³'],
+     'a parcel selection sums only its volume');
+  eq(info[2].children[0].textContent, 'Area totale: 0,07 m²',
+     'a parcel selection sums its actual tree diameters');
+  eq(chartInstances[0].data.datasets.map(dataset => dataset.label), ['Abete bianco'],
+     'parcel selection updates the chart species');
+  eq(latestTreeMarkers().length, 3, 'summary selection leaves the marked-tree map scope intact');
+  eq(tableInstances.at(-1).data.length, 4, 'summary selection leaves the marked-tree table scope intact');
+
+  exportButton.click();
+  await flushSeveral();
+  eq(exportedDendrometryRowIds, null,
+     'a selected summary parcel still exports all parcel sets');
+
+  const search = contentEl.querySelector('.pdt-item-card .table-search');
+  search.value = 'Faggio';
+  search.dispatchEvent({ type: 'input' });
+  await new Promise(resolve => setTimeout(resolve, 550));
+  await flushSeveral();
+  eq(select.value, '2', 'table search preserves the selected summary parcel');
+  eq(select.children.map(option => option.textContent), ['Tutte', '2', '2a', '10'],
+     'table search retains the parcels involved in the full marking');
+  eq(contentEl.querySelector('[data-target="dendrometry-chart-grid"]').hidden, true,
+     'a selected parcel with no filtered trees shows an empty summary');
+  eq(exportButton.disabled, false, 'export remains available for the complete search result');
+  exportButton.click();
+  await flushSeveral();
+  eq(exportedDendrometryRowIds, [1302],
+     'ZIP rows follow table search rather than the selected summary parcel');
+
+  select.value = '';
+  select.dispatchEvent({ type: 'change' });
+  eq(info[0].children.map(line => line.textContent), ['Alberi totali: 1'],
+     'Tutte shows the complete filtered marking');
+  eq(info[1].children.map(line => line.textContent), ['Volume totale: 0,00 m³'],
+     'an unknown-height tree contributes no volume');
+  eq(info[2].children[0].textContent, 'Area totale: 0,13 m²',
+     'an unknown-height tree still contributes basal area');
   await finish();
 }
 

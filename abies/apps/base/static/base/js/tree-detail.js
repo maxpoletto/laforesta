@@ -13,6 +13,7 @@ import {
   renderDendrometrySummaryInfo,
 } from './dendrometry.js';
 import { FIELD_DIAMETER_CLASS_MODE } from './constants.js';
+import { compareParcelNames } from './natural-sort.js';
 import { TreePointsMap, treePointsFromDigest } from './tree-points-map.js';
 import * as S from './strings.js';
 
@@ -26,6 +27,7 @@ export class TreeDetail {
     pointColumnNames = undefined,
     onTreeClick = null,
     onExport = null,
+    parcelSummary = false,
     emptyMessage = S.TREE_DENDROMETRY_EMPTY,
   }) {
     this.container = container;
@@ -42,6 +44,8 @@ export class TreeDetail {
     this.map = null;
     this.mapHost = null;
     this.charts = {};
+    this.parcelColumn = this.columns.indexOf(S.COL_PARCEL);
+    this.selectedParcel = '';
 
     if (digest?.rows?.length && geojson && typeof L !== 'undefined') {
       this._mountMap();
@@ -50,6 +54,7 @@ export class TreeDetail {
     this.root = fragment.querySelector('.tree-dendrometry-summary');
     this.exportButton = fragment.querySelector('[data-action="export-dendrometry"]');
     this.exportButton?.addEventListener('click', () => this._export());
+    if (parcelSummary) this._mountParcelSelector(digest?.rows || []);
     container.appendChild(fragment);
     this.setRows(digest?.rows || []);
   }
@@ -97,13 +102,40 @@ export class TreeDetail {
     });
   }
 
+  _mountParcelSelector(rows) {
+    if (this.parcelColumn < 0) return;
+    const parcels = [...new Set(rows
+      .map(row => row[this.parcelColumn])
+      .filter(name => name != null && name !== '')
+      .map(String))].sort(compareParcelNames);
+    if (parcels.length < 2) return;
+    const control = this.root?.querySelector('[data-target="dendrometry-parcels"]');
+    const select = control?.querySelector('select');
+    if (!select) return;
+    for (const parcel of parcels) {
+      const option = document.createElement('option');
+      option.value = parcel;
+      option.textContent = parcel;
+      select.appendChild(option);
+    }
+    select.value = '';
+    control.hidden = false;
+    select.addEventListener('change', () => {
+      this.selectedParcel = select.value;
+      this._renderSummary();
+    });
+  }
+
   _renderSummary() {
     if (!this.root) return;
     const status = this.root.querySelector('[data-target="dendrometry-status"]');
     const chartGrid = this.root.querySelector('[data-target="dendrometry-chart-grid"]');
     const legendRow = this.root.querySelector('[data-target="dendrometry-species-row"]');
     const legend = this.root.querySelector('[data-target="dendrometry-species"]');
-    const rows = aggregateTreeDendrometry(this.rows, this.columns, {
+    const sourceRows = this.selectedParcel
+      ? this.rows.filter(row => String(row[this.parcelColumn]) === this.selectedParcel)
+      : this.rows;
+    const rows = aggregateTreeDendrometry(sourceRows, this.columns, {
       allSpeciesNames: this.speciesNames,
       diameterClassMode: this.diameterClassMode,
     });

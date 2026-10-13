@@ -582,6 +582,16 @@ input:focus, select:focus, textarea:focus {
   font-size: 1rem;
 }
 
+.tree-dendrometry-parcels {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tree-dendrometry-parcels[hidden] { display: none; }
+.tree-dendrometry-parcels select { width: 120px; }
+
 
 .dendrometry-chart-grid {
   display: grid;
