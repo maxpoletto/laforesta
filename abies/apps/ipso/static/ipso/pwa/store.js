@@ -18,7 +18,7 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
     typeof S === 'undefined') {
-  Object.assign(globalThis, require('./strings.js'));
+  Object.assign(globalThis, require('./strings_it.js'));
 }
 
 const DB_NAME = 'ipso';

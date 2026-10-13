@@ -1,5 +1,5 @@
-// All user-facing Italian strings, in one file so a future English variant
-// is a single-file replacement.
+// Italian user-facing strings for Ipso's classic-script shell.
+// A future locale gets its own strings_<lang>.js catalog and loading references.
 'use strict';
 
 const S = {

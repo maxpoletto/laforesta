@@ -116,6 +116,8 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'id="btn-mode-pai"' not in body
     assert 'id="screen-map"' in body
     assert 'src="modes.js"' in body
+    assert 'src="strings_it.js"' in body
+    assert 'src="strings.js"' not in body
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
     assert 'src="map.js"' in body
     assert 'src="app.js"' in body
@@ -131,6 +133,10 @@ def test_service_worker_served_from_ipso_scope(db):
     assert b'ipso service worker' in body
     assert b'/static/base/js/map-common.js' in body
     assert b'/static/base/css/map-basemaps.css' in body
+    assert b"'./strings_it.js'" in body
+    assert b"'./strings.js'" not in body
+    assert b"'/static/base/js/strings.js'" in body
+    assert b"'/static/base/js/strings_it.js'" in body
     assert b'upload-config.js' not in body
     assert b'./reference.json' not in body
     assert b'./terreni.geojson' not in body
@@ -160,6 +166,7 @@ def test_ipso_formats_timestamps_in_local_timezone(db):
 @pytest.mark.parametrize(('path', 'needle'), [
     ('/ipso/map.js', b'createOrientationMap'),
     ('/ipso/modes.js', b'IpsoModes'),
+    ('/ipso/strings_it.js', b"SPECIES_OTHER: 'Altro'"),
 ])
 def test_referenced_static_helpers_are_served(db, path, needle):
     resp = Client().get(path)
@@ -167,6 +174,14 @@ def test_referenced_static_helpers_are_served(db, path, needle):
     assert resp.status_code == 200
     assert resp['Content-Type'].startswith('text/javascript')
     assert needle in _body(resp)
+
+
+def test_ipso_string_catalog_is_explicitly_localized(db):
+    catalog = ipso_views._static_path('strings_it.js')
+    assert catalog.is_file()
+    assert not catalog.with_name('strings.js').exists()
+    assert 'strings.js' not in ipso_views.ASSET_FILES
+    assert Client().get('/ipso/strings.js').status_code == 404
 
 
 def test_manifest_is_served(db):

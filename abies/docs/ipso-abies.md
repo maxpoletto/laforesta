@@ -47,6 +47,14 @@ The shell assets are public:
 - `/ipso/index.html`
 - `/ipso/*.js`, CSS, manifest, and image assets listed by `apps.ipso.views`
 
+Ipso's Italian UI catalog is `apps/ipso/static/ipso/pwa/strings_it.js`, served
+as `/ipso/strings_it.js` and loaded before the classic scripts that use the
+global `S` object. Node-test imports use the same catalog. A future language
+uses a parallel `strings_<lang>.js` file and retargets the shell, asset allowlist,
+precache and test-side imports. This is separate from the shared Abies ES-module
+catalog: `/static/base/js/strings.js` remains its locale-neutral re-export,
+and both that file and its `strings_it.js` dependency are precached for maps.
+
 The service worker caches only shell/static assets. Protected data responses use
 `Cache-Control: no-store`, and the service worker bypasses `no-store` requests.
 The PWA instead keeps explicit, application-owned last-good snapshots of the
@@ -62,6 +70,11 @@ or the operator presses the footer `Aggiorna app` button, which is shown only
 when a waiting worker exists. Pressing the button sends the worker an explicit
 activation message and reloads the page once the new worker controls it, keeping
 version switches visible and operator-driven.
+
+Ipso 1.5.1 renames the mobile catalog from `strings.js` to `strings_it.js` and
+updates its loading/precache references. The version bump gives the new shell
+its own cache; existing installed clients keep their cached old shell until
+normal operator-driven activation. No IndexedDB schema or session data changes.
 
 Protected data endpoints require the shared bearer:
 

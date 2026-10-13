@@ -12,7 +12,7 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
     typeof S === 'undefined') {
-  Object.assign(globalThis, require('./strings.js'));
+  Object.assign(globalThis, require('./strings_it.js'));
 }
 
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];

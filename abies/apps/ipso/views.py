@@ -169,7 +169,7 @@ ASSET_FILES = {
     'photo.js',
     'session.js',
     'store.js',
-    'strings.js',
+    'strings_it.js',
     'style.css',
     'sw.js',
     'upload-flow.js',

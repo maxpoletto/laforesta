@@ -6,7 +6,7 @@
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
     typeof S === 'undefined') {
-  Object.assign(globalThis, require('./strings.js'));
+  Object.assign(globalThis, require('./strings_it.js'));
 }
 
 const PAI_PANE = 'ipsoPaiPane';
