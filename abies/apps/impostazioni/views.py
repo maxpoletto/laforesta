@@ -16,7 +16,8 @@ from apps.base.auth import require_admin, require_writer
 from apps.base.landing import clean_landing_page, user_landing_page
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.digests import (
-    HYPSO_PARAM_COLUMNS, build_harvest_plan_record, build_survey_record,
+    HYPSO_PARAM_COLUMNS, SPECIES_COLUMNS, build_harvest_plan_record,
+    build_species_record, build_survey_record,
     hypso_param_row, mark_stale, mark_stale_prefixes, serve_digest,
 )
 from apps.base.responses import (
@@ -28,9 +29,10 @@ from apps.base.selectors import (
 )
 from apps.base.models import (
     HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
-    LoginMethod, ObservationCategory, Role, SiteSettings, Species, Survey,
+    LoginMethod, ObservationCategory, Role, SiteSettings, Species, SpeciesType, Survey,
     Tractor, TreeSample, User,
 )
+from apps.base.species import OTHER_SPECIES_TYPES, PROTECTED_SPECIES_NAMES
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
@@ -38,7 +40,7 @@ from config.constants import (
     DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
     DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
-    FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COMMON_NAME,
+    FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME,
     FIELD_COUNTS,
     FIELD_DATA_IDS, FIELD_DIAMETER_CLASS_MODE,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
@@ -149,13 +151,11 @@ def tractors_save(request):
 # Species
 # ---------------------------------------------------------------------------
 
-SPECIES_COLS = [ROW_ID, S.LABEL_NAME, S.COL_LATIN_NAME,
-                S.LABEL_DENSITY, S.COL_PRESSLER, S.COL_MINOR, S.COL_ACTIVE]
+SPECIES_COLS = SPECIES_COLUMNS
 
 
 def _species_row(s):
-    return [s.id, s.common_name, s.latin_name, float(s.density),
-            float(s.pressler_default), s.minor, s.active]
+    return build_species_record(s)
 
 
 @login_required
@@ -169,7 +169,8 @@ def species_data(request):
 def species_form(request, obj_id=None):
     return _form(
         'impostazioni/_species_form.html', Species, obj_id, request,
-        extra={'pressler_default': PRESSLER_DEFAULT},
+        extra={'pressler_default': PRESSLER_DEFAULT,
+               'protected_species_names': PROTECTED_SPECIES_NAMES},
     )
 
 
@@ -199,19 +200,50 @@ def species_save(request):
     if not parsed[FIELD_COMMON_NAME]:
         return _error(S.ERR_NAME_REQUIRED)
     row_id = int_or_none(body.get(ROW_ID))
-    if row_id is not None:
-        existing_name = (Species.objects
-                         .filter(id=row_id)
-                         .values_list(FIELD_COMMON_NAME, flat=True)
-                         .first())
-        if (existing_name == S.SPECIES_OTHER
-                and parsed[FIELD_COMMON_NAME] != S.SPECIES_OTHER):
-            return _error(S.ERR_OTHER_RENAME_FORBIDDEN.format(S.SPECIES_OTHER))
-    # The "Altro" species backs the minor-aggregation column, so it must
-    # itself stay major; otherwise prelievi generation has no bucket to fold
-    # minor species into.
-    if parsed[FIELD_MINOR] and parsed[FIELD_COMMON_NAME] == S.SPECIES_OTHER:
-        return _error(S.ERR_OTHER_NOT_MINOR.format(S.SPECIES_OTHER))
+    existing = Species.objects.filter(id=row_id).first() if row_id else None
+    if (existing and existing.common_name in PROTECTED_SPECIES_NAMES
+            and parsed[FIELD_COMMON_NAME] != existing.common_name):
+        return _error(S.ERR_OTHER_RENAME_FORBIDDEN.format(existing.common_name))
+    name = parsed[FIELD_COMMON_NAME]
+    if parsed[FIELD_MINOR] and name in PROTECTED_SPECIES_NAMES:
+        return _error(S.ERR_OTHER_NOT_MINOR.format(name))
+    kind = body.get(FIELD_BOTANICAL_TYPE,
+                    existing.botanical_type if existing else '')
+    type_error = _species_type_error(name, kind)
+    if type_error:
+        return _error(type_error)
+    parsed[FIELD_BOTANICAL_TYPE] = kind
+    return _save_species_response(request, body, parsed)
+
+
+def _species_type_error(name, kind):
+    fixed = '' if name == S.SPECIES_OTHER else OTHER_SPECIES_TYPES.get(name)
+    if fixed is not None and kind != fixed:
+        return S.ERR_BOTANICAL_TYPE_FIXED.format(name)
+    if fixed is None and kind not in SpeciesType.values:
+        return S.ERR_BOTANICAL_TYPE_REQUIRED
+    return None
+
+
+@login_required
+@require_writer
+@require_POST
+def species_type_save(request):
+    """The inline dropdown updates only classification under the row lock."""
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    obj = Species.objects.filter(id=int_or_none(body.get(ROW_ID))).first()
+    if obj is None:
+        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
+    kind = body.get(FIELD_BOTANICAL_TYPE)
+    type_error = _species_type_error(obj.common_name, kind)
+    if type_error:
+        return _error(type_error)
+    return _save_species_response(request, body, {FIELD_BOTANICAL_TYPE: kind})
+
+
+def _save_species_response(request, body, parsed):
     # species.minor / common_name / sort_order define the prelievi column
     # set; species.json is also consumed by V/m preview forms.  Bosco
     # dendrometry/PAI digests denormalize species names.
@@ -228,7 +260,7 @@ def species_save(request):
             ],
         },
         unique_field=FIELD_COMMON_NAME,
-        unique_value=parsed[FIELD_COMMON_NAME],
+        unique_value=parsed.get(FIELD_COMMON_NAME),
         unique_error=S.ERR_SPECIES_NAME_DUPLICATE,
     )
 

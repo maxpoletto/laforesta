@@ -425,6 +425,23 @@ Compresa / Particella prepopulated from the plan item. Fields:
 date, numero (defaults to max+1), operator, specie (pulldown),
 D (cm), h (m), lat/lng.
 
+New species choices include `Altra conifera` and `Altra latifoglia`, not legacy
+`Altro`. A mark already using Altro retains that choice when edited; neither
+the UI nor a direct POST can assign Altro to a new tree or change another
+species to Altro. Historical CSV/Ipso imports remain compatible. The new
+catch-alls use explicit Tabacchi proxies: Abete bianco (`Abete`) for
+`Altra conifera`, Faggio for `Altra latifoglia`. These are estimates from
+existing equations, not new species-specific fits. Mass uses the selected
+catch-all's current density, independently editable in Settings. Python
+calculations and the live JS preview use the same mapping. Historical `Altro`
+remains unsupported by Tabacchi.
+
+Migration 0027 fills missing volume/mass for previously saved high-forest
+observations of these two new species when D and h are positive, and refreshes
+the affected intervention's marked-volume total. It preserves existing
+calculated values, unknown heights, coppice, legacy species IDs, measurements,
+state and dates. Repaired rows are versioned and dependent digests invalidated.
+
 **h auto-population:** `h = a × ln(D) + b` from the single active hypsometric
 parameter set, keyed by (region, species) — served by the `hypso_params`
 digest, not a per-plan table (see [`hypsometry.md`](hypsometry.md)). Field
@@ -432,6 +449,7 @@ stays editable; operator overrides set `h_measured = true`. If the active set
 has no entry for the (region, species) pair — or no set is active — h is blank
 and may be saved as unknown. The server stores SQL NULL for height, volume, and
 mass and normalizes `h_measured = false`.
+The Tabacchi proxy does not substitute another species' hypsometric parameters.
 
 Live V/m preview, same pattern as campionamenti: Tabacchi in JS (`volume.js`),
 mass derived from the stored 4-dp volume. The server does not trust the preview:

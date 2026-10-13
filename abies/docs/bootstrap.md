@@ -43,6 +43,19 @@ Bootstrap has a deliberately narrow contract.
 - Species and product files are optional. If they are missing, built-in defaults
   are seeded. Species rows may include `Pressler`; blank/missing values use the
   model default of 2.0.
+  Optional `Tipo botanico` accepts `conifer` or `broadleaf`. Without the column,
+  new reference rows infer recognized taxa from their canonical/Latin names;
+  unrecognized custom taxa remain unclassified until edited in Settings.
+  Re-importing an older CSV does not overwrite an existing classification.
+  Localized common-name fallbacks and reference names are kept in
+  `config/strings_it.py`; `apps/base/species.py` retains locale-independent
+  botanical genera/Latin names and reads common names through `config.strings`.
+  After a non-empty species load, missing `Altra conifera` and `Altra latifoglia`
+  rows are added, copying the current density/Pressler of Abete bianco / Abies
+  alba and Faggio / Fagus sylvatica. Missing historical Altro is also retained
+  as a non-selectable reference row. A present but empty species CSV still
+  intentionally leaves the table empty. Built-in defaults retain historical
+  Altro alongside both new catch-alls.
 - `terreni.geojson` is part of the full data bundle, but it is not loaded by
   `bootstrap`. Geodata is built afterward by the geodata step.
 

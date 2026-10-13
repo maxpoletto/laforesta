@@ -326,10 +326,10 @@ class TestGeneratePrelievi:
         full = Harvest.objects.select_related(
             'parcel__region', 'crew', 'product',
         ).get(pk=harvest_data.pk)
-        species_ids, _, minor_ids, other_id = prelievi_species_cols()
+        species_ids, _, minor_targets = prelievi_species_cols()
         tractor_ids = [t.id for t in tractors]
         sp_pcts = aggregate_sp_pcts(
-            {species[0].id: 60, species[1].id: 40}, minor_ids, other_id,
+            {species[0].id: 60, species[1].id: 40}, minor_targets,
         )
         tr_pcts = {tractors[0].id: 100}
 

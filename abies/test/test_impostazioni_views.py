@@ -327,23 +327,42 @@ class TestSpecies:
     def test_data(self, writer_client, species):
         resp = writer_client.get('/api/impostazioni/species/data/')
         data = resp.json()
-        assert len(data[ROWS]) == 4
+        assert len(data[ROWS]) == len(species)
 
     def test_form_add(self, writer_client, db):
         resp = writer_client.get('/api/impostazioni/species/form/')
         assert resp.status_code == 200
-        assert '<form' in resp.json()[HTML]
+        html = resp.json()[HTML]
+        assert '<form' in html
+        assert '<select id="id_botanical_type" name="botanical_type" required>' in html
+        assert '<option value="conifer"' in html
+        assert '<option value="broadleaf"' in html
+        assert 'type="radio"' not in html
 
     def test_form_edit(self, writer_client, species):
         resp = writer_client.get(f'/api/impostazioni/species/form/{species[0].id}/')
         assert resp.status_code == 200
-        assert 'Abete' in resp.json()[HTML]
+        html = resp.json()[HTML]
+        assert 'Abete' in html
+        assert '<option value="conifer" selected>Conifera</option>' in html
+
+    @pytest.mark.parametrize('index,label', [
+        (3, S.SPECIES_TYPE_UNCLASSIFIED), (4, S.COL_CONIFER), (5, S.COL_BROADLEAF),
+    ])
+    def test_catch_all_types_remain_read_only(self, writer_client, species, index, label):
+        html = writer_client.get(
+            f'/api/impostazioni/species/form/{species[index].id}/',
+        ).json()[HTML]
+        assert '<select id="id_botanical_type"' not in html
+        assert f'<span class="readonly-field">{label}</span>' in html
+        assert 'type="hidden" id="id_botanical_type" name="botanical_type"' in html
 
     def test_save_create(self, writer_client, db):
         for name in ('mark_trees_17', 'sampled_trees_23'):
             DigestStatus.objects.create(name=name)
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             FIELD_COMMON_NAME: 'Faggio', FIELD_LATIN_NAME: 'Fagus sylvatica',
+            'botanical_type': 'broadleaf',
             FIELD_DENSITY: '10.5', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200
@@ -368,6 +387,7 @@ class TestSpecies:
         (density routes through the locale-aware parser)."""
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             FIELD_COMMON_NAME: 'Cerro', FIELD_LATIN_NAME: '',
+            'botanical_type': 'broadleaf',
             FIELD_DENSITY: '8,25', FIELD_ACTIVE: 'true',
         })
         assert resp.status_code == 200, resp.content
@@ -440,6 +460,7 @@ class TestSpecies:
     def test_save_persists_minor(self, writer_client, db):
         resp = _post(writer_client, '/api/impostazioni/species/save/', {
             FIELD_COMMON_NAME: 'Pioppo', FIELD_LATIN_NAME: '',
+            'botanical_type': 'broadleaf',
             FIELD_DENSITY: '7.0', FIELD_ACTIVE: 'true', FIELD_MINOR: 'true',
         })
         assert resp.status_code == 200, resp.content
@@ -451,6 +472,7 @@ class TestSpecies:
         for name, extra in [('Ontano', {}), ('Frassino', {FIELD_MINOR: 'false'})]:
             resp = _post(writer_client, '/api/impostazioni/species/save/', {
                 FIELD_COMMON_NAME: name, FIELD_LATIN_NAME: '',
+                'botanical_type': 'broadleaf',
                 FIELD_DENSITY: '7.0', FIELD_ACTIVE: 'true', **extra,
             })
             assert resp.status_code == 200, resp.content

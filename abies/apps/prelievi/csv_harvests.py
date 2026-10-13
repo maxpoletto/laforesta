@@ -133,7 +133,7 @@ def render_csv(harvests) -> str:
     """Render harvest rows in the canonical schema accepted by this module.
 
     The table digest is intentionally presentation-oriented (minor species are
-    folded into ``Altro``, amounts are rendered as quintals, and flags share a
+    folded into botanical-type buckets, amounts are rendered as quintals, and flags share a
     single note column), so it cannot serve as a lossless backup.  This
     renderer reads the normalized rows instead and is shared by both the
     Prelievi page and per-cantiere cutting-plan exports.

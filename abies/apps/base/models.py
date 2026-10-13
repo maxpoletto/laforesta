@@ -233,6 +233,11 @@ class Tractor(TimestampedModel):
         return self.display_name
 
 
+class SpeciesType(models.TextChoices):
+    CONIFER = 'conifer', S.COL_CONIFER
+    BROADLEAF = 'broadleaf', S.COL_BROADLEAF
+
+
 class Species(TimestampedModel):
     """Tree species."""
     common_name = models.CharField(max_length=100, unique=True)
@@ -247,6 +252,9 @@ class Species(TimestampedModel):
         help_text='Default Pressler coefficient for volume increment.',
     )
     minor = models.BooleanField(default=False)
+    botanical_type = models.CharField(
+        max_length=10, choices=SpeciesType.choices, blank=True, default='',
+    )
     active = models.BooleanField(default=True)
     history = HistoricalRecords()
 
@@ -257,6 +265,11 @@ class Species(TimestampedModel):
 
     def __str__(self):
         return self.common_name
+
+    @property
+    def selectable(self):
+        """Legacy Altro remains reference data, never a new-entry choice."""
+        return self.active and self.common_name != S.SPECIES_OTHER
 
 
 class Product(models.Model):

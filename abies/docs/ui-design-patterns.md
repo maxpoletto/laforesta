@@ -50,6 +50,10 @@ has a real numeric meaning, HTML tables render it as `-`. JSON digests retain
 placeholder. Page-specific documentation identifies the nullable columns.
 
 All tabular data uses sortable-table. All fields are sortable.
+Interactive data cells use a column's `renderCell` callback to create DOM
+controls rather than embedding markup in formatters. `TableWrapper` forwards
+the callback to sortable-table while retaining a plain value/formatter for
+sorting, search, and CSV export (for example the Species classification dropdown).
 
 Search input sits above the table (left). Debounced (500ms), filters
 rows by matching all whitespace-separated terms against the

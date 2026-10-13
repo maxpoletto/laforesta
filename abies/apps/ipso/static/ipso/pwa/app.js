@@ -1302,7 +1302,11 @@ function populateSpecie() {
   const sel = document.getElementById('in-specie');
   sel.replaceChildren();
   appendOption(sel, '', S.REC_PICK_SPECIE, true);
-  const ordered = State.reference[IPSO_REF_SPECIES].slice().sort(
+  // Keep legacy reference metadata for queued records and PAI/history, but
+  // never offer Altro for new records, including with a pre-release snapshot.
+  const ordered = State.reference[IPSO_REF_SPECIES].filter(
+    sp => sp[FIELD_SELECTABLE] !== false && sp.common !== S.SPECIES_OTHER
+  ).sort(
     (a, b) => a.sort_order - b.sort_order
   );
   for (const sp of ordered) appendOption(sel, sp.common, sp.common);
@@ -1819,6 +1823,7 @@ function currentRecord() {
   const parcel = sampleArea || currentParcelReference();
   const species = State.reference && State.reference[IPSO_REF_SPECIES].find((row) =>
     row && row.common === State.specie
+      && row[FIELD_SELECTABLE] !== false && row.common !== S.SPECIES_OTHER
   );
   const particella = sampleArea
     ? sampleArea.particella
@@ -1833,7 +1838,7 @@ function currentRecord() {
   const preserved = freeSurvey && document.getElementById('in-preserved').checked;
   const gps = currentGpsSnapshot();
   return {
-    specie: State.specie || '',
+    specie: species ? State.specie : '',
     d_cm: Number.isFinite(d) ? d : null,
     h_m: Number.isFinite(h) ? h : null,
     h_measured: hMeasured ? 1 : 0,

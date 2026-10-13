@@ -555,7 +555,7 @@ class TestFKProtection:
 class TestSpeciesOrdering:
     def test_default_ordering_by_sort_order(self, species):
         names = list(Species.objects.values_list('common_name', flat=True))
-        assert names == ['Abete', 'Castagno', 'Acero', 'Altro']
+        assert names == ['Abete', 'Castagno', 'Acero', 'Altra conifera', 'Altra latifoglia', 'Altro']
 
     def test_other_sorts_last(self, species):
         last = Species.objects.last()

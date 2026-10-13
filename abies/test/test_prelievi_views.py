@@ -104,11 +104,11 @@ class TestDataView:
         assert len(data[ROWS]) >= 1
 
     def test_digest_aggregates_minor_species(self, writer_client, harvest_fixtures, tmp_path, settings):
-        """Minor species quintals and percentages fold into Altro."""
+        """Minor broadleaf quintals and percentages fold into Altra latifoglia."""
         settings.DIGEST_DIR = tmp_path
         f = harvest_fixtures
         minor_sp = next(s for s in f['species'] if s.minor)
-        other_sp = next(s for s in f['species'] if s.common_name == S.SPECIES_OTHER)
+        other_sp = next(s for s in f['species'] if s.common_name == S.SPECIES_OTHER_BROADLEAF)
         op = Harvest.objects.create(
             date='2024-08-01', parcel=f['parcels'][0], crew=f['crews'][0],
             product=f['products'][0], mass_q=100, record1=600,
@@ -123,11 +123,11 @@ class TestDataView:
         cols = data[COLUMNS]
         # Minor species must NOT appear as a column.
         assert minor_sp.common_name not in cols
-        # Altro must appear and carry the full 100 quintals.
+        # Altra latifoglia must carry the full 100 quintals.
         other_idx = cols.index(other_sp.common_name)
         row = next(r for r in data[ROWS] if r[0] == op.id)
         assert row[other_idx] == 100.0
-        # Percentage column for Altro must be 100.
+        # Its percentage column must also be 100.
         pct_idx = cols.index(f'{other_sp.common_name} %')
         assert row[pct_idx] == 100
 
@@ -188,7 +188,7 @@ class TestFormView:
     def test_form_excludes_minor_species(self, writer_client, harvest_fixtures):
         f = harvest_fixtures
         minor = [s for s in f['species'] if s.minor]
-        major = [s for s in f['species'] if not s.minor]
+        major = [s for s in f['species'] if not s.minor and s.selectable]
         assert minor, 'fixture must include at least one minor species'
         resp = writer_client.get('/api/prelievi/form/')
         html = resp.json()[HTML]
@@ -198,10 +198,10 @@ class TestFormView:
             assert f'sp_{s.id}' in html
 
     def test_edit_form_aggregates_minor_pcts(self, writer_client, harvest_fixtures):
-        """Editing a harvest with a minor species shows its % under Altro."""
+        """Editing a harvest with a minor broadleaf shows its % in its bucket."""
         f = harvest_fixtures
         minor_sp = next(s for s in f['species'] if s.minor)
-        other_sp = next(s for s in f['species'] if s.common_name == S.SPECIES_OTHER)
+        other_sp = next(s for s in f['species'] if s.common_name == S.SPECIES_OTHER_BROADLEAF)
         op = Harvest.objects.create(
             date='2024-08-01', parcel=f['parcels'][0], crew=f['crews'][0],
             product=f['products'][0], mass_q=20, record1=500,
@@ -212,7 +212,7 @@ class TestFormView:
         HarvestTractor.objects.create(harvest=op, tractor=f['tractors'][0], percent=100)
         resp = writer_client.get(f'/api/prelievi/form/{op.id}/')
         html = resp.json()[HTML]
-        # Altro input should carry the aggregated 40%.
+        # Altra latifoglia input should carry the aggregated 40%.
         assert f'name="sp_{other_sp.id}"' in html
         assert f'value="40"' in html
 

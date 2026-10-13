@@ -607,6 +607,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       type: def.type ?? 'string',
       hidden: def.hidden || false,
       formatter: def.formatter || (def.type === 'boolean' ? (v) => formatBool(v, labels) : undefined),
+      renderCell: def.renderCell,
       searchFormatter: def.searchFormatter,
       width: def.width,
       className: def.className,

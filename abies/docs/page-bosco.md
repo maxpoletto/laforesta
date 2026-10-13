@@ -118,6 +118,9 @@ hosts (top to bottom):
   showFormError on submit if they are. Parcel is auto-derived (via parcel
   geometries) from lat/lon when user sets lat/lon, but user can edit it
   explicitly also.
+  New-tree species choices exclude historical `Altro` and include `Altra
+  conifera` / `Altra latifoglia`. Editing an existing Altro tree preserves its
+  species; both the form and direct POST validation enforce this boundary.
 
   Click on an existing tree dot opens a popover with species, tree number,
   parcel, survey date, estimated birth year, diameter/height, coordinates, and

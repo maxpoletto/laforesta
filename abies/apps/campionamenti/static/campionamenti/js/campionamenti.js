@@ -1897,6 +1897,12 @@ function wireTreePick(form) {
     if (!opt) return;
     if (opt.value === 'new') {
       num.value = opt.dataset.next || '';
+      // A previous visit may have a legacy/inactive species. Its hidden
+      // option is solely for the locked existing-tree display, never new trees.
+      if (species?.selectedOptions?.[0]?.disabled) {
+        species.value = [...species.options].find(option => !option.disabled)?.value || '';
+        species.dispatchEvent(new Event('change'));
+      }
       syncHighForestHidden();
       setLocked(false);
       return;

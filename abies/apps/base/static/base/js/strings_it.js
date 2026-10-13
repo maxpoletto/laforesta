@@ -136,6 +136,13 @@ export const COL_VOLUME_M3 = 'Volume (m³)';
 export const COL_ACTIVE = 'Attivo';
 export const CSV_COL_SORT_ORDER = 'Ordine';
 export const COL_MINOR = 'Minore';
+export const COL_CONIFER = 'Conifera';
+export const COL_BROADLEAF = 'Latifoglia';
+export const SPECIES_TYPE_UNCLASSIFIED = '—';
+export const COL_SORT_ORDER = 'Sort order';
+export const SPECIES_OTHER = 'Altro';
+export const SPECIES_OTHER_CONIFER = 'Altra conifera';
+export const SPECIES_OTHER_BROADLEAF = 'Altra latifoglia';
 
 // Hypsometric-parameters section.  (Accept/Reject/title are literal in the
 // candidate <template>, per docs/ui-design-patterns.md.)

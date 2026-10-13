@@ -50,6 +50,7 @@ const FIELD_DATE = 'date';
 const FIELD_PARCEL_ID = 'parcel_id';
 const FIELD_SPECIES = 'species';
 const FIELD_SPECIES_ID = 'species_id';
+const FIELD_SELECTABLE = 'selectable';
 const FIELD_NUMBER = 'number';
 const FIELD_MAX_TREE_NUMBER = 'max_tree_number';
 const FIELD_D_CM = 'd_cm';
@@ -163,6 +164,7 @@ if (typeof module !== 'undefined') {
     FIELD_PARCEL_ID,
     FIELD_SPECIES,
     FIELD_SPECIES_ID,
+    FIELD_SELECTABLE,
     FIELD_NUMBER,
     FIELD_MAX_TREE_NUMBER,
     FIELD_D_CM,

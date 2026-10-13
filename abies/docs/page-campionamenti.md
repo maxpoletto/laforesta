@@ -284,11 +284,19 @@ exists, the import reuses that `tree_id`; otherwise it creates a new preserved
 
 `V_m3` is computed at import time from `D_cm`, `H_m`, and the species-specific
 Tabacchi parameters in `apps/base/tabacchi.py` (vendored from `pdg-2026`).
+The selectable catch-alls use explicit estimates from existing equations:
+`Altra conifera` uses Abete bianco (`Abete`), `Altra latifoglia` uses Faggio.
+These aliases apply to manual entry, CSV and Ipso imports, without changing
+the observation's species or substituting height-regression parameters.
 
 `mass_q` is then `tree_mass_q(V_m3, species.density)` (= `V_m3 × density`, from
 the stored 4-dp `V_m3`) for fustaia rows; left NULL for coppice rows and for
 species outside the Tabacchi table. The interactive form mirrors this in JS
 (`volume.js`) — see the V/m preview note below for the ≤1-ULP caveat.
+Mass always uses the selected species' current density, not the proxy's.
+Migration 0027 fills only missing volume/mass pairs for previously saved
+high-forest observations of the two new catch-alls with positive D/h; existing
+values, coppice and historical Altro observations are left unchanged.
 
 Flow:
 1. Writer opens the pencil modal on the target survey → "Importa alberi
@@ -325,16 +333,23 @@ optional), Pressler coeff (defaults to per-species default), lat/lon (shared
 component), PAI checkbox.
 
 New trees always default to fustaia, including in coppice-managed parcels.
+Species choices include `Altra conifera` and `Altra latifoglia`, but exclude
+historical `Altro`. Existing Altro trees remain editable and can be selected
+from the prior-tree picker for a new measurement of the same physical tree;
+their locked species is not a new-tree choice. CSV imports and old Ipso uploads
+retain their historical species IDs/names rather than relabeling them.
+
 Parcel economic management and individual-tree morphology are independent;
 the operator must select **Ceduo** explicitly when recording coppice shoots.
 
-For fustaia trees whose species has Tabacchi hypsometric params, a live V/m
+For fustaia trees whose species has a Tabacchi volume equation (including
+the two catch-all proxies), a live V/m
 preview (`V = X.XX m³ · m = X.X q`) recomputes as D/h/specie change. V via
 the Tabacchi formula in JS (`volume.js`); m = V × density from `species.json`,
 derived from the **stored** 4-dp V so it equals `round(V × density)`, matching
-the import path. The server stores the client-provided V/m without recomputing,
-so the same tree entered here vs imported from CSV (Python `tabacchi.py`) may
-differ by ≤1 ULP (≤0.0001 m³ / ≤0.001 q): JS rounds in float, Python in Decimal.
+the import path. The server recomputes V/m with the same Python helper used
+by CSV imports. The JS preview can differ from the persisted Python estimate
+by ≤1 ULP (≤0.0001 m³ / ≤0.001 q): JS rounds in float, Python in Decimal.
 The two are held in parity by `test/test_tabacchi.py`.
 
 The **numero albero pulldown** lists "nuovo albero" (auto-numbered) then
@@ -582,12 +597,16 @@ not consume `sampled_trees_<survey_id>.json`.
 
 Shared with Piano di taglio (mark form).  Small lookup digest
 (`row_id`, `version`, `Nome`, `Nome latino`, `Densità (q/m³)`,
-`Sort order`, `Attiva`) used by:
+`Pressler`, `Sort order`, `Attivo`, `Minore`, `Tipo`) used by:
 - the live V/m preview in this page's manual entry form;
 - the live V/m preview in Piano di taglio's mark form;
 - digest-generation joins for `marks.json` and any other materialized
   mass total derived from V × density.
 Invalidated on `species` writes.
+Settings uses the same column/record builder for its table and write responses,
+so optimistic patches cannot corrupt the shared species lookup cache. Settings
+hides version and sort order and renders Tipo (a localized botanical-type
+label, blank when unclassified) as a dropdown, or read-only text for catch-alls.
 
 ## Knock-on changes
 

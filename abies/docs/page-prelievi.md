@@ -50,7 +50,7 @@ CSVs without that column retain the legacy unlinked-import behavior.
 Table columns are:
 Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Volume (m³), Note,
 Altre note, (quintal columns by **major** species in sort_order), (quintal
-columns by tractor in alphabetical order). See "Minor species and Altro" below.
+columns by tractor in alphabetical order). See "Minor species and catch-alls" below.
 
 All quintal values display with one decimal and comma separator (Italian locale,
 e.g., "164,0"). Per-species and per-tractor quintal columns show blank for zero.
@@ -100,7 +100,9 @@ max(existing VDP)+1.
 
 Species and tractor percentage sections appear side-by-side below the main
 fields. Only non-minor (see below) species are listed; minor species are
-represented by the  "Altro" entry. Each row has a numeric input and a "100%"
+represented by `Altra conifera` or `Altra latifoglia` according to botanical type.
+Legacy `Altro` is absent from new forms but retained when editing a harvest
+that already used it. Each row has a numeric input and a "100%"
 quick-set button that also zeros other rows. Species and tractor percentages
 must each sum to 100 (validated on client and server).
 
@@ -180,10 +182,11 @@ later does *not* retroactively recompute existing harvests — same
 capture-at-write-time pattern used elsewhere — so the digests remain
 valid. Only newly written harvests pick up the new density value.
 
-## Minor species and Altro
+## Minor species and catch-alls
 
-Species with `Species.minor = True` are uncommon and are grouped under a single
-"Altro" entry to keep the input form compact and the table narrow. The minor
+Species with `Species.minor = True` are uncommon and are grouped under
+`Altra conifera` or `Altra latifoglia` to keep the input form compact and the
+table narrow. `Species.botanical_type` determines the target. The minor
 flag is prelievi-specific: minor species remain fully available as individual
 entries in Campionamenti (sampled trees), Piani di taglio (tree marks), and
 Impostazioni.
@@ -191,25 +194,32 @@ Impostazioni.
 The set is controlled by the `minor` field on each `Species` record (seeded from
 `apps/base/data/species.csv`, editable via Impostazioni → Specie).
 
-The "Altro" species itself (`common_name == S.SPECIES_OTHER`) is the bucket the
-minor species fold into, so it must always stay major. The species save view
-rejects flagging it minor (`ERR_OTHER_NOT_MINOR`) and the Impostazioni form
-disables its Minore checkbox; `prelievi_species_cols()` relies on exactly one
-major species named "Altro".
+All three catch-all rows must remain major and retain their reserved names.
+Settings protects these invariants and fixes the botanical types of the two
+new rows. `Altro` remains unclassified; its existing junctions and tree foreign
+keys are never automatically relabeled as conifers or broadleaves. Unrecognized
+custom minor taxa also retain the legacy grouping until their classification
+is explicitly set in Settings.
 
-**Input form:** only (non-minor, active) species appear. When editing a legacy
-harvest that used a minor species directly, its percentage is folded into the
-Altro row so the form percentages still sum to 100.
+**Input form:** new forms offer active, major species except Altro, including
+the two new catch-alls. Editing preserves existing legacy/inactive species
+percentages. When a saved harvest uses individual minor species, the form folds
+their percentages into the corresponding botanical buckets. Direct new-entry
+POSTs cannot bypass the exclusion of Altro or submit arbitrary/minor species.
 
 **Digest / table / charts:** the prelievi digest emits one column per
 major species only. Quintals and percentages for minor species are
-aggregated into the Altro column. This is handled by
+aggregated into their botanical-type columns, while historical Altro remains
+a separate column. This is handled by
 `prelievi_species_cols()` and `aggregate_sp_pcts()` in
 `apps/base/digests.py`, shared by `generate_prelievi()`,
 `build_harvest_record()`, and the form context builder.
 
-**Volume calculation:** new harvests entered with Altro use the Altro species
-density (9.00 q/m³, a rough average). (OK because minor species are a tiny
-fraction of total volume.) Legacy harvests recorded with individual minor
-species retain their original volume; re-saving them through the form rewrites
-the junction rows as Altro, recomputing volume with the Altro density.
+**Volume calculation:** new harvests use the density of each submitted species,
+including the new catch-alls. Their initial defaults match Abete bianco and
+Faggio; subsequent density edits are independent. Existing harvests retain
+their captured volume, and CSV exports preserve their original individual
+species. Re-saving a harvest through the percentage form folds individual
+minor junctions into their botanical buckets and recomputes volume using those
+buckets' current densities, as the existing minor-species edit flow did with
+Altro.

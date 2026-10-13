@@ -24,4 +24,6 @@ Robinia,Robinia pseudoacacia,165,10.50,true,2.00
 Sorbo,Sorbus domestica,170,10.50,true,2.00
 Tasso,Taxus baccata,180,9.50,true,2.00
 Tiglio,Tilia cordata,190,7.50,true,2.00
+Altra conifera,,997,9.00,false,2.00
+Altra latifoglia,,998,10.50,false,2.00
 Altro,,999,9.00,false,2.00

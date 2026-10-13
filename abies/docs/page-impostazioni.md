@@ -31,9 +31,27 @@ table.
 - Trattori: manufacturer, model, year, active flag.
 - Specie: common name, Latin name, density (q/m³; see `database.md`; used to
   derive per-tree mass for samples and marks), default Pressler coefficient,
-  `Minore` flag, and active flag. Minor species are grouped under a single
-  `Altro` entry in Prelievi (see `page-prelievi.md`); the flag is editable
-  here.
+  `Minore` flag, active flag, and one **Tipo** column with a
+  **Conifera / Latifoglia** dropdown. Selecting a type saves immediately,
+  using the row version to reject stale changes. Classification is also required
+  in the add/edit modal. Changes are recorded in Controllo and invalidate the
+  dependent digests/caches. Minor species are grouped by botanical type in
+  Prelievi (see `page-prelievi.md`).
+  `Altra conifera`, `Altra latifoglia`, and historical `Altro` all remain visible,
+  including under `Solo attivi`. Their names and major-species status are
+  protected. The catch-all types are shown as read-only text: Conifera,
+  Latifoglia, and `—` for Altro, whose historical trees cannot be classified
+  reliably.
+  Density and default Pressler remain independently editable for all three.
+  Initially, the new catch-all defaults copy Abete bianco (`Abete` / `Abies alba`
+  in the canonical list) and Faggio, respectively: canonical density 9.00 / 10.50
+  q/m³ and Pressler 2.00 / 2.00. These are initial values, not live links.
+  Tree-volume calculations use the same two reference species' Tabacchi
+  equations as fixed proxies; changing a catch-all's density changes its mass
+  calculation, not its volume equation. Legacy Altro has no Tabacchi equation.
+  Recognized existing species are classified during migration. Custom taxa that
+  cannot be recognized show `—` until a writer selects a type;
+  this avoids silently guessing their botanical type.
 - Categorie di osservazioni: name, sort order, and active flag. Active
   categories are sent to Ipso in `reference.json`. The default rows are `fitosanitario`, `viabilità`,
   and `rifiuti`.

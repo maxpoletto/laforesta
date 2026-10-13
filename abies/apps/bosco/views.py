@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import csv_parcels
 from apps.base.auth import require_writer
+from apps.base.species import selectable_species
 from apps.base.digests import (
     build_observation_record, build_parcel_record, build_preserved_tree_record,
     mark_stale, serve_digest,
@@ -1074,7 +1075,7 @@ def _render_pai_form(request, pai_id: int | None = None, values: dict | None = N
         'pai': pai,
         'tree': tree,
         'version': pai.version if pai else 0,
-        'species': Species.objects.order_by('sort_order', 'common_name'),
+        'species': selectable_species(existing_id=tree.species_id if tree else None),
         'parcels': parcels,
         'selected_species_id': selected_species_id,
         'selected_parcel_id': selected_parcel_id,
@@ -1139,8 +1140,12 @@ def _parse_pai_body(body: dict):
     operator = (body.get(FIELD_OPERATOR) or '').strip()
 
     errors = []
-    if species_id is None or not Species.objects.filter(id=species_id).exists():
+    species = Species.objects.filter(id=species_id).first()
+    if species is None:
         errors.append(S.ERR_BOSCO_SPECIES_REQUIRED)
+    elif not species.selectable and not _preserved_tree_qs().filter(
+            id=row_id, tree__species_id=species_id).exists():
+        errors.append(S.ERR_LEGACY_SPECIES_NEW)
     parcel_exists = parcel_id is not None and Parcel.objects.filter(id=parcel_id).exists()
     if not parcel_exists:
         errors.append(S.ERR_BOSCO_PARCEL_REQUIRED)

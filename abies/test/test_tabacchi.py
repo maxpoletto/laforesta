@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from apps.base import tabacchi
+from config import strings as S
 
 
 JS_PATH = (Path(__file__).resolve().parent.parent
@@ -99,6 +100,16 @@ def test_has_species():
     assert not tabacchi.has_species('Altro')
 
 
+@pytest.mark.parametrize('name,proxy', [
+    (S.SPECIES_OTHER_CONIFER, tabacchi.SP_ABETE),
+    (S.SPECIES_OTHER_BROADLEAF, tabacchi.SP_FAGGIO),
+])
+def test_other_species_use_reference_equations(name, proxy):
+    assert tabacchi.has_species(name)
+    for d, h in ((5, 3), (30, 20), (40, 25), (80, 35)):
+        assert tabacchi.tabacchi_volume_m3(d, h, name) == tabacchi.tabacchi_volume_m3(d, h, proxy)
+
+
 # ---------------------------------------------------------------------------
 # End-to-end stored-value parity (interactive JS vs CSV-import Python)
 # ---------------------------------------------------------------------------
@@ -113,10 +124,14 @@ _PARITY_DENSITIES = ('9.0', '7.5')
 # Mirrors tree-form.js: store volume at 4 dp and derive mass from that stored
 # volume.  `{volume_url}` / `{densities}` are filled in by _run_js_sweep.
 _JS_DRIVER = '''
-import {{ TABACCHI_B, tabacchiVolumeM3, massQ }} from {volume_url};
+import {{ TABACCHI_B, TABACCHI_PROXIES, tabacchiVolumeM3, hasSpecies, massQ }} from {volume_url};
 const DENSITIES = {densities};
 const out = [];
-for (const sp of Object.keys(TABACCHI_B)) {{
+if (hasSpecies({legacy_name}) || tabacchiVolumeM3(30, 20, {legacy_name}) !== null) {{
+  throw new Error('Legacy catch-all must remain unsupported');
+}}
+for (const sp of [...Object.keys(TABACCHI_B), ...Object.keys(TABACCHI_PROXIES)]) {{
+  if (!hasSpecies(sp)) throw new Error(`Unsupported species: ${{sp}}`);
   for (let d = 5; d <= 80; d += 5) {{
     for (let h = 3; h <= 35; h += 2) {{
       const v = tabacchiVolumeM3(d, h, sp);
@@ -139,6 +154,7 @@ def _run_js_sweep(tmp_path):
     driver = tmp_path / 'parity_driver.mjs'
     driver.write_text(_JS_DRIVER.format(
         volume_url=json.dumps(JS_PATH.as_uri()),
+        legacy_name=json.dumps(S.SPECIES_OTHER),
         densities='[' + ', '.join(_PARITY_DENSITIES) + ']',
     ), encoding='utf-8')
     proc = subprocess.run(
@@ -163,6 +179,7 @@ def test_js_python_stored_value_parity(tmp_path):
 
     rows = _run_js_sweep(tmp_path)
     assert rows, 'JS driver produced no rows'
+    assert {S.SPECIES_OTHER_CONIFER, S.SPECIES_OTHER_BROADLEAF} <= {row[0] for row in rows}
     for species, d, h, dens_str, js_vol, js_mass in rows:
         py_vol = tabacchi.tabacchi_volume_m3(d, h, species)
         py_mass = tree_mass_q(py_vol, Decimal(dens_str))

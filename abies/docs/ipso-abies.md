@@ -71,7 +71,9 @@ Protected data endpoints require the shared bearer:
 
 `reference.json` contains the current Abies reference bundle used by Ipso:
 
-- active species, including canonical Abies species IDs;
+- active species, including canonical Abies species IDs and a `selectable`
+  flag. Historical `Altro` stays in the reference metadata even if deactivated,
+  but is not selectable;
 - parcels, regions, parcel IDs, and coppice-management flags;
 - active hypsometric parameters;
 - sampling surveys, sample grids, sample areas, and existing max tree numbers;
@@ -105,6 +107,29 @@ pending-upload sessions. If no valid reference snapshot is available, existing
 open sessions remain exportable and pending uploads remain retryable or
 local-only, but recording cannot resume until reference data is available. Field
 sessions and trees remain in IndexedDB throughout.
+
+### Species catch-all transition
+
+Ipso 1.5.0 and Abies migration 0026 ship together. New-tree species pulldowns
+use `Altra conifera` and `Altra latifoglia` instead of Altro in every recording
+mode. The client honors `selectable=false` and also excludes Altro by name
+when using an older cached reference bundle or a legacy sticky default. It
+does not alter saved sessions or observations. Previously recorded Altro trees
+remain displayable, exportable, and uploadable by their original species ID;
+server staging/import continues accepting historical IDs.
+
+On import, Abies estimates volume for the new choices using the Abete bianco
+and Faggio Tabacchi equations, respectively, and mass using the catch-all's
+current density. These aliases do not change the species ID, stored field
+measurements, or height auto-population. Historical Altro remains unsupported
+by Tabacchi. Migration 0027 fills missing volume/mass pairs for earlier
+high-forest observations of the two new choices with positive D/h, without
+overwriting existing estimates.
+
+After deployment, connected devices must fetch the refreshed references and
+activate the new shell with `Aggiorna app` (or fully close/reopen after the
+update downloads). A disconnected device cannot receive new species IDs until
+it reconnects; failed refreshes retain the last-good snapshot and warning.
 
 ## Storico
 

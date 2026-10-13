@@ -4,6 +4,7 @@
 
 const S = {
   APP_TITLE: 'Ipso',
+  SPECIES_OTHER: 'Altro',
   APP_UPDATE: 'Aggiorna app',
   APP_UPDATING: 'Aggiornamento…',
 

@@ -16,10 +16,13 @@ from dataclasses import dataclass
 from django.db import transaction
 
 from apps.base.digests import mark_all_stale
-from apps.base.models import Crew, Eclass, Product, Region, Species, Tractor
+from apps.base.models import Crew, Eclass, Product, Region, Species, SpeciesType, Tractor
+from apps.base.species import (
+    OTHER_SPECIES_TYPES, PROTECTED_SPECIES_NAMES, initial_botanical_type,
+)
 from config import strings as S
 from config.constants import (
-    FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY,
+    FIELD_ACTIVE, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY,
     FIELD_LATIN_NAME, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MIN_HARVEST_VOLUME,
     FIELD_MODEL, FIELD_NAME, FIELD_NOTES, FIELD_PRESSLER_DEFAULT, FIELD_SORT_ORDER,
     FIELD_YEAR,
@@ -85,6 +88,7 @@ SPECIES = RefTable('species', Species, (
     RefColumn(S.CSV_COL_PRESSLER, FIELD_PRESSLER_DEFAULT, KIND_DECIMAL, required=False),
     RefColumn(S.CSV_COL_MINOR, FIELD_MINOR, KIND_BOOL, required=False,
               default=False),
+    RefColumn(S.COL_BOTANICAL_TYPE, FIELD_BOTANICAL_TYPE, KIND_STR, required=False),
     RefColumn(S.CSV_COL_ACTIVE, FIELD_ACTIVE, KIND_BOOL, required=False,
               default=True),
     RefColumn(S.CSV_COL_SORT_ORDER, FIELD_SORT_ORDER, KIND_INT, required=False,
@@ -172,6 +176,20 @@ def validate_rows(table: RefTable, reader, cols):
         if not ok:
             continue
         key_val = values[table.key.field]
+        if (table is SPECIES and FIELD_BOTANICAL_TYPE in values
+                and values[FIELD_BOTANICAL_TYPE] not in SpeciesType.values):
+            errors.append(S.ERR_CSV_VALUE_PARSE.format(
+                i, S.COL_BOTANICAL_TYPE, values[FIELD_BOTANICAL_TYPE]))
+            continue
+        if table is SPECIES:
+            if key_val in PROTECTED_SPECIES_NAMES and values.get(FIELD_MINOR):
+                errors.append(S.ERR_OTHER_NOT_MINOR.format(key_val))
+                continue
+            fixed = '' if key_val == S.SPECIES_OTHER else OTHER_SPECIES_TYPES.get(key_val)
+            if (fixed is not None and FIELD_BOTANICAL_TYPE in values
+                    and values[FIELD_BOTANICAL_TYPE] != fixed):
+                errors.append(S.ERR_BOTANICAL_TYPE_FIXED.format(key_val))
+                continue
         if key_val in seen:
             errors.append(S.ERR_CSV_DUPLICATE_KEY.format(
                 i, table.key.header, key_val))
@@ -192,8 +210,13 @@ def apply(table: RefTable, parsed):
     with transaction.atomic():
         for values in parsed:
             defaults = {f: v for f, v in values.items() if f != key_field}
+            creation_defaults = defaults
+            if table is SPECIES and FIELD_BOTANICAL_TYPE not in defaults:
+                creation_defaults = {**defaults, FIELD_BOTANICAL_TYPE:
+                    initial_botanical_type(values[key_field],
+                                           defaults.get(FIELD_LATIN_NAME, ''))}
             obj, was_created = table.model.objects.get_or_create(
-                defaults=defaults, **{key_field: values[key_field]})
+                defaults=creation_defaults, **{key_field: values[key_field]})
             if was_created:
                 created += 1
                 continue

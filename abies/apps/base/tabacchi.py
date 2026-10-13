@@ -21,17 +21,18 @@ form entry uses the parallel JS implementation in
 
 from decimal import Decimal
 from typing import Sequence
+from config import strings as S
 
 
 # Species name constants — must match Species.common_name in the Abies
 # DB.  Same set as pdg-2026.
-SP_ABETE = 'Abete'
+SP_ABETE = S.SPECIES_SILVER_FIR
 SP_ACERO = 'Acero'
 SP_CASTAGNO = 'Castagno'
 SP_CERRO = 'Cerro'
 SP_CILIEGIO = 'Ciliegio'
 SP_DOUGLAS = 'Douglas'
-SP_FAGGIO = 'Faggio'
+SP_FAGGIO = S.SPECIES_BEECH
 SP_LECCIO = 'Leccio'
 SP_ONTANO = 'Ontano'
 SP_PINO_LARICIO = 'Pino Laricio'
@@ -57,6 +58,12 @@ TABACCHI_B: dict[str, tuple[float, ...]] = {
     SP_SORBO:          ( 2.3118,    3.1278e-2, 3.7159e-1),
 }
 
+# Explicit catch-all estimates, not additional species-specific equations.
+TABACCHI_PROXIES = {
+    S.SPECIES_OTHER_CONIFER: SP_ABETE,
+    S.SPECIES_OTHER_BROADLEAF: SP_FAGGIO,
+}
+
 
 def tabacchi_volume_m3(d_cm: Decimal | float | int,
                        h_m: Decimal | float | int,
@@ -68,7 +75,7 @@ def tabacchi_volume_m3(d_cm: Decimal | float | int,
     >>> tabacchi_volume_m3(30, 20, 'Faggio')
     Decimal('0.7022')
     """
-    b = TABACCHI_B.get(species_common_name)
+    b = TABACCHI_B.get(TABACCHI_PROXIES.get(species_common_name, species_common_name))
     if b is None:
         raise ValueError(
             f"species '{species_common_name}' not in Tabacchi table"
@@ -86,4 +93,4 @@ def _volume_from_b(d: float, h: float, b: Sequence[float]) -> Decimal:
 
 
 def has_species(species_common_name: str) -> bool:
-    return species_common_name in TABACCHI_B
+    return TABACCHI_PROXIES.get(species_common_name, species_common_name) in TABACCHI_B

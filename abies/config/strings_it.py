@@ -182,6 +182,10 @@ COL_NOTE = 'Note'
 COL_EXTRA_NOTE = 'Altre note'
 COL_ACTIVE = 'Attivo'
 COL_MINOR = 'Minore'
+COL_CONIFER = 'Conifera'
+COL_BROADLEAF = 'Latifoglia'
+SPECIES_TYPE_UNCLASSIFIED = '—'
+COL_BOTANICAL_TYPE = 'Tipo botanico'
 LABEL_USERNAME = 'Nome utente'
 LABEL_EMAIL = 'Email'
 LABEL_ROLE = 'Ruolo'
@@ -929,6 +933,25 @@ USED_NONCE = 'nonce utilizzato'
 USED_NONCES = 'nonce utilizzati'
 
 SPECIES_OTHER = 'Altro'
+SPECIES_OTHER_CONIFER = 'Altra conifera'
+SPECIES_OTHER_BROADLEAF = 'Altra latifoglia'
+SPECIES_SILVER_FIR = 'Abete'
+SPECIES_SILVER_FIR_FULL = 'Abete bianco'
+SPECIES_BEECH = 'Faggio'
+# Common-name fallbacks for older reference CSVs without Latin names.
+# Botanical genera stay locale-independent in apps.base.species.
+SPECIES_CONIFER_NAMES = (
+    SPECIES_SILVER_FIR, SPECIES_SILVER_FIR_FULL, 'Abete Rosso', 'Douglas', 'Larice',
+    'Pino Laricio', 'Pino Marittimo', 'Pino Nero', 'Pino Strobo', 'Tasso',
+)
+SPECIES_BROADLEAF_NAMES = (
+    'Castagno', SPECIES_BEECH, 'Acero', 'Betulla Bianca', 'Carpino', 'Cerro',
+    'Farnia', 'Ciliegio', 'Leccio', 'Ontano', 'Noce', 'Pioppo Tremulo',
+    'Quercia Roverella', 'Robinia', 'Sorbo', 'Tiglio',
+)
+ERR_BOTANICAL_TYPE_REQUIRED = 'Selezionare Conifera o Latifoglia.'
+ERR_BOTANICAL_TYPE_FIXED = 'Il tipo botanico di {} non può essere modificato.'
+ERR_LEGACY_SPECIES_NEW = 'Altro è una specie storica: scegliere Altra conifera o Altra latifoglia per i nuovi inserimenti.'
 OBSERVATION_CATEGORY_PHYTOSANITARY = 'fitosanitario'
 OBSERVATION_CATEGORY_ACCESS = 'viabilità'
 OBSERVATION_CATEGORY_WASTE = 'rifiuti'

@@ -44,6 +44,12 @@ Expected context variables:
             {{ sp.common_name }}
           </option>
         {% endfor %}
+        {% for sp in existing_tree_species %}
+          <option value="{{ sp.id }}" hidden disabled
+                  data-density="{{ sp.density|unlocalize }}"
+                  data-pressler-default="{{ sp.pressler_default|unlocalize }}"
+                  data-name="{{ sp.common_name }}">{{ sp.common_name }}</option>
+        {% endfor %}
       </select>
     {% endif %}
   </div>

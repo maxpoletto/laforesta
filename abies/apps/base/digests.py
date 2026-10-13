@@ -208,33 +208,41 @@ def serve_digest(request, name: str):
 # ---------------------------------------------------------------------------
 
 def prelievi_species_cols():
-    """Return (major_ids, major_names, minor_ids, other_id) for prelievi.
+    """Return (major_ids, major_names, minor_targets) for prelievi.
 
     Major species get their own columns; minor species are aggregated
-    into an "Other" column in both the table and the input form.
+    into their botanical-type bucket. Unclassified historical species retain
+    the legacy Altro bucket until their classification is corrected.
     """
     from apps.base.models import Species
 
     all_sp = list(
         Species.objects.order_by(FIELD_SORT_ORDER)
-        .values_list('id', 'common_name', 'minor')
+        .values_list('id', 'common_name', 'minor', 'botanical_type')
     )
-    major = [(sid, name) for sid, name, minor in all_sp if not minor]
-    minor_ids = frozenset(sid for sid, _, minor in all_sp if minor)
-    other_id = next(sid for sid, name in major if name == S.SPECIES_OTHER)
+    major = [(sid, name) for sid, name, minor, _ in all_sp if not minor]
+    by_name = dict((name, sid) for sid, name in major)
+    targets = {
+        'conifer': by_name.get(S.SPECIES_OTHER_CONIFER),
+        'broadleaf': by_name.get(S.SPECIES_OTHER_BROADLEAF),
+        '': by_name.get(S.SPECIES_OTHER),
+    }
+    minor_targets = {
+        sid: targets.get(kind) or targets[''] or sid
+        for sid, _, minor, kind in all_sp if minor
+    }
     return (
         [sid for sid, _ in major],
         [name for _, name in major],
-        minor_ids,
-        other_id,
+        minor_targets,
     )
 
 
-def aggregate_sp_pcts(sp_pcts, minor_ids, other_id):
-    """Fold minor-species percentages into the Other bucket."""
+def aggregate_sp_pcts(sp_pcts, minor_targets):
+    """Fold minor-species percentages into their botanical-type buckets."""
     agg = {}
     for sid, pct in sp_pcts.items():
-        target = other_id if sid in minor_ids else sid
+        target = minor_targets.get(sid, sid)
         agg[target] = agg.get(target, 0) + pct
     return agg
 
@@ -245,14 +253,14 @@ def generate_prelievi() -> None:
     Columns: row_id, version, Region id, Parcel id, Data, Compresa, Particella,
     Squadra, VDP, Tipo, Q.li, Volume (m³), Note, Altre note, then one quintal
     column per major species (sort_order), then one quintal column per tractor
-    (alphabetical).  Minor species are aggregated into the Other (Altro)
-    column.  Also carries percentage values for form pre-population (suffixed
+    (alphabetical). Minor species are aggregated by botanical type; legacy
+    Altro remains separate. Also carries percentage values for form pre-population (suffixed
     with " %").
     """
     from apps.base.models import Tractor
     from apps.prelievi.models import Harvest, HarvestSpecies, HarvestTractor
 
-    species_ids, species_names, minor_ids, other_id = prelievi_species_cols()
+    species_ids, species_names, minor_targets = prelievi_species_cols()
 
     all_tractors = list(Tractor.objects.order_by('name', 'manufacturer', 'model', 'id'))
 
@@ -288,7 +296,7 @@ def generate_prelievi() -> None:
             op,
             species_ids=species_ids,
             tractor_ids=tractor_ids,
-            sp_pcts=aggregate_sp_pcts(sp_map.get(op.id, {}), minor_ids, other_id),
+            sp_pcts=aggregate_sp_pcts(sp_map.get(op.id, {}), minor_targets),
             tr_pcts=tr_map.get(op.id, {}),
         ))
 
@@ -312,7 +320,7 @@ def build_harvest_record(
     from apps.prelievi.models import HarvestSpecies, HarvestTractor
 
     if species_ids is None or sp_pcts is None:
-        default_species_ids, _, minor_ids, other_id = prelievi_species_cols()
+        default_species_ids, _, minor_targets = prelievi_species_cols()
         if species_ids is None:
             species_ids = default_species_ids
     if tractor_ids is None:
@@ -326,7 +334,7 @@ def build_harvest_record(
             HarvestSpecies.objects.filter(harvest=op)
             .values_list(FIELD_SPECIES_ID, 'percent')
         )
-        sp_pcts = aggregate_sp_pcts(raw_sp, minor_ids, other_id)
+        sp_pcts = aggregate_sp_pcts(raw_sp, minor_targets)
     if tr_pcts is None:
         tr_pcts = dict(
             HarvestTractor.objects.filter(harvest=op)
@@ -451,21 +459,29 @@ def generate_parcels() -> None:
 # Species digest
 # ---------------------------------------------------------------------------
 
+SPECIES_COLUMNS = [
+    ROW_ID, VERSION, S.COL_NAME, S.COL_LATIN_NAME, S.COL_DENSITY,
+    S.COL_PRESSLER, S.COL_SORT_ORDER, S.COL_ACTIVE, S.COL_MINOR,
+    S.COL_TYPE,
+]
+
+
+def build_species_record(sp):
+    return [
+        sp.id, sp.version, sp.common_name, sp.latin_name,
+        float(sp.density), float(sp.pressler_default), sp.sort_order, sp.active,
+        sp.minor, sp.get_botanical_type_display(),
+    ]
+
+
 def generate_species() -> None:
     """Lookup digest used by JS forms (V/m preview) and by other digest
     generators that need per-species density."""
     from apps.base.models import Species
 
-    columns = [ROW_ID, VERSION, S.COL_NAME, S.COL_LATIN_NAME,
-               S.COL_DENSITY, S.COL_PRESSLER, S.COL_SORT_ORDER, S.COL_ACTIVE]
-    rows = []
-    for sp in Species.objects.order_by(FIELD_SORT_ORDER):
-        rows.append([
-            sp.id, sp.version, sp.common_name, sp.latin_name,
-            float(sp.density), float(sp.pressler_default), sp.sort_order, sp.active,
-        ])
+    rows = [build_species_record(sp) for sp in Species.objects.order_by(FIELD_SORT_ORDER)]
 
-    _write_gzip_json({'columns': columns, 'rows': rows}, _dest(FIELD_SPECIES))
+    _write_gzip_json({'columns': SPECIES_COLUMNS, 'rows': rows}, _dest(FIELD_SPECIES))
     logger.info('species.json.gz: %s rows', len(rows))
 
 
@@ -547,6 +563,9 @@ def _audit_configs() -> list:
             'common_name': S.LABEL_NAME,
             'latin_name': S.COL_LATIN_NAME,
             'density': S.LABEL_DENSITY,
+            'botanical_type': S.COL_BOTANICAL_TYPE,
+            'pressler_default': S.COL_PRESSLER,
+            'minor': S.COL_MINOR,
             'active': S.COL_ACTIVE,
         }),
         (ObservationCategory, S.TABLE_OBSERVATION_CATEGORY, {

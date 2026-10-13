@@ -556,6 +556,7 @@ const { TableWrapper } = await import('./table.js');
 // TableWrapper uses standard action-column widths by action count.
 {
   const created = [];
+  const renderCustomCell = () => {};
   const previousSortableTable = window.SortableTable;
   window.SortableTable = class {
     constructor(opts) {
@@ -570,7 +571,8 @@ const { TableWrapper } = await import('./table.js');
   const digest = { columns: ['row_id', 'name'], rows: [] };
 
   new TableWrapper({
-    container: new MockElement('div'), digest, columnDefs: {}, inlineToolbar: false,
+    container: new MockElement('div'), digest,
+    columnDefs: { name: { renderCell: renderCustomCell } }, inlineToolbar: false,
     canModify: true, actions: { onDelete: () => {} },
   });
   new TableWrapper({
@@ -595,6 +597,8 @@ const { TableWrapper } = await import('./table.js');
      ['44px', '88px', '124px'],
      'TableWrapper uses standard action-column widths by action count');
 
+  check(created[0].columns.find(c => c.key === 'name').renderCell === renderCustomCell,
+        'TableWrapper forwards consumer DOM cell renderers');
   const actionColumn = created[2].columns.find(c => c.key === '_actions');
   check(typeof actionColumn.renderCell === 'function'
         && actionColumn.formatter === undefined

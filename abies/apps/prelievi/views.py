@@ -30,6 +30,7 @@ from apps.base.digests import (
     serve_digest,
 )
 from apps.base.numparse import int_or_none, parse_decimal, positive_int_list
+from apps.base.species import selectable_species
 from apps.base.responses import (
     conflict_response, csv_error_list, parse_json_body, row_delete, row_patch,
     submitted_version, success_response, validation_error,
@@ -130,6 +131,14 @@ def save_view(request):
             )
 
     sp_pcts, tr_pcts, pct_errors = _parse_percentages(body)
+    allowed = set(selectable_species().filter(minor=False).values_list('id', flat=True))
+    if row_id:
+        _, _, minor_targets = prelievi_species_cols()
+        original = dict(HarvestSpecies.objects.filter(harvest_id=row_id)
+                        .values_list(FIELD_SPECIES_ID, 'percent'))
+        allowed.update(aggregate_sp_pcts(original, minor_targets))
+    if set(sp_pcts) - allowed:
+        pct_errors.append(S.ERR_LEGACY_SPECIES_NEW)
     if pct_errors:
         return _validation_error(pct_errors, row_id, request, body)
 
@@ -408,9 +417,12 @@ def _form_context(op_id=None, vals=None):
                 if tractor_id is not None and pct is not None:
                     tr_pcts[tractor_id] = pct
 
-    # Aggregate minor-species percentages into Altro for display.
-    _, _, minor_ids, other_id = prelievi_species_cols()
-    sp_pcts = aggregate_sp_pcts(sp_pcts, minor_ids, other_id)
+    # Split minor species by botanical type; preserve historical Altro as-is.
+    _, _, minor_targets = prelievi_species_cols()
+    sp_pcts = aggregate_sp_pcts(sp_pcts, minor_targets)
+    species_filter = Q(active=True, minor=False) & ~Q(common_name=S.SPECIES_OTHER)
+    if op:
+        species_filter |= Q(pk__in=sp_pcts, minor=False)
 
     v = vals or {}
 
@@ -451,7 +463,7 @@ def _form_context(op_id=None, vals=None):
         'tractor_pct_prefix': FIELD_TRACTOR_PCT_PREFIX,
         'species_data': [
             (sp.id, sp.common_name, sp_pcts.get(sp.id, 0))
-            for sp in Species.objects.filter(active=True, minor=False)
+            for sp in Species.objects.filter(species_filter)
                                      .order_by(FIELD_SORT_ORDER)
         ],
         'tractor_data': [

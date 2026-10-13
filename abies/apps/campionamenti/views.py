@@ -22,6 +22,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.species import selectable_species
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
 from apps.base.digests import (
     build_grid_record, build_preserved_tree_record, build_sample_area_record,
@@ -285,6 +286,9 @@ def tree_save_view(request):
     )
     if preserved_error:
         return _validation_error([preserved_error], ts_id, request, body)
+    if (not species.selectable and existing_tree is None and preserved_tree is None
+            and not TreeSample.objects.filter(id=ts_id, tree__species=species).exists()):
+        return _validation_error([S.ERR_LEGACY_SPECIES_NEW], ts_id, request, body)
 
     preserved_keys = set()
     preserved_tree_ids = set()
@@ -801,7 +805,7 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
                 sample_area=area, survey=survey,
             ).first()
 
-    species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
+    species = list(selectable_species())
     tree = ts.tree if ts else None
     is_unstructured = survey.sample_grid_id is None
     parcel_choices = sorted(
@@ -839,6 +843,9 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         FIELD_SPECIES: species,
         'sample_date': sample.date if sample else date_type.today(),
         'prior_trees': prior_trees,
+        'existing_tree_species': Species.objects.filter(
+            pk__in={t['species_id'] for t in prior_trees},
+        ).exclude(pk__in=[sp.id for sp in species]),
         'next_number': next_number,
         # Parcel economic management and tree morphology are independent.
         # Coppice remains an explicit operator choice, never a parcel default.

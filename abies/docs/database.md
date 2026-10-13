@@ -620,7 +620,8 @@ Most of these are configurable in the Settings section.
   - Represents a team of workers, e.g., a group of lumberjacks.
 
 - species: (id:int, common_name:string, latin_name:string, sort_order:int,
-  density:decimal, pressler_default:decimal, minor:bool, active:bool)
+  density:decimal, pressler_default:decimal, minor:bool, active:bool,
+  botanical_type:string)
   - Represents a tree species.
   - sort_order controls display ordering everywhere species appear. Catch-all
     entries like "Altro" use a high value (999) to sort last.
@@ -629,6 +630,32 @@ Most of these are configurable in the Settings section.
     samples and marks.
   - pressler_default is the default value of the Pressler dendrometric
     coefficient for this species. By default, 2.0 for all species.
+  - `botanical_type` is `conifer` or `broadleaf`, represented by a single Tipo
+    dropdown (Conifera/Latifoglia) in Settings. Blank is reserved for
+    legacy Altro and unrecognized existing custom taxa pending classification.
+    New species entered in Settings require a classification. Minor species
+    aggregate into the corresponding catch-all in Prelievi.
+  - `Altra conifera` (sort order 997) and `Altra latifoglia` (998) are selectable
+    catch-alls. Their density and Pressler defaults initially copy current
+    Abete bianco / Abies alba and Faggio / Fagus sylvatica, respectively;
+    the canonical values are 9.00 / 10.50 q/m³ and 2.00 / 2.00.
+    Their tree-volume estimates use the Abete (`Abete bianco`) and Faggio
+    Tabacchi equations as explicit proxies, respectively, in Python and JS.
+    Mass still uses each catch-all's own current density. This does not alias
+    height-regression parameters or relabel trees. Historical Altro has no
+    Tabacchi equation.
+    `Altro` (999) remains reference data for existing trees, harvests, backups,
+    and offline Ipso records, but cannot be selected for a newly entered tree
+    or harvest. Classification is historical/audited; migration 0026 creates
+    the new rows and backfills recognized taxa without rewriting existing
+    species foreign keys, captured volumes, densities, or Pressler measurements.
+    Migration 0027 subsequently fills missing volume/mass pairs only for
+    high-forest observations of the two new catch-alls with positive D/h;
+    preexisting values (including zero), unknown heights, coppice and Altro
+    remain untouched. Affected marked-volume totals are rebuilt. Repaired
+    observations and changed interventions receive a version/modified-time
+    bump; intervention history gets a maintenance baseline, and dependent
+    digests are marked stale.
 
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:

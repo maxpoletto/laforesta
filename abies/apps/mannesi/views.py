@@ -80,7 +80,7 @@ def crews_save(request):
 @login_required
 def meta_view(request):
     """Small metadata bundle used by the report generator."""
-    _, species_names, _, _ = prelievi_species_cols()
+    _, species_names, _ = prelievi_species_cols()
     return JsonResponse({
         'products': list(Product.objects.order_by('name').values_list('name', flat=True)),
         'species': species_names,

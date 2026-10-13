@@ -12,6 +12,8 @@
  * D in cm, h in m.
  */
 
+import * as S from './strings.js';
+
 export const SP_ABETE = 'Abete';
 export const SP_ACERO = 'Acero';
 export const SP_CASTAGNO = 'Castagno';
@@ -43,6 +45,12 @@ export const TABACCHI_B = {
   [SP_SORBO]:          [ 2.3118,     3.1278e-2, 3.7159e-1],
 };
 
+/** Explicit catch-all estimates using existing equations, not new fits. */
+export const TABACCHI_PROXIES = {
+  [S.SPECIES_OTHER_CONIFER]: SP_ABETE,
+  [S.SPECIES_OTHER_BROADLEAF]: SP_FAGGIO,
+};
+
 /**
  * Compute tree volume in m³ via the species-specific Tabacchi equation.
  * Returns null if the species isn't in the Tabacchi table (e.g.,
@@ -54,7 +62,7 @@ export const TABACCHI_B = {
  * @returns {number|null}
  */
 export function tabacchiVolumeM3(dCm, hM, speciesName) {
-  const b = TABACCHI_B[speciesName];
+  const b = TABACCHI_B[TABACCHI_PROXIES[speciesName] || speciesName];
   if (!b) return null;
   const d = Number(dCm);
   const h = Number(hM);
@@ -80,5 +88,5 @@ export function massQ(vM3, densityQPerM3) {
 }
 
 export function hasSpecies(name) {
-  return name in TABACCHI_B;
+  return (TABACCHI_PROXIES[name] || name) in TABACCHI_B;
 }

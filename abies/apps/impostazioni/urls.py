@@ -25,6 +25,8 @@ urlpatterns = [
     path('species/form/', views.species_form, name='impostazioni-species-form-add'),
     path('species/form/<int:obj_id>/', views.species_form, name='impostazioni-species-form-edit'),
     path('species/save/', views.species_save, name='impostazioni-species-save'),
+    path('species/type/save/', views.species_type_save,
+         name='impostazioni-species-type-save'),
 
 
     # Observation categories

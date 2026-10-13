@@ -20,8 +20,9 @@ from apps.base.models import (
     HypsoParam, HypsoParamSet, HypsoParamSource, Observation,
     ObservationCategory, ObservationPhoto, Parcel, Sample, SampleArea,
     SampleGrid, Survey, Tree, TreeMark,
-    TreeSample, UsedNonce,
+    TreeSample, UsedNonce, tree_mass_q,
 )
+from apps.base.tabacchi import tabacchi_volume_m3
 from apps.ipso import staging as ipso_staging
 from apps.ipso import views as ipso_views
 from apps.ipso.models import IpsoUpload, IpsoUploadState
@@ -544,6 +545,19 @@ def _upload_payload(
     if record_overrides:
         record.update(record_overrides)
     return {SESSION: session, RECORDS: [record], FIELD_CSV_TEXT: 'csv backup'}
+
+
+@override_settings(IPSO_SECRET='test-token')
+@pytest.mark.parametrize('species_index', [3, 4, 5])
+def test_upload_keeps_legacy_other_and_accepts_new_catch_alls(
+        db, parcels, species, settings, tmp_path, species_index):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species, record_overrides={
+        FIELD_SPECIES_ID: species[species_index].id,
+    })
+    response = _post_upload(Client(), payload)
+    assert response.status_code == 200, response.content
+    assert IpsoUpload.objects.count() == 1
 
 
 def _legacy_ipso_1_1_4_payload(
@@ -2757,8 +2771,9 @@ def test_samples_import_warns_before_unmeasured_or_mismatched_rows(
 
 
 @override_settings(IPSO_SECRET='test-token')
+@pytest.mark.parametrize('species_index', [0, 4, 5])
 def test_writer_imports_samples_upload_into_survey(
-        writer_client, writer_user, parcels, species, settings, tmp_path):
+        writer_client, writer_user, parcels, species, settings, tmp_path, species_index):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     settings.DIGEST_DIR = tmp_path / 'digests'
     survey, area = _sample_survey(parcels[0])
@@ -2768,6 +2783,7 @@ def test_writer_imports_samples_upload_into_survey(
         parcels, species, mode='samples',
         session_id='22222222-2222-4222-8222-222222222222',
         record_overrides={
+            FIELD_SPECIES_ID: species[species_index].id,
             FIELD_SAMPLE_AREA_ID: area.id,
             FIELD_H_MEASURED: True,
             FIELD_NOTE: 'nota rilevamento',
@@ -2811,7 +2827,7 @@ def test_writer_imports_samples_upload_into_survey(
     assert [ts.h_measured for ts in samples] == [True, False]
     ts = samples[0]
     assert ts.parcel == parcels[0]
-    assert ts.tree.species == species[0]
+    assert ts.tree.species == species[species_index]
     assert ts.lat == 38.51234
     assert ts.lon == 16.12345
     assert ts.parcel == parcels[0]
@@ -2823,7 +2839,9 @@ def test_writer_imports_samples_upload_into_survey(
     assert ts.number == 1
     assert ts.d_cm == 42
     assert ts.h_m == Decimal('22.00')
-    assert ts.volume_m3 is not None
+    expected = tabacchi_volume_m3(42, 22, species[species_index].common_name)
+    assert ts.volume_m3 == expected
+    assert ts.mass_q == tree_mass_q(expected, species[species_index].density)
     trees = _read_gzip_json(writer_client.get(trees_url))
     assert len(trees[ROWS]) == 2
     assert trees[ROWS][0][trees[COLUMNS].index(ROW_ID)] == ts.id

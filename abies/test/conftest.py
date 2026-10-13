@@ -19,6 +19,7 @@ from apps.base.models import (
     Crew, Eclass, Parcel, Product, Region, Role, Sample, SampleArea,
     SampleGrid, Species, Survey, Tractor, Tree, TreeSample, User,
 )
+from apps.base.species import initial_botanical_type
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -63,9 +64,12 @@ def species(db):
         ('Castagno', 'Castanea sativa', 20, Decimal('9.20'), False),
         ('Acero', 'Acer pseudoplatanus', 60, Decimal('9.50'), True),
         ('Altro', '', 999, Decimal('9.00'), False),
+        ('Altra conifera', '', 997, Decimal('9.00'), False),
+        ('Altra latifoglia', '', 998, Decimal('10.50'), False),
     ]
     return [Species.objects.create(common_name=c, latin_name=l, sort_order=o,
-                                   density=d, minor=m)
+                                   density=d, minor=m,
+                                   botanical_type=initial_botanical_type(c, l))
             for c, l, o, d, m in data]
 
 

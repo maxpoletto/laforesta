@@ -88,7 +88,11 @@ def test_writer_save_invalidates_all_affected_digest_families(
     )
     unaffected = (DIGEST_PARCEL_DENDROMETRY_POINTS, 'unrelated')
     for name in (*affected, *unaffected):
-        DigestStatus.objects.create(name=name)
+        # Data migrations may already have seeded an audit status. Start each
+        # test target fresh so the assertions still prove this write dirties it.
+        DigestStatus.objects.update_or_create(
+            name=name, defaults={'stale': False, 'dirty_seq': 0},
+        )
 
     response = post(writer_client, {
         FIELD_DIAMETER_CLASS_MODE: DIAMETER_CLASS_SHIFTED_UP,

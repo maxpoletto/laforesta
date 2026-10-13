@@ -12,7 +12,7 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
   `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
   `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
-  `shouldAutoHeight, validateReference, validateTerreniFeatures, ` +
+  `shouldAutoHeight, populateSpecie, validateReference, validateTerreniFeatures, ` +
   `validateHistoryItem, validateHistoryDetail, formatHistoryMapRecordText, ` +
   `showHistoryScreen, loadHistoryDetail, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
@@ -178,6 +178,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     PRE_NEW_FREE_SURVEY: 'Nuovo rilevamento libero',
     REC_H_MEASURED: 'h misurata',
     REC_PRESERVED: 'Albero da preservare',
+    SPECIES_OTHER: 'Altro',
     DONE_TITLE: 'Sessione esportata',
     DONE_BODY: (n) => `${n} alberi salvati su CSV.`,
     TOAST_EXPORT_ERROR: (msg) => `export error: ${msg}`,
@@ -250,6 +251,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     FIELD_PARCEL_ID: 'parcel_id',
     FIELD_SPECIES: 'species',
     FIELD_SPECIES_ID: 'species_id',
+    FIELD_SELECTABLE: 'selectable',
     FIELD_D_CM: 'd_cm',
     FIELD_H_M: 'h_m',
     FIELD_CSV_TEXT: 'csv_text',
@@ -1440,6 +1442,34 @@ const session = {
         'data-table delete button calls Store.deleteTree with the row id');
   check(elements.get('data-trees-table').children.length === 1,
         'onDeleteTree re-renders the tree table after deletion');
+}
+
+// Legacy metadata stays available, but never appears in a new-tree selector,
+// even when an updated shell is booting with an old offline snapshot/sticky.
+{
+  const { context, elements } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.reference = {
+    ...referenceFixture(),
+    species: [
+      { id: 1, common: 'Altro', sort_order: 999 },
+      { id: 2, common: 'Altra conifera', sort_order: 997, selectable: true },
+      { id: 3, common: 'Altra latifoglia', sort_order: 998, selectable: true },
+      { id: 4, common: 'Abete', sort_order: 10, selectable: true },
+      { id: 5, common: 'Inactive', sort_order: 11, selectable: false },
+    ],
+  };
+  context.localStorage.setItem('ipso.specie', 'Altro');
+  app.populateSpecie();
+  eq(elements.get('in-specie').options.slice(1).map(option => option.value),
+     ['Abete', 'Altra conifera', 'Altra latifoglia'],
+     'species selector excludes legacy and unselectable metadata and keeps ordering');
+  check(app.State.specie === '', 'legacy sticky default is not selected');
+  check(app.State.reference.species.some(row => row.common === 'Altro'),
+        'selector does not erase legacy IDs from the reference bundle');
+  context.localStorage.setItem('ipso.specie', 'Altra latifoglia');
+  app.populateSpecie();
+  check(app.State.specie === 'Altra latifoglia', 'new catch-all sticky default is restored');
 }
 
 if (failures.length) {

@@ -4,6 +4,8 @@
 #content { max-width: 950px; }
 #content input[type="password"] { width: 300px; }
 
+.species-type-cell select { width: 120px; max-width: 100%; }
+
 .hypso-description {
   font-size: 0.9rem;
   margin: 0 0 8px;

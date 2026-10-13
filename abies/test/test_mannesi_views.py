@@ -43,6 +43,9 @@ def test_meta_returns_report_support_data(writer_client, products, species):
     assert set(data) == {'products', 'species'}
     assert 'Tronchi' in data['products']
     assert 'Abete' in data['species']
+    assert S.SPECIES_OTHER_CONIFER in data['species']
+    assert S.SPECIES_OTHER_BROADLEAF in data['species']
+    assert S.SPECIES_OTHER in data['species']
 
 
 class TestCrews:

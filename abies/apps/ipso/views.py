@@ -20,7 +20,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.exceptions import RequestDataTooBig
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
@@ -84,7 +84,7 @@ from config.constants import (
     FIELD_REGION_ID, FIELD_SEQ,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SCHEMA_VERSION,
     FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
-    FIELD_SPECIES_ID, FIELD_STANDARD,
+    FIELD_SELECTABLE, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SIZE_BYTES, FIELD_TARGET_ID, FIELD_TARGET_LABEL, FIELD_TARGET_TYPE,
     FIELD_TEXT, FIELD_TREE_ID, FIELD_TREE_PRESERVED_ID, FIELD_IMPORTED_AT,
     FIELD_STATE, FIELD_STATE_LABEL, FIELD_TAKEN_AT, FIELD_TREE_COUNT,
@@ -266,8 +266,11 @@ def _species_rows() -> list[dict]:
             'latin': sp.latin_name,
             'sort_order': sp.sort_order,
             'density': float(sp.density),
+            FIELD_SELECTABLE: sp.selectable,
         }
-        for sp in Species.objects.filter(active=True).order_by('sort_order', 'common_name')
+        for sp in Species.objects.filter(
+            Q(active=True) | Q(common_name=S.SPECIES_OTHER),
+        ).order_by('sort_order', 'common_name')
     ]
 
 

@@ -26,9 +26,10 @@ import {
 } from '../../base/js/ui-widgets.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
+import { PROTECTED_SPECIES_NAMES, speciesTypeColumns } from './species-types.js';
 import * as S from '../../base/js/strings.js';
 import {
-  FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_COUNTS,
+  FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COUNTS,
   FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
   FIELD_DIAMETER_CLASS_MODE, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE, FIELD_PRESSLER_DEFAULT,
@@ -36,7 +37,7 @@ import {
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   FIELD_YEAR_END, FIELD_YEAR_START, IPSO_REF_OBSERVATION_CATEGORIES,
-  DATA_ID, MESSAGE, PATCHES, RECORD, ROLE_ADMIN, ROLE_WRITER,
+  DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal2, fmtDecimal4, fmtInt, parseDecimal,
@@ -72,6 +73,8 @@ const ENTITY_SECTIONS = {
     saveUrl: `${API}species/save/`,
     csvFilename: S.CSV_SPECIES,
     columnDefs: {
+      [VERSION]: { hidden: true },
+      [S.COL_SORT_ORDER]: { hidden: true },
       [S.COL_DENSITY]: { label: S.COL_DENSITY, type: 'number', width: '100px', formatter: fmtDecimal2 },
       [S.COL_PRESSLER]: { label: S.COL_PRESSLER, type: 'number', width: '85px', formatter: fmtDecimal2 },
       [S.COL_MINOR]: MINOR_COL_DEF,
@@ -309,7 +312,10 @@ async function loadLandingPage(body, isAdmin) {
 // ---------------------------------------------------------------------------
 
 function wireEntitySection(root, cfg) {
-  const state = { table: null, digest: null, loaded: false, activeOnly: true };
+  const state = {
+    key: cfg.key, table: null, digest: null, loaded: false, activeOnly: true,
+    classificationPending: new Set(),
+  };
   sections[cfg.key] = state;
   const tableContainer = root.querySelector('[data-target="table-host"]');
   const activeCheck = root.querySelector('[data-role="active-toggle"]');
@@ -350,7 +356,13 @@ async function loadEntityData(cfg, state, container) {
   state.table = new TableWrapper({
     container,
     digest: data,
-    columnDefs: cfg.columnDefs || {},
+    columnDefs: {
+      ...cfg.columnDefs,
+      ...(cfg.key === 'species' ? speciesTypeColumns(
+        data.columns, (row, kind) => saveSpeciesType(state, row, kind),
+        state.classificationPending,
+      ) : {}),
+    },
     canModify: true,
     actions: {
       onEdit: (rowId) => openForm(cfg, state, rowId),
@@ -371,7 +383,38 @@ function applyActiveFilter(state) {
   if (activeIdx < 0 || !state.activeOnly) {
     state.table.setExternalFilter(null);
   } else {
-    state.table.setExternalFilter(row => row[activeIdx] === true);
+    const nameIdx = cols.indexOf(S.COL_NAME);
+    state.table.setExternalFilter(row => row[activeIdx] === true
+      || (state.key === 'species' && PROTECTED_SPECIES_NAMES.has(row[nameIdx])));
+  }
+}
+
+async function saveSpeciesType(state, row, kind) {
+  const id = row[0];
+  if (state.classificationPending.has(id)) return;
+  state.classificationPending.add(id);
+  state.table.setData(state.digest);
+  try {
+    const { data, status } = await postJSON(`${API}species/type/save/`, {
+      [ROW_ID]: id,
+      [VERSION]: row[state.digest.columns.indexOf(VERSION)],
+      [FIELD_BOTANICAL_TYPE]: kind,
+      [FIELD_NONCE]: crypto.randomUUID(),
+    });
+    const record = status === 200
+      ? data[PATCHES]?.find(p => p[DATA_ID] === 'species')?.[RECORD]
+      : data[RECORD];
+    if (record) {
+      const index = state.digest.rows.findIndex(r => r[0] === id);
+      if (index >= 0) state.digest.rows[index] = record;
+    }
+    if (status === 200) cache.applyResponseChanges(data);
+    else showError(data[MESSAGE] || S.ERROR_NETWORK);
+  } catch {
+    showError(S.ERROR_NETWORK);
+  } finally {
+    state.classificationPending.delete(id);
+    state.table.setData(state.digest);
   }
 }
 

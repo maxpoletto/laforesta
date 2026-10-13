@@ -31,6 +31,7 @@ from apps.base.models import (
     TreeSample,
 )
 from apps.campionamenti import csv_grid, csv_trees
+from apps.base.species import ensure_other_species
 from apps.campionamenti import csv_preserved
 from apps.piano_di_taglio import csv_plan
 from apps.prelievi import csv_harvests
@@ -91,6 +92,9 @@ class Command(BaseCommand):
                             csv_reference.REGIONS, csv_reference.ECLASSES))
                     if not report.present and not report.errors:
                         self._seed_default(table, report)
+                    if (table is csv_reference.SPECIES and not report.errors
+                            and Species.objects.exists()):
+                        report.loaded += ensure_other_species()
                     reports.append(report)
                 reports.append(self._load_parcels(data_dir))
                 reports.append(self._load_reftable(data_dir, cc.SAMPLE_GRIDS, required=False))

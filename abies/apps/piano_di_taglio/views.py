@@ -23,6 +23,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
+from apps.base.species import selectable_species
 from apps.base import csv_io
 from apps.base.dendrometry import current_diameter_class_mode
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
@@ -874,7 +875,7 @@ def mark_form_view(request, mark_id: int | None = None):
         if item is None:
             raise Http404
 
-    species = list(Species.objects.filter(active=True).order_by(FIELD_SORT_ORDER))
+    species = list(selectable_species(existing_id=tree.species_id if tree else None))
     compresa = (item.region or item.parcel.region).name if (item.region or item.parcel) else ''
     particella = item.parcel.name if item.parcel else ''
 
@@ -1016,6 +1017,9 @@ def mark_save_view(request):
     species = Species.objects.filter(id=species_id).first()
     if species is None:
         return validation_error([S.ERR_MARK_SPECIES_REQUIRED])
+    if not species.selectable and not TreeMark.objects.filter(
+            id=row_id, tree__species=species).exists():
+        return validation_error([S.ERR_LEGACY_SPECIES_NEW])
     volume_m3, mass_q = mark_volume_and_mass(d_cm, h_m, species)
     if number is not _MARK_NUMBER_MISSING and number is not None:
         duplicate = TreeMark.objects.filter(

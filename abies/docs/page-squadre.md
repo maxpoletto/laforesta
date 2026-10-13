@@ -82,3 +82,6 @@ Totale              [total production adjusted by the acconto balance]
 Dettaglio produzione
 [Excerpt of the harvest table, limited to the team and YYYY-MM]
 Columns: Data, Compresa, Particella, VDP, Tipo, Q.li, Note, [% for every major species]
+The species breakdown uses the same botanical-type minor-species buckets as
+Prelievi (`Altra conifera` / `Altra latifoglia`), with historical Altro retained
+as its own column.
