@@ -56,6 +56,42 @@ table.
   categories are sent to Ipso in `reference.json`. The default rows are `fitosanitario`, `viabilità`,
   and `rifiuti`.
 
+### Species selectability and historical Altro
+
+`active`, `minor`, and selectability have different purposes:
+
+- `active` normally makes a species available for new entries.
+- `minor` controls species grouping in Prelievi; it does not prevent selecting
+  that species for a new marked or sampled tree.
+- `Species.selectable` is a computed property, not a stored flag:
+  `active and common_name != S.SPECIES_OTHER`. Historical Altro is therefore
+  never a new-entry choice, even when active and not minor.
+
+The shared `selectable_species()` query applies that same explicit exclusion
+to species choices in Martellate, Alberi campionati and Bosco/PAI. Prelievi
+additionally requires `minor=False`. Existing Altro records remain editable;
+an existing Altro tree can also be measured again through the prior-tree
+picker without creating a new tree identity. Save validation enforces these
+exceptions server-side, so bypassing the pulldown cannot assign Altro to a
+new tree or harvest. Historical CSV imports and saved Ipso uploads retain
+their original species IDs/names rather than being relabeled.
+
+Ipso reference data retains Altro metadata for historical/offline records,
+with `selectable=false`. The mobile pulldown checks that flag and also excludes
+`S.SPECIES_OTHER` by name, covering older cached references without the flag;
+an old Altro sticky default is not restored as a new-tree selection.
+
+All runtime Altro exclusion checks use the localized `S.SPECIES_OTHER` constant,
+from `config/strings` on the server and Ipso's own string catalog on mobile.
+This is deliberately a narrow legacy compatibility rule, not a general
+database selectability flag. The translated constant must match the stored
+`common_name`: switching string catalogs alone does not translate existing
+species rows. Frozen data migrations retain their original names intentionally.
+Fresh installations still include Altro as a compatibility reference row.
+Of the three catch-alls, only Altra conifera and Altra latifoglia are offered
+for new entries; historical exceptions matter only if legacy records exist.
+Settings continues to show all three independently of selectability.
+
 ## Future production (Produzione futura)
 
 Visible to writers. Determines the data set used to compute per-parcel forecast
