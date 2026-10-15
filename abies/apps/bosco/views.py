@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import csv_parcels
 from apps.base.auth import require_writer
+from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
 from apps.base.digests import (
     build_observation_record, build_parcel_record, build_preserved_tree_record,
@@ -155,6 +156,7 @@ def parcel_metadata_save_view(request):
     row_id = int_or_none(body.get(ROW_ID))
     if row_id is None:
         raise Http404
+    begin_nonce_write(request)
     with transaction.atomic():
         parcel = (Parcel.objects.select_for_update()
                   .select_related('region', 'eclass')
@@ -215,6 +217,7 @@ def observation_save_view(request):
             errors, html=_render_observation_form(request, row_id, body),
         )
 
+    begin_nonce_write(request)
     with transaction.atomic():
         if row_id is None:
             existing_photos = []
@@ -304,6 +307,7 @@ def observation_delete_view(request):
     if row_id is None:
         raise Http404
 
+    begin_nonce_write(request)
     with transaction.atomic():
         observation = (
             Observation.objects.select_for_update()
@@ -748,6 +752,7 @@ def pai_save_view(request):
         return validation_error(errors, html=_render_pai_form(request, row_id, body))
 
     affected_survey_ids = set()
+    begin_nonce_write(request)
     with transaction.atomic():
         if row_id is None:
             tree = Tree.objects.create(
@@ -839,6 +844,7 @@ def pai_delete_view(request):
     if row_id is None:
         raise Http404
 
+    begin_nonce_write(request)
     with transaction.atomic():
         pai = _preserved_tree_qs(for_update=True).filter(id=row_id).first()
         if pai is None:

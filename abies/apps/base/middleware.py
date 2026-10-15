@@ -2,7 +2,6 @@
 
 import json
 import time
-from datetime import timedelta
 from collections import defaultdict
 
 from django.conf import settings
@@ -11,9 +10,13 @@ from django.http import JsonResponse
 from django.utils import timezone
 
 from apps.base.models import UsedNonce
+from apps.base.idempotency import (
+    API_PREFIX, NONCE_TTL, NonceReplay, complete_nonce_write,
+    prepare_nonce_write, run_nonce_write,
+)
 from config import strings as S
 from config.constants import (
-    FIELD_NONCE, MESSAGE, STATUS, STATUS_RATE_LIMITED,
+    MESSAGE, STATUS, STATUS_RATE_LIMITED,
 )
 
 
@@ -65,51 +68,36 @@ class CSPMiddleware:
 # Idempotency nonce
 # ---------------------------------------------------------------------------
 
-NONCE_TTL = timedelta(hours=24)
-
-
 class NonceMiddleware:
     """Return cached response for replayed idempotency nonces.
 
-    Activates on JSON and multipart POSTs that include a ``nonce`` field.
-    Views are responsible for calling :func:`save_nonce` after a successful
-    write so that future replays get the original response.
+    Parsing precedes the write transaction. Views call begin_nonce_write()
+    before mutating data and success_response() to record the receipt; this
+    middleware owns the outer transaction until both have succeeded.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.method != 'POST':
+        state = prepare_nonce_write(request)
+        if state is None:
             return self.get_response(request)
+        if isinstance(state, JsonResponse):
+            return state
+        return run_nonce_write(request, state, self.get_response)
 
-        if request.content_type == 'application/json':
-            try:
-                body = json.loads(request.body)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                return self.get_response(request)
-        elif request.content_type == 'multipart/form-data':
-            body = request.POST
-        else:
-            return self.get_response(request)
-
-        nonce = body.get(FIELD_NONCE) if isinstance(body, dict) else None
-        if not nonce:
-            return self.get_response(request)
-
-        user = getattr(request, 'user', None)
-        if user is None or not user.is_authenticated:
-            return self.get_response(request)
-
-        try:
-            used = UsedNonce.objects.get(nonce=nonce, user=user)
-            return JsonResponse(json.loads(used.response_json))
-        except UsedNonce.DoesNotExist:
-            return self.get_response(request)
+    def process_exception(self, request, exception):
+        if isinstance(exception, NonceReplay):
+            return exception.response
+        return None
 
 
-def save_nonce(nonce, user, response_data):
+def save_nonce(nonce, user, response_data, *, request=None):
     """Record a used nonce with its success response for idempotency replay."""
+    if request is not None and complete_nonce_write(request, response_data):
+        UsedNonce.objects.filter(created_at__lt=timezone.now() - NONCE_TTL).delete()
+        return
     UsedNonce.objects.filter(created_at__lt=timezone.now() - NONCE_TTL).delete()
     try:
         with transaction.atomic():
@@ -126,7 +114,6 @@ def save_nonce(nonce, user, response_data):
 # Rate limiting
 # ---------------------------------------------------------------------------
 
-API_PREFIX = '/api/'
 SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
 
 

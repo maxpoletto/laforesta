@@ -9,6 +9,7 @@ from django.http import JsonResponse
 
 from apps.base.digests import mark_stale, mark_stale_prefixes
 from apps.base.middleware import save_nonce
+from apps.base.idempotency import begin_nonce_write
 from apps.base.numparse import int_or_none
 from config import strings as S
 from config.constants import (
@@ -73,6 +74,7 @@ def save_model_response(
         if dup.exists():
             return validation_error([unique_error])
 
+    begin_nonce_write(request)
     with transaction.atomic():
         if row_id is not None:
             obj = model.objects.select_for_update().filter(id=row_id).first()
@@ -148,7 +150,7 @@ def success_response(
 
     nonce = body.get(FIELD_NONCE) if body else None
     if nonce:
-        save_nonce(nonce, request.user, response_data)
+        save_nonce(nonce, request.user, response_data, request=request)
     return JsonResponse(response_data)
 
 

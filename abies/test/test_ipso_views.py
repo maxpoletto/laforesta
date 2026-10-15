@@ -1094,6 +1094,33 @@ def test_import_observation_upload_rejects_missing_region(
 
 
 @override_settings(IPSO_SECRET='test-token')
+@pytest.mark.django_db(transaction=True)
+def test_staged_observation_parsing_precedes_write_transaction(
+        writer_client, parcels, settings, tmp_path, monkeypatch):
+    from django.db import connection
+
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    settings.OBSERVATION_MEDIA_DIR = tmp_path / 'observation-media'
+    category = ObservationCategory.objects.create(name='Parse outside transaction')
+    payload = _observation_payload(parcels[0], category)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    original = ipso_views._observation_import_rows
+
+    def parse_rows(*args):
+        assert not connection.in_atomic_block
+        return original(*args)
+
+    monkeypatch.setattr(ipso_views, '_observation_import_rows', parse_rows)
+    response = writer_client.post(
+        reverse('ipso-upload-import-observations', args=[upload.id]),
+        data=json.dumps({FIELD_NONCE: 'parse-before-writing'}),
+        content_type='application/json',
+    )
+    assert response.status_code == 200
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_import_observation_upload_rejects_without_partial_write(
         writer_client, parcels, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -1854,6 +1881,41 @@ def test_admin_updates_upload_mode_and_staged_payload(
 
 
 @override_settings(IPSO_SECRET='test-token')
+@pytest.mark.parametrize('operation', ['mode', 'delete'])
+def test_receipt_failure_preserves_staged_upload(
+        operation, admin_client, parcels, species, settings, tmp_path, monkeypatch):
+    """A failed web mutation must leave both the row and its staged files intact."""
+    from apps.base import responses
+
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    payload = _upload_payload(parcels, species)
+    assert _post_upload(Client(), payload).status_code == 200
+    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    inbox_path = Path(upload.inbox_path)
+    original_files = {p.name: p.read_bytes() for p in inbox_path.iterdir() if p.is_file()}
+    original_mode, original_checksum = upload.mode, upload.checksum
+
+    def fail_receipt(*args, **kwargs):
+        raise RuntimeError('Injected receipt failure')
+
+    monkeypatch.setattr(responses, 'save_nonce', fail_receipt)
+    admin_client.raise_request_exception = False
+    body = {FIELD_NONCE: 'failed-staged-upload'}
+    if operation == 'mode':
+        body[FIELD_MODE] = IPSO_MODE_FREE_SURVEY
+    response = admin_client.post(
+        reverse(f'ipso-upload-{operation}', args=[upload.id]),
+        data=json.dumps(body), content_type='application/json',
+    )
+
+    assert response.status_code == 500
+    upload.refresh_from_db()
+    assert (upload.mode, upload.checksum) == (original_mode, original_checksum)
+    assert inbox_path.is_dir()
+    assert {p.name: p.read_bytes() for p in inbox_path.iterdir() if p.is_file()} == original_files
+
+
+@override_settings(IPSO_SECRET='test-token')
 def test_admin_updates_rejected_upload_mode_preserves_rejection_detail(
         admin_client, parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
@@ -1963,7 +2025,8 @@ def test_admin_cannot_update_mode_after_domain_import(
 
 @override_settings(IPSO_SECRET='test-token')
 def test_admin_deletes_staged_upload_record_and_files(
-        admin_client, admin_user, parcels, species, settings, tmp_path):
+        admin_client, admin_user, parcels, species, settings, tmp_path,
+        django_capture_on_commit_callbacks):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     payload = _upload_payload(parcels, species)
     assert _post_upload(Client(), payload).status_code == 200
@@ -1971,11 +2034,12 @@ def test_admin_deletes_staged_upload_record_and_files(
     inbox_path = Path(upload.inbox_path)
 
     nonce = 'ipso-delete-test-nonce'
-    resp = admin_client.post(
-        reverse('ipso-upload-delete', args=[upload.id]),
-        data=json.dumps({FIELD_NONCE: nonce}),
-        content_type='application/json',
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        resp = admin_client.post(
+            reverse('ipso-upload-delete', args=[upload.id]),
+            data=json.dumps({FIELD_NONCE: nonce}),
+            content_type='application/json',
+        )
 
     assert resp.status_code == 200
     assert not IpsoUpload.objects.filter(id=upload.id).exists()

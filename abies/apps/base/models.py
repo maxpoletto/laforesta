@@ -994,6 +994,7 @@ class DigestStatus(models.Model):
 class UsedNonce(models.Model):
     """Prevents duplicate form submissions."""
     nonce = models.CharField(max_length=64)
+    request_hash = models.CharField(max_length=64, blank=True, default='')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     response_json = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

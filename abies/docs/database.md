@@ -12,6 +12,19 @@ audited and the contract that keeps that coverage complete.
 
 ## App metadata
 
+- used_nonce: (id:int, nonce:string, user_id:int, request_hash:string,
+  response_json:text, created_at:datetime) — UNIQUE(nonce, user_id)
+  - A successful authenticated API operation's replay receipt, retained for
+    24 hours. `request_hash` is the SHA-256 identity of its method, path/query
+    and normalized payload (including uploaded-file checksums).
+  - The pending claim and completed response are written in the same
+    transaction as the domain mutation; an empty pending response is never
+    committed. Concurrent claims serialize on the unique constraint.
+  - Migration 0029 adds `request_hash` without deleting existing receipts.
+    Those legacy receipts have a blank hash and preserve their former replay
+    behavior until expiry. See [data architecture](data-architecture.md) for
+    the request/transaction contract.
+
 - user: extends AbstractUser with (role:string, login_method:string,
   landing_page:string)
   - role is one of `admin`, `writer`, `reader`.

@@ -22,6 +22,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
 from apps.base.digests import (
@@ -214,6 +215,8 @@ def tree_save_view(request):
     if errors:
         return _validation_error(errors, ts_id, request, body)
 
+    # This helper can create the parent Sample, before the tree itself.
+    begin_nonce_write(request)
     sample = _find_or_create_sample(parsed, ts_id=ts_id)
     if sample is None:
         return _validation_error(
@@ -489,6 +492,7 @@ def tree_delete_view(request, ts_id: int):
         if ts.preserved_number is not None else set()
     )
     preserved_before = _preserved_cache_state(preserved_keys, set())
+    begin_nonce_write(request)
     ts.delete()
     # N. alberi just dropped; surveys.N_aree_visitate may also change
     # if this was the last tree on its area.
@@ -667,6 +671,7 @@ def area_save_view(request):
     if _area_number_taken(grid, parcel.region_id, number, exclude_id=area_id):
         return validation_error([S.ERR_AREA_NUMBER_DUPLICATE])
 
+    begin_nonce_write(request)
     with transaction.atomic():
         if area_id:
             area = SampleArea.objects.select_for_update().filter(
@@ -742,6 +747,7 @@ def area_delete_view(request, area_id: int):
     if Sample.objects.filter(sample_area=area).exists():
         return validation_error([S.ERR_AREA_IN_USE])
     grid = area.sample_grid
+    begin_nonce_write(request)
     area.delete()
     # See area_save_view: surveys digest depends on the per-grid area count.
     mark_stale('sample_areas', 'grids', 'surveys', 'audit')
@@ -1505,6 +1511,7 @@ def grid_delete_view(request, grid_id: int):
         )
     if Survey.objects.filter(sample_grid=grid).exists():
         return validation_error([S.ERR_GRID_IN_USE])
+    begin_nonce_write(request)
     with transaction.atomic():
         # SampleArea cascades.
         grid.delete()
@@ -1599,6 +1606,7 @@ def grid_csv_import_view(request):
     if not parsed_rows:
         return validation_error([S.ERR_CSV_EMPTY])
 
+    begin_nonce_write(request)
     csv_grid.apply(grid, parsed_rows)
 
     grid.refresh_from_db()
@@ -1689,6 +1697,7 @@ def tree_csv_import_view(request):
     if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
         return warning_response(warnings)
 
+    begin_nonce_write(request)
     counts = csv_trees.apply(survey, parsed)
 
     return success_response(
@@ -1718,6 +1727,7 @@ def survey_delete_view(request, survey_id: int):
             data_id='surveys', row_id=survey.id,
             record=build_survey_record(survey),
         )
+    begin_nonce_write(request)
     with transaction.atomic():
         survey.delete()
         mark_stale(
@@ -1814,6 +1824,7 @@ def grid_save_auto_view(request):
     if err:
         return validation_error([err])
 
+    begin_nonce_write(request)
     with transaction.atomic():
         grid = SampleGrid.objects.create(name=name, description=description)
         # Number areas per compresa (region), restarting at 1 in each, so

@@ -10,6 +10,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.base.auth import require_writer
+from apps.base.idempotency import begin_nonce_write
 from apps.base.digests import mark_stale, prelievi_species_cols
 from apps.base.models import Crew, Product
 from apps.base.numparse import int_or_none, parse_decimal
@@ -210,6 +211,7 @@ def _delete_entry(request, model, data_id, row_fn):
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
     if obj.version != submitted_version(body):
         return conflict_response(data_id=data_id, row_id=obj.id, record=row_fn(obj))
+    begin_nonce_write(request)
     with transaction.atomic():
         obj.delete()
         mark_stale('audit')

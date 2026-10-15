@@ -23,6 +23,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
+from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
 from apps.base import csv_io
 from apps.base.dendrometry import current_diameter_class_mode
@@ -217,6 +218,7 @@ def plan_delete_view(request, plan_id: int):
     if check_only:
         return JsonResponse({})
 
+    begin_nonce_write(request)
     with transaction.atomic():
         try:
             # Plan items, their transitions, and ParcelPlanDetail cascade.
@@ -308,6 +310,7 @@ def plan_csv_import_view(request):
         return csv_error_list(errors)
 
     try:
+        begin_nonce_write(request)
         plan, n_items = csv_plan.apply(
             target_plan=target_plan, name=name, description=description,
             fustaia_parsed=fustaia_parsed, ceduo_parsed=ceduo_parsed,
@@ -452,6 +455,7 @@ def item_save_view(request):
     if errors:
         return validation_error(errors)
 
+    begin_nonce_write(request)
     with transaction.atomic():
         if item_id is not None:
             item = HarvestPlanItem.objects.select_for_update().filter(
@@ -622,6 +626,7 @@ def item_delete_view(request, item_id: int):
     if check_only:
         return JsonResponse({})
 
+    begin_nonce_write(request)
     with transaction.atomic():
         try:
             item.delete()
@@ -805,6 +810,7 @@ def transition_save_view(request):
     except ValueError:
         return validation_error([S.ERR_DATE_INVALID])
 
+    begin_nonce_write(request)
     with transaction.atomic():
         item = HarvestPlanItem.objects.select_for_update().filter(
             id=item_id,
@@ -1034,6 +1040,7 @@ def mark_save_view(request):
     if isinstance(parcel, JsonResponse):
         return parcel
 
+    begin_nonce_write(request)
     with transaction.atomic():
         if row_id:
             # Update existing mark.
@@ -1143,6 +1150,7 @@ def mark_delete_view(request):
 
     tree = tm.tree
     item_id = item.id
+    begin_nonce_write(request)
     with transaction.atomic():
         tm.delete()
         if not TreeMark.objects.filter(tree=tree).exists():
@@ -1307,6 +1315,7 @@ def mark_csv_import_view(request):
     if errors:
         return validation_error(errors)
 
+    begin_nonce_write(request)
     import_result = import_mark_rows(item, parsed)
     if import_result.errors:
         return validation_error(import_result.errors)

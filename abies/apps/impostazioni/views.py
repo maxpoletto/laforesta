@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
 from apps.base.auth import require_admin, require_writer
+from apps.base.idempotency import begin_nonce_write
 from apps.base.landing import clean_landing_page, user_landing_page
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.digests import (
@@ -88,9 +89,10 @@ def password_view(request):
     except ValidationError as e:
         return _error(' '.join(e.messages))
     request.user.set_password(pw1)
+    begin_nonce_write(request)
     request.user.save()
-    update_session_auth_hash(request, request.user)
-    return JsonResponse({MESSAGE: S.PASSWORD_CHANGED})
+    transaction.on_commit(lambda: update_session_auth_hash(request, request.user))
+    return success_response(request, body, extra={MESSAGE: S.PASSWORD_CHANGED})
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +369,7 @@ def future_production_save(request):
         return _error(S.ERR_PLAN_NOT_FOUND)
 
     changed = []
+    begin_nonce_write(request)
     with transaction.atomic():
         active_qs = HarvestPlan.objects.select_for_update().filter(active=True)
         for plan in active_qs.exclude(id=plan_id):
@@ -430,6 +433,7 @@ def dendrometry_save(request):
 
     desired = set(survey_ids)
     changed = []
+    begin_nonce_write(request)
     with transaction.atomic():
         qs = (Survey.objects
               .select_for_update()
@@ -497,6 +501,7 @@ def diameter_classes_save(request):
         return _error(S.ERR_DIAMETER_CLASS_MODE_INVALID)
 
     changed = False
+    begin_nonce_write(request)
     with transaction.atomic():
         settings_obj = _locked_site_settings()
         if settings_obj.diameter_class_mode != mode:
@@ -549,6 +554,7 @@ def landing_page_save(request):
         return _error(S.ERR_LANDING_PAGE_INVALID)
 
     changed = False
+    begin_nonce_write(request)
     with transaction.atomic():
         user = User.objects.select_for_update().get(pk=request.user.pk)
         if user.landing_page != landing_page:
@@ -654,6 +660,7 @@ def users_save(request):
     pw1 = body.get(FIELD_PASSWORD1, '')
     pw2 = body.get(FIELD_PASSWORD2, '')
 
+    begin_nonce_write(request)
     with transaction.atomic():
         username_dupes = User.objects.filter(username__iexact=username)
         email_dupes = User.objects.filter(email__iexact=email)
@@ -822,6 +829,7 @@ def hypso_params_accept(request):
     if err:
         return err
     rows = hypsometry.compute_params(survey_ids, min_n)
+    begin_nonce_write(request)
     hypsometry.replace_active_set(
         rows, source=HypsoParamSource.COMPUTED, min_n=min_n,
         survey_ids=survey_ids,
@@ -849,6 +857,7 @@ def hypso_params_import(request):
         return _error('\n'.join(errors))
     if not rows:
         return _error(S.ERR_CSV_EMPTY)
+    begin_nonce_write(request)
     hypsometry.replace_active_set(
         rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
     )
@@ -876,6 +885,7 @@ def hypso_params_clear(request):
     body, error = parse_json_body(request)
     if error:
         return error
+    begin_nonce_write(request)
     hypsometry.clear_active_set()
     mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_CLEARED})

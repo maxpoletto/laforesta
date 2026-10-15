@@ -161,6 +161,47 @@ Every retryable write carries a client-generated `nonce`. Versioned row edits
 and deletes also carry the cached `version`; a missing version is treated as
 stale (`0`) and returns a conflict instead of weakening optimistic locking.
 
+### Retry receipts and write transactions
+
+Authenticated API POSTs with a nonce use the same protocol for JSON and
+multipart forms. A nonce is a nonblank string of at most 64 characters, scoped
+to its user and retained for 24 hours. Its receipt also stores a SHA-256 request
+identity: method, path/query and canonical JSON, or normalized form fields and
+file metadata/checksums. JSON key order/whitespace and multipart boundaries do
+not affect identity; the hidden CSRF form field is excluded. File streams are
+hashed in chunks and rewound before the view reads them.
+
+Views parse expensive inputs first, then call `begin_nonce_write(request)` just
+before their first database write or mutating import helper. This opens an
+outer transaction and inserts the unique `(nonce, user)` claim as its first
+write. Existing view/service atomic blocks become nested savepoints. A
+concurrent identical request waits for the claim: it either replays the
+completed receipt or, if the first attempt rolls back, performs the operation
+itself. A competing request must not read a database snapshot inside an atomic
+block before claiming its nonce.
+
+`success_response()` stores the response in that same transaction. Middleware
+commits only after response construction succeeds, so domain changes, audit
+history, digest dirty marks and the replay receipt commit together. Exceptions
+and rejected responses roll back the domain transaction and claim; their nonce
+can be retried. Ipso validation diagnostics are saved separately after rollback,
+without changing forestry data or consuming the nonce. Requests without a
+nonce retain their existing transaction boundaries and have no replay guarantee.
+
+When adding an endpoint, call `begin_nonce_write()` before any mutation and
+finish successful nonce-backed writes with `success_response()`. The request's
+SQL write guard fails before an unclaimed ORM mutation, catching forgotten
+boundaries. Avoid parsing photos/CSV or making network calls while holding the
+write lock. Schedule file deletion with `transaction.on_commit()`; unavoidable
+file rewrites must register rollback restoration. Database transactions do not
+make filesystem operations atomic across process/host failures.
+
+Reusing a completed nonce for a different operation or payload returns HTTP
+409, not the earlier operation's response. Pre-upgrade receipts without a
+request hash remain replayable until their normal expiry, avoiding duplicates
+immediately after deployment. Public Ipso uploads use their separate session
+UUID/checksum protocol, not these authenticated web-form receipts.
+
 ### Response contract
 
 Payload is always JSON.
@@ -185,6 +226,10 @@ validation catches most problems first.
 Another user modified the row between cache refresh and submit. Modal
 shows the server's current state; user can re-submit or dismiss (which
 updates the cache with the returned record).
+
+**Nonce reuse conflict** (409): `{ status: "conflict", message }`. The nonce
+already belongs to a different successful request; reopen the form to obtain
+a fresh nonce. This is distinct from the row-version conflict above.
 
 ## Data deletion and cache updates
 

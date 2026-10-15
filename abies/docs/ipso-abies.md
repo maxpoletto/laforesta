@@ -300,6 +300,23 @@ Duplicate uploads with the same session ID and checksum are idempotent. A second
 upload with the same session ID but different content marks the staged upload as
 conflicted.
 
+Authenticated inbox actions use the web API's nonce protocol (see
+[data architecture](data-architecture.md)). Forestry changes, import state,
+digest invalidations and the completed response receipt commit together.
+Staged files and import rows are parsed before claiming the nonce/acquiring
+the write lock; the transaction rechecks the upload's state/mode/checksum and
+the selected target's version before applying those rows. A changed context
+requires reloading and trying again. Rejected imports retain their diagnostic
+message separately after rollback, but do not consume the nonce or keep partial
+forestry writes. A diagnostic cannot overwrite an upload concurrently imported,
+rejected, deleted or edited.
+
+Inbox deletion removes staged files only after the database commit. Mode edits
+restore the previous staged payload/checksum if their nonce-backed transaction
+rolls back normally. This is not a filesystem crash-recovery protocol: a process
+or host interruption during a file rewrite can still require reconciliation,
+and interrupted creation of observation photos can leave unreferenced files.
+
 ## Tree-number contract
 
 Tree numbers are required for predefined sampled trees and free-survey rows

@@ -9,6 +9,7 @@ import re
 import shutil
 import time
 from collections import defaultdict, deque
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date as date_type, timezone
 from decimal import Decimal, InvalidOperation
@@ -30,6 +31,9 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_admin, require_writer
+from apps.base.idempotency import (
+    after_nonce_rollback, begin_nonce_write, on_nonce_rollback,
+)
 from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response,
@@ -696,6 +700,7 @@ def reject_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     except UploadValidationError as e:
         return validation_error([str(e)])
 
+    begin_nonce_write(request)
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
         if upload.state != IpsoUploadState.RECEIVED:
@@ -727,11 +732,12 @@ def delete_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     except UploadValidationError as e:
         return validation_error([str(e)])
 
+    begin_nonce_write(request)
     with transaction.atomic():
         upload = _get_upload(upload_id, for_update=True)
         inbox_path = Path(upload.inbox_path)
         upload.delete()
-    _remove_staged_upload_files(inbox_path)
+        transaction.on_commit(lambda: _remove_staged_upload_files(inbox_path))
     return success_response(
         request, body,
         data_id=DATA_ID_IPSO_UPLOADS, row_id=upload_id,
@@ -751,19 +757,32 @@ def update_upload_mode(request: HttpRequest, upload_id: int) -> JsonResponse:
     if mode not in ALLOWED_UPLOAD_MODES:
         return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
 
+    upload = _get_upload(upload_id)
+    if upload.state == IpsoUploadState.IMPORTED:
+        return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE])
+    payload, file_error = _read_staged_payload(upload)
+    if file_error:
+        return validation_error([file_error])
+    session = payload.get(SESSION) if isinstance(payload, dict) else None
+    if not isinstance(session, dict):
+        return validation_error([S.IPSO_ERR_FIELD_OBJECT.format(SESSION)])
+    original_payload, original_checksum = deepcopy(payload), upload.checksum
+    session[FIELD_MODE] = mode
+    checksum = _payload_checksum(payload)
+
+    begin_nonce_write(request)
     with transaction.atomic():
-        upload = _get_upload(upload_id, for_update=True)
-        if upload.state == IpsoUploadState.IMPORTED:
+        current = _get_upload(upload_id, for_update=True)
+        if current.state == IpsoUploadState.IMPORTED:
             return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE])
-        payload, file_error = _read_staged_payload(upload)
-        if file_error:
-            return validation_error([file_error])
-        session = payload.get(SESSION) if isinstance(payload, dict) else None
-        if not isinstance(session, dict):
-            return validation_error([S.IPSO_ERR_FIELD_OBJECT.format(SESSION)])
-        session[FIELD_MODE] = mode
-        checksum = _payload_checksum(payload)
-        ipso_staging.write_payload_files(Path(upload.inbox_path), payload, checksum)
+        if current.mode != upload.mode or current.checksum != upload.checksum:
+            return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
+        upload = current
+        inbox_path = Path(upload.inbox_path)
+        on_nonce_rollback(request, lambda: ipso_staging.write_payload_files(
+            inbox_path, original_payload, original_checksum,
+        ))
+        ipso_staging.write_payload_files(inbox_path, payload, checksum)
         upload.mode = mode
         upload.checksum = checksum
         update_fields = ['mode', 'checksum']
@@ -785,43 +804,51 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
     except UploadValidationError as e:
         return validation_error([str(e)])
 
-    try:
-        with transaction.atomic():
-            upload = _get_upload(upload_id, for_update=True)
-            if upload.mode != IPSO_MODE_MARTELLATE:
-                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-            if upload.state != IpsoUploadState.RECEIVED:
-                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-            item = (HarvestPlanItem.objects
-                    .select_for_update()
-                    .filter(id=item_id).first())
-            if item is None:
-                return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
-            if item.state == HarvestPlanItemState.CLOSED:
-                return validation_error([S.ERR_MARK_ITEM_CLOSED])
-            if not _is_valid_martellate_target(item):
-                return validation_error([S.IPSO_ERR_INVALID_MARTELLATE_TARGET])
+    upload = _get_upload(upload_id)
+    if upload.mode != IPSO_MODE_MARTELLATE:
+        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+    if upload.state != IpsoUploadState.RECEIVED:
+        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    item = HarvestPlanItem.objects.filter(id=item_id).first()
+    if item is None:
+        return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+    if item.state == HarvestPlanItemState.CLOSED:
+        return validation_error([S.ERR_MARK_ITEM_CLOSED])
+    if not _is_valid_martellate_target(item):
+        return validation_error([S.IPSO_ERR_INVALID_MARTELLATE_TARGET])
+    payload, file_error = _read_staged_payload(upload)
+    if file_error:
+        return _upload_validation_error(upload, [file_error], request=request)
+    rows, errors = _martellate_import_rows(upload, payload, item)
+    if errors:
+        return _upload_validation_error(upload, errors, request=request)
+    duplicate_errors = mark_number_duplicate_errors(item.id, rows)
+    if duplicate_errors:
+        return _upload_validation_error(upload, duplicate_errors, request=request)
 
-            payload, file_error = _read_staged_payload(upload)
-            if file_error:
-                return _upload_validation_error(upload, [file_error])
-            rows, errors = _martellate_import_rows(upload, payload, item)
-            if errors:
-                return _upload_validation_error(upload, errors)
-            duplicate_errors = mark_number_duplicate_errors(item.id, rows)
-            if duplicate_errors:
-                return _upload_validation_error(upload, duplicate_errors)
+    try:
+        begin_nonce_write(request)
+        with transaction.atomic():
+            upload, error = _lock_prepared_upload(upload)
+            if error:
+                return error
+            current = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
+            if current is None or current.version != item.version:
+                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
+            item = current
 
             result = import_mark_rows(item, rows)
             if result.errors:
-                return _upload_validation_error(upload, result.errors)
+                return _upload_validation_error(upload, result.errors, request=request)
             if not _claim_upload_import(
                     upload, request.user, IPSO_TARGET_HARVEST_PLAN_ITEM, item.id):
                 return _rollback_upload_not_received_response()
             data = _upload_metadata(upload)
     except IntegrityError:
         upload = _get_upload(upload_id)
-        return _upload_validation_error(upload, [S.IPSO_ERR_IMPORT_MARK_CONFLICT])
+        return _upload_validation_error(
+            upload, [S.IPSO_ERR_IMPORT_MARK_CONFLICT], request=request,
+        )
     return success_response(request, body, extra={
         IMPORTED: result.imported,
         SKIPPED_DUPLICATES: result.skipped_duplicates,
@@ -839,34 +866,39 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
     except UploadValidationError as e:
         return validation_error([str(e)])
 
+    upload = _get_upload(upload_id)
+    if upload.mode != IPSO_MODE_SAMPLES:
+        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+    if upload.state != IpsoUploadState.RECEIVED:
+        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    survey = Survey.objects.filter(id=survey_id).first()
+    if survey is None:
+        return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
+    if survey.sample_grid_id is None:
+        return validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
+    source_grid_id = _source_survey_grid_id(upload.work_package_id)
+    if source_grid_id is not None and survey.sample_grid_id != source_grid_id:
+        return validation_error([S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH])
+    payload, file_error = _read_staged_payload(upload)
+    if file_error:
+        return _upload_validation_error(upload, [file_error], request=request)
+    rows, errors = sample_import_rows(payload, survey)
+    if errors:
+        return _upload_validation_error(upload, errors, request=request)
+    warnings = tree_import_warnings(rows, first_row_number=1)
+    if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
+        return warning_response(warnings)
+
     try:
+        begin_nonce_write(request)
         with transaction.atomic():
-            upload = _get_upload(upload_id, for_update=True)
-            if upload.mode != IPSO_MODE_SAMPLES:
-                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-            if upload.state != IpsoUploadState.RECEIVED:
-                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-            survey = (Survey.objects
-                      .select_for_update()
-                      .filter(id=survey_id).first())
-            if survey is None:
-                return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
-            if survey.sample_grid_id is None:
-                return validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
-            source_grid_id = _source_survey_grid_id(upload.work_package_id)
-            if source_grid_id is not None and survey.sample_grid_id != source_grid_id:
-                return validation_error([S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH])
-
-            payload, file_error = _read_staged_payload(upload)
-            if file_error:
-                return _upload_validation_error(upload, [file_error])
-            rows, errors = sample_import_rows(payload, survey)
-            if errors:
-                return _upload_validation_error(upload, errors)
-
-            warnings = tree_import_warnings(rows, first_row_number=1)
-            if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
-                return warning_response(warnings)
+            upload, error = _lock_prepared_upload(upload)
+            if error:
+                return error
+            current = Survey.objects.select_for_update().filter(id=survey_id).first()
+            if current is None or current.version != survey.version:
+                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
+            survey = current
 
             result = csv_trees.apply(survey, rows)
             if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
@@ -874,7 +906,9 @@ def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
             data = _upload_metadata(upload)
     except IntegrityError:
         upload = _get_upload(upload_id)
-        return _upload_validation_error(upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT])
+        return _upload_validation_error(
+            upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT], request=request,
+        )
     return success_response(request, body, extra={
         IMPORTED: result['n_trees'],
         UPLOAD: data,
@@ -891,31 +925,36 @@ def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonRespo
     except UploadValidationError as e:
         return validation_error([str(e)])
 
+    upload = _get_upload(upload_id)
+    if upload.mode != IPSO_MODE_FREE_SURVEY:
+        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+    if upload.state != IpsoUploadState.RECEIVED:
+        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    survey = Survey.objects.filter(id=survey_id).first()
+    if survey is None:
+        return validation_error([S.IPSO_ERR_INVALID_FREE_SURVEY_TARGET])
+    if survey.sample_grid_id is not None:
+        return validation_error([S.ERR_SURVEY_UNSTRUCTURED_REQUIRED])
+    payload, file_error = _read_staged_payload(upload)
+    if file_error:
+        return _upload_validation_error(upload, [file_error], request=request)
+    rows, errors = free_survey_import_rows(payload, survey)
+    if errors:
+        return _upload_validation_error(upload, errors, request=request)
+    warnings = tree_import_warnings(rows, first_row_number=1)
+    if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
+        return warning_response(warnings)
+
     try:
+        begin_nonce_write(request)
         with transaction.atomic():
-            upload = _get_upload(upload_id, for_update=True)
-            if upload.mode != IPSO_MODE_FREE_SURVEY:
-                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-            if upload.state != IpsoUploadState.RECEIVED:
-                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-            survey = (Survey.objects
-                      .select_for_update()
-                      .filter(id=survey_id).first())
-            if survey is None:
-                return validation_error([S.IPSO_ERR_INVALID_FREE_SURVEY_TARGET])
-            if survey.sample_grid_id is not None:
-                return validation_error([S.ERR_SURVEY_UNSTRUCTURED_REQUIRED])
-
-            payload, file_error = _read_staged_payload(upload)
-            if file_error:
-                return _upload_validation_error(upload, [file_error])
-            rows, errors = free_survey_import_rows(payload, survey)
-            if errors:
-                return _upload_validation_error(upload, errors)
-
-            warnings = tree_import_warnings(rows, first_row_number=1)
-            if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
-                return warning_response(warnings)
+            upload, error = _lock_prepared_upload(upload)
+            if error:
+                return error
+            current = Survey.objects.select_for_update().filter(id=survey_id).first()
+            if current is None or current.version != survey.version:
+                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
+            survey = current
 
             result = csv_trees.apply(survey, rows)
             if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
@@ -923,7 +962,9 @@ def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonRespo
             data = _upload_metadata(upload)
     except IntegrityError:
         upload = _get_upload(upload_id)
-        return _upload_validation_error(upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT])
+        return _upload_validation_error(
+            upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT], request=request,
+        )
     return success_response(request, body, extra={
         IMPORTED: result['n_trees'],
         UPLOAD: data,
@@ -939,20 +980,24 @@ def import_observations_upload(request: HttpRequest, upload_id: int) -> JsonResp
     except UploadValidationError as e:
         return validation_error([str(e)])
 
-    try:
-        with transaction.atomic():
-            upload = _get_upload(upload_id, for_update=True)
-            if upload.mode != IPSO_MODE_OBSERVATIONS:
-                return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-            if upload.state != IpsoUploadState.RECEIVED:
-                return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    upload = _get_upload(upload_id)
+    if upload.mode != IPSO_MODE_OBSERVATIONS:
+        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+    if upload.state != IpsoUploadState.RECEIVED:
+        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    payload, file_error = _read_staged_payload(upload)
+    if file_error:
+        return _upload_validation_error(upload, [file_error], request=request)
+    rows, errors = _observation_import_rows(upload, payload)
+    if errors:
+        return _upload_validation_error(upload, errors, request=request)
 
-            payload, file_error = _read_staged_payload(upload)
-            if file_error:
-                return _upload_validation_error(upload, [file_error])
-            rows, errors = _observation_import_rows(upload, payload)
-            if errors:
-                return _upload_validation_error(upload, errors)
+    try:
+        begin_nonce_write(request)
+        with transaction.atomic():
+            upload, error = _lock_prepared_upload(upload)
+            if error:
+                return error
             imported = _apply_observation_import_rows(
                 upload, rows, request.user,
             )
@@ -964,7 +1009,7 @@ def import_observations_upload(request: HttpRequest, upload_id: int) -> JsonResp
     except IntegrityError:
         upload = _get_upload(upload_id)
         return _upload_validation_error(
-            upload, [S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT],
+            upload, [S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT], request=request,
         )
     return success_response(request, body, extra={
         IMPORTED: imported,
@@ -1470,9 +1515,35 @@ def _source_survey_grid_id(work_package_id: str) -> int | None:
             .first())
 
 
-def _upload_validation_error(upload: IpsoUpload, errors: list[str]) -> JsonResponse:
-    upload.error_summary = errors[0] if errors else S.ERROR_GENERIC
-    upload.save(update_fields=['error_summary'])
+def _lock_prepared_upload(upload):
+    """Recheck the parsed snapshot after acquiring the request's write lock."""
+    current = _get_upload(upload.pk, for_update=True)
+    if current.state != IpsoUploadState.RECEIVED:
+        return current, validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    if current.mode != upload.mode or current.checksum != upload.checksum:
+        return current, validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
+    return current, None
+
+
+def _upload_validation_error(
+        upload: IpsoUpload, errors: list[str], *, request=None,
+) -> JsonResponse:
+    summary = errors[0] if errors else S.ERROR_GENERIC
+
+    def save_diagnostic():
+        # Do not overwrite a concurrent import, rejection, deletion or edit.
+        with transaction.atomic():
+            current = IpsoUpload.objects.select_for_update().filter(
+                pk=upload.pk, state=IpsoUploadState.RECEIVED,
+                checksum=upload.checksum, updated_at=upload.updated_at,
+            ).first()
+            if current is not None:
+                current.error_summary = summary
+                current.save(update_fields=['error_summary'])
+
+    if request is None or not after_nonce_rollback(request, save_diagnostic):
+        upload.error_summary = summary
+        upload.save(update_fields=['error_summary'])
     return validation_error(errors)
 
 

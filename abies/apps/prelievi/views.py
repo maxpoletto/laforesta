@@ -21,6 +21,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.idempotency import begin_nonce_write
 from apps.base.digests import (
     aggregate_sp_pcts,
     prelievi_species_cols,
@@ -144,6 +145,7 @@ def save_view(request):
 
     parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
 
+    begin_nonce_write(request)
     with transaction.atomic():
         affected_item_ids = set()
         if row_id:
@@ -225,6 +227,7 @@ def delete_view(request):
         )
 
     had_item_id = op.harvest_plan_item_id
+    begin_nonce_write(request)
     with transaction.atomic():
         op.delete()
         if had_item_id is not None:
@@ -285,6 +288,7 @@ def csv_import_view(request):
     if not parsed:
         return validation_error([S.ERR_CSV_EMPTY])
 
+    begin_nonce_write(request)
     csv_harvests.apply(parsed)
     return success_response(request, body)
 
