@@ -141,16 +141,21 @@ Forms are Django-rendered HTML fragments displayed in overlay modals
 
 ### Request contract
 
-Every mutating endpoint receives a JSON POST. Malformed JSON and non-object
+Most mutating endpoints receive a JSON POST. Malformed JSON and non-object
 JSON bodies receive the standard validation-error response. Form controls are
 serialized into a JSON object; CSV import file inputs are read as bytes in the
 browser and sent
 as base64 strings in their normal file field (`file`, `fustaia_file`, or
 `ceduo_file`). The server decodes that field back to bytes before running the
 shared CSV reader, so UTF-8 and CSV validation remain server-owned. These
-JSON and multipart upload bodies are capped by `DATA_UPLOAD_MAX_MEMORY_SIZE`,
+JSON bodies and multipart non-file fields are capped by `DATA_UPLOAD_MAX_MEMORY_SIZE`,
 defaulting to the Ipso upload limit of 30 MiB and configurable with
 `DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE`.
+
+Bosco observation saves use multipart form data so photos can be sent as file
+parts. Nonce replay applies to both JSON and multipart POSTs: retrying a
+successful observation create or edit returns its original response without
+creating another observation/photo or reapplying the edit.
 
 Every retryable write carries a client-generated `nonce`. Versioned row edits
 and deletes also carry the cached `version`; a missing version is treated as

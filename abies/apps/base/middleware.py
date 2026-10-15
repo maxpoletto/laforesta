@@ -71,7 +71,7 @@ NONCE_TTL = timedelta(hours=24)
 class NonceMiddleware:
     """Return cached response for replayed idempotency nonces.
 
-    Only activates on JSON POST requests that include a ``nonce`` field.
+    Activates on JSON and multipart POSTs that include a ``nonce`` field.
     Views are responsible for calling :func:`save_nonce` after a successful
     write so that future replays get the original response.
     """
@@ -80,12 +80,17 @@ class NonceMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.method != 'POST' or request.content_type != 'application/json':
+        if request.method != 'POST':
             return self.get_response(request)
 
-        try:
-            body = json.loads(request.body)
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        if request.content_type == 'application/json':
+            try:
+                body = json.loads(request.body)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return self.get_response(request)
+        elif request.content_type == 'multipart/form-data':
+            body = request.POST
+        else:
             return self.get_response(request)
 
         nonce = body.get(FIELD_NONCE) if isinstance(body, dict) else None

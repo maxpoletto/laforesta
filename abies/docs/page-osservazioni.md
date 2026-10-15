@@ -121,3 +121,6 @@ successful save.
 Save and delete responses use the same digest patch/delete envelope as other
 Bosco write flows. On success, the client updates the cached `observations`
 digest and rerenders the current observations layer without a full page reload.
+The multipart add/edit submission carries an idempotency nonce. Repeating the
+same successful submission replays its original response rather than storing
+another observation/photo or conflicting with the already-applied edit.

@@ -6,6 +6,7 @@ from datetime import timedelta
 import pytest
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.test import Client, RequestFactory
@@ -58,6 +59,35 @@ class TestCSPMiddleware:
 # -- Nonce -----------------------------------------------------------------
 
 class TestNonceMiddleware:
+    def test_multipart_replay_returns_cached_response(self, admin_user):
+        cached = {DATA_ID: 'observations', ROW_ID: 42}
+        save_nonce('multipart-replay', admin_user, cached)
+        request = RequestFactory().post(
+            '/api/bosco/observations/save/',
+            {FIELD_NONCE: 'multipart-replay'},
+        )
+        request.user = admin_user
+
+        response = NonceMiddleware(json_ok_response)(request)
+
+        assert json.loads(response.content) == cached
+
+    def test_fresh_multipart_preserves_form_fields_and_file(self, admin_user):
+        content = b'\xff\xd8\xffphoto'
+        request = RequestFactory().post('/api/bosco/observations/save/', {
+            FIELD_NONCE: 'multipart-fresh',
+            'category_ids': ['1', '2'],
+            'photos': SimpleUploadedFile('photo.jpg', content, 'image/jpeg'),
+        })
+        request.user = admin_user
+
+        def view(request):
+            assert request.POST.getlist('category_ids') == ['1', '2']
+            assert request.FILES['photos'].read() == content
+            return json_ok_response(request)
+
+        assert NonceMiddleware(view)(request).status_code == 200
+
     def test_replay_returns_cached_response(self, admin_user):
         cached = {DATA_ID: 'prelievi', ROW_ID: 42, RECORD: [42, '2024-01-01']}
         save_nonce('nonce-aaa', admin_user, cached)

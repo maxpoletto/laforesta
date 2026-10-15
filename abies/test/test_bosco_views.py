@@ -286,6 +286,47 @@ def test_observation_save_creates_manual_observation_with_photo(
     assert patch[RECORD] == _observation_digest_record(observation)
 
 
+@pytest.mark.parametrize('edit_existing', [False, True], ids=['create', 'edit'])
+def test_observation_multipart_retry_replays_success_without_saving_again(
+        writer_client, regions, tmp_path, settings, edit_existing):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path
+    category = ObservationCategory.objects.create(name='retry-test')
+    body = {
+        FIELD_REGION_ID: str(regions[0].id),
+        FIELD_DATE: '2026-08-01', FIELD_TEXT: 'Retry observation',
+        FIELD_CATEGORY_IDS: [str(category.id)],
+        FIELD_LAT: '38.1', FIELD_LON: '16.1',
+        FIELD_NONCE: 'multipart-observation-retry',
+    }
+    if edit_existing:
+        observation = Observation.objects.create(
+            date='2026-07-01', text='Before edit', lat=38.1, lon=16.1,
+            region=regions[0],
+        )
+        body.update({ROW_ID: str(observation.id), VERSION: str(observation.version)})
+
+    def submit():
+        return writer_client.post('/api/bosco/observations/save/', {
+            **body, FIELD_PHOTOS: _jpeg_upload(),
+        })
+
+    first = submit()
+    assert first.status_code == 200
+    dirty_seq = DigestStatus.objects.get(name=DIGEST_OBSERVATIONS).dirty_seq
+
+    replay = submit()
+
+    assert replay.status_code == 200
+    assert replay.json() == first.json()
+    assert Observation.objects.count() == 1
+    observation = Observation.objects.get()
+    assert observation.version == (2 if edit_existing else 1)
+    photo = ObservationPhoto.objects.get(observation=observation)
+    assert (tmp_path / photo.file_path).read_bytes() == b'\xff\xd8\xffjpeg'
+    assert len(list(tmp_path.rglob('*.jpg'))) == 1
+    assert DigestStatus.objects.get(name=DIGEST_OBSERVATIONS).dirty_seq == dirty_seq
+
+
 def test_observation_save_requires_category(writer_client, parcels):
     body = {
         FIELD_REGION_ID: str(parcels[0].region_id),
