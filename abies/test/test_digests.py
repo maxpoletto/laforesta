@@ -15,7 +15,7 @@ from django.db import transaction
 from apps.base import hypsometry
 from apps.base.digests import (
     aggregate_sp_pcts, annual_increment_pct, basal_area_m2,
-    build_harvest_record, diameter_class_cm, generate_future_production,
+    build_harvest_record, build_parcel_record, diameter_class_cm, generate_future_production,
     generate_parcel_dendrometry, generate_parcel_dendrometry_points,
     generate_sampled_trees_for_survey,
     generate_prelievi, generate_preserved_trees, generate_parcels,
@@ -410,8 +410,10 @@ class TestGenerateBoscoDigests:
         assert row[cols.index(S.COL_INTERVENTION_INTERVAL)] is None
         assert row[cols.index(S.COL_STANDARDS_PER_HA)] is None
 
+    @pytest.mark.parametrize('shoot_counts', [(1, 1), (3, 2)],
+                             ids=['single-shoot-stumps', 'multi-shoot-stumps'])
     def test_parcels_include_coppice_stumps_per_ha(
-            self, regions, eclasses, species, tmp_path, settings):
+            self, regions, eclasses, species, tmp_path, settings, shoot_counts):
         settings.DIGEST_DIR = tmp_path
         parcel = Parcel.objects.create(
             name='C1', region=regions[0], eclass=eclasses[2],
@@ -435,10 +437,12 @@ class TestGenerateBoscoDigests:
 
         for number, coppice in ((1, True), (2, True), (3, False)):
             tree = Tree.objects.create(species=species[0], coppice=coppice)
-            TreeSample.objects.create(
-                sample=sample1, tree=tree, parcel=parcel, number=number,
-                d_cm=20, h_m=10,
-            )
+            shoots = range(1, shoot_counts[number - 1] + 1) if coppice else (0,)
+            for shoot in shoots:
+                TreeSample.objects.create(
+                    sample=sample1, tree=tree, parcel=parcel, number=number,
+                    shoot=shoot, d_cm=20, h_m=10,
+                )
         tree = Tree.objects.create(species=species[0], coppice=False)
         TreeSample.objects.create(
             sample=sample2, tree=tree, parcel=parcel, number=1,
@@ -455,6 +459,62 @@ class TestGenerateBoscoDigests:
             row[cols.index(S.COL_STUMPS_PER_HA)],
             round(2 / sampled_area_ha, 6),
         )
+        assert build_parcel_record(parcel) == row
+
+    @pytest.mark.parametrize('shoot_count', [1, 3],
+                             ids=['single-shoot-stumps', 'multi-shoot-stumps'])
+    def test_coppice_stumps_count_each_sample_visit_with_its_area(
+            self, regions, eclasses, species, tmp_path, settings, shoot_count):
+        settings.DIGEST_DIR = tmp_path
+        parcel = Parcel.objects.create(
+            name='C1', region=regions[0], eclass=eclasses[2],
+            area_ha=Decimal('1.00'), intervention_interval=18,
+            standards_per_ha=75,
+        )
+        grid = SampleGrid.objects.create(name='Grid')
+        survey1 = Survey.objects.create(
+            name='First survey', sample_grid=grid, active=True,
+        )
+        survey2 = Survey.objects.create(
+            name='Second survey', sample_grid=grid, active=True,
+        )
+        small_area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcel, number='1', lat=0, lon=0, r_m=10,
+        )
+        large_area = SampleArea.objects.create(
+            sample_grid=grid, parcel=parcel, number='2', lat=0, lon=0, r_m=20,
+        )
+        stump1 = Tree.objects.create(species=species[1], coppice=True)
+        stump2 = Tree.objects.create(species=species[1], coppice=True)
+        stump3 = Tree.objects.create(species=species[1], coppice=True)
+        stump4 = Tree.objects.create(species=species[1], coppice=True)
+        visits = (
+            (survey1, small_area, (stump1, stump2), date(2025, 1, 1)),
+            (survey1, large_area, (stump3,), date(2025, 1, 2)),
+            (survey2, small_area, (stump1, stump2, stump4), date(2026, 1, 1)),
+        )
+        for survey, area, stumps, sample_date in visits:
+            sample = Sample.objects.create(
+                survey=survey, sample_area=area, date=sample_date,
+            )
+            for number, stump in enumerate(stumps, start=1):
+                for shoot in range(1, shoot_count + 1):
+                    TreeSample.objects.create(
+                        sample=sample, tree=stump, parcel=parcel, number=number,
+                        shoot=shoot, d_cm=20, h_m=10,
+                    )
+
+        generate_parcels()
+        data = self._read(tmp_path, 'parcels')
+        row = next(r for r in data[ROWS] if r[0] == parcel.id)
+        # Two stumps in the small plot, one in the large plot, then three in
+        # the revisited small plot. Both numerator and area include each visit.
+        sampled_area_ha = math.pi * (10 * 10 + 20 * 20 + 10 * 10) / 10000
+
+        assert row[data[COLUMNS].index(S.COL_STUMPS_PER_HA)] == round(
+            6 / sampled_area_ha, 6,
+        )
+        assert build_parcel_record(parcel) == row
 
     def test_preserved_trees_digest(self, parcels, species, tmp_path, settings):
         settings.DIGEST_DIR = tmp_path

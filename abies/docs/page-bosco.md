@@ -364,9 +364,17 @@ mode-switch.
   `Matricine / ha`. `row_id` = `parcel.id`;
   `Coppice` is the stable boolean from `parcel.eclass.coppice`; `Tipo` is
   its localized display label. `Ceppaie / ha` is materialized from the
-  active/default structured dendrometric survey's coppice tree rows. `version`
-  participates
-  in optimistic locking for parcel metadata edits.
+  active/default structured dendrometric surveys. It counts distinct physical
+  stumps per sample (`sample_id`, `tree_id`), not individual shoot measurements,
+  and divides by the combined area of samples containing coppice stumps. Each
+  sample's area enters the denominator once; a later visit in another selected
+  survey contributes its stump count and area again. Samples containing only
+  high-forest standards and unstructured samples are excluded. `version`
+  participates in optimistic locking for parcel metadata edits.
+
+  Migration 0028 marks existing parcel summaries stale so the next read
+  regenerates `Ceppaie / ha` with distinct stump counts. It does not change
+  captured tree or shoot measurements.
 
 - **`species.json`** — shared with Campionamenti and Piano di taglio.
   Used here for color-coded species swatches in the PAI mode lists

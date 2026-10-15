@@ -406,12 +406,13 @@ def build_parcel_record(p, *, stumps_per_ha=_STUMPS_UNSET) -> list:
 
 
 def _coppice_stumps_per_ha() -> dict[int, float]:
-    """Coppice-tree count per hectare by parcel for Bosco details.
+    """Coppice-stump count per hectare by parcel for Bosco details.
 
-    Mirrors `pdg-2026` stump calculation: count coppice tree rows and divide
-    by the combined area of the structured sample plots where those coppice
-    rows were observed. Sample plots with only high-forest standards do not
-    enter the denominator.
+    Count each physical stump once per sample, irrespective of its number of
+    measured shoots. Divide by the combined area of the structured sample
+    visits where coppice stumps were observed, including repeated visits in
+    different surveys. Samples with only high-forest standards do not enter
+    the denominator.
     """
     from apps.base.models import TreeSample
 
@@ -419,7 +420,7 @@ def _coppice_stumps_per_ha() -> dict[int, float]:
     if not survey_ids:
         return {}
 
-    counts: dict[int, int] = {}
+    stumps: dict[int, set[tuple[int, int]]] = {}
     sample_areas: dict[int, dict[int, float]] = {}
     qs = (TreeSample.objects
           .filter(sample__survey_id__in=survey_ids,
@@ -430,14 +431,14 @@ def _coppice_stumps_per_ha() -> dict[int, float]:
         sample = ts.sample
         area = sample.sample_area
         parcel_id = area.parcel_id
-        counts[parcel_id] = counts.get(parcel_id, 0) + 1
+        stumps.setdefault(parcel_id, set()).add((sample.id, ts.tree_id))
         sample_areas.setdefault(parcel_id, {})[sample.id] = sample_area_ha(area)
 
     out = {}
-    for parcel_id, count in counts.items():
+    for parcel_id, observed_stumps in stumps.items():
         sampled_area = sum(sample_areas.get(parcel_id, {}).values())
         if sampled_area > 0:
-            out[parcel_id] = round(count / sampled_area, 6)
+            out[parcel_id] = round(len(observed_stumps) / sampled_area, 6)
     return out
 
 
