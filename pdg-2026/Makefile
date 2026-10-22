@@ -85,10 +85,7 @@ clean-html:
 BASENAME=relazione
 FILE_PDF=tex/$(BASENAME).pdf
 FILE_TEX=tex/$(BASENAME).tex
-DEPS_BIB=template/tex/ref.bib
 DEPS_TEX=$(DATA_DEPS) $(PDG_DEPS)
-
-TEX_FLAGS=-interaction=batchmode -halt-on-error
 
 SECTIONS_TEX= \
 	tex/sec-ipsometrie.tex \
@@ -109,13 +106,12 @@ tex/sec-particelle.tex: template/tex/sec-particelle.tex template/tex/particella-
 tex/%.tex: template/tex/%.tex $(DEPS_TEX)
 	./pdg.py $(EXTRA_FLAGS) --report --formato tex --log-simulazione --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/tex/$*.tex --output-dir tex/
 
+tex/ref.bib: template/tex/ref.bib
+	@cp $< $@
+
 # Compile the assembled document
-$(FILE_PDF): $(FILE_TEX) $(SECTIONS_TEX) $(DEPS_BIB)
-	cp $(DEPS_BIB) tex/
-	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
-	cd tex && biber $(BASENAME)
-	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
-	cd tex && pdflatex $(TEX_FLAGS) $(BASENAME)
+$(FILE_PDF): $(FILE_TEX) $(SECTIONS_TEX) tex/ref.bib
+	cd tex && latexmk -pdf -interaction=batchmode $(BASENAME)
 
 clean-pdf:
 	rm -f $(FILE_PDF) $(FILE_TEX) $(SECTIONS_TEX) $(ILLUSTRATIONS_PNG)
