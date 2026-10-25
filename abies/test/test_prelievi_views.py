@@ -136,9 +136,9 @@ class TestDataView:
         generate_prelievi()
 
         resp1 = writer_client.get('/api/prelievi/data/')
-        lm = resp1['Last-Modified']
+        etag = resp1['ETag']
 
-        resp2 = writer_client.get('/api/prelievi/data/', HTTP_IF_MODIFIED_SINCE=lm)
+        resp2 = writer_client.get('/api/prelievi/data/', HTTP_IF_NONE_MATCH=etag)
         assert resp2.status_code == 304
 
     def test_requires_auth(self, db, harvest_fixtures):

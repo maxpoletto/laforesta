@@ -2,7 +2,7 @@
  * Tests for the in-memory cache + conditional-GET refresh (cache.js),
  * driven against a faithful model of the server's serve_digest:
  *   - lazy regeneration on read when the digest is stale,
- *   - If-Modified-Since compared at whole-second (HTTP-date) resolution.
+ *   - content ETags distinguish same-second published files.
  *
  * fetchJSON (api.js) calls global fetch, so we stub fetch with the model
  * and exercise the REAL cache.js through the client's actual
@@ -11,9 +11,9 @@
 
 // --- Faithful model of apps/base/digests.py:serve_digest --------------------
 // Holds the relational "DB" (source of truth), the on-disk digest file
-// (data + whole-second mtime), and the stale flag.  Reads regenerate when
-// stale or absent; the If-Modified-Since check floors mtime to the second,
-// exactly like `int(os.path.getmtime(...))` against an HTTP date.
+// (data + whole-second mtime + content ETag), and the stale flag.
+import { createHash } from 'node:crypto';
+
 class DigestServer {
   constructor(data) {
     this.db = clone(data);     // {columns, rows}: the committed DB state
@@ -26,17 +26,19 @@ class DigestServer {
   write(data) { this.db = clone(data); this.stale = true; }
   _regenerateIfStale() {
     if (this.stale || this.file === null) {
-      this.file = { data: clone(this.db), mtime: this.clock };
+      const etag = `"${createHash('sha256').update(JSON.stringify(this.db)).digest('hex')}"`;
+      this.file = { data: clone(this.db), mtime: this.clock, etag };
       this.stale = false;
     }
   }
-  serve(ims) {
+  serve(ims, inm = null) {
     this._regenerateIfStale();
     const lastModified = String(this.file.mtime);
-    if (ims !== null && ims !== undefined && Number(ims) >= this.file.mtime) {
-      return { status: 304, body: null, lastModified };
+    const etag = this.file.etag;
+    if (inm === etag) {
+      return { status: 304, body: null, lastModified, etag };
     }
-    return { status: 200, body: clone(this.file.data), lastModified };
+    return { status: 200, body: clone(this.file.data), lastModified, etag };
   }
 }
 
@@ -46,11 +48,11 @@ function clone(x) { return JSON.parse(JSON.stringify(x)); }
 const servers = new Map();   // url -> DigestServer
 const digestFetch = async (url, opts) => {
   const ims = opts?.headers?.['If-Modified-Since'] ?? null;
-  const res = servers.get(url).serve(ims);
+  const res = servers.get(url).serve(ims, opts?.headers?.['If-None-Match'] ?? null);
   return {
     status: res.status,
     ok: res.status >= 200 && res.status < 300,
-    headers: { get: (h) => (h === 'Last-Modified' ? res.lastModified : null) },
+    headers: { get: h => ({ 'Last-Modified': res.lastModified, ETag: res.etag })[h] ?? null },
     json: async () => res.body,
   };
 };
@@ -245,6 +247,26 @@ eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gon
   await cache.load(id);
   eq(dcm(cache.get(id), 1), 50,
      'post-invalidation load is unconditional and receives regenerated data');
+}
+
+// Reader B can regenerate a changed digest within reader A's cached second.
+// A must receive the new content despite an unchanged Last-Modified date.
+{
+  const id = freshDataId(), url = `/api/${id}/`;
+  const server = new DigestServer(digest([[1, 1, 30]]));
+  servers.set(url, server);
+  cache.register(id, url);
+  await cache.load(id);
+  server.write(digest([[1, 2, 60]]));
+  server.serve(null); // reader B regenerates; no remaining stale flag
+  await cache.load(id);
+  eq(dcm(cache.get(id), 1), 60, 'reader A sees reader B\'s same-second regeneration');
+  cache.setVisible([id]);
+  eq([...(await cache.refreshVisible())], [], 'unchanged ETag background refresh returns 304');
+  server.write(digest([[1, 3, 70]]));
+  server.serve(null);
+  eq([...(await cache.refreshVisible())], [id], 'background refresh notices same-second replacement');
+  eq(dcm(cache.get(id), 1), 70, 'background refresh stores new content');
 }
 
 console.log(`${pass} passed, ${failures.length} failed`);

@@ -12,16 +12,22 @@ function csrfToken() {
  *
  * @param {string} url
  * @param {string|null} lastModified  — value for If-Modified-Since header
- * @returns {Promise<{data: any, status: number, lastModified: string|null}>}
+ * @param {string|null} etag — preferred validator, if supplied by the server
+ * @returns {Promise<{data: any, status: number, lastModified: string|null, etag: string|null}>}
  */
-export async function fetchJSON(url, lastModified = null) {
+export async function fetchJSON(url, lastModified = null, etag = null) {
   const headers = { 'Accept': 'application/json' };
-  if (lastModified) {
+  if (etag) {
+    headers['If-None-Match'] = etag;
+  } else if (lastModified) {
     headers['If-Modified-Since'] = lastModified;
   }
   const resp = await fetch(url, { headers });
   if (resp.status === 304) {
-    return { data: null, status: 304, lastModified };
+    return {
+      data: null, status: 304, lastModified,
+      etag: resp.headers.get('ETag') || etag,
+    };
   }
   if (!resp.ok) {
     throw new Error(`GET ${url}: ${resp.status}`);
@@ -31,6 +37,7 @@ export async function fetchJSON(url, lastModified = null) {
     data,
     status: resp.status,
     lastModified: resp.headers.get('Last-Modified'),
+    etag: resp.headers.get('ETag'),
   };
 }
 

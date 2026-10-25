@@ -2247,11 +2247,11 @@ class TestDigestInvalidation:
         self, writer_client, planned_item, tmp_path, settings,
     ):
         """`no-store` must not cost bandwidth: an unchanged digest still
-        answers 304 to a conditional GET (cache.js sends If-Modified-Since)."""
+        answers 304 to a conditional GET (cache.js sends If-None-Match)."""
         settings.DIGEST_DIR = tmp_path
         url = '/api/piano-di-taglio/items/data/'
         r1 = writer_client.get(url)
-        r2 = writer_client.get(url, HTTP_IF_MODIFIED_SINCE=r1['Last-Modified'])
+        r2 = writer_client.get(url, HTTP_IF_NONE_MATCH=r1['ETag'])
         assert r2.status_code == 304
 
     def test_regenerated_digest_ignores_stale_http_validator(

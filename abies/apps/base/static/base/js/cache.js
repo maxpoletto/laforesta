@@ -2,7 +2,7 @@
  * In-memory data cache with conditional-GET refresh.
  *
  * Each entry is keyed by a data ID (e.g. "prelievi", "crews") and stores
- * the parsed JSON, the Last-Modified header value, and the local timestamp
+ * the parsed JSON, ETag/Last-Modified validators, and the local timestamp
  * of the last successful fetch.
  */
 
@@ -14,7 +14,7 @@ import {
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 
-/** @type {Map<string, {data: any, lastModified: string|null, refreshedAt: number, revision: number}>} */
+/** @type {Map<string, {data: any, etag: string|null, lastModified: string|null, refreshedAt: number, revision: number}>} */
 const store = new Map();
 
 /** URLs registered for each data ID (set via register). */
@@ -58,6 +58,7 @@ export function set(dataId, data) {
     store.set(dataId, {
       data,
       lastModified: null,
+      etag: null,
       refreshedAt: Date.now(),
       revision: 1,
     });
@@ -122,13 +123,17 @@ function applyFetchResult(dataId, snapshot, result) {
   }
 
   if (result.status === 304) {
-    if (snapshot.entry) snapshot.entry.refreshedAt = Date.now();
+    if (snapshot.entry) {
+      snapshot.entry.refreshedAt = Date.now();
+      snapshot.entry.etag = result.etag;
+    }
     return { data: snapshot.entry?.data ?? null, changed: false };
   }
 
   store.set(dataId, {
     data: result.data,
     lastModified: result.lastModified,
+    etag: result.etag,
     refreshedAt: Date.now(),
     revision: snapshot.revision + 1,
   });
@@ -208,7 +213,7 @@ export async function load(dataId) {
   const snapshot = takeSnapshot(dataId);
   const lastMod = snapshot.entry?.lastModified ?? null;
 
-  const result = await fetchJSON(url, lastMod);
+  const result = await fetchJSON(url, lastMod, snapshot.entry?.etag ?? null);
   const applied = applyFetchResult(dataId, snapshot, result);
   // Fire onUpdate listeners so in-place callers (e.g., a row delete that
   // just wants the table to refresh without a full page rebuild) don't
@@ -284,7 +289,7 @@ export async function refreshVisible() {
 
     const snapshot = takeSnapshot(dataId);
     jobs.push(
-      fetchJSON(url, snapshot.entry.lastModified)
+      fetchJSON(url, snapshot.entry.lastModified, snapshot.entry.etag)
         .then(result => {
           const applied = applyFetchResult(dataId, snapshot, result);
           if (applied.changed) changed.add(dataId);

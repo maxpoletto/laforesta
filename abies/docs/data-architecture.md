@@ -75,14 +75,7 @@ write/digest pair.
 
 Read path (conditional GET for a digest):
 1. Check stale flag for the requested digest (one PK lookup).
-2. If not stale: normal If-Modified-Since check against file mtime, return 304
-   or 200.
-3. If stale (or the file is absent): regenerate the digest and always serve the
-   new file with 200, ignoring `If-Modified-Since` for that response. HTTP dates
-   have one-second precision, so applying the validator after regeneration can
-   otherwise return a false 304 when old and new files share an mtime second.
-   Regeneration
-   proceeds as follows:
+2. If stale (or the file is absent), regenerate the digest:
    a. Snapshot `dirty_seq` for the digest.
    b. Generate the digest and write it to a temp file (gzip-compressed).
    c. `os.rename()` the temp file to the digest path (POSIX-atomic).
@@ -101,10 +94,26 @@ Read path (conditional GET for a digest):
    snapshotted value stale, the `UPDATE` matches no row, and the digest
    stays flagged so the next read regenerates against the newer data.
 
-   The file is renamed into place (c) *before* the flag is cleared (d), so on
-   any crash the stale flag may over-report but never under-report: a digest
-   file on disk is always complete and valid, and a digest reading as fresh
-   always reflects the latest committed write.
+   The file is renamed into place (c) *before* the flag is cleared (d), so an
+   interrupted generation leaves a complete file and may over-report staleness.
+   This assumes serialized generation, as with the current single synchronous
+   Gunicorn worker. Cross-process generation ownership (including concurrent
+   management commands) is a separate prerequisite for adding workers.
+
+3. Open the published file and compute its quoted SHA-256 ETag over the gzip
+   bytes. Compare `If-None-Match` with that ETag: a match returns 304; otherwise
+   stream the same open file with 200. Both responses carry ETag and
+   Last-Modified. Weak/list/wildcard If-None-Match validators are supported.
+   Hashes are cached in a bounded process-local LRU keyed by file identity,
+   size and nanosecond modification/change times; replacement or backdating
+   cannot reuse a previous file's hash. The ETag identifies the published bytes,
+   not the current `dirty_seq`, which may be ahead of the published file.
+
+Digest responses never return 304 on a date alone: whole-second Last-Modified
+values cannot distinguish two generations published within the same second.
+An older client sending only If-Modified-Since receives 200 until it starts
+sending ETags. Other conditional files (GeoJSON, satellite data, photos) retain
+their existing date-based validation unless explicitly opting into ETags.
 
 All digest generation logic lives in `apps/base/digests.py`, since digests
 often span multiple domain tables.
@@ -128,10 +137,15 @@ Data is cached client-side in memory, keyed by `data_id` (one per
 server-side JSON file). Page reloads clear all cache state.
 
 On every domain switch the app renders from cache immediately, then
-fires background conditional GETs (If-Modified-Since) for every visible
+fires background conditional GETs (If-None-Match for digests) for every visible
 dataset, re-rendering on 200. A 5-minute timer repeats this even
 without navigation. First load (empty cache) shows a "Caricamento..."
 modal until data arrives.
+
+The client retains the ETag with the cached dataset and sends it on manual
+loads and background refreshes. Last-Modified remains a fallback for endpoints
+that do not supply ETags. A 304 retains the cached body; eviction removes both
+the body and its validators so the next fetch is unconditional.
 
 ## Data entry and cache updates
 

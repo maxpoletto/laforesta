@@ -182,24 +182,22 @@ def serve_digest(request, name: str):
 
     ``no_store`` keeps the browser's HTTP cache out of the loop.  The app
     caches digests itself (in-memory, see ``cache.js``) and revalidates
-    with an explicit ``If-Modified-Since``.  Without it, a ``Last-Modified``
+    with an explicit ``If-None-Match``.  Without it, a ``Last-Modified``
     response with no ``Cache-Control`` is eligible for the browser's
     *heuristic* cache: after a write the in-memory cache is patched but a
     reload would serve the browser's stale copy without ever revalidating.
     The conditional GET below still answers 304 for unchanged digests, so
     suppressing the browser cache costs no bandwidth.
     """
-    path, regenerated = _regenerate_if_stale(name)
+    path = regenerate_if_stale(name)
     return conditional_file_response(
         request,
         path,
         content_type='application/json',
         content_encoding='gzip',
         cache_control=CACHE_NO_STORE,
-        # HTTP dates have one-second precision. A stale digest regenerated in
-        # the same second as its predecessor could otherwise match the
-        # client's validator and incorrectly return 304 with changed content.
-        force_response=regenerated,
+        # Identify the published file, not its timestamp or current dirty_seq.
+        use_etag=True,
     )
 
 
