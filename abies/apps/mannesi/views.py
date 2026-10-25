@@ -15,7 +15,7 @@ from apps.base.digests import mark_stale, prelievi_species_cols
 from apps.base.models import Crew, Product
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.responses import (
-    conflict_response, parse_json_body, row_delete,
+    check_delete_version, conflict_response, parse_json_body, row_delete,
     save_model_response, submitted_version, success_response, validation_error,
 )
 from apps.mannesi.models import ProductionCredit, WorkHour
@@ -213,6 +213,9 @@ def _delete_entry(request, model, data_id, row_fn):
         return conflict_response(data_id=data_id, row_id=obj.id, record=row_fn(obj))
     begin_nonce_write(request)
     with transaction.atomic():
+        error = check_delete_version(obj, body, data_id=data_id, record_fn=row_fn)
+        if error:
+            return error
         obj.delete()
         mark_stale('audit')
     return success_response(

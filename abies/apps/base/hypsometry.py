@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from config import strings as S
+from config.constants import DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS
 
 if TYPE_CHECKING:
     from apps.base.models import HypsoParamSet, Region, Species
@@ -216,6 +217,7 @@ def replace_active_set(
     from django.utils import timezone
 
     from apps.base.models import HypsoParam, HypsoParamSet
+    from apps.base.digests import mark_stale
 
     with transaction.atomic():
         _archive_active_sets(HypsoParamSet, timezone.now())
@@ -230,6 +232,7 @@ def replace_active_set(
                 param_set=new_set, region=r.region, species=r.species,
                 a=_dec(r.a), b=_dec(r.b), r2=_dec(r.r2), n=r.n,
             )
+        mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return new_set
 
 
@@ -242,9 +245,11 @@ def clear_active_set() -> bool:
     from django.utils import timezone
 
     from apps.base.models import HypsoParamSet
+    from apps.base.digests import mark_stale
 
     with transaction.atomic():
         archived = _archive_active_sets(HypsoParamSet, timezone.now())
+        mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return archived > 0
 
 

@@ -412,6 +412,11 @@ before the delete button is enabled.
 Deleting a single `tree_sample` row leaves both the `sample` and the underlying
 `tree` row intact.
 
+Tree/area deletions and all their digest dirty marks share one transaction,
+with or without a request nonce. Tree, area, grid and survey deletes also
+recheck the submitted version at the write boundary, so a change after the
+preflight read cannot cause deletion of a newer version.
+
 ## Lat/lon entry component (shared)
 
 Used here and on Piano di taglio (mark-tree add). Two coupled inputs

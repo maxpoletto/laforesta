@@ -33,6 +33,7 @@ from apps.base.digests import (
 from apps.base.numparse import int_or_none, parse_decimal, positive_int_list
 from apps.base.species import selectable_species
 from apps.base.responses import (
+    check_delete_version,
     conflict_response, csv_error_list, parse_json_body, row_delete, row_patch,
     submitted_version, success_response, validation_error,
 )
@@ -229,6 +230,11 @@ def delete_view(request):
     had_item_id = op.harvest_plan_item_id
     begin_nonce_write(request)
     with transaction.atomic():
+        error = check_delete_version(
+            op, body, data_id='prelievi', record_fn=build_harvest_record,
+        )
+        if error:
+            return error
         op.delete()
         if had_item_id is not None:
             _rematerialize_volume_actual(had_item_id)

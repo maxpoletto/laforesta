@@ -37,6 +37,13 @@ name IN (...)`. This is the only write-path cost.  `dirty_seq` is a
 monotonic token; the read path uses it to detect a write that landed mid
 regeneration (see below).
 
+The domain mutation and all its dirty marks must share one database
+transaction, even when there is no request nonce. Otherwise interruption after
+the mutation can leave an old file permanently marked fresh. Import/clear
+services own their invalidation inside their atomic operation; callers must
+not defer it until after the service commits. A nonce adds its replay receipt
+to this same unit; it is not a prerequisite for mutation/invalidation atomicity.
+
 Dynamic families (`sampled_trees_<survey-id>` and
 `mark_trees_<item-id>`) use `mark_stale_prefixes()`. It updates every existing
 `DigestStatus` row with the requested prefix. A never-read dynamic digest has
@@ -244,6 +251,13 @@ above.
 
 1. Domain validation can still refuse protected deletes, such as an area
    referenced by samples or a harvest plan with active items.
+
+1. Deletes with a preflight version read recheck the version at the write
+   boundary using `check_delete_version()` inside `transaction.atomic()`.
+   Its conditional no-op UPDATE acquires SQLite's write lock before deletion
+   without altering the version, modified time or audit history. An intervening
+   edit returns the current conflict row; an intervening deletion returns 404.
+   The lock lasts through the deletion and all affected digest dirty marks.
 
 1. Conflict means that a row was edited since last cache refresh. The response
    contains no HTML but a valid record. The cache is updated as for a successful

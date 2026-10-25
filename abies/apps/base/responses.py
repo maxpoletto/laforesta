@@ -5,6 +5,7 @@ protocol in docs/data-architecture.md).
 import json
 
 from django.db import transaction
+from django.db.models import F
 from django.http import JsonResponse
 
 from apps.base.digests import mark_stale, mark_stale_prefixes
@@ -109,6 +110,30 @@ def save_model_response(
 def submitted_version(body: dict) -> int:
     """Optimistic-lock version from a JSON body; invalid/missing is stale."""
     return int_or_none(body.get(VERSION)) or 0
+
+
+def check_delete_version(obj, body, *, data_id, record_fn):
+    """Claim the submitted version before deleting inside transaction.atomic().
+
+    A preflight read alone is insufficient. The conditional no-op UPDATE is
+    the first statement inside the delete transaction: it takes SQLite's write
+    lock (select_for_update does not), without incrementing the version,
+    changing modified_at, or recording a spurious historical edit. Keep the
+    lock through deletion and all dirty marks.
+    """
+    if not transaction.get_connection().in_atomic_block:
+        raise RuntimeError('check_delete_version() requires transaction.atomic()')
+    model = type(obj)
+    if model.objects.filter(pk=obj.pk, version=submitted_version(body)).update(
+        version=F('version'),
+    ):
+        return None
+    current = model.objects.filter(pk=obj.pk).first()
+    if current is None:
+        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+    return conflict_response(
+        data_id=data_id, row_id=current.pk, record=record_fn(current),
+    )
 
 
 def _row_id_from_body(body: dict) -> int | None:

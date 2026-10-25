@@ -39,6 +39,7 @@ from apps.base.preserved_trees import (
 )
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.base.responses import (
+    check_delete_version,
     conflict_response, csv_error_list, parse_json_body, row_delete,
     row_patch, row_patches, save_model_response, submitted_version,
     success_response, validation_error, warning_response,
@@ -511,14 +512,19 @@ def tree_delete_view(request, ts_id: int):
     )
     preserved_before = _preserved_cache_state(preserved_keys, set())
     begin_nonce_write(request)
-    ts.delete()
-    # N. alberi just dropped; surveys.N_aree_visitate may also change
-    # if this was the last tree on its area.
-    mark_stale(
-        f'sampled_trees_{survey_id}', 'samples', 'surveys',
-        DIGEST_PARCELS,
-        *BOSCO_TREE_DIGESTS, 'audit',
-    )
+    with transaction.atomic():
+        error = check_delete_version(
+            ts, body, data_id=f'sampled_trees_{survey_id}',
+            record_fn=build_tree_sample_record,
+        )
+        if error:
+            return error
+        ts.delete()
+        # Counts and preserved-tree summaries change with the measurement.
+        mark_stale(
+            f'sampled_trees_{survey_id}', 'samples', 'surveys',
+            DIGEST_PARCELS, *BOSCO_TREE_DIGESTS, 'audit',
+        )
     sample.refresh_from_db()
     sample_record = build_sample_record(sample)
     survey_record = build_survey_record(survey)
@@ -766,9 +772,17 @@ def area_delete_view(request, area_id: int):
         return validation_error([S.ERR_AREA_IN_USE])
     grid = area.sample_grid
     begin_nonce_write(request)
-    area.delete()
-    # See area_save_view: surveys digest depends on the per-grid area count.
-    mark_stale('sample_areas', 'grids', 'surveys', 'audit')
+    with transaction.atomic():
+        error = check_delete_version(
+            area, body, data_id='sample_areas', record_fn=build_sample_area_record,
+        )
+        if error:
+            return error
+        if Sample.objects.filter(sample_area=area).exists():
+            return validation_error([S.ERR_AREA_IN_USE])
+        area.delete()
+        # Surveys also depend on the per-grid area count.
+        mark_stale('sample_areas', 'grids', 'surveys', 'audit')
     grid_record = build_grid_record(grid)
     survey_records = [
         build_survey_record(sv)
@@ -1511,6 +1525,13 @@ def grid_delete_view(request, grid_id: int):
     begin_nonce_write(request)
     with transaction.atomic():
         # SampleArea cascades.
+        error = check_delete_version(
+            grid, body, data_id='grids', record_fn=build_grid_record,
+        )
+        if error:
+            return error
+        if Survey.objects.filter(sample_grid=grid).exists():
+            return validation_error([S.ERR_GRID_IN_USE])
         grid.delete()
         mark_stale('grids', 'sample_areas', 'audit')
     return success_response(
@@ -1726,6 +1747,11 @@ def survey_delete_view(request, survey_id: int):
         )
     begin_nonce_write(request)
     with transaction.atomic():
+        error = check_delete_version(
+            survey, body, data_id='surveys', record_fn=build_survey_record,
+        )
+        if error:
+            return error
         survey.delete()
         mark_stale(
             f'sampled_trees_{survey_id}', 'samples', 'surveys', 'grids',

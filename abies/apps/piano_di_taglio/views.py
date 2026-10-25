@@ -32,6 +32,7 @@ from apps.base.numparse import (
     coord_float, int_or_none, parse_decimal, positive_int_list,
 )
 from apps.base.responses import (
+    check_delete_version,
     conflict_response, csv_error_list, parse_json_body, row_delete,
     row_patch, save_model_response, submitted_version, success_response,
     validation_error,
@@ -220,6 +221,11 @@ def plan_delete_view(request, plan_id: int):
 
     begin_nonce_write(request)
     with transaction.atomic():
+        error = check_delete_version(
+            plan, body, data_id='harvest_plans', record_fn=build_harvest_plan_record,
+        )
+        if error:
+            return error
         try:
             # Plan items, their transitions, and ParcelPlanDetail cascade.
             plan.delete()
@@ -628,6 +634,11 @@ def item_delete_view(request, item_id: int):
 
     begin_nonce_write(request)
     with transaction.atomic():
+        error = check_delete_version(
+            item, body, data_id='harvest_plan_items', record_fn=build_harvest_plan_item_record,
+        )
+        if error:
+            return error
         try:
             item.delete()
         except ProtectedError:
@@ -1152,6 +1163,14 @@ def mark_delete_view(request):
     item_id = item.id
     begin_nonce_write(request)
     with transaction.atomic():
+        error = check_delete_version(
+            tm, body, data_id=f'mark_trees_{item_id}', record_fn=build_tree_mark_record,
+        )
+        if error:
+            return error
+        item.refresh_from_db()
+        if item.state == HarvestPlanItemState.CLOSED:
+            return validation_error([S.ERR_MARK_ITEM_CLOSED])
         tm.delete()
         if not TreeMark.objects.filter(tree=tree).exists():
             tree.delete()

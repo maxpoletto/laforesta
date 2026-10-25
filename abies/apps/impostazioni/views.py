@@ -39,7 +39,7 @@ from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
     DIAMETER_CLASS_MODES,
     DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
-    DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
+    DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME,
     FIELD_COUNTS,
@@ -835,7 +835,6 @@ def hypso_params_accept(request):
         survey_ids=survey_ids,
         use_for_height_plots=is_truthy(body.get(FIELD_USE_FOR_HEIGHT_PLOTS)),
     )
-    mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 
@@ -861,7 +860,6 @@ def hypso_params_import(request):
     hypsometry.replace_active_set(
         rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
     )
-    mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 
@@ -887,7 +885,6 @@ def hypso_params_clear(request):
         return error
     begin_nonce_write(request)
     hypsometry.clear_active_set()
-    mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return success_response(request, body, extra={MESSAGE: S.HYPSO_CLEARED})
 
 

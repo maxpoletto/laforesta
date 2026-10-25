@@ -165,6 +165,12 @@ Altezze chart between hypsometry-source surveys and the dendrometry setting.
 served digest and asserts the change (import, for instance, asserts the
 coefficients flowed through).
 
+`replace_active_set()` and `clear_active_set()` own these dirty marks inside
+the same transaction as archiving/creating the parameter set. This applies to
+direct service calls and requests without a nonce as well as UI requests.
+A failure during dirty marking rolls back the parameter change; the endpoint
+does not perform a separate post-commit invalidation.
+
 ## Effect on Piano di taglio
 
 - Plan edit/export do not include per-plan hypsometric equation import/export
