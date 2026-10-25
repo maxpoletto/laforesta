@@ -22,6 +22,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.validation import json_fields_valid, json_object_list
 from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
@@ -1071,11 +1072,14 @@ def _parse_tree_body(body):
 
     pressler_coeff = parse_decimal(body.get(FIELD_PRESSLER_COEFF))
     if pressler_coeff is None:
+        if body.get(FIELD_PRESSLER_COEFF) not in (None, '', 'null'):
+            errors.append(S.ERR_PRESSLER_POSITIVE)
         pressler_coeff = PRESSLER_DEFAULT
     if pressler_coeff <= 0:
         errors.append(S.ERR_PRESSLER_POSITIVE)
 
-    coppice = str(body.get(FIELD_HIGHFOREST, 'true')).lower() in ('false', '0', 'no')
+    highforest = body.get(FIELD_HIGHFOREST)
+    coppice = not is_truthy(highforest) if highforest not in (None, '') else False
 
     # tree_pick: 'new' or an integer Tree id.  Older payloads without
     # tree_pick default to 'new' so the existing call sites keep working.
@@ -1083,7 +1087,9 @@ def _parse_tree_body(body):
     tree_pick_existing_id = None
     if tree_pick_raw not in (None, '', 'new'):
         try:
-            tree_pick_existing_id = int(tree_pick_raw)
+            tree_pick_existing_id = int_or_none(tree_pick_raw)
+            if tree_pick_existing_id is None:
+                raise ValueError
         except (ValueError, TypeError):
             errors.append(S.ERR_TREE_NUMBER_REQUIRED)
 
@@ -1114,7 +1120,9 @@ def _parse_tree_body(body):
     else:
         shoots = []
         try:
-            d_cm = int(body[FIELD_D_CM])
+            d_cm = int_or_none(body[FIELD_D_CM])
+            if d_cm is None:
+                raise ValueError
         except (KeyError, ValueError, TypeError):
             d_cm = 0
             errors.append(S.ERR_D_POSITIVE)
@@ -1135,12 +1143,15 @@ def _parse_tree_body(body):
             h_measured=h_measured,
         )
         if values is None:
+            before = len(errors)
             if d_cm <= 0:
                 errors.append(S.ERR_D_POSITIVE)
             if h_m <= 0:
                 errors.append(S.ERR_H_POSITIVE)
             if l10_mm < 0:
                 errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_L10_MM))
+            if len(errors) == before:
+                errors.append(S.ERR_JSON_FIELD_INVALID)
         else:
             d_cm = values.d_cm
             h_m = values.h_m
@@ -1183,21 +1194,23 @@ def _parse_shoots(raw):
     """
     if not raw:
         return [], [S.ERR_COPPICE_NO_SHOOTS]
-    try:
-        items = json.loads(raw) if isinstance(raw, str) else raw
-    except json.JSONDecodeError:
-        return [], [S.ERR_COPPICE_NO_SHOOTS]
-    if not isinstance(items, list) or not items:
+    items = json_object_list(raw)
+    if not items:
         return [], [S.ERR_COPPICE_NO_SHOOTS]
 
     shoots = []
     errors = []
     for item in items:
+        if not json_fields_valid(item):
+            errors.append(S.ERR_JSON_FIELD_INVALID)
+            continue
         try:
-            shoot_num = int(item.get(FIELD_SHOOT, 0))
-            d_cm = int(item.get(FIELD_D_CM, 0))
-            l10_mm = int(item.get(FIELD_L10_MM, 0) or 0)
-            standard = bool(item.get(FIELD_STANDARD))
+            shoot_num = int_or_none(item.get(FIELD_SHOOT, 0))
+            d_cm = int_or_none(item.get(FIELD_D_CM, 0))
+            l10_mm = int_or_none(item.get(FIELD_L10_MM, 0) or 0)
+            if None in (shoot_num, d_cm, l10_mm):
+                raise ValueError
+            standard = is_truthy(item.get(FIELD_STANDARD))
         except (ValueError, TypeError):
             errors.append(S.ERR_D_POSITIVE)
             continue
@@ -1206,6 +1219,7 @@ def _parse_shoots(raw):
             shoot=shoot_num, d_cm=d_cm, h_m=h_m, l10_mm=l10_mm,
         )
         if values is None:
+            errors.append(S.ERR_JSON_FIELD_INVALID)
             if d_cm <= 0:
                 errors.append(S.ERR_D_POSITIVE)
             if h_m <= 0:
@@ -1830,7 +1844,7 @@ def grid_save_auto_view(request):
         return error
     name = (body.get(FIELD_NAME) or '').strip()
     description = (body.get(FIELD_DESCRIPTION) or '').strip()
-    points = body.get(FIELD_POINTS) or []
+    points = json_object_list(body.get(FIELD_POINTS))
     try:
         r_m = int(body.get(FIELD_R_M) or DEFAULT_RADIUS_M)
     except (ValueError, TypeError):
@@ -1888,6 +1902,10 @@ def _resolve_grid_points(points):
     parcel_cache = {}
     resolved = []
     for pt in points:
+        if not json_fields_valid(pt) or any(
+            coord_float(parse_decimal(pt.get(key))) is None for key in (FIELD_LAT, FIELD_LON)
+        ):
+            return None, S.ERR_JSON_FIELD_INVALID
         compresa = (pt.get('compresa') or '').strip()
         particella = str(pt.get('particella') or '').strip()
         if not compresa or not particella:

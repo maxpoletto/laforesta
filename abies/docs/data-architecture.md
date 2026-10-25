@@ -189,6 +189,42 @@ JSON bodies and multipart non-file fields are capped by `DATA_UPLOAD_MAX_MEMORY_
 defaulting to the Ipso upload limit of 30 MiB and configurable with
 `DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE`.
 
+JSON decoding is shared and cached on the request, including nonce inspection
+and Ipso's protocol adapter. Invalid encoding, non-object desktop payloads,
+non-finite JSON numbers (including overflowing exponents) and decoder recursion failures return normal protocol
+validation errors. The desktop `parse_json_body()` also applies shared wire-type
+guards before views dereference text or numbers: objects/arrays cannot become
+text, booleans/floats cannot become integer IDs, and null text means blank.
+Unknown fields remain ignored for forward compatibility. Free-text parcel/area
+numbers retain their existing string semantics.
+
+Shared numeric helpers enforce signed 64-bit integer storage bounds, safe
+coordinate conversion and geographic ranges. Decimal precision comes from the
+owning model field rather than a second set of hard-coded digit limits. The
+sample normalizers reuse those bounds for manual, CSV and Ipso imports.
+`TimestampedModel.save()` checks decimal representability before writing, so
+derived volume/mass or aggregate values cannot pass the input checks and then
+leave an unreadable SQLite row. It neither changes rounding nor imposes a
+scientific diameter/height cutoff. Direct bulk/update operations must preserve
+the same checks themselves; they bypass model `save()`.
+CSV integer parsing still tolerates integral spreadsheet values such as `12,0`;
+the JSON/form integer edge accepts only actual integers or bare integer strings.
+Nested shoot/grid-point arrays use the same object/type checks, and boolean
+flags use the shared truth parser (`"false"` is false). User role/login-method
+choices are validated before saving.
+
+Boundary failures use the existing HTTP 400 envelope: `status`, localized
+`message`, `errors`, and optional replacement `html`. They do not send success
+patches or consume the nonce. A response without replacement HTML is displayed
+inline by the existing form handler; entered values stay in place and submit
+controls are restored so the form can be corrected and resubmitted. Domain
+validation and row-version conflicts retain their existing behavior.
+`InputValidationMiddleware` runs inside the nonce transaction and translates
+only the explicit `InputValidationError` raised by these storage/calculation
+checks. A rejected write unwinds its transaction before the 400 is returned;
+unexpected arithmetic/programming exceptions are not broadly hidden as input
+errors. Native Ipso upload parsing keeps its own existing error envelope.
+
 Bosco observation saves use multipart form data so photos can be sent as file
 parts. Nonce replay applies to both JSON and multipart POSTs: retrying a
 successful observation create or edit returns its original response without

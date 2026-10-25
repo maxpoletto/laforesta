@@ -31,6 +31,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_admin, require_writer
+from apps.base.validation import read_json_body
 from apps.base.idempotency import (
     after_nonce_rollback, begin_nonce_write, on_nonce_rollback,
 )
@@ -2019,8 +2020,8 @@ def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
 
 def _request_json(request: HttpRequest) -> dict:
     try:
-        payload = json.loads(request.body.decode('utf-8'))
-    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        payload = read_json_body(request)
+    except ValueError as e:
         raise UploadValidationError(S.IPSO_ERR_JSON_MALFORMED) from e
     if not isinstance(payload, dict):
         raise UploadValidationError(S.IPSO_ERR_PAYLOAD_OBJECT)

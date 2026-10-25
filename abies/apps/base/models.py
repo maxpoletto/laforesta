@@ -1,7 +1,7 @@
 """Base models — shared across all domains."""
 
 import re
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -60,7 +60,11 @@ MASS_QUANTUM_Q = Decimal('0.001')
 def tree_mass_q(volume_m3: Decimal, density: Decimal) -> Decimal:
     """Materialised tree mass in quintals: ``volume_m3 × density``, quantized to
     0.001 q (half-up)."""
-    return (volume_m3 * density).quantize(MASS_QUANTUM_Q, rounding=ROUND_HALF_UP)
+    from apps.base.validation import InputValidationError
+    try:
+        return (volume_m3 * density).quantize(MASS_QUANTUM_Q, rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:
+        raise InputValidationError(S.ERR_JSON_FIELD_INVALID) from exc
 
 
 def _coordinate_constraints(prefix: str) -> list[models.CheckConstraint]:
@@ -103,6 +107,11 @@ class TimestampedModel(models.Model):
     version = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        from apps.base.validation import validate_decimal_storage
+        validate_decimal_storage(self, kwargs.get('update_fields'))
+        return super().save(*args, **kwargs)
 
     class Meta:
         abstract = True

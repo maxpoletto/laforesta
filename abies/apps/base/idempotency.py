@@ -16,9 +16,10 @@ from django.http import JsonResponse
 from django.utils import timezone
 
 from apps.base.models import UsedNonce
+from apps.base.validation import read_json_body, validation_error
 from config import strings as S
 from config.constants import (
-    FIELD_NONCE, MESSAGE, STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR,
+    FIELD_NONCE, MESSAGE, STATUS, STATUS_CONFLICT,
 )
 
 
@@ -53,8 +54,8 @@ def prepare_nonce_write(request):
         # JSON views also accept JSON sent with a nonstandard Content-Type.
         # Such requests must not bypass their normal idempotency guarantees.
         try:
-            body = json.loads(request.body)
-        except (json.JSONDecodeError, UnicodeDecodeError):
+            body = read_json_body(request)
+        except ValueError:
             return None
     if not isinstance(body, dict) or FIELD_NONCE not in body:
         return None
@@ -62,10 +63,12 @@ def prepare_nonce_write(request):
     if nonce is None or nonce == '':
         return None
     if not isinstance(nonce, str) or not nonce.strip() or len(nonce) > 64:
-        return JsonResponse({
-            STATUS: STATUS_VALIDATION_ERROR, MESSAGE: S.ERR_NONCE_INVALID,
-        }, status=400)
-    return NonceWrite(request, nonce, _request_hash(request, body))
+        return validation_error([S.ERR_NONCE_INVALID])
+    try:
+        request_hash = _request_hash(request, body)
+    except RecursionError:
+        return validation_error([S.ERR_JSON_INVALID])
+    return NonceWrite(request, nonce, request_hash)
 
 
 def _request_hash(request, body):

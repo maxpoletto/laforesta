@@ -299,6 +299,7 @@ MIDDLEWARE = [
     'apps.base.middleware.CSPMiddleware',
     'apps.base.middleware.RateLimitMiddleware',
     'apps.base.middleware.NonceMiddleware',
+    'apps.base.middleware.InputValidationMiddleware',
 ]
 
 # --- URLs / WSGI -------------------------------------------------------------

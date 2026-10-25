@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 
 from apps.base.models import UsedNonce
+from apps.base.validation import InputValidationError, validation_error
 from apps.base.idempotency import (
     API_PREFIX, NONCE_TTL, NonceReplay, complete_nonce_write,
     prepare_nonce_write, run_nonce_write,
@@ -108,6 +109,29 @@ def save_nonce(nonce, user, response_data, *, request=None):
             )
     except IntegrityError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Input validation
+# ---------------------------------------------------------------------------
+
+class InputValidationMiddleware:
+    """Translate only explicitly detected invalid values into the API envelope.
+
+    Runs inside NonceMiddleware, so a converted 400 also rolls back its claim
+    and mutation. Arithmetic/programming exceptions are not broadly swallowed.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_exception(self, request, exception):
+        if request.path_info.startswith(API_PREFIX) and isinstance(exception, InputValidationError):
+            return validation_error([str(exception)])
+        return None
 
 
 # ---------------------------------------------------------------------------

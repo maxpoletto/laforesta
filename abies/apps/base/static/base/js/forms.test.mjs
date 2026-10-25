@@ -261,6 +261,35 @@ const S = await import('./strings.js');
      'interceptSubmit renders the conflict message inline');
 }
 
+// A boundary-validation 400 must preserve the form and remain retryable.
+{
+  const validation = {
+    status: 'validation_error', message: 'Formato o valore dei dati non valido.',
+    errors: ['Formato o valore dei dati non valido.'],
+  };
+  const form = new MockElement('form'), save = new MockElement('button');
+  const note = new MockElement('input');
+  note.value = 'Misure da conservare';
+  save.type = 'submit';
+  form.appendChild(note); form.appendChild(save);
+  form.fields = [['nonce', 'same-unconsumed-nonce'], ['note', note.value]];
+  let successes = 0, seen = null;
+  globalThis.fetch = async () => ({ status: 400, json: async () => validation });
+  interceptSubmit(form, '/save/', {
+    onSuccess() { successes++; }, onValidationError(data) { seen = data; },
+  });
+  await form.submit(save);
+  eq(seen, validation, 'typed-input 400 reaches the existing validation callback');
+  eq(note.value, 'Misure da conservare', 'typed-input 400 preserves the entered values');
+  eq(form.querySelector('.form-error')?.textContent, validation.message,
+     'typed-input 400 without replacement HTML displays its message inline');
+  check(!save.disabled, 'typed-input 400 re-enables submission');
+  eq(successes, 0, 'typed-input 400 is never dispatched as success');
+  globalThis.fetch = async () => ({ status: 200, json: async () => ({}) });
+  await form.submit(save);
+  eq(successes, 1, 'the same form can be corrected and submitted again after 400');
+}
+
 // showFormError places inline errors above form actions.
 {
   const form = new MockElement('form');

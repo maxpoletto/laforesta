@@ -32,6 +32,12 @@ _BLANK = (None, '', 'null')
 # yet a later `quantize()` would try to materialize ~10**6 digits.  Real
 # quantities sit well within ±10**30 (and above ~10**-30).
 _MAX_ABS_EXPONENT = 30
+_MIN_INT = -(2 ** 63)
+_MAX_INT = 2 ** 63 - 1
+
+
+def _bounded_int(value):
+    return value if _MIN_INT <= value <= _MAX_INT else None
 
 
 def _locale_separator() -> str:
@@ -81,7 +87,7 @@ def to_int(value, separator: str) -> int | None:
     d = to_decimal(value, separator)
     if d is None or d != d.to_integral_value():
         return None
-    return int(d)
+    return _bounded_int(int(d))
 
 
 # --- Form/JSON edge (active locale) ----------------------------------------
@@ -98,11 +104,15 @@ def int_or_none(value) -> int | None:
 
     Stricter than the CSV edge's `to_int`: a form's integer field should hold a
     bare integer, so a decimal literal like "12.0" is rejected here, whereas
-    `to_int` tolerates the spreadsheet artifact "12,0"."""
+    `to_int` tolerates the spreadsheet artifact "12,0". Both edges reject
+    integers outside signed 64-bit storage; JSON booleans/floats are not integers.
+    """
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return None
     if value in _BLANK:
         return None
     try:
-        return int(value)
+        return _bounded_int(int(value))
     except (TypeError, ValueError):
         return None
 
@@ -117,7 +127,7 @@ def positive_int_list(value) -> tuple[list[int] | None, bool]:
     if value is None:
         return None, True
     if not isinstance(value, list) or any(
-        isinstance(item, bool) or not isinstance(item, int) or item <= 0
+        isinstance(item, bool) or not isinstance(item, int) or item <= 0 or item > _MAX_INT
         for item in value
     ):
         return None, False
@@ -138,6 +148,9 @@ def coord_float(value: Decimal | None) -> float | None:
     `None` passes through.  Coordinates are the one quantity stored as float;
     everything else stays Decimal.
     """
-    if value is None:
+    if value is None or not value.is_finite() or abs(value) > 180:
         return None
-    return float(value.quantize(_COORD_QUANTUM, rounding=ROUND_HALF_UP))
+    try:
+        return float(value.quantize(_COORD_QUANTUM, rounding=ROUND_HALF_UP))
+    except InvalidOperation:
+        return None

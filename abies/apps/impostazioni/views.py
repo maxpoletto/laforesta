@@ -643,6 +643,8 @@ def users_save(request):
         return _error(S.ERR_EMAIL_REQUIRED)
 
     login_method = body.get(FIELD_LOGIN_METHOD, LoginMethod.PASSWORD)
+    if login_method not in LoginMethod.values:
+        return _error(S.ERR_LOGIN_METHOD_INVALID)
 
     # OAuth users are matched by email; we only need a unique username for
     # Django's bookkeeping, so reuse the email rather than asking the admin.
@@ -653,6 +655,8 @@ def users_save(request):
         if not username:
             return _error(S.ERR_USERNAME_REQUIRED)
     role = body.get(FIELD_ROLE, Role.READER)
+    if role not in Role.values:
+        return _error(S.ERR_USER_ROLE_INVALID)
     active = is_truthy(body.get(FIELD_IS_ACTIVE))
     first_name = body.get(FIELD_FIRST_NAME, '').strip()
     last_name = body.get(FIELD_LAST_NAME, '').strip()

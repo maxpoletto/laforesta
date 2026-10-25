@@ -12,6 +12,14 @@ User-visible numeric locale behavior:
    with the desired separator. No exceptions.
 5. We are lenient about input: a user could input "," or "." as decimal
    separator, and we accept it.
+
+   JSON/form integer fields are deliberately stricter: booleans and JSON
+   floats (including `12.0`) are not integer inputs. Bare integer strings and
+   integer values are accepted within signed 64-bit storage bounds. The CSV
+   edge separately accepts integral spreadsheet artifacts such as `12,0`.
+   Decimal/coordinate storage bounds are checked before quantization, using
+   model field precision for measurements rather than silently truncating or
+   allowing a conversion error to become an HTTP 500.
 6. Search in sortable-table works as the user would expect: i.e., searching for
    "3,14" in an Abies table with "," decimal separator returns lines that (in
    the backing array) contain the numeric value [3.14].

@@ -8,9 +8,10 @@ invalid values before they reach the model/database layer.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
-from config.constants import PRESSLER_DEFAULT, TREE_H_QUANTUM
+from apps.base.validation import decimal_field_value
+from config.constants import PRESSLER_DEFAULT
 
 
 @dataclass(frozen=True)
@@ -43,10 +44,13 @@ def normalize_sample_shoot_values(
         l10_mm = 0
     if shoot < 0 or d_cm <= 0 or h_m <= 0 or l10_mm < 0:
         return None
+    h_m = decimal_field_value(h_m, 'base.TreeSample', 'h_m')
+    if h_m is None or h_m <= 0:
+        return None
     return SampleShootValues(
         shoot=shoot,
         d_cm=d_cm,
-        h_m=h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP),
+        h_m=h_m,
         l10_mm=l10_mm,
     )
 
@@ -63,6 +67,9 @@ def normalize_sample_tree_values(
         pressler_coeff = PRESSLER_DEFAULT
     if pressler_coeff <= 0:
         return None
+    pressler_coeff = decimal_field_value(pressler_coeff, 'base.TreeSample', 'pressler_coeff')
+    if pressler_coeff is None or pressler_coeff <= 0:
+        return None
     shoot_values = normalize_sample_shoot_values(
         shoot=shoot, d_cm=d_cm, h_m=h_m, l10_mm=l10_mm,
     )
@@ -75,7 +82,5 @@ def normalize_sample_tree_values(
         h_m=shoot_values.h_m,
         h_measured=bool(h_measured),
         l10_mm=shoot_values.l10_mm,
-        pressler_coeff=pressler_coeff.quantize(
-            TREE_H_QUANTUM, rounding=ROUND_HALF_UP,
-        ),
+        pressler_coeff=pressler_coeff,
     )

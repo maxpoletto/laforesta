@@ -19,7 +19,7 @@ form entry uses the parallel JS implementation in
 `test/test_tabacchi.py` keeps the two in sync.
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Sequence
 from config import strings as S
 
@@ -93,7 +93,11 @@ def _volume_from_b(d: float, h: float, b: Sequence[float]) -> Decimal:
         v_dm3 = b[0] + b[1] * d2h + b[2] * d
     if v_dm3 <= 0:
         v_dm3 = 0.0
-    return (Decimal(v_dm3) / Decimal(1000)).quantize(Decimal('0.0001'))
+    try:
+        return (Decimal(v_dm3) / Decimal(1000)).quantize(Decimal('0.0001'))
+    except InvalidOperation as exc:
+        from apps.base.validation import InputValidationError
+        raise InputValidationError(S.ERR_JSON_FIELD_INVALID) from exc
 
 
 def has_species(species_common_name: str) -> bool:

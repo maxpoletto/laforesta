@@ -74,6 +74,10 @@ class TestCoordFloat:
     def test_none_passes_through(self):
         assert coord_float(None) is None
 
+    @pytest.mark.parametrize('value', ['1e29', 'NaN', 'Infinity', '-181'])
+    def test_invalid_coordinate_is_none_not_an_exception(self, value):
+        assert coord_float(Decimal(value)) is None
+
     def test_parse_then_coord_locale(self):
         with translation.override('it'):
             assert coord_float(parse_decimal('38,123456')) == pytest.approx(38.12346)
@@ -116,6 +120,11 @@ class TestIntOrNone:
     ])
     def test_parses_bare_integer(self, raw, expected):
         assert int_or_none(raw) == expected
+
+    @pytest.mark.parametrize('raw', [True, False, 1.0, 1.9, float('inf'),
+                                    float('nan'), 10 ** 100, [], {}])
+    def test_rejects_non_integer_types_and_unstorable_values(self, raw):
+        assert int_or_none(raw) is None
 
     @pytest.mark.parametrize('raw', ['', None, 'null', 'abc', '12.0', '3,14', '12.5'])
     def test_blank_or_non_integer_is_none(self, raw):

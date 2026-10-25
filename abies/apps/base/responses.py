@@ -2,8 +2,6 @@
 protocol in docs/data-architecture.md).
 """
 
-import json
-
 from django.db import transaction
 from django.db.models import F
 from django.http import JsonResponse
@@ -12,11 +10,12 @@ from apps.base.digests import mark_stale, mark_stale_prefixes
 from apps.base.middleware import save_nonce
 from apps.base.idempotency import begin_nonce_write
 from apps.base.numparse import int_or_none
+from apps.base.validation import json_fields_valid, read_json_body, validation_error
 from config import strings as S
 from config.constants import (
-    DATA_ID, DELETES, FIELD_ERRORS, FIELD_NONCE, FIELD_WARNINGS, HTML,
+    DATA_ID, DELETES, FIELD_NONCE, FIELD_WARNINGS, HTML,
     INVALIDATES, MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_CONFLICT,
-    STATUS_NOT_FOUND, STATUS_VALIDATION_ERROR, STATUS_WARNING, VERSION,
+    STATUS_NOT_FOUND, STATUS_WARNING, VERSION,
 )
 
 
@@ -204,22 +203,6 @@ def conflict_response(
     return JsonResponse(response_data, status=400)
 
 
-def _validation_response(message: str, errors: list, html: str = '') -> JsonResponse:
-    return JsonResponse({
-        STATUS: STATUS_VALIDATION_ERROR,
-        MESSAGE: message,
-        FIELD_ERRORS: errors,
-        HTML: html,
-    }, status=400)
-
-
-def validation_error(errors: list, html: str = '') -> JsonResponse:
-    """HTTP 400 validation response: every error joined into the message, the
-    full list in ``field_errors``, optional replacement form HTML.
-    """
-    return _validation_response(' '.join(errors), errors, html)
-
-
 def warning_response(warnings: list[str]) -> JsonResponse:
     """HTTP 409 non-blocking warning response.
 
@@ -237,15 +220,17 @@ def warning_response(warnings: list[str]) -> JsonResponse:
 def parse_json_body(request) -> tuple[dict | None, JsonResponse | None]:
     """Parse a JSON object request body, or return a 400 validation response."""
     try:
-        body = json.loads(request.body or b'{}')
-    except json.JSONDecodeError:
+        body = read_json_body(request) if request.body else {}
+    except (ValueError, UnicodeError, RecursionError):
         return None, validation_error([S.ERR_JSON_INVALID])
     if not isinstance(body, dict):
         return None, validation_error([S.ERR_JSON_INVALID])
+    if not json_fields_valid(body):
+        return None, validation_error([S.ERR_JSON_FIELD_INVALID])
     return body, None
 
 
 def csv_error_list(errors: list) -> JsonResponse:
     """HTTP 400 validation response for a CSV import: the first per-row error as
-    the message, the full list in ``field_errors``."""
-    return _validation_response(errors[0] if errors else '', errors)
+    the message, the full list in ``errors``."""
+    return validation_error(errors, message=errors[0] if errors else '')

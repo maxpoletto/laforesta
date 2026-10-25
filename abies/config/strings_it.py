@@ -32,6 +32,9 @@ ERROR_CONFLICT = 'Il record è stato modificato da un altro utente.'
 ERROR_GENERIC = 'Errore imprevisto.'
 ERROR_RATE_LIMIT = 'Troppe richieste. Riprovare tra un minuto.'
 ERR_JSON_INVALID = 'Richiesta JSON non valida.'
+ERR_JSON_FIELD_INVALID = 'Formato o valore dei dati non valido.'
+ERR_USER_ROLE_INVALID = 'Ruolo utente non valido.'
+ERR_LOGIN_METHOD_INVALID = 'Metodo di accesso non valido.'
 
 # Ipso import inbox.
 IPSO_INBOX_TITLE = 'Importazione'
