@@ -4,11 +4,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const { Store: RealStore } = createRequire(import.meta.url)('./store.js');
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
-  `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, ` +
+  `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, updateSaveEnabled, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
   `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
   `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
@@ -172,6 +174,8 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     REFERENCE_OFFLINE_WARNING: 'offline reference',
     STORAGE_WARNING: 'storage warning',
     TOAST_DUPLICATE_NUMBER: (number) => `duplicate ${number}`,
+    TOAST_SAVE_ERROR: detail => `save error: ${detail}`,
+    TOAST_SAVE_FOLLOWUP_ERROR: detail => `saved; follow-up error: ${detail}`,
     GPS_PERMISSION_BANNER: 'gps denied',
     PRE_PICK_COMPRESA: 'pick region',
     PRE_PICK_SURVEY: 'pick survey',
@@ -336,6 +340,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       },
     },
     Store: {
+      numberExists: (...args) => RealStore.numberExists(...args),
       STATUS_PENDING_UPLOAD: 'pending_upload',
       STATUS_OPEN: 'open',
       STATUS_EXPORTED: 'exported',
@@ -1233,6 +1238,105 @@ const session = {
 
 
 
+
+function recordingHarness() {
+  const harness = makeHarness();
+  const { context } = harness, app = context.__ipsoAppTest;
+  const values = { d: '42', h: '22', numero: '7' };
+  app.State.db = {};
+  app.State.reference = referenceFixture();
+  app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
+  app.State.specie = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  app.State.numpad = {
+    value: field => values[field] || '', setValue() {}, setFocus() {},
+    clear() { Object.keys(values).forEach(key => { values[key] = ''; }); },
+  };
+  context.session.validateTree = () => [];
+  context.session.shouldBackup = () => false;
+  return { ...harness, app, values };
+}
+
+// Acquire the guard before the first await, even for unnumbered trees.
+for (const blank of [false, true]) {
+  const { context, app, events, values, elements } = recordingHarness();
+  if (blank) values.numero = '';
+  const pending = [];
+  context.Store.listTrees = () => new Promise(resolve => pending.push(resolve));
+  const first = app.onSave(), second = app.onSave();
+  app.updateSaveEnabled();
+  check(elements.get('btn-save').disabled, 'save remains disabled while a write is in progress');
+  pending.slice().forEach(resolve => resolve([]));
+  await Promise.all([first, second]);
+  eq(events.filter(e => e === 'addTree').length, 1,
+     `overlapping saves persist one record (blank number: ${blank})`);
+  context.Store.listTrees = async () => [];
+  values.d = '42'; values.h = '22'; values.numero = '8';
+  await app.onSave();
+  eq(events.filter(e => e === 'addTree').length, 1, 'completed save enforces its cooldown');
+}
+
+// A failed follow-up after the durable insert must not look like a failed save
+// or leave the submitted measurements available for another insert.
+for (const failure of ['session-refresh', 'preference', 'backup']) {
+  const { context, app, events, values, elements } = recordingHarness();
+  context.Store.addTree = async () => { events.push('addTree'); return { seq: 20 }; };
+  if (failure === 'session-refresh') context.Store.getSession = async () => { throw Error(failure); };
+  if (failure === 'preference') context.localStorage.setItem = () => { throw Error(failure); };
+  if (failure === 'backup') {
+    context.session.shouldBackup = () => true;
+    context.csv.formatFile = () => { throw Error(failure); };
+  }
+  await app.onSave();
+  eq(events.filter(e => e === 'addTree').length, 1, `${failure}: record is persisted`);
+  eq(values.d, '', `${failure}: saved measurements are consumed`);
+  check(elements.get('toast').textContent.startsWith('saved;'),
+        `${failure}: acknowledgement distinguishes saved data from a follow-up failure`);
+}
+
+{
+  const { context, app, values } = recordingHarness();
+  let release, target;
+  context.Store.listTrees = () => new Promise(resolve => { release = resolve; });
+  context.Store.addTree = async (_db, sessionId) => { target = sessionId; return { seq: 1 }; };
+  const saving = app.onSave();
+  app.State.session = { ...session, id: 'other-session', status: 'open' };
+  values.d = '99';
+  release([]);
+  await saving;
+  eq(target, 's1', 'save retains its original session across asynchronous preflight');
+  eq(values.d, '99', 'completed save does not clear a different session\'s form');
+}
+
+{
+  const { context, app, values, elements } = recordingHarness();
+  context.Store.addTree = async () => { throw Error('disk full'); };
+  await app.onSave();
+  eq(values.d, '42', 'failed durable save preserves measurements for retry');
+  check(elements.get('toast').textContent.startsWith('save error:'), 'write failure is reported as unsaved');
+  check(!app.State.saveInProgress, 'failed write releases the in-progress guard');
+}
+
+// Observation saves use the same in-progress guard and durable acknowledgement.
+{
+  const { context, app, events, elements } = recordingHarness();
+  app.State.session.mode = 'observations';
+  app.State.pendingObservationPosition = { lat: 38, lon: 16, acc_m: 4 };
+  context.document.getElementById('in-observation-text').value = 'sentiero';
+  context.document.querySelectorAll = selector => selector.includes('in-observation-categories')
+    ? [{ value: '1', checked: true, dataset: { name: 'viabilità' } }] : [];
+  context.Store.getSession = async () => ({ ...app.State.session });
+  let release;
+  context.Store.addObservation = () => {
+    events.push('addObservation');
+    return new Promise(resolve => { release = resolve; });
+  };
+  const first = app.onSave(), second = app.onSave();
+  release({ seq: 1 });
+  await Promise.all([first, second]);
+  eq(events.filter(e => e === 'addObservation').length, 1, 'overlapping observation saves write once');
+  eq(elements.get('in-observation-text').value, '', 'saved observation text is consumed');
+}
 
 // Observations cannot be saved without at least one selected category.
 {

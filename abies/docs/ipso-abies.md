@@ -76,6 +76,15 @@ updates its loading/precache references. The version bump gives the new shell
 its own cache; existing installed clients keep their cached old shell until
 normal operator-driven activation. No IndexedDB schema or session data changes.
 
+Ipso 1.5.2 hardens recording against overlapping saves and closing-session
+races. The shared save handler acquires an in-progress guard before any await;
+input events cannot re-enable Save while the operation runs. The short cooldown
+starts after the durable insert. A successful insert consumes the form before
+preferences, session refresh, map refresh and periodic backup. Those follow-ups
+run independently: a failure is reported explicitly as **data saved**, not a
+failed write inviting another insert. A failed insert retains the form for retry.
+The same rules apply to trees and observations.
+
 Protected data endpoints require the shared bearer:
 
 - `/ipso/reference.json`
@@ -348,6 +357,18 @@ If `reference.json` is stale, Ipso may propose an outdated next number. Import
 code must still preserve the submitted number exactly, and mode-specific server
 validation must reject invalid or conflicting rows rather than silently
 auto-renumbering them.
+
+The UI preflight and IndexedDB append transaction share one number-scope rule.
+The transaction rechecks uniqueness while holding the sessions/trees write
+scope, so another tab cannot bypass the preflight. Blank numbers remain valid
+where the mode allows them. Appends and deletes require an open session;
+pending-upload, exported and abandoned records cannot be changed by a stale
+recording tab. Freezing an upload checks its record identities and count against
+the current transaction snapshot. If another tab changed the rows while CSV or
+payload preparation ran, closing fails and leaves the session open for a fresh
+export; it never freezes a payload silently missing those changes. No IndexedDB
+schema migration or historical-row rewrite is required. Local-only CSV export
+checks the same snapshot before marking an open session exported.
 
 ## Authorization boundaries
 

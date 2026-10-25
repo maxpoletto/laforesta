@@ -100,9 +100,15 @@ function makeStoreDb({ sessions = [], trees = [], meta = [] } = {}) {
     trees: new Map(trees.map(row => [row.id, { ...row }])),
     meta: new Map(meta.map(row => [row.key, { ...row }])),
   };
+  // IndexedDB serializes overlapping readwrite transactions. A second tab's
+  // session read must not run until the first append transaction completes.
+  let turn = Promise.resolve();
   const db = {
     ...data,
     transaction() {
+      const ready = turn;
+      let release;
+      turn = new Promise(resolve => { release = resolve; });
       let pending = 0;
       let completed = false;
       const transaction = {
@@ -113,12 +119,18 @@ function makeStoreDb({ sessions = [], trees = [], meta = [] } = {}) {
           if (name === 'meta') return objectStore(data.meta, 'key');
           throw new Error(`unknown store ${name}`);
         },
-        abort() {},
+        abort() {
+          if (completed) return;
+          completed = true;
+          release();
+          queueMicrotask(() => transaction.onabort?.());
+        },
       };
       function request(action) {
         const result = {};
         pending += 1;
-        queueMicrotask(() => {
+        ready.then(() => queueMicrotask(() => {
+          if (completed) return;
           try {
             result.result = action();
             if (result.onsuccess) result.onsuccess();
@@ -134,11 +146,12 @@ function makeStoreDb({ sessions = [], trees = [], meta = [] } = {}) {
                 if (pending === 0 && !completed && transaction.oncomplete) {
                   completed = true;
                   transaction.oncomplete();
+                  release();
                 }
               }, 0);
             }
           }
-        });
+        }));
         return result;
       }
       function objectStore(rows, keyField) {
@@ -325,7 +338,7 @@ check(
 // tree fields.
 {
   const db = makeStoreDb({
-    sessions: [{ id: 's1', operatore: 'Mario', mode: 'free_survey', tree_count: 0 }],
+    sessions: [{ id: 's1', status: Store.STATUS_OPEN, operatore: 'Mario', mode: 'free_survey', tree_count: 0 }],
   });
 
   const row = await Store.addTree(db, 's1', {
@@ -350,7 +363,7 @@ check(
 {
   const metaKey = 'next_number:martellate:mario';
   const db = makeStoreDb({
-    sessions: [{ id: 's1', operatore: 'Mario', mode: 'martellate', tree_count: 2 }],
+    sessions: [{ id: 's1', status: Store.STATUS_OPEN, operatore: 'Mario', mode: 'martellate', tree_count: 2 }],
     trees: [
       { id: 1, session_id: 's1', seq: 1, numero: 10 },
       { id: 2, session_id: 's1', seq: 2, numero: 161 },
@@ -369,7 +382,7 @@ check(
 
 {
   const db = makeStoreDb({
-    sessions: [{ id: 's1', operatore: 'Mario', mode: 'martellate', tree_count: 0 }],
+    sessions: [{ id: 's1', status: Store.STATUS_OPEN, operatore: 'Mario', mode: 'martellate', tree_count: 0 }],
     trees: [{ id: 7, session_id: 'other', seq: 1, numero: 4 }],
   });
   let rejected = false;
@@ -385,9 +398,10 @@ check(
 // Pending-upload sessions retain the exact payload built at session close so
 // offline retries do not rebuild against changed reference data.
 {
-  const payload = { records: [{ client_record_id: 'r1' }], csv_text: 'csv' };
+  const payload = { records: [{ client_record_id: '1' }], csv_text: 'csv' };
   const db = makeStoreDb({
     sessions: [{ id: 's1', status: Store.STATUS_OPEN, tree_count: 1 }],
+    trees: [{ id: 1, session_id: 's1', seq: 1 }],
   });
 
   await Store.setSessionPendingUpload(db, 's1', payload, 1);
@@ -400,6 +414,76 @@ check(
   check(row.upload_tree_count === 1,
         'setSessionPendingUpload persists the payload tree count');
 }
+
+// Every append transaction must recheck whether the session is still open.
+for (const status of [Store.STATUS_PENDING_UPLOAD, Store.STATUS_EXPORTED, Store.STATUS_ABANDONED]) {
+  for (const method of ['addTree', 'addObservation']) {
+    const db = makeStoreDb({ sessions: [{ id: 's1', status, tree_count: 0 }] });
+    let rejected = false;
+    try { await Store[method](db, 's1', { numero: null }); } catch (_) { rejected = true; }
+    check(rejected && db.trees.size === 0, `${method} rejects a ${status} session without appending`);
+  }
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', status }], trees: [{ id: 1, session_id: 's1', seq: 1 }],
+  });
+  let rejected = false;
+  try { await Store.deleteTree(db, 's1', 1); } catch (_) { rejected = true; }
+  check(rejected && db.trees.has(1), 'closed session records cannot be removed after freezing');
+}
+
+// Validate scoped numbers inside the write transaction, not just in the UI.
+for (const mode of ['martellate', 'samples', 'free_survey']) {
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', status: Store.STATUS_OPEN, mode, tree_count: 1 }],
+    trees: [{ id: 1, session_id: 's1', seq: 1, numero: 7, parcel_id: 100, sample_area_id: 10 }],
+  });
+  let rejected = false;
+  try { await Store.addTree(db, 's1', { numero: 7, parcel_id: 100, sample_area_id: 10 }); }
+  catch (_) { rejected = true; }
+  check(rejected && db.trees.size === 1, `${mode}: duplicate number is rejected atomically`);
+  await Store.addTree(db, 's1', { numero: null, parcel_id: 100, sample_area_id: 10 });
+  check(db.trees.size === 2, `${mode}: blank numbers remain permitted`);
+}
+
+for (const append of [true, false]) {
+  const db = makeStoreDb({
+    sessions: [{ id: 's1', status: Store.STATUS_OPEN }],
+    trees: [...(append ? [{ id: 1, session_id: 's1', seq: 1 }] : []),
+            { id: 2, session_id: 's1', seq: 2 }],
+  });
+  let rejected = false;
+  try { await Store.setSessionPendingUpload(db, 's1', { records: [{ client_record_id: '1' }] }, 1); }
+  catch (_) { rejected = true; }
+  check(rejected && db.sessions.get('s1').status === Store.STATUS_OPEN,
+        'freezing a stale record snapshot leaves the session open for a fresh export');
+  rejected = false;
+  try { await Store.setSessionStatus(db, 's1', Store.STATUS_EXPORTED, [{ id: 1, seq: 1 }]); }
+  catch (_) { rejected = true; }
+  check(rejected && db.sessions.get('s1').status === Store.STATUS_OPEN,
+        'local-only export also rejects a stale record snapshot');
+}
+
+{
+  const db = makeStoreDb({ sessions: [{ id: 's1', status: Store.STATUS_OPEN }] });
+  const result = await Promise.allSettled([
+    Store.addTree(db, 's1', { numero: 7, parcel_id: 100 }),
+    Store.addTree(db, 's1', { numero: 7, parcel_id: 100 }),
+  ]);
+  check(result.filter(row => row.status === 'fulfilled').length === 1,
+        'concurrent numbered inserts from two tabs commit once');
+  check(db.trees.size === 1 && db.sessions.get('s1').tree_count === 1,
+        'rejected concurrent insert does not change rows or session count');
+}
+
+const numbered = [{ numero: 7, parcel_id: 100, sample_area_id: 10, preserved: true }];
+check(!Store.numberExists(numbered, { numero: 7, parcel_id: 101 }, 'martellate'),
+      'mark numbers may repeat in different parcels');
+check(!Store.numberExists(numbered, { numero: 7, sample_area_id: 11 }, 'samples'),
+      'sample numbers may repeat in different sample areas');
+check(!Store.numberExists(numbered, { numero: 7, parcel_id: 100, preserved: false }, 'free_survey'),
+      'preserved and ordinary numbers use separate free-survey namespaces');
+check(Store.numberExists([{ numero: 7, parcel_id: 100 }], { numero: 7, parcel_id: 101 }, 'free_survey'),
+      'ordinary free-survey numbers are session-scoped, not parcel-scoped');
 
 if (failures.length) {
   console.error(failures.join('\n'));

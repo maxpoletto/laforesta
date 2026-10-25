@@ -330,11 +330,16 @@ async function listRecoverableSessions(db) {
   });
 }
 
-async function setSessionStatus(db, id, status) {
-  await tx(db, [STORE_SESSIONS], 'readwrite', async (t) => {
+async function setSessionStatus(db, id, status, exportedRecords = null) {
+  await tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
     const store = t.objectStore(STORE_SESSIONS);
     const row = await req(store.get(id));
     if (!row) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(id));
+    if (status === STATUS_EXPORTED && row.status === STATUS_OPEN) {
+      const ids = Array.isArray(exportedRecords)
+        ? exportedRecords.map(rec => String(rec.seq || rec.id)) : [];
+      await checkRecordSnapshot(t, id, ids, exportedRecords?.length);
+    }
     row.status = status;
     if (status === STATUS_EXPORTED) {
       row.exported_at = new Date().toISOString();
@@ -344,10 +349,12 @@ async function setSessionStatus(db, id, status) {
 }
 
 async function setSessionPendingUpload(db, id, uploadPayload, treeCount) {
-  await tx(db, [STORE_SESSIONS], 'readwrite', async (t) => {
+  await tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
     const store = t.objectStore(STORE_SESSIONS);
     const row = await req(store.get(id));
-    if (!row) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(id));
+    requireOpenSession(row, id);
+    const submitted = Array.isArray(uploadPayload.records) ? uploadPayload.records : [];
+    await checkRecordSnapshot(t, id, submitted.map(rec => rec[FIELD_CLIENT_RECORD_ID]), treeCount);
     row.status = STATUS_PENDING_UPLOAD;
     row.upload_payload = uploadPayload;
     row.upload_tree_count = Number.isInteger(treeCount) ? treeCount : null;
@@ -372,6 +379,39 @@ async function setSessionUploadStatus(db, id, uploadStatus) {
 // Trees
 // ---------------------------------------------------------------------------
 
+function requireOpenSession(sess, id) {
+  if (!sess) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(id));
+  if (sess.status !== STATUS_OPEN) throw new Error(S.STORE_ERROR_SESSION_NOT_OPEN);
+}
+
+async function checkRecordSnapshot(t, id, expectedIds, count) {
+  const records = await req(t.objectStore(STORE_TREES).index('by_session').getAll(id));
+  const ids = new Set(expectedIds);
+  if (records.length !== count || expectedIds.length !== count || ids.size !== count ||
+      records.some(rec => !ids.has(String(rec.seq || rec.id)))) {
+    throw new Error(S.STORE_ERROR_SESSION_CHANGED);
+  }
+}
+
+// Shared by the UI preflight and the authoritative IndexedDB write check.
+function numberExists(trees, rec, mode) {
+  if (!Number.isInteger(rec.numero)) return false;
+  return trees.some(tree => {
+    if (!tree || tree.numero !== rec.numero) return false;
+    if (mode === IPSO_MODE_FREE_SURVEY) {
+      if (!!tree[FIELD_PRESERVED] !== !!rec[FIELD_PRESERVED]) return false;
+      if (!rec[FIELD_PRESERVED]) return true;
+    }
+    if (rec[FIELD_SAMPLE_AREA_ID] != null || tree[FIELD_SAMPLE_AREA_ID] != null) {
+      return tree[FIELD_SAMPLE_AREA_ID] === rec[FIELD_SAMPLE_AREA_ID];
+    }
+    if (rec[FIELD_PARCEL_ID] != null || tree[FIELD_PARCEL_ID] != null) {
+      return tree[FIELD_PARCEL_ID] === rec[FIELD_PARCEL_ID];
+    }
+    return (tree.particella || '') === (rec.particella || '');
+  });
+}
+
 // Add a tree to a session. Allocates `seq` inside the same transaction from
 // the session's persisted high-water mark, with a current-row fallback for
 // sessions created before `last_seq` existed. Deleting the highest-seq row does
@@ -382,12 +422,15 @@ async function addTree(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
     const sess = await req(sessStore.get(sessionId));
-    if (!sess) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(sessionId));
+    requireOpenSession(sess, sessionId);
 
     const treesStore = t.objectStore(STORE_TREES);
     const existingTrees = await req(
       treesStore.index('by_session').getAll(sessionId)
     );
+    if (numberExists(existingTrees, rec, sess.mode || DEFAULT_NUMBER_MODE)) {
+      throw new Error(S.TOAST_DUPLICATE_NUMBER(rec.numero));
+    }
     const seq = nextSeqForSession(sess, existingTrees);
     const row = {
       session_id: sessionId,
@@ -453,7 +496,7 @@ async function addObservation(db, sessionId, rec) {
   return tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async (t) => {
     const sessStore = t.objectStore(STORE_SESSIONS);
     const sess = await req(sessStore.get(sessionId));
-    if (!sess) throw new Error(S.STORE_ERROR_SESSION_NOT_FOUND(sessionId));
+    requireOpenSession(sess, sessionId);
 
     const recordsStore = t.objectStore(STORE_TREES);
     const existingRecords = await req(
@@ -496,6 +539,9 @@ async function listTrees(db, sessionId) {
 
 async function deleteTree(db, sessionId, treeId) {
   await tx(db, [STORE_SESSIONS, STORE_TREES, STORE_META], 'readwrite', async (t) => {
+    const sessStore = t.objectStore(STORE_SESSIONS);
+    const sess = await req(sessStore.get(sessionId));
+    requireOpenSession(sess, sessionId);
     const treesStore = t.objectStore(STORE_TREES);
     const row = await req(treesStore.get(treeId));
     if (!row) return;
@@ -503,8 +549,6 @@ async function deleteTree(db, sessionId, treeId) {
       throw new Error(S.STORE_ERROR_TREE_SESSION_MISMATCH);
     }
     await req(treesStore.delete(treeId));
-    const sessStore = t.objectStore(STORE_SESSIONS);
-    const sess = await req(sessStore.get(sessionId));
     if (sess) {
       sess.tree_count = await req(
         treesStore.index('by_session').count(sessionId)
@@ -565,7 +609,7 @@ const Store = {
   startSession, getSession, listResumableSessions, listRecoverableSessions,
   setSessionStatus, setSessionPendingUpload,
   setSessionUploadStatus,
-  addTree, addObservation, listTrees, deleteTree, lastTree,
+  addTree, addObservation, listTrees, deleteTree, lastTree, numberExists,
   getNextNumberForOperator,
   uuid,
 };

@@ -22,6 +22,7 @@ const State = {
   hMeasured: false,   // flips true once the user touches the h field
   inAutoFill: false,  // true while recomputeAutoH() is writing to h
   saveLockUntil: 0,   // ms timestamp; Salva is disabled while now < this
+  saveInProgress: false,
   gps: null,          // GPS controller
   locator: null,      // parcel-locator instance (one per recording session)
   numpad: null,       // numpad controller
@@ -1879,14 +1880,26 @@ function updateSaveEnabled() {
     ? validateObservation(rec)
     : session.validateTree(rec, treeValidationOptions());
   const btn = document.getElementById('btn-save');
-  btn.disabled = errs.length > 0 || Date.now() < State.saveLockUntil;
+  btn.disabled = State.saveInProgress || errs.length > 0 || Date.now() < State.saveLockUntil;
 }
 
 async function onSave() {
-  if (isObservationMode()) {
-    await onSaveObservation();
-    return;
+  if (State.saveInProgress || Date.now() < State.saveLockUntil || !State.session) return;
+  State.saveInProgress = true;
+  document.getElementById('btn-save').disabled = true;
+  try {
+    if (isObservationMode()) await onSaveObservation();
+    else await onSaveTree();
+  } catch (e) {
+    showToast(S.TOAST_SAVE_ERROR(e.message));
+  } finally {
+    State.saveInProgress = false;
+    setTimeout(updateSaveEnabled, SAVE_COOLDOWN_RECHECK_MS);
   }
+}
+
+async function onSaveTree() {
+  const recordingSession = State.session;
   const rec = currentRecord();
   const validationErrors = session.validateTree(rec, treeValidationOptions());
   if (validationErrors.length > 0) {
@@ -1905,33 +1918,12 @@ async function onSave() {
     rec.numero = null;
   }
 
-  if (await numberExistsInSession(rec)) {
+  if (await numberExistsInSession(rec, recordingSession)) {
     showToast(S.TOAST_DUPLICATE_NUMBER(rec.numero));
     return;
   }
 
-  const full = Object.assign({}, rec);
-
-  // Short debounce after save completes prevents accidental double-taps.
-  State.saveLockUntil = Date.now() + SAVE_COOLDOWN_MS;
-  document.getElementById('btn-save').disabled = true;
-
-  try {
-    const row = await Store.addTree(State.db, State.session.id, full);
-    State.session = await Store.getSession(State.db, State.session.id);
-    State.lastGroup = row.gruppo || '';
-    localStorage.setItem(IPSO_SPECIES_STORAGE_KEY, State.specie);
-    resetEntryFields();
-    refreshMapRecords();
-
-    if (session.shouldBackup(row.seq)) {
-      await downloadBackup(row.seq);
-    }
-  } catch (e) {
-    showToast(S.TOAST_SAVE_ERROR(e.message));
-  } finally {
-    setTimeout(updateSaveEnabled, SAVE_COOLDOWN_RECHECK_MS);
-  }
+  await persistRecord(rec, false, recordingSession);
 }
 
 
@@ -1944,48 +1936,42 @@ async function onSaveObservation() {
     }
     return;
   }
+  await persistRecord(rec, true, State.session);
+}
+
+async function persistRecord(rec, observation, recordingSession) {
+  const sessionId = recordingSession.id;
+  const row = await (observation ? Store.addObservation : Store.addTree)(State.db, sessionId, rec);
+  // Everything below follows a committed insert. Consume the submitted form
+  // before fallible preferences, refreshes or backup; never label these as a
+  // failed write or invite inserting the same measurement again.
   State.saveLockUntil = Date.now() + SAVE_COOLDOWN_MS;
-  document.getElementById('btn-save').disabled = true;
-  try {
-    const row = await Store.addObservation(State.db, State.session.id, rec);
-    State.session = await Store.getSession(State.db, State.session.id);
-    resetEntryFields();
-    refreshMapRecords();
-    if (session.shouldBackup(row.seq)) await downloadBackup(row.seq);
-  } catch (e) {
-    showToast(S.TOAST_SAVE_ERROR(e.message));
-  } finally {
-    setTimeout(updateSaveEnabled, SAVE_COOLDOWN_RECHECK_MS);
+  if (State.session?.id !== sessionId) return;
+  State.session.tree_count = (State.session.tree_count || 0) + 1;
+  State.session.last_seq = row.seq;
+  State.lastGroup = row.gruppo || '';
+  const errors = [];
+  const followups = [
+    () => resetEntryFields(),
+    async () => {
+      const updated = await Store.getSession(State.db, sessionId);
+      if (State.session?.id === sessionId) State.session = updated;
+    },
+    () => { if (!observation) localStorage.setItem(IPSO_SPECIES_STORAGE_KEY, rec.specie); },
+    () => refreshMapRecords(),
+    () => { if (session.shouldBackup(row.seq)) return downloadBackup(row.seq); },
+  ];
+  for (const followup of followups) {
+    if (State.session?.id !== sessionId) break;
+    try { await followup(); } catch (e) { errors.push(e.message); }
   }
+  if (errors.length) showToast(S.TOAST_SAVE_FOLLOWUP_ERROR(errors.join('; ')));
 }
 
-async function numberExistsInSession(rec) {
-  if (!State.session || !Number.isInteger(rec.numero)) return false;
-  const trees = await Store.listTrees(State.db, State.session.id);
-  if (isFreeSurveyMode()) return freeSurveyNumberExists(trees, rec);
-  return trees.some((tree) => sameNumberScope(tree, rec));
-}
-
-function freeSurveyNumberExists(trees, rec) {
-  if (rec[FIELD_PRESERVED]) {
-    return trees.some((tree) =>
-      tree && tree[FIELD_PRESERVED] && sameNumberScope(tree, rec)
-    );
-  }
-  return trees.some((tree) =>
-    tree && !tree[FIELD_PRESERVED] && tree.numero === rec.numero
-  );
-}
-
-function sameNumberScope(tree, rec) {
-  if (!tree || tree.numero !== rec.numero) return false;
-  if (rec[FIELD_SAMPLE_AREA_ID] != null || tree[FIELD_SAMPLE_AREA_ID] != null) {
-    return tree[FIELD_SAMPLE_AREA_ID] === rec[FIELD_SAMPLE_AREA_ID];
-  }
-  if (rec[FIELD_PARCEL_ID] != null || tree[FIELD_PARCEL_ID] != null) {
-    return tree[FIELD_PARCEL_ID] === rec[FIELD_PARCEL_ID];
-  }
-  return (tree.particella || '') === (rec.particella || '');
+async function numberExistsInSession(rec, recordingSession) {
+  if (!Number.isInteger(rec.numero)) return false;
+  const trees = await Store.listTrees(State.db, recordingSession.id);
+  return Store.numberExists(trees, rec, recordingSession.mode);
 }
 
 async function onDeleteTree(treeId) {
@@ -2013,6 +1999,7 @@ async function onDeleteTree(treeId) {
 }
 
 async function onEnd() {
+  if (State.saveInProgress) return;
   hideModal('modal-confirm-end');
   try {
     const trees = await Store.listTrees(State.db, State.session.id);
@@ -2031,7 +2018,7 @@ async function onEnd() {
       return;
     }
     if (isLocalOnlySession(State.session)) {
-      await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_EXPORTED);
+      await Store.setSessionStatus(State.db, State.session.id, Store.STATUS_EXPORTED, trees);
       State.session.status = Store.STATUS_EXPORTED;
       stopRecordingSensors();
       releaseWakeLock();
@@ -2801,7 +2788,7 @@ function showResumeModal(sessions) {
           const trees = await Store.listTrees(State.db, s.id);
           trees.sort((a, b) => a.seq - b.seq);
           downloadFinal(s, trees, State.reference);
-          await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED);
+          await Store.setSessionStatus(State.db, s.id, Store.STATUS_EXPORTED, trees);
           s.status = Store.STATUS_EXPORTED;
           showResumeModal(sessions);
         } catch (e) {

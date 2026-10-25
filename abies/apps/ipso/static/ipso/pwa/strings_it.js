@@ -190,6 +190,8 @@ const S = {
     'Database Ipso bloccato da una scheda precedente.',
   STORE_ERROR_TX_ABORTED: 'Transazione Ipso annullata.',
   STORE_ERROR_SESSION_NOT_FOUND: (id) => `Sessione Ipso non trovata: ${id}`,
+  STORE_ERROR_SESSION_NOT_OPEN: 'La sessione non è più aperta per la registrazione.',
+  STORE_ERROR_SESSION_CHANGED: 'La sessione è cambiata. Ripeti la chiusura per esportare tutti i dati.',
   STORE_ERROR_TREE_NOT_FOUND: (id) => `Albero Ipso non trovato: ${id}`,
   STORE_ERROR_TREE_SESSION_MISMATCH:
     'Albero Ipso non appartenente alla sessione.',
@@ -210,6 +212,7 @@ const S = {
   TOAST_SESSION_START_ERROR: (detail) =>
     `Errore avvio sessione: ${detail}`,
   TOAST_SAVE_ERROR: (detail) => `Errore salvataggio: ${detail}`,
+  TOAST_SAVE_FOLLOWUP_ERROR: (detail) => `Dato salvato. Errore nelle operazioni successive: ${detail}`,
   TOAST_DUPLICATE_NUMBER: (number) =>
     `Numero ${number} già registrato in questa particella/area.`,
   TOAST_DELETE_ERROR: (detail) => `Errore eliminazione: ${detail}`,
