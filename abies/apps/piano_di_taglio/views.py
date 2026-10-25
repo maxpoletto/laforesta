@@ -68,7 +68,7 @@ from apps.piano_di_taglio.mark_import import (
     rematerialize_volume_marked as _rematerialize_volume_marked,
 )
 from apps.piano_di_taglio.plan_item_validation import (
-    plan_item_harvest_invariant_errors,
+    plan_item_invariant_errors,
 )
 from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest
@@ -476,7 +476,7 @@ def item_save_view(request):
             # PSR is import-owned and absent from the manual edit form.
             if FIELD_PSR not in body:
                 parsed['psr'] = item.psr
-            invariant_errors = plan_item_harvest_invariant_errors(item, parsed)
+            invariant_errors = plan_item_invariant_errors(item, parsed)
             if invariant_errors:
                 return validation_error(invariant_errors)
             opening_updates, opening_errors = _parse_opening_body(body, item)

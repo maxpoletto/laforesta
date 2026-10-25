@@ -352,6 +352,10 @@ ERR_PLAN_ITEM_LINKED_HARVESTS_INVARIANT = (
     'La voce ha prelievi associati: compresa, particella e flag non possono '
     'essere modificati.'
 )
+ERR_PLAN_ITEM_MARKS_OUTSIDE_TARGET = (
+    'La nuova compresa o particella escluderebbe alberi già martellati '
+    'per questo intervento.'
+)
 ERR_PLAN_ITEM_VOLUME_NEGATIVE = 'Il volume previsto (m³) deve essere positivo.'
 ERR_PLAN_ITEM_AREA_NEGATIVE = 'La superficie deve essere positiva.'
 ERR_TRANSITION_INVALID_STATE = (

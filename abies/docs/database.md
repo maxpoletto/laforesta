@@ -209,6 +209,12 @@ explicitly reuses the same `tree_id`.
   - We specify both `region_id` and `parcel_id` because some operations (e.g.,
     collecting storm-damaged plants) are approved region-wide. A trigger
     enforces (`region_id` is null XOR `parcel_id` is null).
+  - Manual and calendar-import target edits must retain every linked mark in
+    scope: a parcel item includes only that parcel; a region item includes all
+    parcels in that region. Safe widening/narrowing does not move the marks.
+    Linked harvests separately prevent changes to the target and copied flags.
+    These parent-edit checks live in shared application validation because
+    child-row constraints alone do not guard edits to their parent.
   - `state` is an enum: `planned=0, marked=1, open=2, harvesting=3, closed=4`.
     Transitions normally move forward. The sole backward transition is the
     admin-only `closed → open` reopen operation. Coppice items skip `marked`.

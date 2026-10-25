@@ -893,6 +893,152 @@ class TestPlanExport:
 # Item CRUD
 # ---------------------------------------------------------------------------
 
+class TestItemTargetInvariant:
+    @staticmethod
+    def _state():
+        models = (
+            HarvestPlan, HarvestPlanItem, Tree, TreeMark, DigestStatus, UsedNonce,
+            HarvestPlan.history.model, HarvestPlanItem.history.model,
+        )
+        return {
+            model.__name__: list(model.objects.order_by('pk').values())
+            for model in models
+        }
+
+    @staticmethod
+    def _item(plan, parcels, species, source, marked):
+        item = HarvestPlanItem.objects.create(
+            harvest_plan=plan, year_planned=2025,
+            parcel=parcels[0] if source == 'parcel' else None,
+            region=parcels[0].region if source == 'region' else None,
+            damaged=True, state=HarvestPlanItemState.OPEN,
+            date_actual=date_type(2025, 6, 1),
+            volume_planned_m3=Decimal('100'),
+            volume_marked_m3=Decimal('0.7') * len(marked) if marked else None,
+            note='Original intervention',
+        )
+        for number, index in enumerate(marked, start=1):
+            TreeMark.objects.create(
+                harvest_plan_item=item, parcel=parcels[index],
+                tree=Tree.objects.create(species=species[0]),
+                number=number, date=date_type(2025, 6, 1),
+                d_cm=30, h_m=Decimal('20'), volume_m3=Decimal('0.7'),
+                operator='Test',
+            )
+        return item
+
+    @staticmethod
+    def _submit(client, item, parcel, region, path, with_nonce, first_row=''):
+        nonce = {FIELD_NONCE: 'item-target-edit'} if with_nonce else {}
+        if path == 'manual':
+            return client.post('/api/piano-di-taglio/item/save/', data=json.dumps({
+                ROW_ID: item.id, VERSION: item.version,
+                FIELD_PARCEL_ID: parcel.id if parcel else '',
+                FIELD_REGION_ID: region.id, FIELD_DAMAGED: True,
+                FIELD_YEAR_PLANNED: item.year_planned,
+                FIELD_VOLUME_PLANNED_M3: '175', FIELD_NOTE: 'Revised intervention',
+                **nonce,
+            }), content_type='application/json')
+        csv_text = (
+            f'{S.COL_ID};Compresa;Particella;Anno;{S.COL_VOLUME_PLANNED};Note;Altre note\r\n'
+            + first_row
+            + f'{item.id};{region.name};{parcel.name if parcel else "X"};'
+              f'{item.year_planned};175;Catastrofato;Revised intervention\r\n'
+        )
+        return _post_plan_csv_import(
+            client, harvest_plan_id=item.harvest_plan_id,
+            fustaia_file=csv_text, **nonce,
+        )
+
+    @pytest.mark.parametrize('path', ['manual', 'csv'])
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    @pytest.mark.parametrize('source,marked,target,allowed', [
+        pytest.param('parcel', [0], 'parcel1', False, id='other-parcel-same-region'),
+        pytest.param('parcel', [0], 'parcel2', False, id='other-parcel-other-region'),
+        pytest.param('parcel', [0], 'region0', True, id='widen-within-region'),
+        pytest.param('parcel', [0], 'region1', False, id='widen-to-wrong-region'),
+        pytest.param('region', [0, 1], 'parcel0', False, id='narrow-excludes-marks'),
+        pytest.param('region', [0], 'parcel0', True, id='narrow-contains-all-marks'),
+        pytest.param('region', [0, 1], 'region1', False, id='region-excludes-marks'),
+        pytest.param('region', [0, 1], 'region0', True, id='same-region-metadata-edit'),
+        pytest.param('parcel', [0], 'parcel0', True, id='same-parcel-metadata-edit'),
+        pytest.param('parcel', [], 'parcel1', True, id='unmarked-target-edit'),
+    ])
+    def test_target_edit_keeps_every_mark_in_scope(
+            self, writer_client, plan, parcels, species, path, with_nonce,
+            source, marked, target, allowed):
+        from apps.piano_di_taglio.mark_import import mark_parcel_matches_item
+
+        item = self._item(plan, parcels, species, source, marked)
+        parcel = parcels[int(target[-1])] if target.startswith('parcel') else None
+        region = parcel.region if parcel else parcels[0 if target == 'region0' else 2].region
+        before = self._state()
+
+        response = self._submit(writer_client, item, parcel, region, path, with_nonce)
+
+        assert response.status_code == (200 if allowed else 400), response.content
+        if not allowed:
+            assert S.ERR_PLAN_ITEM_MARKS_OUTSIDE_TARGET in response.json()[MESSAGE]
+            if path == 'csv':
+                assert S.ERR_CSV_ROW_PARSE.format(
+                    2, S.ERR_PLAN_ITEM_MARKS_OUTSIDE_TARGET,
+                ) in response.json()[MESSAGE]
+            assert self._state() == before
+            return
+        item.refresh_from_db()
+        assert item.parcel_id == (parcel.id if parcel else None)
+        assert item.region_id == (None if parcel else region.id)
+        assert item.note == 'Revised intervention'
+        assert item.volume_planned_m3 == Decimal('175')
+        assert item.volume_marked_m3 == (
+            Decimal('0.7') * len(marked) if marked else None
+        )
+        assert item.state == HarvestPlanItemState.OPEN
+        assert item.version == 2
+        assert item.history.count() == 2
+        assert all(mark_parcel_matches_item(item, mark.parcel) for mark in item.tree_marks.all())
+        after = self._state()
+        assert after['Tree'] == before['Tree']
+        assert after['TreeMark'] == before['TreeMark']
+
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    def test_invalid_target_rolls_back_entire_calendar_import(
+            self, writer_client, plan, parcels, species, with_nonce):
+        item = self._item(plan, parcels, species, 'parcel', [0])
+        before = self._state()
+        # This earlier row creates an item and widens the plan's year range.
+        first_row = f';{parcels[1].region.name};{parcels[1].name};2040;25;;New row\r\n'
+
+        response = self._submit(
+            writer_client, item, parcels[1], parcels[1].region, 'csv', with_nonce,
+            first_row=first_row,
+        )
+
+        assert response.status_code == 400
+        assert self._state() == before
+
+    def test_partial_metadata_update_does_not_query_mark_scope(
+            self, plan, parcels, species, django_assert_num_queries):
+        from apps.piano_di_taglio.plan_item_validation import plan_item_invariant_errors
+
+        item = self._item(plan, parcels, species, 'parcel', [0])
+        with django_assert_num_queries(0):
+            assert plan_item_invariant_errors(item, {'note': 'Metadata only'}) == []
+
+    @pytest.mark.parametrize('object_values', [False, True])
+    def test_partial_target_update_supports_id_and_object_fields(
+            self, plan, parcels, species, object_values):
+        from apps.piano_di_taglio.plan_item_validation import plan_item_invariant_errors
+
+        item = self._item(plan, parcels, species, 'parcel', [0])
+        values = {'parcel': parcels[1]} if object_values else {'parcel_id': parcels[1].id}
+
+        assert plan_item_invariant_errors(item, values) == [
+            S.ERR_PLAN_ITEM_MARKS_OUTSIDE_TARGET,
+        ]
+        assert item.parcel_id == parcels[0].id
+
+
 class TestItemCRUD:
     def _save(self, client, payload):
         return client.post(

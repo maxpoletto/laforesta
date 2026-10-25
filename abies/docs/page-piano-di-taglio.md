@@ -231,6 +231,16 @@ The modal displays:
    year_planned, flags, volume_planned_m3, note); `state`, `date_actual`,
    and the materialized volumes are not user-editable.
 
+   Changing the region/parcel must keep every existing marked tree inside
+   the intervention's target. Widening a parcel to its containing region is
+   allowed; narrowing a region to one parcel is allowed only when every mark
+   belongs to that parcel. Edits never move or relabel the marks themselves.
+   Linked Prelievi impose the stricter existing rule: the target and copied
+   damaged/unhealthy/PSR flags cannot change once harvests reference the item.
+   These checks also apply to calendar CSV updates (including exported IDs).
+   An invalid target rejects the entire save/import without partial changes;
+   CSV errors identify the offending row.
+
    The same edit form also exposes the date and note of each recorded
    **Apertura cantiere**, including reopening events and openings of closed
    items. Corrections update the existing event and preserve the current

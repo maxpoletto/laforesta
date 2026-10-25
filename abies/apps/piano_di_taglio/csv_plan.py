@@ -26,7 +26,7 @@ from apps.base.models import (
     render_flag_note,
 )
 from apps.piano_di_taglio.plan_item_validation import (
-    plan_item_harvest_invariant_errors,
+    plan_item_invariant_errors,
 )
 from config import strings as S
 from config.constants import (
@@ -429,7 +429,7 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
             fields = {**identity, **defaults}
             row_id = row.get(ROW_ID)
             def validate_update(item, values):
-                errors = plan_item_harvest_invariant_errors(item, values)
+                errors = plan_item_invariant_errors(item, values)
                 if errors:
                     source_row = row.get(_SOURCE_ROW)
                     if source_row is not None:
