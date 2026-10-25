@@ -14,8 +14,15 @@ import {
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
 
-/** @type {Map<string, {data: any, etag: string|null, lastModified: string|null, refreshedAt: number, revision: number}>} */
+/** @type {Map<string, {data: any, etag: string|null, lastModified: string|null, refreshedAt: number}>} */
 const store = new Map();
+
+/** Revisions survive eviction and exist independently of cached bodies. */
+const revisions = new Map();
+
+function bumpRevision(dataId) {
+  revisions.set(dataId, (revisions.get(dataId) ?? 0) + 1);
+}
 
 /** URLs registered for each data ID (set via register). */
 const urls = new Map();
@@ -49,18 +56,17 @@ export function get(dataId) {
  * Manually replace the entire cached dataset for a data ID.
  */
 export function set(dataId, data) {
+  bumpRevision(dataId);
   const entry = store.get(dataId);
   if (entry) {
     entry.data = data;
     entry.refreshedAt = Date.now();
-    entry.revision++;
   } else {
     store.set(dataId, {
       data,
       lastModified: null,
       etag: null,
       refreshedAt: Date.now(),
-      revision: 1,
     });
   }
 }
@@ -75,6 +81,9 @@ export function set(dataId, data) {
  * @param {Array} record — full row array matching the digest columns
  */
 export function updateRow(dataId, rowId, record) {
+  // A patch cannot synthesize a missing digest's columns, but must fence any
+  // older fetch that could otherwise populate it with pre-write data.
+  bumpRevision(dataId);
   const entry = store.get(dataId);
   if (!entry?.data?.rows) return;
   const idx = entry.data.rows.findIndex(r => r[0] === rowId);
@@ -83,7 +92,6 @@ export function updateRow(dataId, rowId, record) {
   } else {
     entry.data.rows.push(record);
   }
-  entry.revision++;
 }
 
 /**
@@ -93,23 +101,23 @@ export function updateRow(dataId, rowId, record) {
  * @param {number} rowId
  */
 export function removeRow(dataId, rowId) {
+  bumpRevision(dataId);
   const entry = store.get(dataId);
   if (!entry?.data?.rows) return;
   const rows = entry.data.rows.filter(r => r[0] !== rowId);
   if (rows.length === entry.data.rows.length) return;
   entry.data.rows = rows;
-  entry.revision++;
 }
 
 function takeSnapshot(dataId) {
   const entry = store.get(dataId) || null;
-  return { entry, revision: entry?.revision ?? 0 };
+  return { entry, revision: revisions.get(dataId) ?? 0 };
 }
 
 function snapshotIsCurrent(dataId, snapshot) {
   const entry = store.get(dataId) || null;
   return entry === snapshot.entry
-    && (entry?.revision ?? 0) === snapshot.revision;
+    && (revisions.get(dataId) ?? 0) === snapshot.revision;
 }
 
 /**
@@ -119,7 +127,7 @@ function snapshotIsCurrent(dataId, snapshot) {
  */
 function applyFetchResult(dataId, snapshot, result) {
   if (!snapshotIsCurrent(dataId, snapshot)) {
-    return { data: get(dataId), changed: false };
+    return { data: get(dataId), changed: false, discarded: true };
   }
 
   if (result.status === 304) {
@@ -135,8 +143,8 @@ function applyFetchResult(dataId, snapshot, result) {
     lastModified: result.lastModified,
     etag: result.etag,
     refreshedAt: Date.now(),
-    revision: snapshot.revision + 1,
   });
+  bumpRevision(dataId);
   return { data: result.data, changed: true };
 }
 
@@ -162,13 +170,16 @@ export function applyResponseChanges(data) {
   const invalidations = data[INVALIDATES] || {};
   const dataIds = new Set(invalidations[FIELD_DATA_IDS] || []);
   const prefixes = invalidations[FIELD_PREFIXES] || [];
-  for (const dataId of [...store.keys()]) {
+  // Registered IDs include cold/in-flight loads. Explicit IDs also need a
+  // generation even if they have never had a cached entry or registered URL.
+  const knownIds = new Set([...store.keys(), ...urls.keys(), ...revisions.keys(), ...dataIds]);
+  for (const dataId of knownIds) {
     if (!dataIds.has(dataId) && !prefixes.some(prefix => dataId.startsWith(prefix))) {
       continue;
     }
-    // Removing the entry also invalidates any in-flight fetch snapshot. The
-    // next load is unconditional, so a same-second Last-Modified value cannot
-    // preserve data computed under an old global setting.
+    bumpRevision(dataId);
+    // Evict validators as well as data. The revision fences even a first
+    // fetch whose snapshot and current cache entry are both null.
     store.delete(dataId);
     touched.add(dataId);
   }
@@ -210,18 +221,19 @@ export async function load(dataId) {
   const url = urls.get(dataId);
   if (!url) throw new Error(`Unknown data ID: ${dataId}`);
 
-  const snapshot = takeSnapshot(dataId);
-  const lastMod = snapshot.entry?.lastModified ?? null;
-
-  const result = await fetchJSON(url, lastMod, snapshot.entry?.etag ?? null);
-  const applied = applyFetchResult(dataId, snapshot, result);
-  // Fire onUpdate listeners so in-place callers (e.g., a row delete that
-  // just wants the table to refresh without a full page rebuild) don't
-  // have to re-implement the re-render themselves.  refreshVisible already
-  // notifies on the same condition; mirroring it here keeps the manual
-  // and background paths consistent.
-  if (applied.changed) notify(dataId);
-  return applied.data;
+  while (true) {
+    const snapshot = takeSnapshot(dataId);
+    const result = await fetchJSON(
+      url, snapshot.entry?.lastModified ?? null, snapshot.entry?.etag ?? null,
+    );
+    const applied = applyFetchResult(dataId, snapshot, result);
+    // An invalidated first load must still fulfill its caller with usable
+    // data. Reuse a newer cache entry if present, otherwise fetch the current
+    // generation unconditionally. Never notify with the discarded body.
+    if (applied.discarded && applied.data === null) continue;
+    if (applied.changed) notify(dataId);
+    return applied.data;
+  }
 }
 
 /**

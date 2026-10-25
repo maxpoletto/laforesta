@@ -233,6 +233,7 @@ eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gon
   await Promise.resolve();
 
   cache.applyResponseChanges({ invalidates: { data_ids: [id] } });
+  globalThis.fetch = digestFetch;
   resolveFetch({
     status: 200,
     ok: true,
@@ -240,13 +241,136 @@ eq(await deleteThenReload(0), [2], 'delete + reload (same second): row stays gon
     json: async () => digest([[1, 1, 30]]),
   });
   await pending;
-  eq(cache.get(id), null,
-     'invalidation discards an older fetch response already in flight');
+  eq(cache.get(id), digest([[1, 2, 50]]),
+     'invalidated load retries unconditionally instead of returning an empty cache');
+}
 
+// No cache entry exists while the first request is in flight. Invalidation
+// (or a row patch/delete) must still fence it, and load must obtain usable data.
+for (const kind of ['exact', 'prefix', 'patch', 'delete', 'evicted-again']) {
+  const prefix = `${freshDataId()}_cold_`, id = `${prefix}1`, url = `/api/${id}/`;
+  cache.register(id, url);
+  if (kind === 'evicted-again') {
+    cache.set(id, digest([[1, 1, 20]]));
+    cache.applyResponseChanges({ invalidates: { data_ids: [id] } });
+  }
+  const fresh = digest(kind === 'delete' ? [] : [[1, 2, 50]]);
+  const updates = [];
+  const unsubscribe = cache.onUpdate(id, () => updates.push(cache.get(id)));
+  const calls = [];
+  let resolveOld;
+  globalThis.fetch = (url, options) => {
+    calls.push(options.headers);
+    if (calls.length === 1) return new Promise(resolve => { resolveOld = resolve; });
+    return Promise.resolve({
+      status: 200, ok: true,
+      headers: { get: h => h === 'ETag' ? '"fresh"' : null },
+      json: async () => fresh,
+    });
+  };
+  const pending = cache.load(id);
+  const envelope = {
+    exact: { invalidates: { data_ids: [id] } },
+    prefix: { invalidates: { prefixes: [prefix] } },
+    patch: { patches: [{ data_id: id, row_id: 1, record: [1, 2, 50] }] },
+    delete: { deletes: [{ data_id: id, row_id: 1 }] },
+    'evicted-again': { invalidates: { data_ids: [id] } },
+  }[kind];
+  const touched = cache.applyResponseChanges(envelope);
+  eq([...touched], [id], `${kind}: absent data ID is still reported as touched`);
+  eq(cache.get(id), null, `${kind}: no partial digest is synthesized from a patch`);
+  resolveOld({
+    status: 200, ok: true,
+    headers: { get: h => h === 'ETag' ? '"old"' : null },
+    json: async () => digest([[1, 1, 30]]),
+  });
+  const loaded = await pending;
+  eq(loaded, fresh, `${kind}: invalidated cold load returns fresh data`);
+  eq(cache.get(id), fresh, `${kind}: old response cannot populate an absent entry`);
+  eq(calls.length, 2, `${kind}: discarded load retries once`);
+  eq(calls[1]?.['If-None-Match'] ?? null, null, `${kind}: retry has no evicted validator`);
+  eq(updates, [null, fresh], `${kind}: subscribers never see the superseded response`);
+  unsubscribe();
   globalThis.fetch = digestFetch;
+}
+
+// A newer cold request may finish before an older one, with or without an
+// intervening invalidation. The older promise returns the already fresh cache.
+for (const invalidate of [false, true]) {
+  const id = freshDataId(), url = `/api/${id}/`;
+  cache.register(id, url);
+  let resolveOld, calls = 0, notifications = 0;
+  const fresh = digest([[1, 2, 60]]);
+  const unsubscribe = cache.onUpdate(id, () => { notifications++; });
+  globalThis.fetch = () => {
+    calls++;
+    if (calls === 1) return new Promise(resolve => { resolveOld = resolve; });
+    return Promise.resolve({
+      status: 200, ok: true, headers: { get: () => null }, json: async () => fresh,
+    });
+  };
+  const old = cache.load(id);
+  if (invalidate) cache.applyResponseChanges({ invalidates: { data_ids: [id] } });
   await cache.load(id);
-  eq(dcm(cache.get(id), 1), 50,
-     'post-invalidation load is unconditional and receives regenerated data');
+  resolveOld({
+    status: 200, ok: true, headers: { get: () => null },
+    json: async () => digest([[1, 1, 30]]),
+  });
+  eq(await old, fresh, `overlapping cold loads (${invalidate}): older promise returns current data`);
+  eq(cache.get(id), fresh, `overlapping cold loads (${invalidate}): fresh entry survives`);
+  eq(calls, 2, `overlapping cold loads (${invalidate}): no retry when fresh data already exists`);
+  eq(notifications, invalidate ? 2 : 1,
+     `overlapping cold loads (${invalidate}): discarded response sends no update`);
+  unsubscribe();
+  globalThis.fetch = digestFetch;
+}
+
+// A delayed 304 must not restore an evicted body or validator.
+{
+  const id = freshDataId(), url = `/api/${id}/`;
+  const server = new DigestServer(digest([[1, 1, 30]]));
+  servers.set(url, server);
+  cache.register(id, url);
+  await cache.load(id);
+  let resolveOld;
+  const calls = [], fresh = digest([[1, 2, 80]]);
+  globalThis.fetch = (url, options) => {
+    calls.push(options.headers);
+    if (calls.length === 1) return new Promise(resolve => { resolveOld = resolve; });
+    return Promise.resolve({
+      status: 200, ok: true,
+      headers: { get: h => h === 'ETag' ? '"new"' : null }, json: async () => fresh,
+    });
+  };
+  const pending = cache.load(id);
+  cache.applyResponseChanges({ invalidates: { data_ids: [id] } });
+  resolveOld({
+    status: 304, ok: false, headers: { get: () => server.file.etag },
+  });
+  eq(await pending, fresh, 'delayed 304: load retries instead of returning an evicted body');
+  eq(calls[1]?.['If-None-Match'] ?? null, null, 'delayed 304: retry is unconditional');
+  await cache.load(id);
+  eq(calls[2]?.['If-None-Match'], '"new"', 'delayed 304: old ETag is not restored');
+  globalThis.fetch = digestFetch;
+}
+
+// An unrelated invalidation must not discard a valid pending first load.
+{
+  const id = freshDataId();
+  cache.register(id, `/api/${id}/`);
+  let resolveFetch, calls = 0;
+  globalThis.fetch = () => {
+    calls++;
+    return new Promise(resolve => { resolveFetch = resolve; });
+  };
+  const pending = cache.load(id), expected = digest([[1, 1, 30]]);
+  cache.applyResponseChanges({ invalidates: { data_ids: ['unrelated'], prefixes: ['other_'] } });
+  resolveFetch({
+    status: 200, ok: true, headers: { get: () => null }, json: async () => expected,
+  });
+  eq(await pending, expected, 'unrelated invalidation preserves a pending cold load');
+  eq(calls, 1, 'unrelated invalidation does not cause another request');
+  globalThis.fetch = digestFetch;
 }
 
 // Reader B can regenerate a changed digest within reader A's cached second.

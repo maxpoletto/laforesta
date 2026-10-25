@@ -147,6 +147,22 @@ loads and background refreshes. Last-Modified remains a fallback for endpoints
 that do not supply ETags. A 304 retains the cached body; eviction removes both
 the body and its validators so the next fetch is unconditional.
 
+Each dataset also has a local revision independent of its cached body. Exact
+invalidation advances that revision even if no body exists. Prefix invalidation
+covers every matching registered, cached or previously known ID, including
+in-flight first loads and entries already evicted. Patches/deletes advance it
+too, even when the digest has not loaded and its column shape is unavailable;
+they never synthesize a partial digest from a row patch.
+
+A fetch snapshots the entry and revision before requesting data. An obsolete
+200 or 304 cannot populate the cache, restore evicted validators, or notify
+listeners. `load()` returns an already newer cached body when available;
+otherwise it retries unconditionally against the current generation, so a
+discarded initial response does not leave the mounting page without data.
+Exact/prefix invalidations notify affected known IDs even when they had no
+cached body. Unrelated IDs and requests are unaffected. Revisions live for the
+SPA session, like registered URLs; a page reload resets both.
+
 ## Data entry and cache updates
 
 Forms are Django-rendered HTML fragments displayed in overlay modals
