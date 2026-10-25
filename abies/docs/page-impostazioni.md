@@ -177,3 +177,10 @@ Form fields:
 
 The initial admin account is configured at server installation time. OAuth users
 must be pre-added with a matching email to whitelist them.
+
+The edit form explains that changing the login method or email removes previous
+Microsoft account links and stored tokens. Email comparison is case-insensitive,
+so case-only edits preserve the links. A later Microsoft login can establish a
+fresh link only with the current whitelisted email and an active OAuth user.
+The callback checks this policy even for links created before these rules were
+introduced. See `security.md` for the separate existing-session behavior.

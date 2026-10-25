@@ -28,6 +28,9 @@
       <input type="email" id="id_email" name="email" required
              value="{{ obj.email|default:'' }}">
       <small class="text-muted">Per utenti OAuth, deve corrispondere all'indirizzo dell'account Microsoft.</small>
+      {% if obj %}
+      <small class="text-muted">Cambiando metodo di accesso o email, i collegamenti Microsoft precedenti vengono rimossi. L'accesso Microsoft successivo deve corrispondere all'email attuale.</small>
+      {% endif %}
     </div>
 
     <div class="form-row">

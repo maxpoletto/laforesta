@@ -147,6 +147,7 @@ IPSO_ERR_FIELD_DECIMAL = '{} deve essere un valore decimale.'
 IPSO_ERR_FIELD_DECIMAL_FINITE = '{} deve essere un valore decimale finito.'
 
 ERR_LOGIN_INVALID = 'Nome utente o password non validi.'
+ERR_OAUTH_LOGIN_NOT_ALLOWED = 'Accesso Microsoft non consentito. Contattare un amministratore.'
 
 # Validation
 ERR_DATE_REQUIRED = 'Data obbligatoria.'

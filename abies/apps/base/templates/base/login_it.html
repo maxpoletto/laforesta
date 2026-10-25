@@ -11,6 +11,11 @@
 <body>
   <div class="login-box">
     <img src="{% static ABIES_BRAND_LOGO_STATIC %}" alt="{{ ABIES_BRAND_NAME }}">
+    {% for message in messages %}
+    {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}
+    <p class="error" role="alert">{{ message }}</p>
+    {% endif %}
+    {% endfor %}
     {% if form.errors or error_message %}
     <p class="error">
       {% if error_message %}{{ error_message }}

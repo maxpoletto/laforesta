@@ -51,12 +51,39 @@ trust model, rate limiting, and deployment notes.
 ### Whitelist social adapter
 
 `apps.base.auth.WhitelistSocialAdapter` overrides allauth's
-`pre_social_login` to match incoming logins by email against the
-admin-provisioned user (case-insensitive, active, login_method=oauth).
+[`pre_social_login`](https://docs.allauth.org/en/latest/socialaccount/adapter.html#allauth.socialaccount.adapter.DefaultSocialAccountAdapter.pre_social_login)
+to check every incoming login against the current admin-provisioned whitelist
+(case-insensitive email, active, login_method=oauth). This includes logins
+resolved by an existing provider UID or by allauth's email lookup. The email
+comes from the provider's incoming `email_addresses`, not `sociallogin.user.email`:
+allauth replaces the latter with the local user's data during account lookup.
+Microsoft supplies its `mail`, falling back to `userPrincipalName`.
+Missing/mismatching email, an inactive user, or password-only login blocks the
+OAuth callback and returns to the Abies login page with a localized message.
+A linked identity cannot be reassigned to a different whitelisted user by
+changing the email reported by the provider. First logins may create a link
+only to a matching whitelisted user; self-registration remains closed.
+
 This bypasses allauth's requirement that the email be flagged verified
 — trust is rooted in the pinned Entra tenant instead.  **If a new OAuth
 provider is added that does not verify email ownership at account
 creation, the adapter must be revisited.**
+
+Saving a changed login method or email in Settings removes that user's existing
+`SocialAccount` links and their stored tokens, in the same transaction as the
+User/EmailAddress changes and audit invalidation. Password-only accounts also
+have any legacy links removed on save. OAuth users can link again on the next
+login with their current whitelisted email. A case-only email edit preserves
+links, as do ordinary name/role edits. Deactivation preserves links but blocks
+login until the account is active again.
+
+The callback check protects accounts with stale links already in the database;
+no data migration is required. Link removal governs future OAuth logins.
+Existing sessions follow Django's active-user and authentication-hash checks:
+deactivation blocks subsequent authenticated requests, and changing a password
+invalidates sessions carrying the old hash. OAuth account saves already set a
+new unusable password, which also changes that hash. Removing a social link
+alone does not revoke an otherwise valid session.
 
 Session expiration defaults to 12 hours (server-configurable).
 

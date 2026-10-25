@@ -1,6 +1,7 @@
 """Impostazioni (settings) views: password, tractors, species, and users."""
 
 from allauth.account.models import EmailAddress
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
@@ -676,8 +677,14 @@ def users_save(request):
         if email_dupes.exists():
             return _error(S.ERR_EMAIL_DUPLICATE)
 
+        unlink_social_accounts = False
         if row_id:
             user = User.objects.select_for_update().get(id=row_id)
+            unlink_social_accounts = (
+                login_method != LoginMethod.OAUTH
+                or user.login_method != login_method
+                or user.email.lower() != email.lower()
+            )
             user.username = username
             user.email = email
             user.first_name = first_name
@@ -709,8 +716,12 @@ def users_save(request):
                 user.set_unusable_password()
                 user.save()
 
-        # allauth matches incoming OAuth logins against verified EmailAddress
-        # rows, not against user.email.  Keep those rows in sync with the user.
+        # Reset old provider identities in the same transaction as the whitelist
+        # change. A future matching OAuth login can establish a fresh link.
+        if unlink_social_accounts:
+            SocialAccount.objects.filter(user=user).delete()
+
+        # Keep allauth's email lookup aligned with the admin-managed whitelist.
         _sync_email_address(user)
 
         mark_stale('audit')

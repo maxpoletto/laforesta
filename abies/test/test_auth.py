@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from allauth.core.exceptions import ImmediateHttpResponse
+from django.contrib.messages.storage.fallback import FallbackStorage
 
 from apps.base.auth import (
     NoSignupAdapter, WhitelistSocialAdapter, require_admin, require_writer,
@@ -68,12 +70,21 @@ class TestRoleDecorators:
         assert response.status_code == 200
 
 
-def _sociallogin(email, *, is_existing=False):
+def _sociallogin(email, *, is_existing=False, user=None):
     return SimpleNamespace(
         is_existing=is_existing,
-        user=SimpleNamespace(email=email),
+        user=user if user is not None else SimpleNamespace(email=email),
+        email_addresses=[SimpleNamespace(email=email)] if email else [],
         connect=Mock(),
     )
+
+
+@pytest.fixture
+def social_request(rf):
+    request = rf.get('/accounts/microsoft/login/callback/')
+    request.session = {}
+    request._messages = FallbackStorage(request)
+    return request
 
 
 def _oauth_user(email, **kwargs):
@@ -87,8 +98,9 @@ def _oauth_user(email, **kwargs):
 
 @pytest.mark.django_db
 class TestWhitelistSocialAdapter:
-    def test_existing_social_login_is_left_alone(self):
-        sociallogin = _sociallogin('person@example.com', is_existing=True)
+    def test_valid_existing_social_login_does_not_reconnect(self):
+        user = _oauth_user('person@example.com')
+        sociallogin = _sociallogin(user.email, is_existing=True, user=user)
 
         WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
 
@@ -102,22 +114,24 @@ class TestWhitelistSocialAdapter:
 
         sociallogin.connect.assert_called_once_with(None, user)
 
-    def test_no_match_does_not_connect(self):
+    def test_no_match_does_not_connect(self, social_request):
         sociallogin = _sociallogin('missing@example.com')
 
-        WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
+        with pytest.raises(ImmediateHttpResponse):
+            WhitelistSocialAdapter().pre_social_login(social_request, sociallogin)
 
         sociallogin.connect.assert_not_called()
 
-    def test_inactive_user_does_not_connect(self):
+    def test_inactive_user_does_not_connect(self, social_request):
         _oauth_user('person@example.com', is_active=False)
         sociallogin = _sociallogin('person@example.com')
 
-        WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
+        with pytest.raises(ImmediateHttpResponse):
+            WhitelistSocialAdapter().pre_social_login(social_request, sociallogin)
 
         sociallogin.connect.assert_not_called()
 
-    def test_password_method_user_does_not_connect(self):
+    def test_password_method_user_does_not_connect(self, social_request):
         _oauth_user(
             'person@example.com',
             login_method=LoginMethod.PASSWORD,
@@ -125,15 +139,17 @@ class TestWhitelistSocialAdapter:
         )
         sociallogin = _sociallogin('person@example.com')
 
-        WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
+        with pytest.raises(ImmediateHttpResponse):
+            WhitelistSocialAdapter().pre_social_login(social_request, sociallogin)
 
         sociallogin.connect.assert_not_called()
 
     @pytest.mark.parametrize('email', ['', None])
-    def test_blank_email_does_not_connect(self, email):
+    def test_blank_email_does_not_connect(self, email, social_request):
         sociallogin = _sociallogin(email)
 
-        WhitelistSocialAdapter().pre_social_login(request=None, sociallogin=sociallogin)
+        with pytest.raises(ImmediateHttpResponse):
+            WhitelistSocialAdapter().pre_social_login(social_request, sociallogin)
 
         sociallogin.connect.assert_not_called()
 

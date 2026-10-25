@@ -3,10 +3,13 @@
 from functools import wraps
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from django.contrib import messages
 from django.http import JsonResponse
+from django.shortcuts import redirect
 
-from apps.base.models import Role
+from apps.base.models import LoginMethod, Role, User
 from config import strings as S
 from config.constants import MESSAGE
 
@@ -33,23 +36,28 @@ class WhitelistSocialAdapter(DefaultSocialAccountAdapter):
     """
 
     def pre_social_login(self, request, sociallogin):
-        if sociallogin.is_existing:
-            return
-        email = (sociallogin.user.email or '').lower()
-        if not email:
-            return
-        from apps.base.models import LoginMethod, User
-        user = (User.objects
-                .filter(
-                    email__iexact=email,
-                    login_method=LoginMethod.OAUTH,
-                    is_active=True,
-                )
-                .order_by('id')
-                .first())
+        # Existing-link/email lookup replaces sociallogin.user with the local
+        # user before this hook. Only email_addresses still describes the
+        # incoming provider identity (Microsoft supplies one primary address).
+        email = (
+            (sociallogin.email_addresses[0].email or '').strip()
+            if sociallogin.email_addresses else ''
+        )
+        is_existing = sociallogin.is_existing
+        candidates = User.objects.filter(
+            email__iexact=email, login_method=LoginMethod.OAUTH, is_active=True,
+        ).exclude(email='')
+        if is_existing:
+            # A link cannot bypass policy or move to another whitelisted user.
+            candidates = candidates.filter(pk=sociallogin.user.pk)
+        user = candidates.order_by('id').first()
         if user is None:
-            return
-        sociallogin.connect(request, user)
+            messages.error(request, S.ERR_OAUTH_LOGIN_NOT_ALLOWED)
+            raise ImmediateHttpResponse(redirect('login'))
+        if is_existing:
+            sociallogin.user = user
+        else:
+            sociallogin.connect(request, user)
 
 
 def require_writer(view):
