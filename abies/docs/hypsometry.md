@@ -195,3 +195,15 @@ A refreshed reference bundle completely replaces Ipso's local hypsometric
 parameters for future field entries. Existing local sessions keep their recorded
 measurements; Abies never recomputes already-recorded tree heights after an
 active-set change.
+
+## Nonnegative harvestable volume
+
+Abies applies the same policy in the Python Tabacchi calculation and its
+JavaScript live preview: a negative equation estimate is zero harvestable
+volume, and its derived mass is zero. This covers very small measured trees
+below the fitted equation's intercept, without rejecting their measurements.
+Positive estimates, however small, retain their normal stored precision; there
+is no blanket minimum-diameter cutoff. Unknown heights/species remain unknown
+estimates, not zero. This policy does not change the recorded diameter or height.
+It changes new calculations/previews; previously stored estimates are not
+rewritten by this calculation change.

@@ -95,6 +95,22 @@ def test_volume_unknown_species_raises():
         tabacchi.tabacchi_volume_m3(20, 15, 'Altro')
 
 
+@pytest.mark.parametrize('name,d,h', [
+    ('Ontano', 5, 3), ('Pino Nero', 1, 1), ('Abete', 1, 1), ('Cerro', 1, 1),
+])
+def test_negative_estimates_are_zero_harvestable_volume(name, d, h):
+    from apps.base.models import tree_mass_q
+
+    volume = tabacchi.tabacchi_volume_m3(d, h, name)
+    assert volume == Decimal('0.0000')
+    assert not volume.is_signed()
+    assert tree_mass_q(volume, Decimal('9')) == Decimal('0.000')
+
+
+def test_small_positive_estimates_are_not_clamped():
+    assert tabacchi.tabacchi_volume_m3(1, 1, 'Faggio') == Decimal('0.0009')
+
+
 def test_has_species():
     assert tabacchi.has_species('Faggio')
     assert not tabacchi.has_species('Altro')
@@ -132,10 +148,11 @@ if (hasSpecies({legacy_name}) || tabacchiVolumeM3(30, 20, {legacy_name}) !== nul
 }}
 for (const sp of [...Object.keys(TABACCHI_B), ...Object.keys(TABACCHI_PROXIES)]) {{
   if (!hasSpecies(sp)) throw new Error(`Unsupported species: ${{sp}}`);
-  for (let d = 5; d <= 80; d += 5) {{
-    for (let h = 3; h <= 35; h += 2) {{
+  for (let d = 1; d <= 80; d += 1) {{
+    for (let h = 1; h <= 35; h += 2) {{
       const v = tabacchiVolumeM3(d, h, sp);
-      if (v == null || v <= 0) continue;
+      if (v == null) continue;
+      if (v < 0 || Object.is(v, -0)) throw new Error('Negative harvestable volume');
       const vStored = Number(v.toFixed(4));
       for (const dens of DENSITIES) {{
         const m = massQ(vStored, dens);

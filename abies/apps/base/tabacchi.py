@@ -71,6 +71,8 @@ def tabacchi_volume_m3(d_cm: Decimal | float | int,
     """Compute tree volume in m³ via the species-specific Tabacchi equation.
 
     Raises ValueError if the species isn't in the Tabacchi table.
+    Negative equation estimates represent zero harvestable volume; positive
+    estimates retain the normal four-decimal-place rounding.
 
     >>> tabacchi_volume_m3(30, 20, 'Faggio')
     Decimal('0.7022')
@@ -89,6 +91,8 @@ def _volume_from_b(d: float, h: float, b: Sequence[float]) -> Decimal:
         v_dm3 = b[0] + b[1] * d2h
     else:
         v_dm3 = b[0] + b[1] * d2h + b[2] * d
+    if v_dm3 <= 0:
+        v_dm3 = 0.0
     return (Decimal(v_dm3) / Decimal(1000)).quantize(Decimal('0.0001'))
 
 

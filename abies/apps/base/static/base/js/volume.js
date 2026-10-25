@@ -71,7 +71,9 @@ export function tabacchiVolumeM3(dCm, hM, speciesName) {
   const vDm3 = b.length === 2
     ? b[0] + b[1] * d2h
     : b[0] + b[1] * d2h + b[2] * d;
-  return vDm3 / 1000;
+  // Small trees can fall below the fitted intercept: their harvestable
+  // volume is zero, not negative. Do not floor small positive estimates.
+  return Math.max(0, vDm3) / 1000;
 }
 
 /**
