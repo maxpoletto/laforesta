@@ -1240,6 +1240,202 @@ class TestTreeSave:
         assert sample_patch[RECORD] == build_sample_record(s['sample'])
 
 
+class TestTreeSaveAtomicity:
+    @staticmethod
+    def _state():
+        return {
+            model.__name__: list(model.objects.order_by('pk').values())
+            for model in (Sample, Tree, TreeSample, DigestStatus, UsedNonce)
+        }
+
+    @staticmethod
+    def _body(survey, sample_setup):
+        return {
+            FIELD_SURVEY_ID: survey.id,
+            FIELD_SAMPLE_AREA_ID: (
+                sample_setup['area'].id if survey.sample_grid_id is not None else ''
+            ),
+            FIELD_PARCEL_ID: sample_setup['area'].parcel_id,
+            FIELD_SPECIES_ID: sample_setup['tree'].species_id,
+            FIELD_NUMBER: 42, FIELD_DATE: '2026-10-25',
+            FIELD_HIGHFOREST: 'true', FIELD_D_CM: 30, FIELD_H_M: '20',
+        }
+
+    @pytest.mark.parametrize('structured', [False, True])
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    @pytest.mark.parametrize('rejection', [
+        'unknown_species', 'legacy_species', 'invalid_prior_tree', 'pai_species_conflict',
+    ])
+    def test_validation_does_not_create_sample(
+            self, writer_client, sample_setup, species, monkeypatch,
+            structured, with_nonce, rejection):
+        survey = Survey.objects.create(
+            name='Rejected tree target',
+            sample_grid=sample_setup['grid'] if structured else None,
+        )
+        body = self._body(survey, sample_setup)
+        if with_nonce:
+            body[FIELD_NONCE] = 'rejected-sample'
+        if rejection == 'unknown_species':
+            body[FIELD_SPECIES_ID] = 999999
+        elif rejection == 'legacy_species':
+            body[FIELD_SPECIES_ID] = species[3].id
+        elif rejection == 'invalid_prior_tree':
+            body[FIELD_TREE_PICK] = '999999'
+        else:
+            TreeSample.objects.filter(sample=sample_setup['sample']).update(
+                preserved_number=42,
+            )
+            body[FIELD_PRESERVED] = 'true'
+            body[FIELD_SPECIES_ID] = species[1].id
+
+        before = self._state()
+        saved_samples = []
+        original_save = Sample.save
+
+        def track_save(sample, *args, **kwargs):
+            saved_samples.append(sample.pk)
+            return original_save(sample, *args, **kwargs)
+
+        monkeypatch.setattr(Sample, 'save', track_save)
+        response = TestTreeSave._post(writer_client, body)
+
+        assert response.status_code == 400, response.content
+        assert response.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert self._state() == before
+        assert saved_samples == []
+
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    @pytest.mark.parametrize('rejection', ['stale', 'missing'])
+    def test_rejected_edit_to_new_date_does_not_create_sample(
+            self, writer_client, sample_setup, with_nonce, rejection):
+        survey = Survey.objects.create(name='Free edit target')
+        sample = Sample.objects.create(survey=survey, date=date(2026, 10, 1))
+        target = TreeSample.objects.create(
+            sample=sample, tree=sample_setup['tree'],
+            parcel=sample_setup['area'].parcel, number=42,
+            d_cm=30, h_m=Decimal('20.00'),
+        )
+        body = {
+            **self._body(survey, sample_setup), VERSION: 0,
+            ROW_ID: target.id if rejection == 'stale' else 999999,
+        }
+        if with_nonce:
+            body[FIELD_NONCE] = 'rejected-date-edit'
+        before = self._state()
+
+        response = TestTreeSave._post(writer_client, body)
+
+        assert response.status_code == (400 if rejection == 'stale' else 404)
+        if rejection == 'stale':
+            assert response.json()[STATUS] == STATUS_CONFLICT
+        assert self._state() == before
+
+    @pytest.mark.parametrize('structured', [False, True])
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    def test_child_write_failure_rolls_back_parent_sample(
+            self, writer_client, sample_setup, monkeypatch, structured, with_nonce):
+        survey = Survey.objects.create(
+            name='Failed measurement target',
+            sample_grid=sample_setup['grid'] if structured else None,
+        )
+        body = self._body(survey, sample_setup)
+        if with_nonce:
+            body[FIELD_NONCE] = 'failed-measurement'
+        before = self._state()
+
+        def fail_measurement(*args, **kwargs):
+            raise RuntimeError('Injected measurement failure')
+
+        monkeypatch.setattr(csv_trees, 'tree_volume_and_mass', fail_measurement)
+        writer_client.raise_request_exception = False
+        response = TestTreeSave._post(writer_client, body)
+
+        assert response.status_code == 500
+        assert self._state() == before
+
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    def test_later_coppice_shoot_failure_rolls_back_sample_and_earlier_shoot(
+            self, writer_client, sample_setup, monkeypatch, with_nonce):
+        survey = Survey.objects.create(name='Failed coppice target')
+        body = {
+            **self._body(survey, sample_setup), FIELD_HIGHFOREST: 'false',
+            'shoots': json.dumps([
+                {FIELD_SHOOT: shoot, FIELD_D_CM: 20, FIELD_H_M: '12', 'l10_mm': 0}
+                for shoot in (1, 2)
+            ]),
+        }
+        if with_nonce:
+            body[FIELD_NONCE] = 'failed-second-shoot'
+        before = self._state()
+        original_create = TreeSample.objects.create
+        created_ids = []
+
+        def fail_second_shoot(*args, **kwargs):
+            if created_ids:
+                raise RuntimeError('Injected second-shoot failure')
+            measurement = original_create(*args, **kwargs)
+            created_ids.append(measurement.id)
+            return measurement
+
+        monkeypatch.setattr(TreeSample.objects, 'create', fail_second_shoot)
+        writer_client.raise_request_exception = False
+        response = TestTreeSave._post(writer_client, body)
+
+        assert response.status_code == 500
+        assert len(created_ids) == 1
+        assert self._state() == before
+
+    @pytest.mark.parametrize('with_nonce', [False, True])
+    def test_valid_edit_to_new_date_creates_sample_and_moves_measurement(
+            self, writer_client, sample_setup, with_nonce):
+        survey = Survey.objects.create(name='Successful free date edit')
+        sample = Sample.objects.create(survey=survey, date=date(2026, 10, 1))
+        target = TreeSample.objects.create(
+            sample=sample, tree=sample_setup['tree'],
+            parcel=sample_setup['area'].parcel, number=42,
+            d_cm=30, h_m=Decimal('20.00'),
+        )
+        body = {
+            **self._body(survey, sample_setup), ROW_ID: target.id, VERSION: target.version,
+        }
+        if with_nonce:
+            body[FIELD_NONCE] = 'successful-date-edit'
+
+        response = TestTreeSave._post(writer_client, body)
+
+        assert response.status_code == 200, response.content
+        target.refresh_from_db()
+        assert target.sample.date == date(2026, 10, 25)
+        assert target.sample_id != sample.id
+        assert target.tree_id == sample_setup['tree'].id
+        assert Sample.objects.filter(survey=survey).count() == 2
+        assert _patch(response.json(), 'samples', target.sample_id)
+
+    @pytest.mark.parametrize('structured', [False, True])
+    def test_retry_completed_after_initial_nonce_lookup_replays_success(
+            self, writer_client, sample_setup, monkeypatch, structured):
+        from apps.base.idempotency import NonceWrite
+
+        survey = Survey.objects.create(
+            name='Concurrent tree retry target',
+            sample_grid=sample_setup['grid'] if structured else None,
+        )
+        body = {**self._body(survey, sample_setup), FIELD_NONCE: 'concurrent-sample'}
+        first = TestTreeSave._post(writer_client, body)
+        assert first.status_code == 200, first.content
+        before = self._state()
+        # Simulate a retry whose initial cache lookup ran before the original
+        # request committed, but whose validation sees its completed writes.
+        monkeypatch.setattr(NonceWrite, 'cached_response', lambda self: None)
+
+        retry = TestTreeSave._post(writer_client, body)
+
+        assert retry.status_code == 200, retry.content
+        assert retry.json() == first.json()
+        assert self._state() == before
+
+
 class TestTreeFormPriorTrees:
     """Form GET reflects the prior-trees pulldown contents."""
 

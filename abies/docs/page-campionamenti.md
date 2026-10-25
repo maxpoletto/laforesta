@@ -369,6 +369,15 @@ existing sample for that survey and date, creating one only if needed. There
 may legitimately be several same-date samples because each CSV import and each
 Bosco/PAI entry creates its own sample.
 
+Resolving the target sample during validation is read-only: a missing sample
+is only an unsaved candidate. Species, prior-tree and PAI identity checks, tree
+number/shoot conflicts, and (for edits) the row's current version must all pass
+before it is persisted. The parent sample, physical tree and all measurements
+are then saved in one transaction. A rejected create/edit or failed shoot write
+cannot leave an empty sample or partial measurements behind, with or without a
+request nonce. Existing samples are not deleted when a measurement moves to
+another date.
+
 New rows in the canonical free survey `Alberi da preservare` default the PAI
 checkbox on, so they immediately participate in the parcel-scoped preserved
 tree identity and appear in Bosco/PAI. The checkbox remains editable. Other

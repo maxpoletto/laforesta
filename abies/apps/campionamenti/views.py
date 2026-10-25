@@ -215,9 +215,10 @@ def tree_save_view(request):
     if errors:
         return _validation_error(errors, ts_id, request, body)
 
-    # This helper can create the parent Sample, before the tree itself.
+    # Claim before database validation so an in-flight retry replays success
+    # rather than rejecting the original request's newly committed rows.
     begin_nonce_write(request)
-    sample = _find_or_create_sample(parsed, ts_id=ts_id)
+    sample = _resolve_sample(parsed, ts_id=ts_id)
     if sample is None:
         return _validation_error(
             [S.ERR_AREA_OUT_OF_SURVEY], ts_id, request, body,
@@ -253,7 +254,7 @@ def tree_save_view(request):
     # A tree number can appear at most once in the active sample.  This
     # also catches stale/direct posts for existing trees hidden from the
     # pulldown because the active sample already has that number.
-    dup = TreeSample.objects.filter(sample=sample, number=parsed[FIELD_NUMBER])
+    dup = TreeSample.objects.filter(sample_id=sample.pk, number=parsed[FIELD_NUMBER])
     if ts_id:
         dup = dup.exclude(id=ts_id)
         if existing_tree is not None and parsed[FIELD_COPPICE]:
@@ -314,7 +315,7 @@ def tree_save_view(request):
 
     if parsed[FIELD_COPPICE] and not ts_id and existing_tree is not None:
         existing_shoots = set(TreeSample.objects.filter(
-            sample=sample, tree=existing_tree,
+            sample_id=sample.pk, tree=existing_tree,
         ).values_list(FIELD_SHOOT, flat=True))
         new_shoots = {s[FIELD_SHOOT] for s in parsed[FIELD_SHOOTS]}
         collision = sorted(existing_shoots & new_shoots)
@@ -326,11 +327,28 @@ def tree_save_view(request):
 
     with transaction.atomic():
         if ts_id:
-            ts = _update_tree_sample(
-                ts_id, sample, parsed, body, request, species, preserved_tree,
-            )
-            if isinstance(ts, JsonResponse):
-                return ts
+            ts = (TreeSample.objects
+                  .select_for_update()
+                  .select_related(
+                      'sample__survey', 'sample__sample_area__parcel__region',
+                      'parcel__region', 'tree__species',
+                  )
+                  .filter(id=ts_id)
+                  .first())
+            if ts is None:
+                return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+            if ts.version != submitted_version(body):
+                return conflict_response(
+                    data_id=f'sampled_trees_{ts.sample.survey_id}', row_id=ts.id,
+                    record=build_tree_sample_record(ts),
+                    html=_render_tree_form(request, ts.id, None, None),
+                )
+        # Validation and optimistic locking must finish before a missing
+        # parent is saved. Its creation then rolls back with its measurements.
+        if sample.pk is None:
+            sample.save()
+        if ts_id:
+            _update_tree_sample(ts, sample, parsed, species, preserved_tree)
             created_or_updated_ids = [ts.id]
         elif parsed[FIELD_COPPICE]:
             tree = preserved_tree or existing_tree or Tree.objects.create(
@@ -1261,8 +1279,8 @@ def _preserved_cache_changes(before, after):
     return patches, deletes
 
 
-def _find_or_create_sample(parsed, *, ts_id=None):
-    """Return the Sample row for the parsed survey scope, creating it if needed.
+def _resolve_sample(parsed, *, ts_id=None):
+    """Resolve an existing Sample or an unsaved candidate, without writes.
 
     Structured surveys group by (survey, sample_area).  Unstructured surveys
     group manual Abies entries by (survey, date) with sample_area=NULL.
@@ -1309,7 +1327,7 @@ def _find_or_create_sample(parsed, *, ts_id=None):
             .order_by('id')
             .first()
         )
-        return sample or Sample.objects.create(
+        return sample or Sample(
             sample_area=None, survey=survey, date=sample_date,
         )
 
@@ -1323,11 +1341,8 @@ def _find_or_create_sample(parsed, *, ts_id=None):
         return None
     if area.sample_grid_id != survey.sample_grid_id:
         return None
-    sample, _ = Sample.objects.get_or_create(
-        sample_area=area, survey=survey,
-        defaults={FIELD_DATE: sample_date},
-    )
-    return sample
+    sample = Sample.objects.filter(sample_area=area, survey=survey).first()
+    return sample or Sample(sample_area=area, survey=survey, date=sample_date)
 
 
 def _sample_date_conflict_error(sample):
@@ -1338,25 +1353,7 @@ def _sample_date_conflict_error(sample):
     )
 
 
-def _update_tree_sample(
-        ts_id, sample, parsed, body, request, species, preserved_tree,
-):
-    ts = (TreeSample.objects
-          .select_for_update()
-          .select_related(
-              'sample__survey', 'sample__sample_area__parcel__region',
-              'parcel__region', 'tree__species',
-          )
-          .filter(id=ts_id)
-          .first())
-    if ts is None:
-        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if ts.version != submitted_version(body):
-        return conflict_response(
-            data_id=f'sampled_trees_{ts.sample.survey_id}', row_id=ts.id,
-            record=build_tree_sample_record(ts),
-            html=_render_tree_form(request, ts.id, None, None),
-        )
+def _update_tree_sample(ts, sample, parsed, species, preserved_tree):
     ts.sample = sample
     if preserved_tree is not None:
         ts.tree = preserved_tree
