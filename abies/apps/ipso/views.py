@@ -20,6 +20,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.exceptions import RequestDataTooBig
+from django.core.files import File
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -48,6 +49,9 @@ from apps.base.models import (
     natural_sort_key, parcel_sort_key,
 )
 from apps.base.numparse import coord_float, to_decimal
+from apps.base.observation_images import (
+    PhotoError, UploadBudget, check_photo_count, inspect_photo, prepare_photo, read_photo,
+)
 from apps.base.observation_storage import (
     atomic_write_observation_photo, normalize_observation_photo_content_type,
     observation_photo_absolute_path, observation_photo_relative_path,
@@ -1036,6 +1040,11 @@ def upload_session(request: HttpRequest) -> JsonResponse:
         normalized, csv_text, staged_photo_files = _validate_upload_payload(
             payload, request, photo_files,
         )
+    except PhotoError as e:
+        return _api_json({
+            OK: False, ERROR: IPSO_ERROR_TOO_LARGE if e.status_code == 413 else IPSO_ERROR_INVALID_PAYLOAD,
+            DETAIL: str(e),
+        }, status=413 if e.status_code == 413 else 422)
     except UploadValidationError as e:
         return _api_json({OK: False, ERROR: IPSO_ERROR_INVALID_PAYLOAD, DETAIL: str(e)}, status=422)
 
@@ -1817,14 +1826,22 @@ def _staged_observation_photos(
         upload: IpsoUpload, record: dict, index: int,
 ) -> tuple[list[tuple[dict, bytes]], str | None]:
     photos = []
+    budget = UploadBudget()
+    try:
+        check_photo_count(len(record.get(FIELD_PHOTOS, [])))
+    except PhotoError as exc:
+        return [], str(exc)
     root = Path(upload.inbox_path) / IPSO_UPLOAD_FILE_PHOTOS_DIR
     for photo in record.get(FIELD_PHOTOS, []):
         client_photo_id = photo.get(FIELD_CLIENT_PHOTO_ID, '')
         path = root / client_photo_id
         try:
-            content = path.read_bytes()
+            with path.open('rb') as stream:
+                content = read_photo(File(stream), budget)
         except FileNotFoundError:
             return [], S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format(client_photo_id)
+        except PhotoError as exc:
+            return [], str(exc)
         checksum = hashlib.sha256(content).hexdigest()
         expected = photo.get(FIELD_CHECKSUM, '')
         if not hmac.compare_digest(checksum, expected):
@@ -1834,8 +1851,17 @@ def _staged_observation_photos(
         ) or sniff_observation_photo_content_type(content)
         if content_type is None:
             return [], S.IPSO_ERR_UPLOAD_PHOTO_UNSUPPORTED.format(client_photo_id)
-        photo[FIELD_CONTENT_TYPE] = content_type
-        photos.append((photo, content))
+        try:
+            prepared = prepare_photo(content)
+        except PhotoError as exc:
+            return [], str(exc)
+        # Keep staged/wire metadata intact for upload identity and fingerprints.
+        stored_photo = {
+            **photo, FIELD_CONTENT_TYPE: 'image/jpeg',
+            FIELD_CHECKSUM: hashlib.sha256(prepared.content).hexdigest(),
+            FIELD_WIDTH_PX: prepared.width, FIELD_HEIGHT_PX: prepared.height,
+        }
+        photos.append((stored_photo, prepared.content))
     return photos, None
 
 
@@ -1967,6 +1993,8 @@ def _request_upload_payload(request: HttpRequest) -> tuple[dict, dict[str, dict]
 
 def _request_multipart_payload(request: HttpRequest) -> tuple[dict, dict[str, dict]]:
     payload_text = request.POST.get(IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD)
+    if getattr(request, 'photo_upload_error', None):
+        raise request.photo_upload_error
     if not payload_text:
         raise UploadValidationError(
             S.IPSO_ERR_FIELD_REQUIRED.format(IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD)
@@ -1982,6 +2010,7 @@ def _request_multipart_payload(request: HttpRequest) -> tuple[dict, dict[str, di
 
 def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
     files = {}
+    budget = UploadBudget()
     for field_name, uploaded_files in request.FILES.lists():
         if not field_name.startswith(IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX):
             continue
@@ -1999,7 +2028,7 @@ def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
                 S.IPSO_ERR_FIELD_STRING.format(FIELD_CLIENT_PHOTO_ID)
             )
         uploaded = uploaded_files[0]
-        content = b''.join(uploaded.chunks())
+        content = read_photo(uploaded, budget)
         checksum = hashlib.sha256(content).hexdigest()
         content_type = normalize_observation_photo_content_type(
             uploaded.content_type or '', content,
@@ -2008,12 +2037,15 @@ def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
             raise UploadValidationError(
                 S.IPSO_ERR_UPLOAD_PHOTO_UNSUPPORTED.format(client_photo_id)
             )
+        width, height = inspect_photo(content)
         files[client_photo_id] = {
             'content': content,
             FIELD_CHECKSUM: checksum,
             FIELD_CONTENT_TYPE: content_type,
             FIELD_ORIGINAL_FILENAME: uploaded.name or '',
             FIELD_SIZE_BYTES: len(content),
+            FIELD_WIDTH_PX: width,
+            FIELD_HEIGHT_PX: height,
         }
     return files
 
@@ -2229,6 +2261,7 @@ def _normalize_observation_photos(index: int, row: dict) -> list[dict]:
         return []
     if not isinstance(raw, list):
         raise UploadValidationError(S.IPSO_ERR_RECORD_PHOTOS_INVALID.format(index))
+    check_photo_count(len(raw))
     photos = []
     seen = set()
     for photo in raw:
@@ -2308,6 +2341,8 @@ def _attach_photo_files(
                 photo.get(FIELD_ORIGINAL_FILENAME) or info[FIELD_ORIGINAL_FILENAME]
             )
             photo[FIELD_SIZE_BYTES] = info[FIELD_SIZE_BYTES]
+            photo[FIELD_WIDTH_PX] = info[FIELD_WIDTH_PX]
+            photo[FIELD_HEIGHT_PX] = info[FIELD_HEIGHT_PX]
             staged[client_photo_id] = info['content']
     return staged
 

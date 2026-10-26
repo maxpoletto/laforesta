@@ -38,6 +38,17 @@ IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
 OBSERVATION_MEDIA_DIR = DATA_DIR / 'observation-media'
+# Input bounds apply before decoding; stored images are <=1024 px, JPEG 85.
+OBSERVATION_PHOTO_MAX_BYTES = int(os.environ.get('ABIES_PHOTO_MAX_BYTES', 12 * 1024 * 1024))
+OBSERVATION_UPLOAD_MAX_BYTES = int(os.environ.get('ABIES_PHOTO_UPLOAD_MAX_BYTES', 30 * 1024 * 1024))
+OBSERVATION_PHOTO_MAX_PIXELS = int(os.environ.get('ABIES_PHOTO_MAX_PIXELS', 50_000_000))
+OBSERVATION_MAX_PHOTOS = int(os.environ.get('ABIES_OBSERVATION_MAX_PHOTOS', 20))
+OBSERVATION_UPLOAD_MAX_PHOTOS = int(os.environ.get('ABIES_PHOTO_UPLOAD_MAX_COUNT', 100))
+FILE_UPLOAD_HANDLERS = [
+    'apps.base.uploads.ObservationUploadHandler',
+    'django.core.files.uploadhandler.MemoryFileUploadHandler',
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
 API_READ_RATE_LIMIT = int(os.environ.get(
     'ABIES_API_READ_RATE_LIMIT', '300',
 ))

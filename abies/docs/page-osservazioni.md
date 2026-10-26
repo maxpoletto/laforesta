@@ -16,6 +16,42 @@ Each observation stores:
 - one or more observation categories;
 - zero or more filesystem-backed photos.
 
+## Image policy and upload limits
+
+New permanent photos are resized proportionally to at most **1024 px on the long
+axis**, without upscaling, and encoded as JPEG at **quality 85**. EXIF orientation
+is applied before resizing. JPEG, PNG, WebP, GIF and HEIC/HEIF inputs must decode
+successfully; static JPEG output uses the first frame of animated inputs. HEIF
+decoding uses the Pillow HEIF plugin. Original filenames remain in metadata.
+
+Bosco extracts JPEG EXIF GPS and capture time before re-encoding and keeps them
+in the photo row. Ipso retains its device-supplied coordinates/time; EXIF GPS
+does not override those values. Permanent dimensions, byte size and checksum
+describe the stored JPEG. Existing stored photos retain their original bytes.
+
+Input limits are authoritative on the server, including for older/offline Ipso
+clients and browser conversion failures:
+
+| Bound | Default | Environment setting |
+| --- | --- | --- |
+| Raw bytes per photo | 12 MiB | `ABIES_PHOTO_MAX_BYTES` |
+| Combined photo bytes per request | 30 MiB | `ABIES_PHOTO_UPLOAD_MAX_BYTES` |
+| Decoded pixels per photo | 50 million | `ABIES_PHOTO_MAX_PIXELS` |
+| Photos per observation, including retained photos | 20 | `ABIES_OBSERVATION_MAX_PHOTOS` |
+| File parts per upload request | 100 | `ABIES_PHOTO_UPLOAD_MAX_COUNT` |
+
+Django's upload handler enforces file bytes/count while receiving multipart
+streams, before full buffering. Shared bounded readers also check actual chunks;
+claimed sizes/MIME labels/dimensions are insufficient. Pixel bounds precede full
+decoding. Malformed/unsupported images are rejected, rather than saved based on
+their file signature alone. The Ipso session-body limit remains an additional
+bound, published to the PWA in upload configuration.
+
+Limit failures return HTTP 413 with localized guidance; malformed images return
+desktop HTTP 400 or native Ipso HTTP 422. The desktop form keeps entered values
+and pending file selections on these errors. Rejection creates no observation,
+photo row or retry receipt.
+
 ## Ipso field capture
 
 In Ipso, Osservazioni are a field mode. The operator records observation text,
@@ -29,7 +65,7 @@ position as authoritative.
 Ipso can attach photos from the gallery or by opening the camera. Gallery photos
 stay location-free. Camera photos carry the device GPS snapshot captured just
 before Ipso opens the camera app, plus a capture-position timestamp. Before
-upload, the PWA attempts to resize/recompress large images and reports each file
+upload, PWA version 1.5.3 attempts the same 1024 px / JPEG 85 preparation and reports each file
 as:
 
 ```
@@ -45,6 +81,14 @@ Ipso uploads are staged under `IPSO_INBOX_DIR` as an `IpsoUpload` row plus
 filesystem payload files. Observation uploads use multipart form data: the JSON
 payload lists records and photo metadata, while each photo is sent as a separate
 part keyed by its client photo id.
+
+Staging retains the received bytes and their checksum so upload retries and
+import fingerprints keep their transport identity. Incoming images are decoded
+and checked against limits before staging; reported dimensions are verified.
+Import validates the staged checksum and prepares the permanent JPEG before
+opening the domain write transaction. Rendition checksums never replace the
+staged upload's identity. This also supports pending sessions created by older
+PWA versions, subject to the server input bounds.
 
 The import page validates observation uploads before creating domain rows:
 

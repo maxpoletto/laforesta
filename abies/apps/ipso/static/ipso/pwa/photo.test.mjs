@@ -138,7 +138,7 @@ await withImageConversionEnv(
       'prepareObservationPhoto reports original dimensions',
     );
     check(
-      prepared[FIELD_WIDTH_PX] === 2000 && prepared[FIELD_HEIGHT_PX] === 1000,
+      prepared[FIELD_WIDTH_PX] === 1024 && prepared[FIELD_HEIGHT_PX] === 512,
       'prepareObservationPhoto reports converted dimensions',
     );
     check(
@@ -146,11 +146,11 @@ await withImageConversionEnv(
       'prepareObservationPhoto reports converted status for resized photos',
     );
     check(
-      encoded.width === 2000 && encoded.height === 1000,
-      'prepareObservationPhoto caps large photo dimensions at 2000 px',
+      encoded.width === 1024 && encoded.height === 512,
+      'prepareObservationPhoto caps large photo dimensions at 1024 px',
     );
     close(
-      encoded.quality, photos.PHOTO_JPEG_QUALITY,
+      encoded.quality, 0.85,
       'prepareObservationPhoto encodes large photo with configured JPEG quality',
     );
   },

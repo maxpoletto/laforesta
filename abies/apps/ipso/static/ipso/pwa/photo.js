@@ -10,8 +10,8 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
   Object.assign(globalThis, require('./constants.js'));
 }
 
-const PHOTO_MAX_DIMENSION_PX = 2000;
-const PHOTO_JPEG_QUALITY = 0.82;
+const PHOTO_MAX_DIMENSION_PX = 1024;
+const PHOTO_JPEG_QUALITY = 0.85;
 const PHOTO_OUTPUT_TYPE = 'image/jpeg';
 
 async function prepareObservationPhoto(file, opts = {}) {

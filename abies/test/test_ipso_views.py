@@ -59,7 +59,36 @@ from config.constants import (
 )
 
 
-JPEG_BYTES = b'\xff\xd8\xffphoto-bytes'
+from test.image_helpers import image_bytes
+
+JPEG_BYTES = image_bytes((20, 10))
+
+
+@pytest.mark.parametrize('limit', ['file', 'pixels', 'count'])
+def test_ipso_photo_limits_are_enforced_on_server(db, parcels, settings, tmp_path, limit):
+    from test.image_helpers import image_bytes
+    settings.IPSO_SECRET = 'test-token'
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.create(name='Photo limits')
+    payload = _observation_payload(parcels[0], category, record_overrides={
+        FIELD_PHOTOS: [{FIELD_CLIENT_PHOTO_ID: 'photo-1'}],
+    })
+    content = image_bytes()
+    files = {'photo:photo-1': SimpleUploadedFile('photo.jpg', content, 'image/jpeg')}
+    if limit == 'file':
+        settings.OBSERVATION_PHOTO_MAX_BYTES = len(content) - 1
+    elif limit == 'pixels':
+        settings.OBSERVATION_PHOTO_MAX_PIXELS = 799
+    else:
+        settings.OBSERVATION_MAX_PHOTOS = 1
+        payload[RECORDS][0][FIELD_PHOTOS].append({FIELD_CLIENT_PHOTO_ID: 'photo-2'})
+        files['photo:photo-2'] = SimpleUploadedFile('second.jpg', content, 'image/jpeg')
+
+    response = _post_multipart_upload(Client(), payload, files)
+
+    assert response.status_code == 413, response.content[:200]
+    assert response.json()[ERROR] == IPSO_ERROR_TOO_LARGE
+    assert not IpsoUpload.objects.exists()
 
 
 def _body(resp) -> bytes:
@@ -1015,6 +1044,7 @@ def test_import_observation_upload_creates_observations_and_photos(
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     settings.OBSERVATION_MEDIA_DIR = tmp_path / 'observation-media'
     category = ObservationCategory.objects.get(name='viabilità')
+    source_image = image_bytes((2000, 1000))
     payload = _observation_payload(
         parcels[0], category,
         session_id='79797979-7979-4797-8797-797979797979',
@@ -1034,10 +1064,14 @@ def test_import_observation_upload_creates_observations_and_photos(
     )
     assert _post_multipart_upload(Client(), payload, {
         'photo:photo-1': SimpleUploadedFile(
-            'sentiero.jpg', JPEG_BYTES, content_type='image/jpeg',
+            'sentiero.jpg', source_image, content_type='image/jpeg',
         ),
     }).status_code == 200
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
+    staged_path = Path(upload.inbox_path) / 'upload.json'
+    staged_bytes = staged_path.read_bytes()
+    staged_record = json.loads(staged_bytes)[RECORDS][0]
+    fingerprint = ipso_views._observation_import_fingerprint(upload.session_id, staged_record)
 
     resp = writer_client.post(
         reverse('ipso-upload-import-observations', args=[upload.id]),
@@ -1059,14 +1093,18 @@ def test_import_observation_upload_creates_observations_and_photos(
     assert list(observation.categories.values_list('name', flat=True)) == ['viabilità']
     photo = ObservationPhoto.objects.get(observation=observation)
     assert photo.content_type == 'image/jpeg'
-    assert photo.size_bytes == len(JPEG_BYTES)
-    assert photo.width_px == 20
-    assert photo.height_px == 10
+    stored = (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes()
+    assert photo.size_bytes == len(stored)
+    assert photo.checksum == hashlib.sha256(stored).hexdigest()
+    assert photo.width_px == 1024
+    assert photo.height_px == 512
     assert photo.original_filename == 'sentiero.jpg'
     assert photo.lat == 38.51235
     assert photo.lon == 16.12346
     assert photo.taken_at == datetime(2026, 7, 31, 10, 15, 30, tzinfo=dt_timezone.utc)
-    assert (settings.OBSERVATION_MEDIA_DIR / photo.file_path).read_bytes() == JPEG_BYTES
+    assert staged_path.read_bytes() == staged_bytes
+    assert observation.import_fingerprint == fingerprint
+    assert (Path(upload.inbox_path) / IPSO_UPLOAD_FILE_PHOTOS_DIR / 'photo-1').read_bytes() == source_image
 
 
 @override_settings(IPSO_SECRET='test-token')

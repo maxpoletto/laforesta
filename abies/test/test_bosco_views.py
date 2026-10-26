@@ -2,6 +2,7 @@
 
 import base64
 import gzip
+import hashlib
 import json
 import re
 from datetime import date as date_type, datetime, timezone
@@ -9,6 +10,7 @@ from decimal import Decimal
 
 import numpy as np
 import pytest
+from test.image_helpers import image_bytes
 import rasterio
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
@@ -279,7 +281,9 @@ def test_observation_save_creates_manual_observation_with_photo(
     assert photo.original_filename == 'ramo.jpg'
     assert photo.lat == pytest.approx(38.612345)
     assert photo.lon == pytest.approx(16.412345)
-    assert (tmp_path / photo.file_path).read_bytes() == content
+    stored = (tmp_path / photo.file_path).read_bytes()
+    assert hashlib.sha256(stored).hexdigest() == photo.checksum
+    assert (photo.width_px, photo.height_px) == (40, 20)
     patch = resp.json()[PATCHES][0]
     assert patch[DATA_ID] == DIGEST_OBSERVATIONS
     assert patch[ROW_ID] == observation.id
@@ -322,7 +326,7 @@ def test_observation_multipart_retry_replays_success_without_saving_again(
     observation = Observation.objects.get()
     assert observation.version == (2 if edit_existing else 1)
     photo = ObservationPhoto.objects.get(observation=observation)
-    assert (tmp_path / photo.file_path).read_bytes() == b'\xff\xd8\xffjpeg'
+    assert hashlib.sha256((tmp_path / photo.file_path).read_bytes()).hexdigest() == photo.checksum
     assert len(list(tmp_path.rglob('*.jpg'))) == 1
     assert DigestStatus.objects.get(name=DIGEST_OBSERVATIONS).dirty_seq == dirty_seq
 
@@ -371,7 +375,7 @@ def test_observation_save_updates_categories_and_photos(
         FIELD_LON: '16.7',
         FIELD_ACC_M: '9',
         FIELD_NONCE: 'observation-update',
-        FIELD_PHOTOS: _jpeg_upload('new.jpg', b'\xff\xd8\xffnew'),
+        FIELD_PHOTOS: _jpeg_upload('new.jpg', image_bytes(color='blue')),
     }
 
     resp = writer_client.post('/api/bosco/observations/save/', body)
@@ -445,8 +449,9 @@ def test_observation_delete_removes_observation(writer_client, tmp_path, setting
     }]
 
 
-def _jpeg_upload(name='photo.jpg', content=b'\xff\xd8\xffjpeg'):
-    return SimpleUploadedFile(name, content, content_type='image/jpeg')
+def _jpeg_upload(name='photo.jpg', content=None):
+    return SimpleUploadedFile(name, image_bytes() if content is None else content,
+                              content_type='image/jpeg')
 
 
 def _stored_observation_photo(tmp_path, observation, filename, content, checksum):

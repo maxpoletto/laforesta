@@ -218,16 +218,18 @@ def jpeg_with_exif_gps():
 
 
 def _jpeg_with_exif_gps(lat=38.512345, lon=16.123455):
+    from test.image_helpers import image_bytes
     lat_ref = b'S' if lat < 0 else b'N'
     lon_ref = b'W' if lon < 0 else b'E'
     tiff = _gps_exif_tiff(abs(lat), abs(lon), lat_ref, lon_ref)
     app1 = b'Exif\0\0' + tiff
+    jpeg = image_bytes()
     return (
-        b'\xff\xd8'
+        jpeg[:2]
         + b'\xff\xe1'
         + (len(app1) + 2).to_bytes(2, 'big')
         + app1
-        + b'\xff\xd9'
+        + jpeg[2:]
     )
 
 

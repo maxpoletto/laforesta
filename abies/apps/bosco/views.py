@@ -38,8 +38,11 @@ from apps.base.models import (
     parcel_sort_key,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
+from apps.base.observation_images import (
+    PhotoError, UploadBudget, check_photo_count, prepare_photo, read_photo,
+)
 from apps.base.observation_storage import (
-    atomic_write_observation_photo, extract_observation_photo_gps,
+    atomic_write_observation_photo,
     normalize_observation_photo_content_type, observation_photo_absolute_path,
     observation_photo_relative_path, sniff_observation_photo_content_type,
 )
@@ -207,10 +210,16 @@ def observation_form_view(request, observation_id: int | None = None):
 @require_POST
 def observation_save_view(request):
     body = request.POST
+    if getattr(request, 'photo_upload_error', None):
+        return _photo_error_response(request.photo_upload_error)
     row_id, values, category_ids, keep_photo_ids, errors = (
         _parse_observation_body(body)
     )
-    uploaded_photos, photo_errors = _uploaded_observation_photos(request)
+    try:
+        check_photo_count(len(keep_photo_ids) + len(request.FILES.getlist(FIELD_PHOTOS)))
+        uploaded_photos, photo_errors = _uploaded_observation_photos(request)
+    except PhotoError as exc:
+        return _photo_error_response(exc)
     errors.extend(photo_errors)
     if errors:
         return validation_error(
@@ -572,13 +581,21 @@ def _parse_observation_body(body):
     }, category_ids, keep_photo_ids, errors
 
 
+def _photo_error_response(error):
+    # No replacement HTML: preserve pending files and entered values on retry.
+    response = validation_error([str(error)])
+    response.status_code = error.status_code
+    return response
+
+
 def _uploaded_observation_photos(request):
     photos = []
     errors = []
     seen_checksums = set()
+    budget = UploadBudget()
     for uploaded in request.FILES.getlist(FIELD_PHOTOS):
-        content = b''.join(uploaded.chunks())
-        checksum = hashlib.sha256(content).hexdigest()
+        content = read_photo(uploaded, budget)
+        source_checksum = hashlib.sha256(content).hexdigest()
         filename = _uploaded_observation_filename(uploaded.name)
         content_type = normalize_observation_photo_content_type(
             uploaded.content_type or '', content,
@@ -588,24 +605,26 @@ def _uploaded_observation_photos(request):
                 S.ERR_BOSCO_OBSERVATION_PHOTO_UNSUPPORTED.format(filename),
             )
             continue
+        prepared = prepare_photo(content, extract_metadata=True)
+        checksum = hashlib.sha256(prepared.content).hexdigest()
         if checksum in seen_checksums:
             errors.append(
                 S.ERR_BOSCO_OBSERVATION_PHOTO_DUPLICATE.format(filename),
             )
             continue
         seen_checksums.add(checksum)
-        gps = (
-            extract_observation_photo_gps(content)
-            if content_type == 'image/jpeg' else None
-        )
         photos.append({
-            'content': content,
+            'content': prepared.content,
+            'source_checksum': source_checksum,
             FIELD_CHECKSUM: checksum,
-            FIELD_CONTENT_TYPE: content_type,
+            FIELD_CONTENT_TYPE: 'image/jpeg',
             FIELD_ORIGINAL_FILENAME: filename,
-            FIELD_SIZE_BYTES: len(content),
-            FIELD_LAT: gps[0] if gps else None,
-            FIELD_LON: gps[1] if gps else None,
+            FIELD_SIZE_BYTES: len(prepared.content),
+            FIELD_WIDTH_PX: prepared.width,
+            FIELD_HEIGHT_PX: prepared.height,
+            FIELD_LAT: prepared.lat,
+            FIELD_LON: prepared.lon,
+            FIELD_TAKEN_AT: prepared.taken_at,
         })
     return photos, errors
 
@@ -626,7 +645,7 @@ def _validate_observation_photo_sync(
         existing_by_id[photo_id].checksum for photo_id in keep_photo_ids
     }
     for photo in uploaded_photos:
-        if photo[FIELD_CHECKSUM] in kept_checksums:
+        if ({photo[FIELD_CHECKSUM], photo['source_checksum']} & kept_checksums):
             return [
                 S.ERR_BOSCO_OBSERVATION_PHOTO_DUPLICATE.format(
                     photo[FIELD_ORIGINAL_FILENAME],
@@ -674,8 +693,11 @@ def _store_bosco_observation_photo(
         size_bytes=photo[FIELD_SIZE_BYTES],
         checksum=photo[FIELD_CHECKSUM],
         original_filename=photo[FIELD_ORIGINAL_FILENAME],
+        width_px=photo[FIELD_WIDTH_PX],
+        height_px=photo[FIELD_HEIGHT_PX],
         lat=photo.get(FIELD_LAT),
         lon=photo.get(FIELD_LON),
+        taken_at=photo.get(FIELD_TAKEN_AT),
     )
 
 

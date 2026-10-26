@@ -138,9 +138,12 @@ def test_multipart_receipt_failure_rolls_back_observation_and_photo_rows(
         'lat': '38.1', 'lon': '16.1', 'category_ids': [category.id],
     }
 
-    def submit(content=b'\xff\xd8\xffphoto'):
+    from test.image_helpers import image_bytes
+
+    def submit(content=None):
         return writer_client.post('/api/bosco/observations/save/', {
-            **body, 'photos': SimpleUploadedFile('photo.jpg', content, 'image/jpeg'),
+            **body, 'photos': SimpleUploadedFile(
+                'photo.jpg', image_bytes() if content is None else content, 'image/jpeg'),
         })
 
     with patch.object(responses, 'save_nonce', side_effect=fail_receipt):
@@ -211,8 +214,9 @@ def test_changed_photo_is_not_silently_replayed(writer_client, regions, settings
             **body, 'photos': SimpleUploadedFile('photo.jpg', content, 'image/jpeg'),
         })
 
-    assert submit(b'\xff\xd8\xfforiginal').status_code == 200
-    assert submit(b'\xff\xd8\xffdifferent').status_code == 409
+    from test.image_helpers import image_bytes
+    assert submit(image_bytes(color='green')).status_code == 200
+    assert submit(image_bytes(color='blue')).status_code == 409
     assert Observation.objects.count() == ObservationPhoto.objects.count() == 1
 
 

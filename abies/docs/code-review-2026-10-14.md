@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 26 October 2026, through `3c2026a`. **C1–C11 and S1 are
+Progress updated: 26 October 2026. **C1–C11, S1 and S2 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -68,7 +68,7 @@ in R2 keep their priorities.
 | P3 | C12 Concurrent digest generators can publish an old result as fresh | Deferred | Revisit before adding workers/threads or concurrent generators |
 | P2 | C13 Audit events within one minute are not reliably newest first | Open | Reproduced |
 | P2 | C14 Account administration lacks a stale-form guard | Open | Choice validation done in C10; stale-form guard remains |
-| P2 | S2 Desktop observation photographs lack application byte limits | Open | Reproduced |
+| P2 | S2 Desktop observation photographs lack application byte limits | Fixed | Shared streaming byte/count limits, decoder/pixel bounds and normalization |
 | P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Open | Source-established configuration risk |
 | P2 | S4 Dependency versions need a reproducible security-update policy | Open | Local versions and upstream notices checked on the review date |
 | P2 | R2 Restore documentation and replacement sequencing need hardening | Open | General recovery work remains; SQLite file-replacement details are P3 |
@@ -313,6 +313,16 @@ The result is access through a formerly linked identity after an administrator h
 Revalidate the login policy for existing social links on every login. Define unlink/relink behavior when changing a login method or identity email, and make the admin UI explain the consequence. Test actual callback completion as well as adapter lookup. Keep account deactivation and session revocation semantics explicit.
 
 ### S2 Desktop observation photographs lack application byte limits
+
+**Status: Fixed.** Both desktop and Ipso photo paths now enforce actual streamed
+bytes/count, per-observation photo counts, and decoded-pixel bounds. Fully
+decoded images become proportional <=1024 px JPEGs at quality 85; orientation and
+relevant metadata are preserved. Ipso also prepares the smaller image before
+transmission. Staged mobile checksums remain stable for retries/import identity.
+Malformed/oversized inputs leave no domain rows or nonce receipt; desktop errors
+preserve the pending form. Regression tests use genuine images and bounded
+streams, including false size claims. Defaults and operator-facing behavior are
+documented in [Osservazioni](page-osservazioni.md#image-policy-and-upload-limits).
 
 Source: [photo parsing](../apps/bosco/views.py), `_uploaded_observation_photos` at line 571. Compare [Ipso upload limits](../apps/ipso/views.py), `_upload_too_large` and `_validate_upload_payload`.
 
@@ -581,11 +591,11 @@ treating a successful mocked fetch as the only path.
 ## Suggested implementation sequence
 
 Use small changes with their own regression tests and documentation updates.
-C1–C11 and S1 are complete; the remaining sequence is:
+C1–C11, S1 and S2 are complete; the remaining sequence is:
 
 1. **Close the remaining P1 recovery gap:** R1 consistent database/media capture.
-2. **Repair remaining security/request bounds:** S2 streaming photo limits, S3
-   effective OAuth tenant validation, and S4 reproducible dependency updates.
+2. **Repair remaining security/configuration work:** S3 effective OAuth tenant
+   validation and S4 reproducible dependency updates.
 3. **Finish bounded correctness/admin work:** C13 full-time audit sorting and
    C14 stale account forms and remaining account validation/policy decisions.
 4. **Strengthen recovery and field workflows:** the backend-independent parts
@@ -619,7 +629,8 @@ Regression coverage and outstanding cases:
   users, UID/email lookup paths, relinking, rollback, and existing-session rules.
 - [ ] C12: competing publication generations; deferred under the single worker.
 - [ ] S3: invalid effective OAuth tenants at authentication.
-- [ ] S2: byte/count/pixel-boundary photo cases through desktop and Ipso transports.
+- [x] S2: streaming byte/count and decoded-pixel bounds, genuine decoder inputs,
+  normalization, metadata preservation, and stable staged upload identity.
 - [ ] C13/C14: same-minute/same-second audit ordering and stale account edits.
 - [ ] R1/R2: database/media backups concurrent with photo replacement/deletion,
   interrupted replacement, and a complete restore with photograph checksums.

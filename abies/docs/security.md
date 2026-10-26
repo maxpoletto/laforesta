@@ -104,6 +104,13 @@ entry. Configure the quotas with `ABIES_API_READ_RATE_LIMIT` and
 
 ## Content security
 
+Observation photo uploads use shared streaming byte/count limits and decoded
+pixel bounds on both the desktop and Ipso endpoints. Supported raster inputs
+must fully decode and permanent images are re-encoded by the server. See
+[Osservazioni](page-osservazioni.md#image-policy-and-upload-limits) for defaults,
+metadata handling and validation responses. Client conversion is a bandwidth
+optimization; it does not establish the server's safety bounds.
+
 The shell page sets a Content-Security-Policy header that blocks inline scripts.
 All user-provided content (notes, descriptions, etc.) rendered into the DOM must
 use `textContent`, never `innerHTML`, to prevent XSS.
