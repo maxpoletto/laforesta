@@ -1048,6 +1048,8 @@ async function finish() {
   );
   check(regionParcel && !regionParcel.hidden,
         'region-wide mark table shows the per-tree parcel column');
+  eq(regionParcel.type, 'natural', 'mark parcels opt into natural sorting');
+  eq(regionParcel.searchMatch, 'exact', 'mark parcel filters opt into whole-value matching');
   const parcelIdx = digest.columns.indexOf(S.COL_PARCEL);
   eq(tableInstances.at(-1).data[0][parcelIdx], '11',
      'region-wide mark table retains the imported parcel value');

@@ -129,7 +129,7 @@ const TREES_COLS = {
   [S.COL_SAMPLE_AREA]: { hidden: true },
   [S.COL_SAMPLE_DATE]: { label: S.LABEL_DATE, type: 'date', width: '90px' },
   [S.COL_REGION]:    { label: S.COL_REGION, width: '90px' },
-  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '85px' },
+  [S.COL_PARCEL]:      { label: S.COL_PARCEL, type: 'natural', searchMatch: 'exact', width: '85px' },
   [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
   [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },

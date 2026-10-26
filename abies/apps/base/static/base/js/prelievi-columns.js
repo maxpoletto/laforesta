@@ -19,7 +19,7 @@ export const STATIC_COLS = {
   [COL_PARCEL_ID]:   { label: COL_PARCEL_ID, hidden: true },
   [S.COL_DATE]:        { label: S.COL_DATE, type: 'date', width: '90px' },
   [S.COL_REGION]:    { label: S.COL_REGION, width: '80px' },
-  [S.COL_PARCEL]:      { label: S.COL_PARCEL, width: '70px', className: CLASS_BOSCO_LINK },
+  [S.COL_PARCEL]:      { label: S.COL_PARCEL, type: 'natural', searchMatch: 'exact', width: '70px', className: CLASS_BOSCO_LINK },
   [S.COL_CREW]:        { label: S.COL_CREW, width: '108px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '120px' },
   [S.COL_VDP]:         { label: S.COL_VDP, type: 'number', width: '55px', formatter: fmtInt },

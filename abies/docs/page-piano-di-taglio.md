@@ -117,6 +117,12 @@ The sortable table has the following columns: `Anno previsto`, `Anno effettivo`,
 - `Volume martellato (m³)` is the materialized `volume_marked_m3`, or empty.
 - `Volume effettivo (m³)` is the materialized `volume_actual_m3`, or 0.
 
+Parcel columns in the calendar, marking and embedded harvest tables sort in
+natural order (`1`, `1b`, `2`, `2a`, …, `10`, `11`). Qualified parcel searches such
+as `part:1` match the complete identifier, case-insensitively, excluding `1b`,
+`10` and `10b`. Plain text and other text-column searches retain substring
+semantics. Marking summaries/maps and exports follow the resulting table filter.
+
 A `Totali` footer row in the high-forest table sums `Volume previsto`, `Volume
 martellato`, and `Volume effettivo` across the complete current search result,
 not just the visible pagination page. Each value is aligned under its source

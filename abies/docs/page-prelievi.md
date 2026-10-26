@@ -38,6 +38,13 @@ the active filter set changes.
 The full dataset is served as a single compressed JSON digest. All filtering (by
 year and search box) is client-side and affects the charts, calendar, and table.
 
+Qualified parcel filters (`part:1` or `particella:1`) match the entire parcel
+identifier: only `1`, excluding `1b`, `10`, `10b`, etc. Matching is
+case-insensitive and preserves distinct identifiers such as `01`. This applies
+to calendar-generated filters as well as typed ones, and therefore to charts
+and exports too. Sorting the parcel column uses natural order:
+`1`, `1b`, `2`, `2a`, …, `10`, `11`; descending reverses that order.
+
 "Esporta" submits the row IDs retained by those filters and downloads the
 normalized harvest data in the same schema accepted by "Importa CSV". The
 backup keeps the three flags separate, retains every individual species

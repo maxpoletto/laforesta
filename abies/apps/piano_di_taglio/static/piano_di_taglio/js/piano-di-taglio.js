@@ -503,7 +503,7 @@ const ITEM_COL_DEFS = (() => {
     [S.COL_YEAR_PLANNED]:         { label: S.COL_YEAR_PLANNED, type: 'number', width: '85px', formatter: fmtInt },
     [S.COL_YEAR_ACTUAL]:          { label: S.COL_YEAR_ACTUAL,  type: 'number', width: '85px', formatter: fmtInt },
     [S.COL_REGION]:             { label: S.COL_REGION,     width: '110px' },
-    [S.COL_PARCEL]:               { label: S.COL_PARCEL,       width: '90px' },
+    [S.COL_PARCEL]:               { label: S.COL_PARCEL, type: 'natural', searchMatch: 'exact', width: '90px' },
     [S.COL_STATE]:                { label: S.COL_STATE,        width: '110px' },
     [S.COL_NOTE]:                 { label: S.COL_NOTE,         width: '160px' },
     [S.COL_VOLUME_PLANNED]:       { label: S.COL_VOLUME_PLANNED, type: 'number', width: '95px', formatter: fmtDecimal2 },
@@ -1670,6 +1670,7 @@ function buildMarkTreeColumnDefs(columns, showParcel) {
   for (const name of columns) {
     if (name === ROW_ID) continue;
     if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
+    if (name === S.COL_PARCEL) { defs[name] = { label: name, type: 'natural', searchMatch: 'exact' }; continue; }
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
     if (name === S.COL_NUMBER) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
     if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtInt }; continue; }

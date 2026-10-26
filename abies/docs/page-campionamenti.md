@@ -186,6 +186,12 @@ With an active survey, shows all trees from that survey's samples. The
 **Filtra** input is the single filter for the table and, for a free survey, its
 tree map and dendrometric summary.
 
+Qualified parcel filters such as `part:1` match the full parcel identifier,
+excluding `1b`, `10` and `10b`; unqualified text search remains substring-based.
+Parcel-column sorting is natural (`1`, `1b`, `2`, `2a`, …, `10`, `11`) in either
+direction. The filtered tree map, summary and export use the same exact parcel
+selection as the table.
+
 The section-heading suffix shows the selected sample area and tree count for
 predefined surveys. For free surveys it shows only `(N alberi)`, without the
 meaningless "Tutte le aree di campionamento" prefix.

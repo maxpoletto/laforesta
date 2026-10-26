@@ -326,7 +326,7 @@ preserve the pending form. Regression tests use genuine images and bounded
 streams, including false size claims. Defaults and operator-facing behavior are
 documented in [Osservazioni](page-osservazioni.md#image-policy-and-upload-limits).
 
-PWA 1.5.4 also validates the published photo limits before finalization freezes
+Follow-up — `35a1be6`: PWA 1.5.4 validates the published photo limits before finalization freezes
 the upload payload, leaving rejected sessions editable with local photos intact.
 Staged orientation-aware dimensions retain their wire identity for retries;
 permanent dimensions are decoder-owned. Regressions cover both boundaries.

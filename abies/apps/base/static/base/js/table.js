@@ -10,6 +10,7 @@
 
 import { ROW_ID } from './constants.js';
 import { csvEscape } from './csv-export.js';
+import { compareNaturalLabels } from './natural-sort.js';
 
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
@@ -84,7 +85,8 @@ export class TableWrapper {
    * @param {HTMLElement} opts.container — element to render into
    * @param {{columns: string[], rows: any[][]}} [opts.digest]
    * @param {Object<string, {label: string, type?: string, formatter?: Function,
-   *         width?: string, className?: string, cellClassName?: string}>} opts.columnDefs
+   *         width?: string, className?: string, cellClassName?: string,
+   *         searchMatch?: 'exact'}>} opts.columnDefs
    *   Column metadata keyed by digest column name.
    * @param {boolean} [opts.canModify]
    * @param {{onEdit?: function(number), onDelete?: function(number),
@@ -375,7 +377,8 @@ export class TableWrapper {
     if (this._toolbarStartEl) tableOptions.controlsStart = this._toolbarStartEl;
     if (this._toolbarEndEl) tableOptions.controlsEnd = this._toolbarEndEl;
 
-    this._table = new window.SortableTable(tableOptions);
+    const SortableTable = withNaturalSort(window.SortableTable);
+    this._table = new SortableTable(tableOptions);
     this._buildSummaryRow();
 
     // Set min-width so columns keep their specified widths and the wrapper
@@ -530,6 +533,20 @@ export class TableWrapper {
 
 TableWrapper._idSeq = 0;
 
+// The pinned vendor exposes sorting through this hook. Keeping the extension
+// here applies it to initial sorts, header clicks, filtering and data refreshes.
+function withNaturalSort(Base) {
+  return class extends Base {
+    _sortData(columnIndex, columnType, ascending) {
+      if (columnType !== 'natural') return super._sortData(columnIndex, columnType, ascending);
+      const direction = ascending ? 1 : -1;
+      this.originalData.sort((a, b) => direction * compareNaturalLabels(
+        String(a[columnIndex] ?? ''), String(b[columnIndex] ?? ''),
+      ));
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Column builder (module-private)
 // ---------------------------------------------------------------------------
@@ -609,6 +626,7 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       formatter: def.formatter || (def.type === 'boolean' ? (v) => formatBool(v, labels) : undefined),
       renderCell: def.renderCell,
       searchFormatter: def.searchFormatter,
+      searchMatch: def.searchMatch,
       width: def.width,
       className: def.className,
       cellClassName: def.cellClassName,
@@ -646,7 +664,8 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
  * An exact key/label match wins; otherwise `column` must be a unique
  * case-insensitive key/label substring.  Quote selectors that contain spaces,
  * e.g. `"Anno previsto":2027`.  Literal criteria search that column's
- * displayed/search text.
+ * displayed/search text. Columns with `searchMatch: 'exact'` compare whole raw
+ * identifier values (case-insensitive); plain text search remains unchanged.
  * Numeric columns also support `>N` and `<N`.  Ambiguous/missing columns,
  * malformed comparisons, and comparisons against non-numeric columns do not
  * match.
@@ -728,6 +747,9 @@ function matchesColumnSearch(row, columns, term) {
     return comparison[1] === '>' ? value > threshold : value < threshold;
   }
   if (criterion.includes('>') || criterion.includes('<')) return false;
+  if (col.searchMatch === 'exact') {
+    return String(row[index] ?? '').trim().toLowerCase() === criterion;
+  }
   return cellSearchText(row[index], row, col, index).toLowerCase().includes(criterion);
 }
 

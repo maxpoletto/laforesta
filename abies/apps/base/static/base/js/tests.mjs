@@ -16,7 +16,9 @@ import { createRequire } from 'module';
 import {
   makeNumberParser, parseDecimal, fmtDecimal, fmtCoord, fmtMass,
 } from './format.js';
-import { matchesSearch, searchTerms } from './table.js';
+import { matchesSearch, searchTerms, TableWrapper } from './table.js';
+import { buildPrelieviColumnDefs } from './prelievi-columns.js';
+import * as S from './strings.js';
 import { compareNaturalLabels, compareParcelNames } from './natural-sort.js';
 
 let pass = 0;
@@ -149,6 +151,21 @@ check(!matchesSearch([0], ['abete'], speciesSearchCols), 'searchFormatter omits 
 check(matchesSearch([12], ['abete:>0'], speciesSearchCols), 'column search works on positive species column');
 check(!matchesSearch([0], ['abete:>0'], speciesSearchCols), 'column search rejects zero species column');
 
+const exactParcelColumns = [
+  { key: 'Particella', label: 'Particella', searchMatch: 'exact', type: 'natural' },
+  { key: 'Note', label: 'Note' },
+];
+for (const parcel of ['1', '1b', '10', '10b', '11', '01']) {
+  check(matchesSearch([parcel, 'alpha'], ['part:1'], exactParcelColumns) === (parcel === '1'),
+        `parcel column filter matches the whole value: ${parcel}`);
+}
+check(matchesSearch(['1B', 'alpha'], ['part:1b'], exactParcelColumns),
+      'parcel value matching remains case-insensitive');
+check(matchesSearch(['10', 'alpha'], ['1'], exactParcelColumns),
+      'unqualified text search retains substring semantics');
+check(matchesSearch(['10', 'alpha'], ['note:alp'], exactParcelColumns),
+      'other text-column filters retain substring semantics');
+
 // --- SortableTable: DOM rendering escapes by default, trustedHTML is opt-in --
 class MockNode {
   constructor(tagName = null, text = '') {
@@ -158,7 +175,7 @@ class MockNode {
     this.parentNode = null;
     this.className = '';
     this.dataset = {};
-    this.style = {};
+    this.style = { setProperty: (key, value) => { this.style[key] = value; } };
     this.classList = {
       contains: name => this.className.split(/\s+/).includes(name),
       add: name => {
@@ -211,7 +228,17 @@ class MockNode {
     return clone;
   }
   addEventListener() {}
-  querySelector() { return null; }
+  querySelector(selector) {
+    for (const child of this.children) {
+      const match = selector.startsWith('.')
+        ? String(child.className || '').split(/\s+/).includes(selector.slice(1))
+        : child.tagName === selector;
+      if (match) return child;
+      const nested = child.querySelector?.(selector);
+      if (nested) return nested;
+    }
+    return null;
+  }
   querySelectorAll() { return []; }
 }
 
@@ -272,6 +299,35 @@ check(unsafeHeader?.textContent === 'Unsafe <em>label</em>',
       'sortable-table renders header labels as text');
 check(findNode(trustedCell, node => node.tagName === 'strong')?.textContent === 'ok',
       'sortable-table trustedHTML column renders markup');
+
+// Real wrapper + real vendor sorting: initial state, header toggles, filtering,
+// refresh and export must all retain the same parcel identity/order contract.
+globalThis.window = { SortableTable };
+const parcelDigest = {
+  columns: ['row_id', S.COL_PARCEL, 'Note'],
+  rows: ['11', '2a', '10b', '1b', '10', '2', '1'].map((parcel, i) => [i + 1, parcel, 'alpha']),
+};
+const parcelTable = new TableWrapper({
+  container: new MockNode('div'), inlineToolbar: false, digest: parcelDigest,
+  columnDefs: { ...buildPrelieviColumnDefs(['row_id', S.COL_PARCEL]), Note: { label: 'Note' } },
+  sort: { column: S.COL_PARCEL, ascending: true },
+});
+const naturalParcels = ['1', '1b', '2', '2a', '10', '10b', '11'];
+eqJSON(parcelTable.getFilteredRows().map(row => row[1]), naturalParcels,
+       'parcel header sort uses natural order, including suffixes');
+parcelTable._table.toggleSort(S.COL_PARCEL, 'natural');
+eqJSON(parcelTable.getFilteredRows().map(row => row[1]), [...naturalParcels].reverse(),
+       'parcel header toggle reverses natural order');
+parcelTable.setSearchText('part:1');
+eqJSON(parcelTable.getFilteredRows().map(row => row[1]), ['1'],
+       'wrapper retains exact parcel-match policy from harvest column definitions');
+eqStr(parcelTable.getCSV(), '\ufeff' + S.COL_PARCEL + ',Note\n1,alpha',
+      'CSV exports the exact parcel-filtered rows');
+parcelTable.setSearchText('');
+parcelTable.setSort({ column: S.COL_PARCEL, ascending: true });
+parcelTable.setData({ ...parcelDigest, rows: [...parcelDigest.rows, [99, '2b', 'alpha']] });
+eqJSON(parcelTable.getFilteredRows().map(row => row[1]), ['1', '1b', '2', '2a', '2b', '10', '10b', '11'],
+       'natural sort survives clear-filter, URL sort and data refresh');
 
 // --- Report -----------------------------------------------------------------
 console.log(`${pass} passed, ${failures.length} failed`);

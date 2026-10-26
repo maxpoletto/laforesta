@@ -439,12 +439,12 @@ const payloads = new Map([
 ]);
 
 const treeColumns = [
-  ROW_ID, S.COL_SAMPLE_AREA, S.COL_REGION, S.COL_TREE_NUM, S.COL_SPECIES,
+  ROW_ID, S.COL_SAMPLE_AREA, S.COL_REGION, S.COL_PARCEL, S.COL_TREE_NUM, S.COL_SPECIES,
   S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_LAT, S.COL_LON, S.COL_ACC_M,
 ];
 const freeTreeDigest = digest(treeColumns, [
-  [201, null, 'A', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4],
-  [202, null, 'A', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3, null],
+  [201, null, 'A', '1', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4],
+  [202, null, 'A', '10b', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3, null],
 ]);
 freeTreeDigest.diameter_class_mode = 'shifted_up';
 
@@ -539,6 +539,9 @@ eq(treesHeaderSummary.textContent, '(2 alberi)',
 
 const treeTable = tableInstances.find(table =>
   table.columns.some(column => column.key === S.COL_ACC_M));
+const treeParcelColumn = treeTable.columns.find(column => column.key === S.COL_PARCEL);
+eq(treeParcelColumn.type, 'natural', 'sample parcel column uses natural sorting');
+eq(treeParcelColumn.searchMatch, 'exact', 'sample parcel filter uses whole-value matching');
 const treeAccColumn = treeTable.columns.find(
   column => column.key === S.COL_ACC_M,
 );
@@ -585,6 +588,12 @@ eq(modalEl.querySelector('[name="row_id"]').value, '201',
 await modalEl.querySelector('[data-action="cancel"]').click();
 
 const search = contentEl.querySelector('.table-search');
+search.value = 'part:1';
+search.dispatchEvent({ type: 'input' });
+await new Promise(resolve => setTimeout(resolve, 550));
+await flushAsyncWork();
+eq(detail.rows.map(row => row[0]), [201],
+   'sample parcel filter excludes 10b from parcel 1 in table/map/summary');
 search.value = 'Faggio';
 search.dispatchEvent({ type: 'input' });
 await new Promise(resolve => setTimeout(resolve, 550));

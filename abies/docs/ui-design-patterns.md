@@ -50,6 +50,15 @@ has a real numeric meaning, HTML tables render it as `-`. JSON digests retain
 placeholder. Page-specific documentation identifies the nullable columns.
 
 All tabular data uses sortable-table. All fields are sortable.
+Parcel columns declare `type: 'natural'` and `searchMatch: 'exact'` in the shared
+TableWrapper metadata. Natural ordering keeps numeric chunks and letter suffixes
+in sequence (`1`, `1b`, `2`, `2a`, `10`, `11`) through header sorts, URL state,
+filters and data refresh. Qualified column filters such as `part:1` match the
+whole parcel value, case-insensitively; `1` does not match `1b`, `10` or `01`.
+Ordinary unqualified text search and other text-column filters retain their
+substring behavior. The wrapper supplies these policies centrally; domain pages
+only opt their parcel columns in. The vendored table source remains unchanged.
+
 Interactive data cells use a column's `renderCell` callback to create DOM
 controls rather than embedding markup in formatters. `TableWrapper` forwards
 the callback to sortable-table while retaining a plain value/formatter for
