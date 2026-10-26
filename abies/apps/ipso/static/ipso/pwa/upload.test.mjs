@@ -196,6 +196,25 @@ check(
     strippedPhoto[FIELD_TAKEN_AT] === '2026-07-30T13:33:37.000Z',
   'observations multipart wire payload keeps photo metadata',
 );
+
+// Validate photo constraints while building the payload, before app.js freezes
+// the session. Current server configuration overrides offline fallback bounds.
+for (const [name, limits, photos] of [
+  ['per-observation count', { max_per_observation: 1 }, [strippedPhoto, strippedPhoto]],
+  ['per-file bytes', { max_photo_bytes: 2 }, [{ ...strippedPhoto, size_bytes: 3 }]],
+  ['decoded pixels', { max_pixels: 1 }, [strippedPhoto]],
+  ['request photo count', { max_files: 1 }, [strippedPhoto, strippedPhoto]],
+  ['combined bytes', { max_total_bytes: 2 }, [{ ...strippedPhoto, size_bytes: 3 }]],
+]) {
+  try {
+    upload.buildUploadPayload(sess(upload.UPLOAD_MODE_OBSERVATIONS), [{
+      seq: 1, ...observationPayload.records[0], [FIELD_PHOTOS]: photos,
+    }], { ...reference(), [IPSO_REF_UPLOAD]: { photo_limits: limits } }, 'csv');
+    failures.push(`photo ${name} was not rejected before session freeze`);
+  } catch (error) {
+    check(Boolean(error.message), `photo ${name} has actionable pre-freeze guidance`);
+  }
+}
 check(
   upload.uploadMaxBytes({ [IPSO_REF_UPLOAD]: { [FIELD_MAX_BYTES]: 12345 } }) === 12345,
   'upload max bytes comes from reference upload limits',
@@ -205,6 +224,14 @@ check(
   'upload max bytes falls back to the 30 MiB default',
 );
 const estimatedObservationBytes = upload.estimatedUploadBytes(observationPayload);
+try {
+  upload.buildUploadPayload(sess(upload.UPLOAD_MODE_OBSERVATIONS), [{
+    seq: 1, ...observationPayload.records[0],
+  }], { ...reference(), [IPSO_REF_UPLOAD]: { [FIELD_MAX_BYTES]: 1 } }, 'csv');
+  failures.push('whole request size was not rejected before session freeze');
+} catch (error) {
+  check(Boolean(error.message), 'whole request size is checked during payload construction');
+}
 check(
   estimatedObservationBytes > 3,
   'observations multipart upload estimates photo bytes plus overhead',

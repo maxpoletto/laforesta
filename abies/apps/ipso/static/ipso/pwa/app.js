@@ -1686,9 +1686,11 @@ async function onObservationPhotosPicked(e) {
   try {
     for (const file of files) {
       const prepared = await IpsoPhotos.prepareObservationPhoto(file);
-      State.observationPhotos.push(
-        observationPhotoRecord(prepared, photoPosition)
-      );
+      const photo = observationPhotoRecord(prepared, photoPosition);
+      upload.validatePhotoLimits([
+        { [FIELD_PHOTOS]: [...State.observationPhotos, photo] },
+      ], State.reference);
+      State.observationPhotos.push(photo);
       renderObservationPhotoList();
     }
     warnIfObservationPhotosLarge();

@@ -54,6 +54,13 @@ photo row or retry receipt.
 
 ## Ipso field capture
 
+PWA version 1.5.4 checks the server-published photo byte/count/pixel limits while
+adding photos and before building the final upload payload. Limit failures keep
+the session open/editable, preserve local records and display guidance. Older
+cached references use the documented default photo limits until refreshed.
+The complete estimated multipart/JSON body, including overhead, is also checked
+before the session becomes pending-upload.
+
 In Ipso, Osservazioni are a field mode. The operator records observation text,
 selects one or more categories from `reference.json`, and attaches photos. The observation
 position comes from the initial device GPS fix captured when the observation
@@ -65,7 +72,7 @@ position as authoritative.
 Ipso can attach photos from the gallery or by opening the camera. Gallery photos
 stay location-free. Camera photos carry the device GPS snapshot captured just
 before Ipso opens the camera app, plus a capture-position timestamp. Before
-upload, PWA version 1.5.3 attempts the same 1024 px / JPEG 85 preparation and reports each file
+upload, PWA versions since 1.5.3 attempt the same 1024 px / JPEG 85 preparation and report each file
 as:
 
 ```
@@ -84,7 +91,9 @@ part keyed by its client photo id.
 
 Staging retains the received bytes and their checksum so upload retries and
 import fingerprints keep their transport identity. Incoming images are decoded
-and checked against limits before staging; reported dimensions are verified.
+and checked using decoded dimensions before staging. Transmitted dimensions are
+retained as part of transport identity (they may already account for EXIF
+orientation); permanent dimensions always come from the server's rendition.
 Import validates the staged checksum and prepares the permanent JPEG before
 opening the domain write transaction. Rendition checksums never replace the
 staged upload's identity. This also supports pending sessions created by older
@@ -193,8 +202,8 @@ can contain uploaded photo bytes. The thumbnail directory is a regenerable cache
 Media-changing requests participate in a cross-process snapshot lock through
 their database commit/rollback and filesystem hooks. Backup briefly pauses those
 mutations while copying the database and media to a private snapshot, then
-releases the lock before verification and compression. Photo reads remain
-available. Deleting a live photo after capture cannot remove it from that copy.
+releases the lock before verification and compression. Photo GETs do not acquire
+the lock. Deleting a live photo after capture cannot remove it from that copy.
 
 Before publishing a backup, the script checks every photo referenced by the
 captured database against the copied file, byte size and SHA-256 checksum.

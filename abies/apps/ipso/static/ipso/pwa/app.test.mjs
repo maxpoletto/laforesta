@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { Store: RealStore } = createRequire(import.meta.url)('./store.js');
+const RealUpload = createRequire(import.meta.url)('./upload.js');
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, updateSaveEnabled, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
@@ -379,6 +380,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       formatDate: (ymd) => ymd,
     },
     upload: {
+      validatePhotoLimits: RealUpload.validatePhotoLimits,
       uploadMaxBytes() { return 30 * 1024 * 1024; },
       distanceMeters() { return 0; },
       buildUploadPayload() {
@@ -909,6 +911,23 @@ const session = {
   check(!events.includes('setSessionStatus'), 'onEnd does not mark pending after payload validation fails');
   check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionPendingUpload'),
         'onEnd does not persist a pending upload payload after payload validation fails');
+}
+
+// Photo-limit validation must leave an observation session editable.
+{
+  const { context, events } = makeHarness();
+  const app = context.__ipsoAppTest;
+  app.State.db = {};
+  app.State.reference = { ...referenceFixture(), upload: { photo_limits: { max_per_observation: 1 } } };
+  app.State.session = { ...session, status: 'open', mode: 'observations' };
+  const record = { id: 1, seq: 1, photos: [{ size_bytes: 1 }, { size_bytes: 1 }] };
+  context.Store.listTrees = async () => [record];
+  context.upload.buildUploadPayload = RealUpload.buildUploadPayload;
+  await app.onEnd();
+  check(app.State.session.status === 'open', 'photo limit rejection leaves the session editable');
+  check(!events.some(e => Array.isArray(e) && e[0] === 'setSessionPendingUpload'),
+        'photo limit rejection occurs before pending-upload storage');
+  check(record.photos.length === 2, 'photo limit rejection preserves local photo records');
 }
 
 // Ending a free-survey session now follows the normal staged-upload path.

@@ -18,6 +18,11 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
 const BACKOFF_SCHEDULE_MS = [2000, 4000, 8000, 16000];
 const BACKOFF_CAP_MS = 30000;
 const DEFAULT_UPLOAD_MAX_BYTES = 30 * 1024 * 1024;
+// Offline fallback for older cached references; current server config wins.
+const DEFAULT_PHOTO_LIMITS = {
+  max_photo_bytes: 12 * 1024 * 1024, max_total_bytes: 30 * 1024 * 1024,
+  max_pixels: 50000000, max_per_observation: 20, max_files: 100,
+};
 const MULTIPART_ESTIMATE_OVERHEAD_BYTES = 4096;
 const MULTIPART_ESTIMATE_PART_OVERHEAD_BYTES = 1024;
 
@@ -65,8 +70,9 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   const records = mode === IPSO_MODE_OBSERVATIONS
     ? trees.map((t) => canonicalObservationRecord(sess, t))
     : trees.map((t) => canonicalRecord(sess, t, reference));
+  validatePhotoLimits(records, reference);
   validateRecordNumbers(sess, records, reference);
-  return {
+  const payload = {
     [SESSION]: {
       [FIELD_SESSION_ID]: sess.id,
       [FIELD_MODE]: mode,
@@ -83,6 +89,10 @@ function buildUploadPayload(sess, trees, reference, csvText) {
     [RECORDS]: records,
     [FIELD_CSV_TEXT]: csvText || '',
   };
+  if (estimatedUploadBytes(payload) > uploadMaxBytes(reference)) {
+    throw new Error(S.UPLOAD_ERROR_TOO_LARGE);
+  }
+  return payload;
 }
 
 function isSupportedUploadMode(mode) {
@@ -415,6 +425,31 @@ function uploadMaxBytes(reference) {
   return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_UPLOAD_MAX_BYTES;
 }
 
+function validatePhotoLimits(records, reference) {
+  const supplied = reference && reference[IPSO_REF_UPLOAD] && reference[IPSO_REF_UPLOAD].photo_limits || {};
+  const limits = Object.fromEntries(Object.entries(DEFAULT_PHOTO_LIMITS).map(([key, fallback]) => (
+    [key, Number.isInteger(supplied[key]) && supplied[key] > 0 ? supplied[key] : fallback]
+  )));
+  let count = 0, totalBytes = 0;
+  for (const record of records) {
+    const photos = record[FIELD_PHOTOS] || [];
+    if (photos.length > limits.max_per_observation) {
+      throw new Error(S.UPLOAD_ERROR_PHOTO_COUNT(limits.max_per_observation));
+    }
+    count += photos.length;
+    for (const photo of photos) {
+      const bytes = photo.blob ? photo.blob.size : photo[FIELD_SIZE_BYTES] || 0;
+      totalBytes += bytes;
+      if (bytes > limits.max_photo_bytes) throw new Error(S.UPLOAD_ERROR_PHOTO_BYTES);
+      if (photo[FIELD_WIDTH_PX] * photo[FIELD_HEIGHT_PX] > limits.max_pixels) {
+        throw new Error(S.UPLOAD_ERROR_PHOTO_PIXELS);
+      }
+    }
+  }
+  if (count > limits.max_files) throw new Error(S.UPLOAD_ERROR_PHOTO_SESSION_COUNT(limits.max_files));
+  if (totalBytes > limits.max_total_bytes) throw new Error(S.UPLOAD_ERROR_TOO_LARGE);
+}
+
 function estimatedUploadBytes(payload) {
   const wirePayload = stripUploadPayloadFiles(payload);
   let total = utf8Bytes(JSON.stringify(wirePayload));
@@ -512,6 +547,7 @@ const upload = {
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
   estimatedUploadBytes, uploadMaxBytes,
+  validatePhotoLimits,
   isSupportedUploadMode, validateRecordNumbers, sampleSurveyIdFromWorkPackage,
   sampleMaxNumberForArea,
   paiNumberExists, paiMaxNumberForParcel,

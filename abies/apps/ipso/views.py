@@ -306,6 +306,13 @@ def _upload_limits() -> dict:
         FIELD_MAX_BYTES: _setting_int(
             'IPSO_UPLOAD_MAX_BYTES', IPSO_UPLOAD_MAX_BYTES_DEFAULT
         ),
+        'photo_limits': {
+            'max_photo_bytes': settings.OBSERVATION_PHOTO_MAX_BYTES,
+            'max_total_bytes': settings.OBSERVATION_UPLOAD_MAX_BYTES,
+            'max_pixels': settings.OBSERVATION_PHOTO_MAX_PIXELS,
+            'max_per_observation': settings.OBSERVATION_MAX_PHOTOS,
+            'max_files': settings.OBSERVATION_UPLOAD_MAX_PHOTOS,
+        },
     }
 
 
@@ -2037,15 +2044,13 @@ def _multipart_photo_files(request: HttpRequest) -> dict[str, dict]:
             raise UploadValidationError(
                 S.IPSO_ERR_UPLOAD_PHOTO_UNSUPPORTED.format(client_photo_id)
             )
-        width, height = inspect_photo(content)
+        inspect_photo(content)
         files[client_photo_id] = {
             'content': content,
             FIELD_CHECKSUM: checksum,
             FIELD_CONTENT_TYPE: content_type,
             FIELD_ORIGINAL_FILENAME: uploaded.name or '',
             FIELD_SIZE_BYTES: len(content),
-            FIELD_WIDTH_PX: width,
-            FIELD_HEIGHT_PX: height,
         }
     return files
 
@@ -2341,8 +2346,6 @@ def _attach_photo_files(
                 photo.get(FIELD_ORIGINAL_FILENAME) or info[FIELD_ORIGINAL_FILENAME]
             )
             photo[FIELD_SIZE_BYTES] = info[FIELD_SIZE_BYTES]
-            photo[FIELD_WIDTH_PX] = info[FIELD_WIDTH_PX]
-            photo[FIELD_HEIGHT_PX] = info[FIELD_HEIGHT_PX]
             staged[client_photo_id] = info['content']
     return staged
 

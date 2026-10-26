@@ -199,6 +199,10 @@ const S = {
   ERROR_HTTP_STATUS: (status) => `HTTP ${status}`,
   ERROR_TOKEN_MISSING: 'Token Ipso mancante',
   ERROR_REFERENCE_INVALID: 'reference.json non valido',
+  UPLOAD_ERROR_PHOTO_COUNT: (max) => `Massimo ${max} foto per osservazione.`,
+  UPLOAD_ERROR_PHOTO_SESSION_COUNT: (max) => `Massimo ${max} foto per invio. La sessione rimane modificabile.`,
+  UPLOAD_ERROR_PHOTO_BYTES: 'Una foto supera il limite di dimensione. Ridimensionarla o rimuoverla prima di inviare.',
+  UPLOAD_ERROR_PHOTO_PIXELS: 'Una foto supera il limite di risoluzione. Ridimensionarla o rimuoverla prima di inviare.',
   ERROR_GEOJSON_INVALID: 'GeoJSON non valido',
   TOAST_REFERENCE_LOAD_ERROR: (detail) =>
     `Errore caricamento reference.json: ${detail}`,

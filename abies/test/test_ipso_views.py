@@ -64,6 +64,33 @@ from test.image_helpers import image_bytes
 JPEG_BYTES = image_bytes((20, 10))
 
 
+@override_settings(IPSO_SECRET='test-token')
+def test_staging_preserves_oriented_wire_dimensions_for_retry_identity(db, parcels, settings, tmp_path):
+    from PIL import Image
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.create(name='Orientation')
+    exif = Image.Exif()
+    exif[274] = 6
+    content = image_bytes((40, 20), exif=exif)
+    payload = _observation_payload(parcels[0], category, record_overrides={
+        FIELD_PHOTOS: [{FIELD_CLIENT_PHOTO_ID: 'oriented', FIELD_WIDTH_PX: 20, FIELD_HEIGHT_PX: 40}],
+    })
+
+    def submit():
+        return _post_multipart_upload(Client(), payload, {
+            'photo:oriented': SimpleUploadedFile('rotated.jpg', content, 'image/jpeg'),
+        })
+
+    assert submit().status_code == 200
+    upload = IpsoUpload.objects.get()
+    staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
+    photo = staged[RECORDS][0][FIELD_PHOTOS][0]
+    assert (photo[FIELD_WIDTH_PX], photo[FIELD_HEIGHT_PX]) == (20, 40)
+    retry = submit()
+    assert retry.status_code == 200
+    assert retry.json()[DUPLICATE] is True
+
+
 @pytest.mark.parametrize('limit', ['file', 'pixels', 'count'])
 def test_ipso_photo_limits_are_enforced_on_server(db, parcels, settings, tmp_path, limit):
     from test.image_helpers import image_bytes
@@ -303,6 +330,8 @@ def test_reference_json_comes_from_abies_data(db, regions, parcels, species):
     assert data['schema_version'] == 1
     assert data['reference_version']
     assert data[IPSO_REF_UPLOAD][FIELD_MAX_BYTES] == 30 * 1024 * 1024
+    assert data[IPSO_REF_UPLOAD]['photo_limits']['max_per_observation'] == 20
+    assert data[IPSO_REF_UPLOAD]['photo_limits']['max_photo_bytes'] == 12 * 1024 * 1024
     assert data['species'][0]['common'] == 'Abete'
     parcel = next(p for p in data['parcels']
                   if p['compresa'] == 'Capistrano' and p['particella'] == '1')

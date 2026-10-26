@@ -30,8 +30,10 @@ The extra probes asserted the current problematic behavior; their passing result
 
 The local environment used Python 3.13, Django 6.0.4, django-allauth 65.15.1, and Gunicorn 23.0.0. The Docker image uses Python 3.14. I did not inspect deployed image contents, production data, the live reverse proxy, tenant administration, or host backup storage. There was no real-browser or real-device test and no power-failure experiment. Findings requiring those conditions are explicitly qualified. No application code or live state was changed during the original review.
 
-Follow-up verification: the full Python suite passed **1,735 tests** after S1;
-all JavaScript suites passed after C8–C10. The fixes began with failing
+Follow-up verification: the full Python suite passed **1,772 tests** after the
+photo/rendition, Ipso compatibility and R1 work (previously 1,735 after S1); all
+JavaScript suites passed, including the image, thumbnail and parcel-filter/sort
+changes. The fixes began with failing
 regression tests. S1 tests exercise the actual OAuth login/callback views with
 Microsoft's HTTP responses mocked. The owner subsequently checked production
 volumes and found no negatives, so C9 requires no historical-data repair or
@@ -60,7 +62,7 @@ in R2 keep their priorities.
 | P1 | C6 Another reader can retain a same-second stale digest | Fixed | `c570e21` |
 | P1 | C8 Overlapping Ipso saves can capture duplicates | Fixed | `0eb6d2c`; Ipso-only |
 | P1 | S1 Existing OAuth links outlive changes to login policy | Fixed | `3c2026a` |
-| P1 | R1 Live backups can omit photographs referenced by their database | Fixed | Coordinated DB/media/inbox capture and reference/checksum validation |
+| P1 | R1 Live backups can omit photographs referenced by their database | Fixed | `6f92a55`; coordinated capture and photo-reference/checksum validation |
 | P2 | C7 Invalidations do not fence a first in-flight fetch | Fixed | `396900f` |
 | P2 | C9 Positive measurements can yield persisted negative volumes | Fixed | `f202c92`; no production negatives reported, no repair migration needed |
 | P2 | C10 Input parsing coerces invalid types and can raise exceptions | Fixed | `3130ca3` |
@@ -324,6 +326,11 @@ preserve the pending form. Regression tests use genuine images and bounded
 streams, including false size claims. Defaults and operator-facing behavior are
 documented in [Osservazioni](page-osservazioni.md#image-policy-and-upload-limits).
 
+PWA 1.5.4 also validates the published photo limits before finalization freezes
+the upload payload, leaving rejected sessions editable with local photos intact.
+Staged orientation-aware dimensions retain their wire identity for retries;
+permanent dimensions are decoder-owned. Regressions cover both boundaries.
+
 Related photo-display improvement — `3fe8ea9`: the Bosco modal and edit form now fetch real,
 protected 320 px JPEG thumbnails instead of scaled-down originals. Derivatives
 are cached on demand for both new and legacy images; full images remain linked
@@ -372,7 +379,7 @@ I did not establish a working SQL injection, arbitrary-file-read, stored-script 
 
 ### R1 Live backups can omit photographs referenced by their database
 
-**Status: Fixed.** Media-mutating requests hold a shared cross-process lock
+**Status: Fixed — `6f92a55`.** Media-mutating requests hold a shared cross-process lock
 through their transaction/nonce completion and filesystem hooks. Backup takes
 an exclusive lock while copying the database, primary photos and staged inbox,
 then releases it before verifying/compressing private copies. Every photo
@@ -495,9 +502,12 @@ Use the defect fixes to establish good service boundaries, then move code in sep
 
 **Status: Partly addressed.** Completed fixes document multipart/JSON retries,
 transaction/cache guarantees, numeric validation and the agreed volume policy,
-and linked OAuth identity/session behavior. Restore completeness and the
-remaining concurrency/recovery contracts still need work. SQLite-specific
-durability documentation follows the lower-priority R3 decision.
+linked OAuth identity/session behavior, image limits/renditions, and coordinated
+database/media snapshots. The Restore Sketch now includes observation-media and
+photo-reference/checksum validation. Broader maintenance/replacement sequencing,
+operational recovery drills and remaining concurrency contracts still need
+work. SQLite-specific durability documentation follows the lower-priority R3
+decision.
 
 The documentation is unusually useful and generally reflects the implementation. The gaps concern cross-cutting guarantees more than missing feature descriptions:
 
@@ -595,8 +605,9 @@ durability, and backup/restore behavior on that backend.
 
 ### I8 Add integration tests at the component boundaries
 
-**Status: Partly addressed.** C1–C11 and S1 add boundary regressions for writes,
-cache invalidation, offline saves/sessions, calculations, and OAuth callbacks.
+**Status: Partly addressed.** C1–C11, S1, S2 and R1 add boundary regressions for
+writes, cache invalidation, offline saves/sessions, calculations, OAuth callbacks,
+streamed image validation, renditions, and database/media backup consistency.
 Real-browser/device coverage and target-backend migration tests remain open.
 
 The current test suite is extensive and valuable. The reproduced failures show that isolated tests and test doubles do not always model the boundary that matters: another digest reader, the first absent cache entry, a pre-save await, or a post-commit acknowledgement failure.

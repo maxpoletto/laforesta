@@ -38,8 +38,8 @@ observation-media and optional Ipso inbox into a private staging directory.
 Media-mutating web requests hold a shared lock through the nonce transaction,
 filesystem rollback and commit hooks. This prevents deletion/replacement of a
 photo or staged payload between the database snapshot and filesystem capture.
-Ordinary concurrent media requests can share the lock; photo reads continue
-during backup. Any future command that mutates these files must participate in
+Ordinary concurrent media requests can share the lock; photo GETs do not acquire
+it. Any future command that mutates these files must participate in
 the same protocol, or operate with the instance stopped.
 
 The exclusive lock is released before checksum verification and compression;
