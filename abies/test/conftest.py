@@ -41,6 +41,7 @@ def isolated_generated_data(settings, tmp_path):
     """Keep tests from writing generated artifacts into the dev instance."""
     settings.DIGEST_DIR = tmp_path / 'digests'
     settings.OBSERVATION_THUMBNAIL_DIR = tmp_path / 'thumbnails'
+    settings.RUNTIME_SNAPSHOT_LOCK_PATH = tmp_path / '.runtime-snapshot.lock'
     settings.GEO_DIR = tmp_path / 'geo'
     settings.SATELLITE_DIR = tmp_path / 'satellite'
 

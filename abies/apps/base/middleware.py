@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 
 from apps.base.models import UsedNonce
+from apps.base.runtime_snapshot import runtime_snapshot_lock
 from apps.base.validation import InputValidationError, validation_error
 from apps.base.idempotency import (
     API_PREFIX, NONCE_TTL, NonceReplay, complete_nonce_write,
@@ -109,6 +110,35 @@ def save_nonce(nonce, user, response_data, *, request=None):
             )
     except IntegrityError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Runtime snapshots
+# ---------------------------------------------------------------------------
+
+
+class RuntimeSnapshotMiddleware:
+    """Keep media-changing requests, including commit hooks, outside snapshots.
+
+    Shared locks permit ordinary concurrent writes. Backup takes an exclusive
+    lock only while copying the database, primary photos and staged inbox.
+    This middleware must wrap NonceMiddleware's transaction and commit hooks.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        touches_media = (
+            request.path_info in {
+                '/api/bosco/observations/save/', '/api/bosco/observations/delete/',
+            }
+            or request.path_info.startswith('/api/ipso/uploads/')
+        )
+        if touches_media and request.method not in {'GET', 'HEAD', 'OPTIONS'}:
+            with runtime_snapshot_lock(settings.RUNTIME_SNAPSHOT_LOCK_PATH):
+                return self.get_response(request)
+        return self.get_response(request)
 
 
 # ---------------------------------------------------------------------------

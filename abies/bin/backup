@@ -8,16 +8,21 @@ bind-mounted to the host instance directories.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
 import sqlite3
+import sys
 import tarfile
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from apps.base.runtime_snapshot import runtime_snapshot_lock
 
 RECENT_RETENTION = timedelta(days=7)
 FOUR_WEEKLY_RETENTION = timedelta(days=183)
@@ -137,16 +142,25 @@ def create_backup(
     timestamp = now.strftime('%Y%m%dT%H%M%SZ')
     archive_name = f'abies-{instance}-{timestamp}-{reason}.tar.gz'
     archive_path = backup_dir / archive_name
-    tmp_archive_path = backup_dir / f'.{archive_name}.tmp'
-
+    if archive_path.exists():
+        raise SystemExit(f'error: backup archive already exists: {archive_path}')
     tmp_root = Path(tempfile.mkdtemp(prefix='.backup-work-', dir=backup_dir))
+    tmp_archive_path = tmp_root / f'{archive_name}.tmp'
     try:
         db_snapshot = tmp_root / 'db.sqlite3'
-        integrity = copy_sqlite_database(data_dir / 'db.sqlite3', db_snapshot)
+        # Freeze media mutations only while making private filesystem copies.
+        # Archive compression/verification never holds the live-instance lock.
+        with runtime_snapshot_lock(data_dir / '.runtime-snapshot.lock', exclusive=True):
+            integrity = copy_sqlite_database(data_dir / 'db.sqlite3', db_snapshot)
+            for name in ['observation-media'] + (['ipso-inbox'] if include_ipso_inbox else []):
+                source = data_dir / name
+                if source.exists():
+                    snapshot_tree(source, tmp_root / name)
         db_snapshot.chmod(0o600)
+        photo_manifest = verify_observation_photos(db_snapshot, tmp_root / 'observation-media')
 
         manifest = {
-            'format': 1,
+            'format': 2,
             'created_at': isoformat_z(now),
             'instance': instance,
             'reason': reason,
@@ -163,28 +177,27 @@ def create_backup(
             },
         }
 
-        ipso_inbox = data_dir / 'ipso-inbox'
+        ipso_inbox = tmp_root / 'ipso-inbox'
         if include_ipso_inbox and ipso_inbox.exists():
             manifest['contents'].append('ipso-inbox')
             manifest['ipso_inbox'] = {
                 'source': 'data/ipso-inbox',
-                'note': 'filesystem snapshot; SQLite is the transactional consistency anchor',
+                'note': 'copied with media mutations paused alongside the database snapshot',
             }
 
-        observation_media = data_dir / 'observation-media'
+        observation_media = tmp_root / 'observation-media'
         if observation_media.exists():
             manifest['contents'].append('observation-media')
             manifest['observation_media'] = {
                 'source': 'data/observation-media',
-                'note': 'filesystem snapshot; SQLite is the transactional consistency anchor',
+                'note': 'copied with media mutations paused alongside the database snapshot',
+                'references': photo_manifest,
             }
 
         manifest_path = tmp_root / 'manifest.json'
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8')
         manifest_path.chmod(0o600)
 
-        if tmp_archive_path.exists():
-            tmp_archive_path.unlink()
         with tarfile.open(tmp_archive_path, 'w:gz') as tar:
             tar.add(manifest_path, arcname='manifest.json', recursive=False)
             tar.add(db_snapshot, arcname='db.sqlite3', recursive=False)
@@ -197,7 +210,11 @@ def create_backup(
                 )
 
         tmp_archive_path.chmod(0o600)
-        tmp_archive_path.replace(archive_path)
+        # Publish a complete file without clobbering a concurrent same-name run.
+        try:
+            archive_path.hardlink_to(tmp_archive_path)
+        except FileExistsError as exc:
+            raise SystemExit(f'error: backup archive already exists: {archive_path}') from exc
         return archive_path
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
@@ -209,6 +226,47 @@ def tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
     if any(part.endswith('.tmp') for part in Path(info.name).parts):
         return None
     return info
+
+
+def snapshot_tree(source: Path, target: Path) -> None:
+    if source.is_symlink():
+        raise SystemExit(f'error: runtime snapshot must not contain links: {source}')
+    for path in source.rglob('*'):
+        if path.is_symlink():
+            raise SystemExit(f'error: runtime snapshot must not contain links: {path}')
+    shutil.copytree(source, target, ignore=shutil.ignore_patterns('*.tmp'))
+
+
+def verify_observation_photos(db_path: Path, media: Path) -> list[dict] | None:
+    """Validate against the captured DB, including archives made by old versions."""
+    with sqlite3.connect(db_path) as db:
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='base_observationphoto'"
+        ).fetchone()
+        if not exists:
+            return None  # Backups of databases predating observation photos.
+        rows = db.execute(
+            'SELECT file_path, checksum, size_bytes FROM base_observationphoto ORDER BY file_path'
+        ).fetchall()
+    references = []
+    for relative, expected, expected_size in rows:
+        path = Path(relative)
+        if path.is_absolute() or '..' in path.parts or not path.parts:
+            raise SystemExit(f'error: unsafe observation photo path: {relative}')
+        source = media / path
+        if not source.is_file() or source.is_symlink():
+            raise SystemExit(f'error: observation photo missing: {relative}')
+        size = source.stat().st_size
+        if size != expected_size:
+            raise SystemExit(f'error: observation photo size mismatch: {relative}')
+        digest = hashlib.sha256()
+        with source.open('rb') as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(chunk)
+        if digest.hexdigest() != expected:
+            raise SystemExit(f'error: observation photo checksum mismatch: {relative}')
+        references.append({'file_path': relative, 'bytes': size, 'sha256': expected})
+    return references
 
 
 def copy_sqlite_database(source: Path, target: Path) -> str:
@@ -263,6 +321,7 @@ def restore_backup(archive_path: Path, dest: Path) -> Path:
             raise SystemExit('error: backup archive missing db.sqlite3')
         json.loads(manifest_path.read_text(encoding='utf-8'))
         check_sqlite_database(db_path, context='Restored SQLite database')
+        verify_observation_photos(db_path, work / 'observation-media')
 
         if dest.exists():
             dest.rmdir()

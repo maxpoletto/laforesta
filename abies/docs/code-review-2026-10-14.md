@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 26 October 2026. **C1–C11, S1 and S2 are
+Progress updated: 26 October 2026. **C1–C11, S1, S2 and R1 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -60,7 +60,7 @@ in R2 keep their priorities.
 | P1 | C6 Another reader can retain a same-second stale digest | Fixed | `c570e21` |
 | P1 | C8 Overlapping Ipso saves can capture duplicates | Fixed | `0eb6d2c`; Ipso-only |
 | P1 | S1 Existing OAuth links outlive changes to login policy | Fixed | `3c2026a` |
-| P1 | R1 Live backups can omit photographs referenced by their database | Open | Source-established interruption window; backend-independent |
+| P1 | R1 Live backups can omit photographs referenced by their database | Fixed | Coordinated DB/media/inbox capture and reference/checksum validation |
 | P2 | C7 Invalidations do not fence a first in-flight fetch | Fixed | `396900f` |
 | P2 | C9 Positive measurements can yield persisted negative volumes | Fixed | `f202c92`; no production negatives reported, no repair migration needed |
 | P2 | C10 Input parsing coerces invalid types and can raise exceptions | Fixed | `3130ca3` |
@@ -71,7 +71,7 @@ in R2 keep their priorities.
 | P2 | S2 Desktop observation photographs lack application byte limits | Fixed | `47baa8b`; shared stream/decoder limits and 1024 px normalization |
 | P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Open | Source-established configuration risk |
 | P2 | S4 Dependency versions need a reproducible security-update policy | Open | Local versions and upstream notices checked on the review date |
-| P2 | R2 Restore documentation and replacement sequencing need hardening | Open | General recovery work remains; SQLite file-replacement details are P3 |
+| P2 | R2 Restore documentation and replacement sequencing need hardening | Open, partly addressed | Photo restore docs/validation and unique archive publication done; broader maintenance/mirroring remains |
 | P3 | R3 SQLite acknowledged writes are not durable across every host failure | Deferred | SQLite-specific; revisit durability against the PostgreSQL target |
 | P2 | R4 Ipso can record more rows than its upload API accepts | Open | Source review |
 
@@ -324,7 +324,7 @@ preserve the pending form. Regression tests use genuine images and bounded
 streams, including false size claims. Defaults and operator-facing behavior are
 documented in [Osservazioni](page-osservazioni.md#image-policy-and-upload-limits).
 
-Related photo-display improvement: the Bosco modal and edit form now fetch real,
+Related photo-display improvement — `3fe8ea9`: the Bosco modal and edit form now fetch real,
 protected 320 px JPEG thumbnails instead of scaled-down originals. Derivatives
 are cached on demand for both new and legacy images; full images remain linked
 for explicit opening and PDF generation. Authentication, lazy legacy generation,
@@ -372,8 +372,17 @@ I did not establish a working SQL injection, arbitrary-file-read, stored-script 
 
 ### R1 Live backups can omit photographs referenced by their database
 
-**Status: Open — P1, backend-independent.** A PostgreSQL database snapshot still
-needs coordinated capture or retention of its referenced external photographs.
+**Status: Fixed.** Media-mutating requests hold a shared cross-process lock
+through their transaction/nonce completion and filesystem hooks. Backup takes
+an exclusive lock while copying the database, primary photos and staged inbox,
+then releases it before verifying/compressing private copies. Every photo
+referenced by the captured database must match the copied path, size and checksum
+before publication; restore repeats validation before exposing its destination.
+The thumbnail cache is regenerable and excluded. Tests reproduce a real deletion
+after the database snapshot, permit writes during compression, reject missing or
+corrupt photos, and cover lock lifetime through commit hooks. The coordination
+protocol remains relevant to PostgreSQL; the database-copy implementation must
+be adapted with that migration. See [Backups](backups.md).
 
 Sources: [backup creation](../bin/backup), `create_backup` at line 133; [observation deletion and photo replacement](../apps/bosco/views.py), around lines 324 and 647; [deployment sequence](../bin/deploy); [backup documentation](backups.md).
 
@@ -391,6 +400,12 @@ This was established from the ordering of the code, not by interrupting a deploy
 maintenance locking, and rollback.** SQLite-specific database-file replacement
 hardening is lower priority (P3) pending PostgreSQL/PostGIS. Preserve the general
 staging, consistency, and recovery requirements in the target-backend workflow.
+
+R1 also updates the manual restore instructions to include photos, validates
+photo references before publishing a restore destination, and uses unique archive
+temporary files with atomic non-overwriting publication. Those parts are done.
+Full instance-maintenance serialization, interrupted mirroring/replacement and
+operational/off-host recovery drills remain open.
 
 Sources: [restore instructions](backups.md), Restore Sketch at line 158; [instance mirroring](../bin/mirror-instance-state), `RESTORE_SCRIPT` at line 29; [backup output naming](../bin/backup), `create_backup`.
 
@@ -599,9 +614,10 @@ treating a successful mocked fetch as the only path.
 ## Suggested implementation sequence
 
 Use small changes with their own regression tests and documentation updates.
-C1–C11, S1 and S2 are complete; the remaining sequence is:
+C1–C11, S1, S2 and R1 are complete; the remaining sequence is:
 
-1. **Close the remaining P1 recovery gap:** R1 consistent database/media capture.
+1. **Validate recovery operationally:** complete the off-host/app restore drills
+   for the now-coordinated database/media backup; continue the open R2 work.
 2. **Repair remaining security/configuration work:** S3 effective OAuth tenant
    validation and S4 reproducible dependency updates.
 3. **Finish bounded correctness/admin work:** C13 full-time audit sorting and
@@ -640,8 +656,11 @@ Regression coverage and outstanding cases:
 - [x] S2: streaming byte/count and decoded-pixel bounds, genuine decoder inputs,
   normalization, metadata preservation, and stable staged upload identity.
 - [ ] C13/C14: same-minute/same-second audit ordering and stale account edits.
-- [ ] R1/R2: database/media backups concurrent with photo replacement/deletion,
-  interrupted replacement, and a complete restore with photograph checksums.
+- [x] R1: deletion after DB snapshot, stable photo capture, writes during
+  compression, missing/corrupt reference rejection, restore validation, and
+  snapshot lock lifetime through nonce commit hooks.
+- [ ] R2: interrupted instance replacement, full maintenance serialization and
+  operational/off-host application recovery drills.
 - [ ] R4: recording at/beyond the published session limit; upgrades with old
   open/pending sessions and photo blobs.
 
@@ -651,9 +670,10 @@ The code does not need wholesale replacement. Its strongest design choices are c
 
 The completed fixes now cover rejected-save atomicity, retry receipts, stump and
 volume correctness, digest/cache identity, mobile save acknowledgement, and
-linked OAuth login policy. The highest-priority remaining recovery guarantee is
-that a backup contains every attachment referenced by its database snapshot.
-Continue with the outstanding security limits/configuration, audit ordering,
+linked OAuth login policy. Image uploads now have server-owned limits/renditions,
+and backup/restore validates every photo referenced by the captured database.
+Operational/off-host recovery drills and broader maintenance sequencing remain.
+Continue with authentication configuration, dependency upkeep, audit ordering,
 and account-edit concurrency in small tested changes. Keep PostgreSQL/PostGIS
 planning in view and give SQLite-only tuning lower priority than these shared
 correctness and recovery requirements.

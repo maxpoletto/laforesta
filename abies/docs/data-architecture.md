@@ -275,6 +275,13 @@ request hash remain replayable until their normal expiry, avoiding duplicates
 immediately after deployment. Public Ipso uploads use their separate session
 UUID/checksum protocol, not these authenticated web-form receipts.
 
+Media-changing observation/Ipso requests additionally hold the shared runtime
+snapshot lock through nonce commit/rollback and filesystem hooks.
+`RuntimeSnapshotMiddleware` wraps `NonceMiddleware` so a live backup's exclusive
+snapshot-copy phase cannot interleave with those operations. Compression and
+verification use private copies after the exclusive lock is released. See
+[Backups](backups.md) and [Osservazioni](page-osservazioni.md#photo-backup-and-recovery).
+
 ### Response contract
 
 Payload is always JSON.

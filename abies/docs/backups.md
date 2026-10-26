@@ -32,11 +32,31 @@ manifest.json
  ipso-inbox/...
 ```
 
-`db.sqlite3` is the transactional consistency anchor. The inbox and
-observation media are filesystem snapshots taken just after the SQLite
-snapshot; Ipso and observation-photo writes use generated paths and atomic file
-writes where applicable, so this is good enough for recovery, but it is not a
-filesystem-level transaction.
+`db.sqlite3` is the transactional consistency anchor. Backup takes an exclusive
+cross-process lock at `data/.runtime-snapshot.lock` while copying the database,
+observation-media and optional Ipso inbox into a private staging directory.
+Media-mutating web requests hold a shared lock through the nonce transaction,
+filesystem rollback and commit hooks. This prevents deletion/replacement of a
+photo or staged payload between the database snapshot and filesystem capture.
+Ordinary concurrent media requests can share the lock; photo reads continue
+during backup. Any future command that mutates these files must participate in
+the same protocol, or operate with the instance stopped.
+
+The exclusive lock is released before checksum verification and compression;
+those use only the private copies. A live photo deleted after capture remains
+in that captured backup. Referenced photos must exist and match the database's
+byte sizes and SHA-256 checksums, or the backup fails before publication/pruning.
+Format-2 manifests record the validated photo references. Older databases
+without the observation-photo table have no photo references to validate.
+
+Completed archives are published atomically from unique temporary files. An
+existing final archive name is never overwritten, including same-second runs.
+This does not serialize every maintenance/mirroring operation; target replacement
+still requires the stopped-instance procedure below.
+
+`data/observation-thumbnails` is a regenerable cache and is omitted. Main stored
+photos and staged mobile photo bytes are included; thumbnails regenerate when
+requested after a restore.
 
 ## Creating A Backup
 
@@ -167,13 +187,22 @@ docker exec abies-prod bin/backup \
 
 The restore destination must be empty or absent. The command validates archive
 paths, rejects links and unexpected members, extracts `manifest.json`,
-`db.sqlite3`, and `ipso-inbox`, then runs `PRAGMA integrity_check` on the
-restored SQLite database.
+`db.sqlite3`, `observation-media` and `ipso-inbox`, then runs
+`PRAGMA integrity_check` on the restored SQLite database. It also verifies every
+referenced photo's path, size and checksum, including for older archives whose
+database contains photo metadata. Validation happens in a private staging
+directory before the destination is exposed. A failure leaves the requested
+destination absent/empty.
 
 For a full restore, stop the instance, preserve the current data directory, run
 `bin/backup --restore` into a temporary directory, copy the restored
-`db.sqlite3` into `/var/lib/abies-prod/data/db.sqlite3`, restore `ipso-inbox` if
-needed, fix ownership to `abies:abies`, and start the container.
+`db.sqlite3` into `/var/lib/abies-prod/data/db.sqlite3`, restore
+`observation-media` and `ipso-inbox` from the same archive, fix ownership to
+`abies:abies`, and start the container. Remove stale SQLite WAL/SHM files while
+the instance is stopped. Check observation details, open the restored photos,
+and verify pending inbox operations as part of the recovery drill. The archive
+validation establishes photo-reference integrity; an operational restore drill
+also checks the rest of the application and off-host recovery availability.
 
 ## Mirroring Runtime State Between Instances
 

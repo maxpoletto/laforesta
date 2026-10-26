@@ -185,3 +185,21 @@ digest and rerenders the current observations layer without a full page reload.
 The multipart add/edit submission carries an idempotency nonce. Repeating the
 same successful submission replays its original response rather than storing
 another observation/photo or conflicting with the already-applied edit.
+
+## Photo backup and recovery
+
+Runtime backups include main observation photos and the staged Ipso inbox, which
+can contain uploaded photo bytes. The thumbnail directory is a regenerable cache.
+Media-changing requests participate in a cross-process snapshot lock through
+their database commit/rollback and filesystem hooks. Backup briefly pauses those
+mutations while copying the database and media to a private snapshot, then
+releases the lock before verification and compression. Photo reads remain
+available. Deleting a live photo after capture cannot remove it from that copy.
+
+Before publishing a backup, the script checks every photo referenced by the
+captured database against the copied file, byte size and SHA-256 checksum.
+Missing/corrupt photos fail the backup instead of producing a successful archive
+with dangling references. Restore repeats these checks in a staging directory
+before exposing its destination. Restore main photos and the database from the
+same archive; thumbnails regenerate on demand. See [Backups](backups.md) for the
+archive format, full restore procedure and remaining operational checks.
