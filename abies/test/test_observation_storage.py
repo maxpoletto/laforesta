@@ -1,12 +1,33 @@
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+import os
 
 import pytest
 
 from apps.base.observation_storage import (
+    atomic_write_observation_photo,
     extract_observation_photo_gps, normalize_observation_photo_content_type,
     observation_photo_absolute_path, observation_photo_relative_path,
     sniff_observation_photo_content_type,
 )
+
+
+def test_concurrent_atomic_photo_writes_use_independent_temporary_files(tmp_path, monkeypatch):
+    rendezvous = Barrier(2)
+    replace = os.replace
+
+    def simultaneous_replace(*args, **kwargs):
+        rendezvous.wait(timeout=10)
+        return replace(*args, **kwargs)
+
+    monkeypatch.setattr(os, 'replace', simultaneous_replace)
+    path = tmp_path / 'photo.jpg'
+    contents = [b'a' * 10000, b'b' * 10000]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(lambda content: atomic_write_observation_photo(path, content), contents))
+    assert path.read_bytes() in contents
+    assert not list(tmp_path.glob('*.tmp'))
 
 
 def test_observation_photo_relative_path_ignores_user_filename_path():

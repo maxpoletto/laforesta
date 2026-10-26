@@ -41,6 +41,20 @@ function assertEqual(actual, expected, msg) {
 
 console.log('bosco-observations.js');
 
+// The preview must request the derivative; following the link loads the main photo.
+globalThis.document = {
+  createElement(tag) {
+    return { tagName: tag, children: [], appendChild(child) { this.children.push(child); } };
+  },
+};
+const previewCard = O.observationPhotoElement({
+  url: '/photo/full/', thumbnail_url: '/photo/thumbnail/',
+  content_type: 'image/jpeg', original_filename: 'field.jpg',
+}, 1);
+assertEqual(previewCard.href, '/photo/full/', 'photo card links to the main photo');
+assertEqual(previewCard.children[0].src, '/photo/thumbnail/', 'preview downloads only thumbnail bytes');
+delete globalThis.document;
+
 const digest = {
   [COLUMNS]: [ROW_ID, VERSION, FIELD_REGION_ID, FIELD_CATEGORY_IDS,
     S.COL_DATE, S.COL_TEXT, S.COL_LAT, S.COL_LON, S.CSV_COL_ACC_M,

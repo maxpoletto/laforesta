@@ -27,6 +27,8 @@ urlpatterns = [
          name='bosco-observation-detail'),
     path('observations/photos/<int:photo_id>/', views.observation_photo,
          name='bosco-observation-photo'),
+    path('observations/photos/<int:photo_id>/thumbnail/', views.observation_photo,
+         {'thumbnail': True}, name='bosco-observation-thumbnail'),
     path('preserved-trees/data/', views.preserved_trees_data,
          name='bosco-preserved-trees-data'),
     path('pai/form/', views.pai_form_view, name='bosco-pai-form-add'),

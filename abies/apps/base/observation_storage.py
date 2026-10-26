@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import struct
+import tempfile
 from pathlib import Path
 
 from django.conf import settings
@@ -302,13 +303,17 @@ def observation_photo_absolute_path(relative_path: str) -> Path:
 def atomic_write_observation_photo(path: Path, content: bytes) -> None:
     """Durably write an observation photo under its final storage path."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + '.tmp')
-    with tmp.open('wb') as f:
-        f.write(content)
-        f.flush()
-        os.fsync(f.fileno())
-    tmp.replace(path)
-    _fsync_dir(path.parent)
+    fd, name = tempfile.mkstemp(prefix=path.name + '.', suffix='.tmp', dir=path.parent)
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        tmp.replace(path)
+        _fsync_dir(path.parent)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _photo_extension(original_filename: str, content_type: str) -> str:

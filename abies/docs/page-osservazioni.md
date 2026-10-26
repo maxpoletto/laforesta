@@ -131,6 +131,23 @@ parcel borders, the observation marker, and all geolocated photo markers. Photo
 markers match the thumbnail captions; photos within 5 m of each other are shown
 as a `+` marker whose tooltip lists the grouped photo numbers.
 
+The small images are actual **320 px maximum-long-axis JPEG derivatives**, sized
+for the preview cards (up to twice their 160 px display height). Observation
+detail metadata exposes a separate `thumbnail_url`; cards and edit-form previews
+request that URL, while clicking a card requests the main stored photo. PDF
+generation continues to use the main photo.
+
+Thumbnails are generated on demand and cached under
+`data/observation-thumbnails/v1-320/`, keyed by source path/checksum. This covers
+photos already stored before the resizing policy without rewriting their bytes
+or database metadata. Stored legacy files are streamed from disk and retain the
+decoded-pixel guard; incoming-upload byte caps do not block these previews.
+Both thumbnail and main-photo endpoints require login and use the existing
+protected-file/conditional-response behavior. Cache hits avoid re-decoding;
+missing or undecodable originals return 404. Thumbnail files are regenerable
+cache data and do not need to be restored from backup. Concurrent generation
+uses unique temporary files and atomic publication.
+
 The detail title row also contains `Genera PDF`. The browser downloads a report
 named `osservazione_<yyyymmdd>_<region>_<category>.pdf`. The report contains a
 `Rapporto <categoria>` title, date, compresa, formatted observation position,

@@ -153,6 +153,7 @@ def test_observation_detail_and_photo_reader_access(
     assert payload[FIELD_PHOTOS] == [{
         FIELD_ID: photo.id,
         FIELD_URL: f'/api/bosco/observations/photos/{photo.id}/',
+        'thumbnail_url': f'/api/bosco/observations/photos/{photo.id}/thumbnail/',
         FIELD_CONTENT_TYPE: 'image/jpeg',
         FIELD_SIZE_BYTES: 3,
         FIELD_WIDTH_PX: 20,

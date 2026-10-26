@@ -41,6 +41,7 @@ from apps.base.numparse import coord_float, int_or_none, parse_decimal
 from apps.base.observation_images import (
     PhotoError, UploadBudget, check_photo_count, prepare_photo, read_photo,
 )
+from apps.base.observation_thumbnails import observation_thumbnail
 from apps.base.observation_storage import (
     atomic_write_observation_photo,
     normalize_observation_photo_content_type, observation_photo_absolute_path,
@@ -65,7 +66,7 @@ from config.constants import (
     FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_ID, FIELD_LAT, FIELD_LON, FIELD_NAME,
     FIELD_NOTE, FIELD_NUMBER, FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME,
     FIELD_PARCEL_ID, FIELD_PHOTOS, FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_SOURCE,
-    FIELD_SPECIES_ID, FIELD_TAKEN_AT, FIELD_TEXT, FIELD_URL, FIELD_WIDTH_PX, HTML,
+    FIELD_SPECIES_ID, FIELD_TAKEN_AT, FIELD_TEXT, FIELD_THUMBNAIL_URL, FIELD_URL, FIELD_WIDTH_PX, HTML,
     ROW_ID, VERSION,
 )
 
@@ -379,7 +380,7 @@ def observation_detail(request, observation_id: int):
 
 
 @login_required
-def observation_photo(request, photo_id: int):
+def observation_photo(request, photo_id: int, *, thumbnail=False):
     photo = ObservationPhoto.objects.filter(id=photo_id).first()
     if photo is None:
         raise Http404
@@ -390,6 +391,12 @@ def observation_photo(request, photo_id: int):
     if not path.is_file():
         raise Http404
     content_type = normalize_observation_photo_content_type(photo.content_type)
+    if thumbnail:
+        try:
+            path = observation_thumbnail(photo)
+        except (PhotoError, FileNotFoundError) as exc:
+            raise Http404 from exc
+        content_type = 'image/jpeg'
     response = conditional_file_response(
         request, path,
         content_type=content_type or 'application/octet-stream',
@@ -405,6 +412,7 @@ def _observation_photo_metadata(photo: ObservationPhoto) -> dict:
     return {
         FIELD_ID: photo.id,
         FIELD_URL: f'/api/bosco/observations/photos/{photo.id}/',
+        FIELD_THUMBNAIL_URL: f'/api/bosco/observations/photos/{photo.id}/thumbnail/',
         FIELD_CONTENT_TYPE: photo.content_type,
         FIELD_SIZE_BYTES: photo.size_bytes,
         FIELD_WIDTH_PX: photo.width_px,
@@ -519,6 +527,7 @@ def _observation_form_photos(observation, values) -> list[dict]:
         rows.append({
             'id': photo.id,
             'url': meta[FIELD_URL],
+            'thumbnail_url': meta[FIELD_THUMBNAIL_URL],
             'filename': meta[FIELD_ORIGINAL_FILENAME] or S.COL_PHOTO_COUNT,
             'is_image': content_type.startswith('image/'),
         })

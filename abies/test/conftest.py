@@ -40,6 +40,7 @@ def localized_template_links():
 def isolated_generated_data(settings, tmp_path):
     """Keep tests from writing generated artifacts into the dev instance."""
     settings.DIGEST_DIR = tmp_path / 'digests'
+    settings.OBSERVATION_THUMBNAIL_DIR = tmp_path / 'thumbnails'
     settings.GEO_DIR = tmp_path / 'geo'
     settings.SATELLITE_DIR = tmp_path / 'satellite'
 

@@ -66,12 +66,14 @@ def read_photo(uploaded, budget):
 @contextmanager
 def decoded_photo(content):
     """Check dimensions before decoding; accept only fully decodable rasters."""
-    if len(content) > settings.OBSERVATION_PHOTO_MAX_BYTES:
+    # Local stored files may predate upload bounds; stream those from disk.
+    is_bytes = isinstance(content, bytes)
+    if is_bytes and len(content) > settings.OBSERVATION_PHOTO_MAX_BYTES:
         raise PhotoError(S.ERR_OBSERVATION_PHOTO_BYTES, too_large=True)
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
-            with Image.open(BytesIO(content)) as image:
+            with Image.open(BytesIO(content) if is_bytes else content) as image:
                 if image.format not in {'JPEG', 'PNG', 'WEBP', 'GIF', 'HEIF'}:
                     raise PhotoError(S.ERR_OBSERVATION_PHOTO_INVALID)
                 if image.width * image.height > settings.OBSERVATION_PHOTO_MAX_PIXELS:

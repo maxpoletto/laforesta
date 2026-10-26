@@ -38,6 +38,7 @@ IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
 OBSERVATION_MEDIA_DIR = DATA_DIR / 'observation-media'
+OBSERVATION_THUMBNAIL_DIR = DATA_DIR / 'observation-thumbnails'
 # Input bounds apply before decoding; stored images are <=1024 px, JPEG 85.
 OBSERVATION_PHOTO_MAX_BYTES = int(os.environ.get('ABIES_PHOTO_MAX_BYTES', 12 * 1024 * 1024))
 OBSERVATION_UPLOAD_MAX_BYTES = int(os.environ.get('ABIES_PHOTO_UPLOAD_MAX_BYTES', 30 * 1024 * 1024))

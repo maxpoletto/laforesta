@@ -68,7 +68,7 @@ in R2 keep their priorities.
 | P3 | C12 Concurrent digest generators can publish an old result as fresh | Deferred | Revisit before adding workers/threads or concurrent generators |
 | P2 | C13 Audit events within one minute are not reliably newest first | Open | Reproduced |
 | P2 | C14 Account administration lacks a stale-form guard | Open | Choice validation done in C10; stale-form guard remains |
-| P2 | S2 Desktop observation photographs lack application byte limits | Fixed | Shared streaming byte/count limits, decoder/pixel bounds and normalization |
+| P2 | S2 Desktop observation photographs lack application byte limits | Fixed | `47baa8b`; shared stream/decoder limits and 1024 px normalization |
 | P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Open | Source-established configuration risk |
 | P2 | S4 Dependency versions need a reproducible security-update policy | Open | Local versions and upstream notices checked on the review date |
 | P2 | R2 Restore documentation and replacement sequencing need hardening | Open | General recovery work remains; SQLite file-replacement details are P3 |
@@ -314,7 +314,7 @@ Revalidate the login policy for existing social links on every login. Define unl
 
 ### S2 Desktop observation photographs lack application byte limits
 
-**Status: Fixed.** Both desktop and Ipso photo paths now enforce actual streamed
+**Status: Fixed — `47baa8b`.** Both desktop and Ipso photo paths now enforce actual streamed
 bytes/count, per-observation photo counts, and decoded-pixel bounds. Fully
 decoded images become proportional <=1024 px JPEGs at quality 85; orientation and
 relevant metadata are preserved. Ipso also prepares the smaller image before
@@ -323,6 +323,14 @@ Malformed/oversized inputs leave no domain rows or nonce receipt; desktop errors
 preserve the pending form. Regression tests use genuine images and bounded
 streams, including false size claims. Defaults and operator-facing behavior are
 documented in [Osservazioni](page-osservazioni.md#image-policy-and-upload-limits).
+
+Related photo-display improvement: the Bosco modal and edit form now fetch real,
+protected 320 px JPEG thumbnails instead of scaled-down originals. Derivatives
+are cached on demand for both new and legacy images; full images remain linked
+for explicit opening and PDF generation. Authentication, lazy legacy generation,
+cache reuse, unchanged original bytes, and thumbnail-only browser requests have
+regression coverage. Unique temporary files also prevent concurrent publication
+collisions. The regenerable cache is separate from primary backup data.
 
 Source: [photo parsing](../apps/bosco/views.py), `_uploaded_observation_photos` at line 571. Compare [Ipso upload limits](../apps/ipso/views.py), `_upload_too_large` and `_validate_upload_payload`.
 

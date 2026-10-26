@@ -60,7 +60,7 @@
           <input type="hidden" name="existing_photo_ids" value="{{ photo.id }}">
           <a href="{{ photo.url }}" target="_blank" rel="noopener">
             {% if photo.is_image %}
-            <img src="{{ photo.url }}" alt="{{ photo.filename }}">
+            <img src="{{ photo.thumbnail_url }}" alt="{{ photo.filename }}" loading="lazy" decoding="async">
             {% endif %}
             <span>{{ photo.filename }}</span>
           </a>

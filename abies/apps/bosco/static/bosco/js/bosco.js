@@ -8,11 +8,11 @@ import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
   DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
   DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES, FIELD_ACC_M,
-  FIELD_CATEGORIES, FIELD_CONTENT_TYPE, FIELD_DATE,
+  FIELD_CATEGORIES, FIELD_DATE,
   FIELD_LAT, FIELD_LON, FIELD_NAME,
-  FIELD_OPERATOR, FIELD_ORIGINAL_FILENAME, FIELD_PARCEL_ID, FIELD_PHOTOS,
+  FIELD_OPERATOR, FIELD_PARCEL_ID, FIELD_PHOTOS,
   FIELD_REGION_ID, FIELD_SPECIES, FIELD_TEXT,
-  FIELD_URL, HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
+  HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { fetchJSON, postFormData } from '../../base/js/api.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
@@ -90,7 +90,7 @@ import {
   filterObservations, groupObservationMarkers, groupObservationPhotoMapItems,
   normalizeObservationYearRange, observationCategoryItems, observationCategoryLabel,
   observationPhotoMapItems,
-  observationPhotoTitle, observationYears, shouldPreviewObservationPhoto,
+  observationPhotoElement, observationPhotoTitle, observationYears, shouldPreviewObservationPhoto,
 } from './bosco-observations.js';
 import { generateObservationPDF } from './observation-pdf.js';
 
@@ -2988,26 +2988,6 @@ async function downloadObservationPDF(button, observation, regionName) {
   } finally {
     button.disabled = false;
   }
-}
-
-function observationPhotoElement(photo, caption) {
-  const card = document.createElement('a');
-  card.className = 'bosco-observation-photo';
-  card.href = photo[FIELD_URL];
-  card.target = '_blank';
-  card.rel = 'noopener';
-  card.title = observationPhotoTitle(photo);
-  const isImage = String(photo[FIELD_CONTENT_TYPE] || '').startsWith('image/');
-  if (isImage) {
-    const img = document.createElement('img');
-    img.src = photo[FIELD_URL];
-    img.alt = photo[FIELD_ORIGINAL_FILENAME] || S.COL_PHOTO_COUNT;
-    card.appendChild(img);
-  }
-  const label = document.createElement('span');
-  label.textContent = String(caption);
-  card.appendChild(label);
-  return card;
 }
 
 function closeDetailOverlay() {

@@ -1,8 +1,8 @@
 import * as S from '../../base/js/strings.js';
 import {
-  COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_ID, FIELD_LAT,
+  COLUMNS, FIELD_CATEGORIES, FIELD_CATEGORY_IDS, FIELD_CONTENT_TYPE, FIELD_ID, FIELD_LAT,
   FIELD_LON, FIELD_NAME, FIELD_ORIGINAL_FILENAME, FIELD_PHOTO_COUNT,
-  FIELD_REGION_ID, FIELD_SIZE_BYTES, ROW_ID, ROWS, VERSION,
+  FIELD_REGION_ID, FIELD_SIZE_BYTES, FIELD_THUMBNAIL_URL, FIELD_URL, ROW_ID, ROWS, VERSION,
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 import { fmtInt } from '../../base/js/format.js';
@@ -37,6 +37,27 @@ export function buildObservations(digest) {
       parcel: '',
     };
   }).filter(obs => Number.isFinite(obs.lat) && Number.isFinite(obs.lon));
+}
+
+export function observationPhotoElement(photo, caption) {
+  const card = document.createElement('a');
+  card.className = 'bosco-observation-photo';
+  card.href = photo[FIELD_URL];
+  card.target = '_blank';
+  card.rel = 'noopener';
+  card.title = observationPhotoTitle(photo);
+  if (String(photo[FIELD_CONTENT_TYPE] || '').startsWith('image/')) {
+    const img = document.createElement('img');
+    img.src = photo[FIELD_THUMBNAIL_URL] || photo[FIELD_URL];
+    img.alt = photo[FIELD_ORIGINAL_FILENAME] || S.COL_PHOTO_COUNT;
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    card.appendChild(img);
+  }
+  const label = document.createElement('span');
+  label.textContent = String(caption);
+  card.appendChild(label);
+  return card;
 }
 
 export function attributeObservationParcels(observations, features) {
