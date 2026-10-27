@@ -21,11 +21,9 @@ matching `allauth.EmailAddress` row is created on save.
 OAuth is pinned to a single Entra tenant (only accounts in that tenant
 can authenticate). Do not use the Microsoft `/common`, `/organizations`,
 or `/consumers` endpoints for Abies. Configure a tenant-specific value
-(GUID or `<name>.onmicrosoft.com`) either as `MS_OAUTH_TENANT` or as
-`tenant` in the Django-admin `SocialApp` settings JSON.
+(GUID or `<name>.onmicrosoft.com`) as `MS_OAUTH_TENANT`.
 
-App credentials can be configured either by env vars or by a Django-admin
-`SocialApp`:
+App credentials are configured exclusively by environment variables:
 
 - `MS_OAUTH_CLIENT_ID` — Entra application (client) ID
 - `MS_OAUTH_SECRET` — Entra client secret
@@ -33,13 +31,24 @@ App credentials can be configured either by env vars or by a Django-admin
 
 One Entra app registration covers all deployments (localhost, dev VM,
 prod) via separate redirect URIs. The OAuth client_id/secret can be
-shared; Django SECRET_KEYs differ per instance. If the app credentials
-are provided through env vars, set all three Microsoft env vars;
-otherwise configure the Microsoft `SocialApp` in the Django admin,
-including its tenant. Abies does not publish an empty settings-backed
-OAuth app, so an unconfigured deployment fails locally instead of
-redirecting to Microsoft with a missing `client_id` or unsupported
-`/common` tenant.
+shared; Django SECRET_KEYs differ per instance. Set all three Microsoft env vars
+to enable OAuth, or omit the credentials for password-only deployments.
+
+`apps.base.oauth.microsoft_oauth_app` is the shared configuration source for the
+login button, allauth app discovery, and both the login and callback routes.
+Authentication never reads database `SocialApp` records. Missing credentials or
+a missing/broad tenant hide the button and reject direct authentication requests
+locally with the standard localized login-denied message, before any token
+exchange. A Django security check (`base.E001`) also reports invalid configured
+apps; environment validation rejects incomplete credentials or a broad tenant
+when loading settings. An unsupported `APPS` configuration is rejected too.
+
+Allauth still uses an unsaved `SocialApp` Python object to represent the
+environment configuration. Its empty `socialaccount_socialapp` and
+`socialaccount_socialapp_sites` tables remain for compatibility with upstream
+migrations and the `SocialToken.app` foreign key. They are not a supported
+configuration mechanism. No table-removal migration is needed. User identity
+links (`SocialAccount`) and token cleanup keep their normal allauth schema.
 
 ### Ipso-Abies integration
 

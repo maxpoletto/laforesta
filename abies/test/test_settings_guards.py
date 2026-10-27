@@ -130,7 +130,7 @@ def test_production_requires_allowed_hosts_after_secret_key(monkeypatch):
         )
 
 
-def test_production_allows_socialapp_only_oauth_config(monkeypatch):
+def test_production_allows_password_only_without_oauth_config(monkeypatch):
     settings = load_settings(
         monkeypatch,
         DJANGO_DEBUG='False',

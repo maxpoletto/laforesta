@@ -251,7 +251,8 @@ SOCIALACCOUNT_ADAPTER = 'apps.base.auth.WhitelistSocialAdapter'
 SOCIALACCOUNT_AUTO_SIGNUP = False
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
-# MS 365 OAuth: configure client_id/secret via Django admin or env vars.
+# MS 365 OAuth: environment credentials only. WhitelistSocialAdapter never
+# consults database SocialApps, including when selecting callback endpoints.
 # Do not publish an empty settings-backed APP: allauth would build a
 # malformed Microsoft authorize request with no client_id.
 _microsoft_provider_config = {}

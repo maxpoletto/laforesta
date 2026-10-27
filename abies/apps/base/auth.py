@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 
 from apps.base.models import LoginMethod, Role, User
+from apps.base.oauth import microsoft_oauth_app
 from config import strings as S
 from config.constants import MESSAGE
 
@@ -35,6 +36,20 @@ class WhitelistSocialAdapter(DefaultSocialAccountAdapter):
     flow would never match.
     """
 
+    def list_apps(self, request, provider=None, client_id=None):
+        app = microsoft_oauth_app()
+        if (app is not None and provider in (None, app.provider)
+                and client_id in (None, app.client_id)):
+            return [app]
+        return []
+
+    def get_app(self, request, provider, client_id=None):
+        # Both the login and callback views select their app through this hook.
+        apps = self.list_apps(request, provider=provider, client_id=client_id)
+        if not apps:
+            _deny_oauth_login(request)
+        return apps[0]
+
     def pre_social_login(self, request, sociallogin):
         # Existing-link/email lookup replaces sociallogin.user with the local
         # user before this hook. Only email_addresses still describes the
@@ -52,12 +67,16 @@ class WhitelistSocialAdapter(DefaultSocialAccountAdapter):
             candidates = candidates.filter(pk=sociallogin.user.pk)
         user = candidates.order_by('id').first()
         if user is None:
-            messages.error(request, S.ERR_OAUTH_LOGIN_NOT_ALLOWED)
-            raise ImmediateHttpResponse(redirect('login'))
+            _deny_oauth_login(request)
         if is_existing:
             sociallogin.user = user
         else:
             sociallogin.connect(request, user)
+
+
+def _deny_oauth_login(request):
+    messages.error(request, S.ERR_OAUTH_LOGIN_NOT_ALLOWED)
+    raise ImmediateHttpResponse(redirect('login'))
 
 
 def require_writer(view):

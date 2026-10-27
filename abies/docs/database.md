@@ -44,6 +44,13 @@ audited and the contract that keeps that coverage complete.
     writes through Impostazioni attach the authenticated writer/admin as the
     history user.
 
+OAuth provider credentials are supplied exclusively through environment
+variables; see [security](security.md#ms-365-oauth-configuration). Allauth's
+`socialaccount_socialapp` and `socialaccount_socialapp_sites` tables are retained
+as empty compatibility tables for upstream migrations and token foreign keys.
+Abies never consults them for provider configuration. `SocialAccount` identity
+links and the token table retain their normal schema and cleanup behavior.
+
 ## Ipso staging
 
 - ipso_upload: (id:int, session_id:string, mode:string, schema_version:int,

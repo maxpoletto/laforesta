@@ -9,6 +9,7 @@ class BaseConfig(AppConfig):
     verbose_name = S.APP_BASE
 
     def ready(self):
+        from apps.base import oauth  # noqa: F401 — register security checks
         from django.db.backends.signals import connection_created
         connection_created.connect(_set_sqlite_pragmas)
 

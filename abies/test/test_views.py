@@ -75,7 +75,7 @@ class TestLoginPage:
     @override_settings(SOCIALACCOUNT_PROVIDERS={
         'microsoft': {'TENANT': 'common'},
     })
-    def test_shows_microsoft_login_when_social_app_configured(self, client):
+    def test_database_social_app_cannot_make_microsoft_button_available(self, client):
         app = SocialApp.objects.create(
             provider='microsoft',
             name='Microsoft',
@@ -88,7 +88,7 @@ class TestLoginPage:
         resp = client.get('/login/')
 
         assert resp.status_code == 200
-        assert b'Accedi con Microsoft' in resp.content
+        assert b'Accedi con Microsoft' not in resp.content
 
     def test_post_success_redirects(self, client, admin_user):
         resp = client.post('/login/', {

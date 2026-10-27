@@ -19,6 +19,7 @@ from apps.base.digests import serve_digest
 from apps.base.landing import user_landing_page
 from apps.base.http import CACHE_NO_CACHE, conditional_file_response
 from apps.base.models import LoginMethod
+from apps.base.oauth import microsoft_oauth_app
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import FIELD_SPECIES
@@ -59,7 +60,7 @@ class LoginView(View):
         if request.user.is_authenticated:
             return redirect(user_landing_page(request.user))
         return render(request, 'base/login.html', _login_context(
-            request, request.GET.get('next', ''),
+            request.GET.get('next', ''),
         ))
 
     def post(self, request: HttpRequest) -> HttpResponse:
@@ -75,44 +76,17 @@ class LoginView(View):
                 next_url = user_landing_page(user)
             return redirect(next_url)
         return render(request, 'base/login.html', _login_context(
-            request, request.POST.get('next', ''),
+            request.POST.get('next', ''),
             error_message=S.ERR_LOGIN_INVALID,
         ), status=400)
 
 
-def _login_context(request: HttpRequest, next_url: str, *, error_message: str = '') -> dict:
+def _login_context(next_url: str, *, error_message: str = '') -> dict:
     return {
         'error_message': error_message,
-        'microsoft_oauth_configured': _microsoft_oauth_configured(request),
+        'microsoft_oauth_configured': microsoft_oauth_app() is not None,
         'next': next_url,
     }
-
-
-def _microsoft_oauth_configured(request: HttpRequest) -> bool:
-    provider = settings.SOCIALACCOUNT_PROVIDERS.get('microsoft', {})
-    provider_tenant = provider.get('TENANT', '')
-    app = provider.get('APP', {})
-    if (app.get('client_id') and app.get('secret')
-            and _usable_microsoft_tenant(provider_tenant)):
-        return True
-
-    from allauth.socialaccount.models import SocialApp
-    for db_app in (
-        SocialApp.objects.on_site(request)
-        .filter(provider='microsoft')
-        .exclude(client_id='')
-        .exclude(secret='')
-    ):
-        app_settings = db_app.settings or {}
-        if _usable_microsoft_tenant(
-                app_settings.get('tenant') or provider_tenant):
-            return True
-    return False
-
-
-def _usable_microsoft_tenant(tenant: str) -> bool:
-    tenant = (tenant or '').strip()
-    return bool(tenant) and tenant.lower() not in settings.MS_OAUTH_BROAD_TENANTS
 
 
 @require_POST

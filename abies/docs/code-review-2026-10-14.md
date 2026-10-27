@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 26 October 2026. **C1–C11, S1, S2 and R1 are
+Progress updated: 27 October 2026. **C1–C11, S1–S3 and R1 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -30,11 +30,11 @@ The extra probes asserted the current problematic behavior; their passing result
 
 The local environment used Python 3.13, Django 6.0.4, django-allauth 65.15.1, and Gunicorn 23.0.0. The Docker image uses Python 3.14. I did not inspect deployed image contents, production data, the live reverse proxy, tenant administration, or host backup storage. There was no real-browser or real-device test and no power-failure experiment. Findings requiring those conditions are explicitly qualified. No application code or live state was changed during the original review.
 
-Follow-up verification: the full Python suite passed **1,772 tests** after the
-photo/rendition, Ipso compatibility and R1 work (previously 1,735 after S1); all
-JavaScript suites passed, including the image, thumbnail and parcel-filter/sort
-changes. The fixes began with failing
-regression tests. S1 tests exercise the actual OAuth login/callback views with
+Follow-up verification: the full Python suite passed **1,787 tests** after S3
+(previously 1,772 after the photo/rendition, Ipso compatibility and R1 work).
+Django system checks and migration checks passed. All JavaScript suites passed
+after the image, thumbnail and parcel-filter/sort changes; S3 changes no JS.
+The fixes began with failing regression tests. S1/S3 tests exercise the actual OAuth login/callback views with
 Microsoft's HTTP responses mocked. The owner subsequently checked production
 volumes and found no negatives, so C9 requires no historical-data repair or
 migration. The completion notes do not establish deployed package versions or
@@ -71,7 +71,7 @@ in R2 keep their priorities.
 | P2 | C13 Audit events within one minute are not reliably newest first | Open | Reproduced |
 | P2 | C14 Account administration lacks a stale-form guard | Open | Choice validation done in C10; stale-form guard remains |
 | P2 | S2 Desktop observation photographs lack application byte limits | Fixed | `47baa8b`; shared stream/decoder limits and 1024 px normalization |
-| P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Open | Source-established configuration risk |
+| P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Fixed | Environment-only app discovery and runtime tenant validation |
 | P2 | S4 Dependency versions need a reproducible security-update policy | Open | Local versions and upstream notices checked on the review date |
 | P2 | R2 Restore documentation and replacement sequencing need hardening | Open, partly addressed | Photo restore docs/validation and unique archive publication done; broader maintenance/mirroring remains |
 | P3 | R3 SQLite acknowledged writes are not durable across every host failure | Deferred | SQLite-specific; revisit durability against the PostgreSQL target |
@@ -351,6 +351,21 @@ Apply shared per-photo, photo-count, and aggregate byte limits while streaming, 
 
 ### S3 Database OAuth tenant configuration is not guarded at authentication
 
+**Status: Fixed.** Microsoft credentials and tenant now come exclusively from
+environment-backed settings. The social adapter overrides app discovery and
+selection, never querying database `SocialApp` records. Login, callbacks and the
+button share one configuration helper. Missing credentials or a broad/missing
+tenant reject authentication locally before token exchange; Django's security
+check reports invalid configuration as `base.E001`. Existing whitelist/link
+policy remains in place.
+
+The owner chose to retain the empty allauth configuration tables: deleting them
+would require maintaining a custom upstream schema because `SocialToken.app`
+references `SocialApp`. No database migration is needed. Regressions first
+reproduced database app selection, competing configuration, unsuitable direct
+login/callback tenants, and missing system checks; they now cover those paths
+and query-free configuration discovery. See [security](security.md#ms-365-oauth-configuration).
+
 Sources: [environment configuration](../config/settings.py), around line 119; [login-button availability](../apps/base/views.py), `_microsoft_oauth_configured` at line 91; installed allauth Microsoft adapter, `_build_tenant_url`.
 
 Environment configuration rejects broad tenant aliases such as `common`. The UI helper also hides the login button for an unsuitable database SocialApp. However, that helper is not an authorization gate on the allauth login/callback routes. The installed provider accepts a database app's lowercase `tenant` override and otherwise has a broad default.
@@ -360,6 +375,18 @@ This is a misconfiguration risk, not a claim that the deployed tenant is broad o
 Validate the effective app/tenant used by authentication itself, including database SocialApps. Add a system check and fail closed on an invalid tenant. Document one supported configuration source or define its precedence clearly. Continue to treat provider identity and tenant policy as security decisions, not merely login-page presentation.
 
 ### S4 Dependency versions need a reproducible security update policy
+
+**Status: Open.** The immediate upgrade and reproducible locks remain to be
+implemented. Proposed notification policy: use GitHub Dependabot's
+advisory-triggered alerts/security update PRs, with monthly grouped routine
+version updates. This replaces manual weekly checks. Exact committed dependency
+versions are needed to identify affected transitive packages; vendored JS needs
+an explicit tracked manifest, and container OS packages need separate scanning.
+GitHub alert notifications and a JSON API support delivery without a custom
+package-release feed. Repository settings/notification preferences have not
+been changed. See [Dependabot detection](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/vulnerability-detection),
+[notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-security-notifications),
+and [alert API](https://docs.github.com/en/rest/dependabot/alerts).
 
 Sources: [requirements](../requirements.txt); [Docker build](../Dockerfile). Upstream notices were checked on the review date.
 
@@ -605,7 +632,7 @@ durability, and backup/restore behavior on that backend.
 
 ### I8 Add integration tests at the component boundaries
 
-**Status: Partly addressed.** C1–C11, S1, S2 and R1 add boundary regressions for
+**Status: Partly addressed.** C1–C11, S1–S3 and R1 add boundary regressions for
 writes, cache invalidation, offline saves/sessions, calculations, OAuth callbacks,
 streamed image validation, renditions, and database/media backup consistency.
 Real-browser/device coverage and target-backend migration tests remain open.
@@ -625,12 +652,12 @@ treating a successful mocked fetch as the only path.
 ## Suggested implementation sequence
 
 Use small changes with their own regression tests and documentation updates.
-C1–C11, S1, S2 and R1 are complete; the remaining sequence is:
+C1–C11, S1–S3 and R1 are complete; the remaining sequence is:
 
 1. **Validate recovery operationally:** complete the off-host/app restore drills
    for the now-coordinated database/media backup; continue the open R2 work.
-2. **Repair remaining security/configuration work:** S3 effective OAuth tenant
-   validation and S4 reproducible dependency updates.
+2. **Repair remaining security/configuration work:** S4 reproducible dependency
+   updates and automated advisory notifications.
 3. **Finish bounded correctness/admin work:** C13 full-time audit sorting and
    C14 stale account forms and remaining account validation/policy decisions.
 4. **Strengthen recovery and field workflows:** the backend-independent parts
@@ -663,7 +690,8 @@ Regression coverage and outstanding cases:
 - [x] S1: actual callback completion after identity/method changes, inactive
   users, UID/email lookup paths, relinking, rollback, and existing-session rules.
 - [ ] C12: competing publication generations; deferred under the single worker.
-- [ ] S3: invalid effective OAuth tenants at authentication.
+- [x] S3: environment-only discovery, ignored database apps, direct login/callback
+  rejection for invalid tenants, and configuration security checks.
 - [x] S2: streaming byte/count and decoded-pixel bounds, genuine decoder inputs,
   normalization, metadata preservation, and stable staged upload identity.
 - [ ] C13/C14: same-minute/same-second audit ordering and stale account edits.
