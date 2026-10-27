@@ -1,0 +1,54 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /abies
+    schedule:
+      interval: monthly
+    groups:
+      python-routine:
+        applies-to: version-updates
+        patterns: ['*']
+        update-types: [minor, patch]
+      python-security:
+        applies-to: security-updates
+        patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+      # Django feature releases need a deliberate support/migration review.
+      - dependency-name: django
+        update-types: [version-update:semver-minor]
+    open-pull-requests-limit: 3
+  - package-ecosystem: npm
+    directory: /abies/vendor
+    schedule:
+      interval: monthly
+    groups:
+      browser-routine:
+        applies-to: version-updates
+        patterns: ['*']
+        update-types: [minor, patch]
+      browser-security:
+        applies-to: security-updates
+        patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+    open-pull-requests-limit: 3
+  - package-ecosystem: docker
+    directory: /abies
+    schedule:
+      interval: monthly
+    # Preserve Python 3.14; update its patches and pinned image digest.
+    ignore:
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
+    open-pull-requests-limit: 2
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      ci-actions:
+        patterns: ['*']
+    open-pull-requests-limit: 2

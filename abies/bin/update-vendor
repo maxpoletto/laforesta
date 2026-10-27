@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Copy locked npm assets, or check that committed browser files match them."""
+
+import argparse
+import shutil
+from pathlib import Path
+
+
+ASSETS = {
+    'leaflet/dist/leaflet.js': 'leaflet/leaflet.js',
+    'leaflet/dist/leaflet.css': 'leaflet/leaflet.css',
+    'leaflet/dist/images': 'leaflet/images',
+    'chart.js/dist/chart.umd.js': 'chartjs/chart.umd.js',
+    '@maxpoletto/sortable-table/src/sortable-table.js': 'sortable-table/sortable-table.js',
+    '@maxpoletto/sortable-table/src/sortable-table.css': 'sortable-table/sortable-table.css',
+}
+
+
+def sync_vendor_assets(app_root, *, check=False):
+    installed = app_root / 'vendor/node_modules'
+    committed = app_root / 'apps/base/static/vendor'
+    # Validate every source before changing anything in the committed tree.
+    for source in ASSETS:
+        if not (installed / source).exists():
+            raise FileNotFoundError(f'{installed / source}: run npm ci --ignore-scripts --prefix vendor')
+    matches = True
+    for source_name, target_name in ASSETS.items():
+        source, target = installed / source_name, committed / target_name
+        if source.is_dir():
+            source_files = {p.relative_to(source) for p in source.rglob('*') if p.is_file()}
+            target_files = {p.relative_to(target) for p in target.rglob('*') if p.is_file()}
+            same = source_files == target_files and all(
+                (source / name).read_bytes() == (target / name).read_bytes()
+                for name in source_files
+            )
+        else:
+            same = target.is_file() and source.read_bytes() == target.read_bytes()
+        if same:
+            continue
+        if check:
+            print(f'Stale or missing vendor asset: {target_name}')
+            matches = False
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_dir():
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.copytree(source, target)
+            else:
+                shutil.copyfile(source, target)
+    return matches
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check', action='store_true', help='Report drift without writing files')
+    args = parser.parse_args()
+    try:
+        return 0 if sync_vendor_assets(Path(__file__).resolve().parents[1], check=args.check) else 1
+    except FileNotFoundError as error:
+        parser.exit(1, f'{error}\n')
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

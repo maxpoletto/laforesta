@@ -5,6 +5,7 @@
 .claude
 .pytest_cache
 .coverage
+.venv/
 
 # Local runtime state / secrets (bind-mounted or supplied in production)
 data/
@@ -22,5 +23,5 @@ TODO.md
 oauth.txt
 claude-resume
 
-# Vendor npm cache from update-vendor
-/tmp/abies-vendor
+# Installed asset sources (the browser copies are included).
+vendor/node_modules/

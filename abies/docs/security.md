@@ -96,6 +96,12 @@ alone does not revoke an otherwise valid session.
 
 Session expiration defaults to 12 hours (server-configurable).
 
+## Dependency maintenance
+
+Dependency versions, advisory notifications, image scans and the operator update
+process are documented in [dependency maintenance](dependencies.md). GitHub
+activation and deployment are separate from committing the configuration.
+
 ## Password policy
 
 Django's default `AUTH_PASSWORD_VALIDATORS` are enabled: minimum length (8

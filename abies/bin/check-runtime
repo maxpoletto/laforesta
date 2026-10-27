@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Check the production image's package inventory, tooling and native imports."""
+
+import importlib.metadata
+import json
+from pathlib import Path
+
+
+def main():
+    installed = {
+        distribution.metadata['Name'].lower(): distribution.version
+        for distribution in importlib.metadata.distributions()
+    }
+    tools = {
+        'pip', 'setuptools', 'wheel', 'build', 'pip-tools', 'uv', 'pip-audit',
+        'pytest', 'pytest-cov', 'pytest-django',
+    }
+    unexpected = tools.intersection(installed)
+    if unexpected:
+        raise RuntimeError(f'Build/test tooling in production image: {sorted(unexpected)}')
+    inventory = json.loads(Path('/usr/local/share/abies/python-dependencies.json').read_text())
+    recorded = {
+        item['metadata']['name'].lower(): item['metadata']['version']
+        for item in inventory['installed']
+    }
+    if installed != recorded:
+        raise RuntimeError('Production Python inventory differs from installed packages')
+    import numpy
+    import PIL
+    import pillow_heif
+    import rasterio
+    print(f'Production inventory matches {len(installed)} packages; no build/test tools.')
+    print(f'Native imports: numpy {numpy.__version__}, rasterio {rasterio.__version__}, '
+          f'Pillow {PIL.__version__}, pillow-heif {pillow_heif.__version__}')
+
+
+if __name__ == '__main__':
+    main()

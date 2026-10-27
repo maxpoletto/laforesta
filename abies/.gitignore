@@ -1,8 +1,12 @@
 # Python
+.venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
 *.egg
+
+# Installed asset sources; manifests and browser copies are committed.
+vendor/node_modules/
 .coverage
 
 # Django

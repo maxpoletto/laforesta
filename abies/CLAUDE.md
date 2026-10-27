@@ -116,7 +116,10 @@ only required on one page appear in a page-specific style file.
 All JS dependencies (Leaflet, Chart.js, sortable-table, (Google) fonts, etc.)
 are minified and vendored, served from Django's static/vendor. There are no
 external dependencies at runtime. A Makefile target (`make update-vendor`)
-re-copies from source when needed.
+installs the locked sources in `vendor/package-lock.json` without lifecycle
+scripts and copies the browser assets. `make check-vendor` verifies those copies.
+See [`docs/dependencies.md`](docs/dependencies.md) for Python locks, supported
+versions, automated audits, dependency updates and GitHub setup.
 
 # Storage
 
@@ -306,8 +309,10 @@ No browser-based E2E; UI verified by manual smoke testing.
 
 # Development environment
 
-Runs directly on the host (no Docker): `manage.py runserver` + Python 3.13
-virtualenv. `data/` holds `db.sqlite3`, `canonical/`, `digests/`, `geo/`, and `ipso-inbox/`.
+Runs directly on the host (no Docker): `manage.py runserver` + Python 3.14
+virtualenv, matching production and CI. Install with
+`python -m pip install --require-hashes -r requirements-dev.txt`.
+`data/` holds `db.sqlite3`, `canonical/`, `digests/`, `geo/`, and `ipso-inbox/`.
 
 - `make dev`: zero-to-working in one command (reset DB + migrate + bootstrap + geo + digest + admin + template links).
 - `make migrate`: run Django migrations.

@@ -1,0 +1,10 @@
+{
+  "name": "abies-vendored-assets",
+  "private": true,
+  "description": "Sources for the browser assets copied by make update-vendor",
+  "dependencies": {
+    "@maxpoletto/sortable-table": "1.5.0",
+    "chart.js": "4.6.1",
+    "leaflet": "1.9.4"
+  }
+}

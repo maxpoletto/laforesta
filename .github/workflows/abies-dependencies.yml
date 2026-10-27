@@ -1,0 +1,125 @@
+name: Abies dependency checks
+
+on:
+  pull_request:
+    paths:
+      - 'abies/**'
+      - '.github/dependabot.yml'
+      - '.github/workflows/abies-dependencies.yml'
+  push:
+    paths:
+      - 'abies/**'
+      - '.github/dependabot.yml'
+      - '.github/workflows/abies-dependencies.yml'
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: abies-dependencies-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Python, browser assets and package audits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: abies
+    env:
+      DJANGO_SETTINGS_MODULE: config.test_settings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: 'abies/requirements*.txt'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: abies/vendor/package-lock.json
+      - name: Install the exact test and production packages
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.txt
+          python -m pip check
+          python -m pip inspect --local > "$RUNNER_TEMP/abies-test-dependencies.json"
+      - name: Verify Python locks match their inputs
+        run: |
+          make lock-dependencies
+          git diff --exit-code -- requirements.txt requirements-dev.txt
+      - name: Install and check browser sources
+        run: |
+          npm ci --ignore-scripts --prefix vendor
+          make check-vendor
+      - name: Run Python and JavaScript tests
+        run: make test
+      - name: Check for missing migrations
+        run: |
+          python - <<'PYTHON'
+          from django.conf import settings
+          settings.DATABASES['default']['NAME'] = ':memory:'
+          import django
+          django.setup()
+          from django.core.management import call_command
+          call_command('makemigrations', check=True, dry_run=True)
+          call_command('check')
+          PYTHON
+      - name: Audit the Python locks
+        run: make audit-dependencies
+      - name: Audit browser packages
+        run: npm audit --prefix vendor --omit=dev --audit-level=high
+      - name: Save the tested package inventory
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: abies-tested-python-packages
+          path: ${{ runner.temp }}/abies-test-dependencies.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  container:
+    name: Production image and vulnerability scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the production image
+        run: docker build --tag abies-ci:${{ github.sha }} abies
+      - name: Check the production environment and record its inventory
+        run: |
+          docker run --rm abies-ci:${{ github.sha }} python bin/check-runtime
+          docker run --rm -e DJANGO_SETTINGS_MODULE=config.test_settings abies-ci:${{ github.sha }} gunicorn --check-config config.wsgi:application
+          docker image inspect abies-ci:${{ github.sha }} --format '{{.Id}}' > "$RUNNER_TEMP/abies-image-id.txt"
+          docker run --rm abies-ci:${{ github.sha }} cat /usr/local/share/abies/python-dependencies.json > "$RUNNER_TEMP/abies-image-python.json"
+          docker run --rm abies-ci:${{ github.sha }} cat /usr/local/share/abies/system-packages.txt > "$RUNNER_TEMP/abies-image-system.txt"
+      - name: Scan fixable high and critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          timeout: 15m0s
+          image-ref: abies-ci:${{ github.sha }}
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          output: ${{ runner.temp }}/abies-image-vulnerabilities.txt
+      - name: Save image inventory and scan results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: abies-production-image
+          path: ${{ runner.temp }}/abies-image-*
+          retention-days: 14
+          if-no-files-found: ignore

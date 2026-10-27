@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 27 October 2026. **C1–C11, S1–S3 and R1 are
+Progress updated: 27 October 2026. **C1–C11, S1–S4 and R1 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -30,11 +30,15 @@ The extra probes asserted the current problematic behavior; their passing result
 
 The local environment used Python 3.13, Django 6.0.4, django-allauth 65.15.1, and Gunicorn 23.0.0. The Docker image uses Python 3.14. I did not inspect deployed image contents, production data, the live reverse proxy, tenant administration, or host backup storage. There was no real-browser or real-device test and no power-failure experiment. Findings requiring those conditions are explicitly qualified. No application code or live state was changed during the original review.
 
-Follow-up verification: the full Python suite passed **1,787 tests** after S3
-(previously 1,772 after the photo/rendition, Ipso compatibility and R1 work).
-Django system checks and migration checks passed. All JavaScript suites passed
-after the image, thumbnail and parcel-filter/sort changes; S3 changes no JS.
-The fixes began with failing regression tests. S1/S3 tests exercise the actual OAuth login/callback views with
+Follow-up verification: the full Python suite passed **1,792 tests** on Python
+3.14.10 after S4 (previously 1,787 after S3). All JavaScript suites passed with
+the refreshed browser libraries. System/migration checks, hashed installation,
+repeatable locks, package audits and the production-image gate passed. Actual
+Gunicorn HTTP checks exercised fresh migrations, login/CSRF, HTTPS forwarding
+and a tenant-specific OAuth redirect without contacting Microsoft. The image
+has no package installers or test tooling. The image gate covers fixable
+high/critical OS/library advisories; it is not an all-severity certification.
+The fixes began with failing regressions. S1/S3 tests exercise the actual OAuth login/callback views with
 Microsoft's HTTP responses mocked. The owner subsequently checked production
 volumes and found no negatives, so C9 requires no historical-data repair or
 migration. The completion notes do not establish deployed package versions or
@@ -71,8 +75,8 @@ in R2 keep their priorities.
 | P2 | C13 Audit events within one minute are not reliably newest first | Open | Reproduced |
 | P2 | C14 Account administration lacks a stale-form guard | Open | Choice validation done in C10; stale-form guard remains |
 | P2 | S2 Desktop observation photographs lack application byte limits | Fixed | `47baa8b`; shared stream/decoder limits and 1024 px normalization |
-| P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Fixed | Environment-only app discovery and runtime tenant validation |
-| P2 | S4 Dependency versions need a reproducible security-update policy | Open | Local versions and upstream notices checked on the review date |
+| P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Fixed | `4b11f46`; environment-only app discovery and runtime tenant validation |
+| P2 | S4 Dependency versions need a reproducible security-update policy | Fixed in branch | Upgraded locks/manifests, pinned base, inventories and automated checks; GitHub activation remains |
 | P2 | R2 Restore documentation and replacement sequencing need hardening | Open, partly addressed | Photo restore docs/validation and unique archive publication done; broader maintenance/mirroring remains |
 | P3 | R3 SQLite acknowledged writes are not durable across every host failure | Deferred | SQLite-specific; revisit durability against the PostgreSQL target |
 | P2 | R4 Ipso can record more rows than its upload API accepts | Open | Source review |
@@ -376,17 +380,35 @@ Validate the effective app/tenant used by authentication itself, including datab
 
 ### S4 Dependency versions need a reproducible security update policy
 
-**Status: Open.** The immediate upgrade and reproducible locks remain to be
-implemented. Proposed notification policy: use GitHub Dependabot's
-advisory-triggered alerts/security update PRs, with monthly grouped routine
-version updates. This replaces manual weekly checks. Exact committed dependency
-versions are needed to identify affected transitive packages; vendored JS needs
-an explicit tracked manifest, and container OS packages need separate scanning.
-GitHub alert notifications and a JSON API support delivery without a custom
-package-release feed. Repository settings/notification preferences have not
-been changed. See [Dependabot detection](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/vulnerability-detection),
-[notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-security-notifications),
-and [alert API](https://docs.github.com/en/rest/dependabot/alerts).
+**Status: Fixed in branch; GitHub activation/deployment remain operator actions.**
+Production and test packages now have separate exact, hashed locks generated by
+pinned uv tooling on Python 3.14. Installation enforces hashes; production also
+requires wheels. The refresh includes Django 6.0.9, allauth 65.21.0, Gunicorn
+26.2.0 and the native image/geospatial libraries. The first package audit failed
+on Pillow 12.3.0; the deliberate move to Pillow 13.0.0 resolves those findings.
+Final production/test lock audits and npm audit pass.
+
+Browser dependencies have an npm manifest/lock; the vendor updater consumes
+those sources and a regression-tested check rejects stale/missing/obsolete
+served files. The official Python 3.14.10 Debian image is pinned by digest. The
+image records actual Python/apt inventories and drops pip/ensurepip after build
+validation, removing their unused bundled libraries flagged by the first image
+scan. The final runtime inventory/native checks, Gunicorn smoke checks and
+fixable-high/critical image scan pass. The latest development/build pip still
+vendors older flagged libraries; monitor its upstream refresh separately.
+
+Root GitHub configuration supplies monthly grouped Dependabot PRs for Python,
+npm, Docker and pinned Actions, with advisory-triggered security updates enabled
+through repository settings. CI runs tests, lock/asset consistency, package audits
+and production-image checks/scanning on changes and daily. There is no manual
+weekly inspection requirement or automatic deployment. Cold scans allow a
+15-minute timeout; service failures fail the job. Repository notification/settings
+have not been changed. The owner must merge to the default branch and enable
+the features described in [dependency policy and GitHub setup](dependencies.md).
+
+Python locks/base images are fixed, while apt security packages resolve at
+build time. The recorded image ID and inventory identify each actual build;
+these checks do not establish deployed versions or bit-identical OS rebuilds.
 
 Sources: [requirements](../requirements.txt); [Docker build](../Dockerfile). Upstream notices were checked on the review date.
 
@@ -632,10 +654,11 @@ durability, and backup/restore behavior on that backend.
 
 ### I8 Add integration tests at the component boundaries
 
-**Status: Partly addressed.** C1–C11, S1–S3 and R1 add boundary regressions for
+**Status: Partly addressed.** C1–C11, S1–S4 and R1 add boundary regressions for
 writes, cache invalidation, offline saves/sessions, calculations, OAuth callbacks,
 streamed image validation, renditions, and database/media backup consistency.
-Real-browser/device coverage and target-backend migration tests remain open.
+CI now runs the suites and verifies actual vendor assets and the production
+image. Real-browser/device coverage and target-backend migration tests remain open.
 
 The current test suite is extensive and valuable. The reproduced failures show that isolated tests and test doubles do not always model the boundary that matters: another digest reader, the first absent cache entry, a pre-save await, or a post-commit acknowledgement failure.
 
@@ -652,12 +675,12 @@ treating a successful mocked fetch as the only path.
 ## Suggested implementation sequence
 
 Use small changes with their own regression tests and documentation updates.
-C1–C11, S1–S3 and R1 are complete; the remaining sequence is:
+C1–C11, S1–S4 and R1 are implemented; the remaining sequence is:
 
 1. **Validate recovery operationally:** complete the off-host/app restore drills
    for the now-coordinated database/media backup; continue the open R2 work.
-2. **Repair remaining security/configuration work:** S4 reproducible dependency
-   updates and automated advisory notifications.
+2. **Activate dependency automation:** merge the S4 configuration to the default
+   branch, enable GitHub security notifications and run the workflow once.
 3. **Finish bounded correctness/admin work:** C13 full-time audit sorting and
    C14 stale account forms and remaining account validation/policy decisions.
 4. **Strengthen recovery and field workflows:** the backend-independent parts
@@ -692,6 +715,9 @@ Regression coverage and outstanding cases:
 - [ ] C12: competing publication generations; deferred under the single worker.
 - [x] S3: environment-only discovery, ignored database apps, direct login/callback
   rejection for invalid tenants, and configuration security checks.
+- [x] S4: hashed locks, repeatable resolution, asset-drift regressions, package
+  audits, production tooling removal/inventory checks, and an actual Gunicorn
+  migration/login/CSRF/HTTPS/OAuth smoke check; image gate passes.
 - [x] S2: streaming byte/count and decoded-pixel bounds, genuine decoder inputs,
   normalization, metadata preservation, and stable staged upload identity.
 - [ ] C13/C14: same-minute/same-second audit ordering and stale account edits.
@@ -709,10 +735,11 @@ The code does not need wholesale replacement. Its strongest design choices are c
 
 The completed fixes now cover rejected-save atomicity, retry receipts, stump and
 volume correctness, digest/cache identity, mobile save acknowledgement, and
-linked OAuth login policy. Image uploads now have server-owned limits/renditions,
+linked OAuth login policy and environment-only provider configuration. Image uploads now have server-owned limits/renditions,
 and backup/restore validates every photo referenced by the captured database.
 Operational/off-host recovery drills and broader maintenance sequencing remain.
-Continue with authentication configuration, dependency upkeep, audit ordering,
+Dependency upkeep is documented and automated after GitHub activation.
+Continue with recovery validation, audit ordering,
 and account-edit concurrency in small tested changes. Keep PostgreSQL/PostGIS
 planning in view and give SQLite-only tuning lower priority than these shared
 correctness and recovery requirements.

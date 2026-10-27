@@ -1,0 +1,14 @@
+# Production dependencies. Compile on Python 3.14 with `make lock-dependencies`.
+# Django feature upgrades are reviewed separately; 6.0 security support ends
+# April 2027. Plan the 6.2 LTS upgrade before that date.
+django>=6.0.9,<6.1
+django-allauth[socialaccount]>=65.21,<66
+django-axes>=8.3,<9
+django-simple-history>=3.13,<4
+gunicorn>=26.2,<27
+numpy>=2.0,<3
+# Pillow 13 fixes the image-decoder advisories affecting the 12.x series.
+pillow>=13.0,<14
+pillow-heif>=1.8,<2
+rasterio>=1.5,<2
+requests>=2.34,<3

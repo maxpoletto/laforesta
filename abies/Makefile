@@ -40,13 +40,17 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
         sync-canonical sync-canonical-dev sync-canonical-prod sync-satellite sync-satellite-dev sync-satellite-prod sync-data sync-data-dev sync-data-prod \
         bootstrap-dev bootstrap-prod bootstrap-instance backup-dev backup-prod backup-instance mirror-prod-to-dev mirror-instance docker-prune \
         test test-js \
-        clean reset-schema update-vendor
+        clean reset-schema update-vendor check-vendor lock-dependencies upgrade-dependencies audit-dependencies
 
 help:
 	@echo "Local development:"
 	@echo "  make dev                         reset local DB, load canonical data, create admin"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
+	@echo "  make lock-dependencies           regenerate Python locks on Python 3.14"
+	@echo "  make upgrade-dependencies        upgrade Python locks within approved ranges"
+	@echo "  make audit-dependencies          audit locked Python dependencies"
+	@echo "  make update-vendor check-vendor  copy/check locked browser assets"
 	@echo "  make sync-branding                copy data/branding assets into static files"
 	@echo "  make satellite                    build satellite dates, rasters, and summaries"
 	@echo "  make satellite-precompute         rebuild satellite manifest/timeseries only"
@@ -297,16 +301,22 @@ clean:
 reset-schema: clean
 	find apps/*/migrations -name '0001_initial.py' -delete
 
-VENDOR = apps/base/static/vendor
-NPM_TMP = /tmp/abies-vendor
-
 update-vendor:
-	mkdir -p $(NPM_TMP) && cd $(NPM_TMP) && npm init -y --silent && \
-	npm install leaflet@1.9.4 chart.js@4.5.1 @maxpoletto/sortable-table@1.3.0
-	/bin/cp $(NPM_TMP)/node_modules/leaflet/dist/leaflet.js $(VENDOR)/leaflet/
-	/bin/cp $(NPM_TMP)/node_modules/leaflet/dist/leaflet.css $(VENDOR)/leaflet/
-	/bin/cp -r $(NPM_TMP)/node_modules/leaflet/dist/images $(VENDOR)/leaflet/
-	/bin/cp $(NPM_TMP)/node_modules/chart.js/dist/chart.umd.js $(VENDOR)/chartjs/
-	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.js $(VENDOR)/sortable-table/
-	/bin/cp $(NPM_TMP)/node_modules/@maxpoletto/sortable-table/src/sortable-table.css $(VENDOR)/sortable-table/
+	npm ci --ignore-scripts --prefix vendor
+	$(PYTHON) bin/update-vendor
 	@echo "Vendor JS/CSS updated. Roboto fonts are managed manually."
+
+check-vendor:
+	$(PYTHON) bin/update-vendor --check
+
+# Use the same interpreter as production when resolving conditional dependencies.
+lock-dependencies:
+	$(PYTHON) -c 'import sys; assert sys.version_info[:2] == (3, 14), "Compile locks with Python 3.14"'
+	$(PYTHON) -m uv pip compile --python "$(PYTHON)" --generate-hashes --default-index https://pypi.org/simple --custom-compile-command 'make lock-dependencies' $(UV_COMPILE_UPGRADE) --output-file requirements.txt requirements.in
+	$(PYTHON) -m uv pip compile --python "$(PYTHON)" --generate-hashes --default-index https://pypi.org/simple --custom-compile-command 'make lock-dependencies' $(UV_COMPILE_UPGRADE) --output-file requirements-dev.txt requirements-dev.in
+
+upgrade-dependencies:
+	$(MAKE) lock-dependencies PYTHON="$(PYTHON)" UV_COMPILE_UPGRADE=--upgrade
+
+audit-dependencies:
+	$(PYTHON) -m pip_audit --strict --disable-pip --require-hashes -r requirements-dev.txt

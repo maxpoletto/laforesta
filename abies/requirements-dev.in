@@ -1,0 +1,10 @@
+# One development/test environment, constrained to the production lock.
+-c requirements.txt
+-r requirements.in
+pytest>=9,<10
+pytest-cov>=7,<8
+pytest-django>=4.14,<5
+
+# Pin the tools that generate and audit the locks.
+uv==0.13.6
+pip-audit==2.10.1

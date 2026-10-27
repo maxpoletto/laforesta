@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.14.10-slim-trixie@sha256:fa99b65193ea9dbde3fc2367f43d3a2907571ce2a15213a86f0053e1d49d8456
 
 # --- OS deps ----------------------------------------------------------------
 # sqlite3 ships as a Python stdlib C extension in python:3.14-slim.
@@ -14,7 +14,18 @@ WORKDIR /app
 # --- Python deps (cached layer) ---------------------------------------------
 COPY requirements.txt .
 RUN pip install --no-cache-dir --root-user-action=ignore --disable-pip-version-check \
-        -r requirements.txt
+        --require-hashes --only-binary=:all: -r requirements.txt \
+ && python -m pip check
+
+# Record the runtime packages, then remove installers and their bundled libraries.
+# Base/Python packages are pinned; apt security updates resolve at build time.
+RUN mkdir -p /usr/local/share/abies \
+ && python -m pip inspect --local \
+    | python -c 'import json,sys; report=json.load(sys.stdin); report["installed"]=[item for item in report["installed"] if item["metadata"]["name"].lower() != "pip"]; json.dump(report,sys.stdout,indent=2)' \
+    > /usr/local/share/abies/python-dependencies.json \
+ && dpkg-query -W > /usr/local/share/abies/system-packages.txt \
+ && python -m pip uninstall --yes --root-user-action=ignore pip \
+ && python -c 'import ensurepip,pathlib,shutil; shutil.rmtree(pathlib.Path(ensurepip.__file__).parent)'
 
 # --- App source -------------------------------------------------------------
 COPY . .
