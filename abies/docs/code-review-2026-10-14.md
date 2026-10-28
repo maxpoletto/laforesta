@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 27 October 2026. **C1–C11, S1–S4 and R1 are
+Progress updated: 28 October 2026. **C1–C11, C13, S1–S4 and R1 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -72,7 +72,7 @@ in R2 keep their priorities.
 | P2 | C10 Input parsing coerces invalid types and can raise exceptions | Fixed | `3130ca3` |
 | P2 | C11 Some writes commit before invalidating their digests | Fixed | `6a7ceb8` |
 | P3 | C12 Concurrent digest generators can publish an old result as fresh | Deferred | Revisit before adding workers/threads or concurrent generators |
-| P2 | C13 Audit events within one minute are not reliably newest first | Open | Reproduced |
+| P2 | C13 Audit events within one minute are not reliably newest first | Fixed | Full timestamp ordering, stable event IDs and precise browser/CSV data |
 | P2 | C14 Account administration lacks a stale-form guard | Open | Choice validation done in C10; stale-form guard remains |
 | P2 | S2 Desktop observation photographs lack application byte limits | Fixed | `47baa8b`; shared stream/decoder limits and 1024 px normalization |
 | P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Fixed | `4b11f46`; environment-only app discovery and runtime tenant validation |
@@ -274,6 +274,15 @@ The current Docker command runs one synchronous Gunicorn worker, which substanti
 Add per-digest cross-process generation ownership or serialization, and validate the generation before publishing. Immutable generation files plus an atomic published pointer are another option. Coordinate management-command generation with the same protocol. Do not add workers for performance before addressing this and the process-local security/cache assumptions.
 
 ### C13 Audit events within one minute are not reliably newest first
+
+**Status: Fixed.** Audit generation sorts complete event timestamps with a
+deterministic model/history-ID tie break. Composite event IDs remain stable
+when rows or model configuration order change. The browser sorts fixed-format
+UTC strings at microsecond precision, displays site-local seconds through a
+separate hidden label, and exports precise UTC times. Migration 0030 forces
+existing audit files to regenerate without changing history. Regressions cover
+same-minute/sub-millisecond events, cross-model/exact ties, stable IDs, DST,
+browser display/search/sorting/CSV and upgrade invalidation.
 
 Source: [audit digest](../apps/base/digests.py), `generate_audit` at line 670 and `_audit_rows` at line 697.
 
@@ -675,14 +684,14 @@ treating a successful mocked fetch as the only path.
 ## Suggested implementation sequence
 
 Use small changes with their own regression tests and documentation updates.
-C1–C11, S1–S4 and R1 are implemented; the remaining sequence is:
+C1–C11, C13, S1–S4 and R1 are implemented; the remaining sequence is:
 
 1. **Validate recovery operationally:** complete the off-host/app restore drills
    for the now-coordinated database/media backup; continue the open R2 work.
 2. **Activate dependency automation:** merge the S4 configuration to the default
    branch, enable GitHub security notifications and run the workflow once.
-3. **Finish bounded correctness/admin work:** C13 full-time audit sorting and
-   C14 stale account forms and remaining account validation/policy decisions.
+3. **Finish bounded admin work:** C14 stale account forms and remaining account
+   validation/policy decisions.
 4. **Strengthen recovery and field workflows:** the backend-independent parts
    of R2, plus R4 discoverable/enforced recording limits and recoverable sessions.
 5. **Clarify scientific identity and estimates:** M1 stable equation keys and
@@ -720,7 +729,9 @@ Regression coverage and outstanding cases:
   migration/login/CSRF/HTTPS/OAuth smoke check; image gate passes.
 - [x] S2: streaming byte/count and decoded-pixel bounds, genuine decoder inputs,
   normalization, metadata preservation, and stable staged upload identity.
-- [ ] C13/C14: same-minute/same-second audit ordering and stale account edits.
+- [x] C13: precise cross-model ordering, deterministic ties, stable identities,
+  DST, browser sorting/search/CSV and upgrade invalidation.
+- [ ] C14: stale account edits and account validation/policy decisions.
 - [x] R1: deletion after DB snapshot, stable photo capture, writes during
   compression, missing/corrupt reference rejection, restore validation, and
   snapshot lock lifetime through nonce commit hooks.

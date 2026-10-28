@@ -16,6 +16,7 @@ import logging
 import math
 import os
 import tempfile
+from datetime import timezone as dt_timezone
 from pathlib import Path
 
 from django.conf import settings
@@ -43,7 +44,7 @@ from config.constants import (
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORIES,
     FIELD_CATEGORY_IDS, FIELD_DIAMETER_CLASS_MODE, FIELD_FIRST_DATE, FIELD_ID,
-    FIELD_LAST_DATE,
+    FIELD_LAST_DATE, FIELD_TIMESTAMP_LABEL,
     FIELD_NAME, FIELD_NUMBER, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
@@ -679,22 +680,21 @@ def generate_audit() -> None:
             f'HistoricalRecords() if they should not be audited.'
         )
 
-    rows = []
-    row_id = 0
+    events = []
     for model, table_label, field_labels in configs:
-        row_id = _audit_rows(model, model.history, table_label, field_labels,
-                             rows, row_id)
+        _audit_rows(model, model.history, table_label, field_labels, events)
 
-    rows.sort(key=lambda r: r[1], reverse=True)
+    events.sort(key=lambda event: event[:3], reverse=True)
+    rows = [event[3] for event in events]
 
     columns = [ROW_ID, S.COL_TIMESTAMP, S.COL_USER, S.COL_TABLE,
-               S.COL_ACTION, S.COL_OLD_VALUE, S.COL_NEW_VALUE]
+               S.COL_ACTION, S.COL_OLD_VALUE, S.COL_NEW_VALUE, FIELD_TIMESTAMP_LABEL]
     _write_gzip_json({'columns': columns, 'rows': rows}, _dest('audit'))
     logger.info('audit.json.gz: %s rows', len(rows))
 
 
-def _audit_rows(model, manager, table_label, field_labels, rows, row_id):
-    """Append audit rows for one historical model.  Returns updated row_id."""
+def _audit_rows(model, manager, table_label, field_labels, events):
+    """Append events with full timestamps and stable cross-model identities."""
     prev_map: dict[int, object] = {}
     value_cache: dict[tuple[object, object], object | None] = {}
     source_pk = model._meta.pk.attname
@@ -714,7 +714,8 @@ def _audit_rows(model, manager, table_label, field_labels, rows, row_id):
             u = entry.history_user
             user = f'{u.first_name} {u.last_name}'.strip() or u.username
 
-        ts = timezone.localtime(entry.history_date).strftime('%Y-%m-%d %H:%M')
+        ts = entry.history_date.astimezone(dt_timezone.utc).isoformat(timespec='microseconds')
+        label = timezone.localtime(entry.history_date).strftime('%Y-%m-%d %H:%M:%S')
         action = _ACTION_MAP.get(ht, ht)
 
         if ht == '+':
@@ -733,11 +734,10 @@ def _audit_rows(model, manager, table_label, field_labels, rows, row_id):
             continue
         before, after = row
 
-        row_id += 1
-        rows.append([row_id, ts, user, table_label, action, before, after])
+        identity = f'{model._meta.label_lower}:{entry.history_id}'
+        events.append((entry.history_date, model._meta.label_lower, entry.history_id,
+                       [identity, ts, user, table_label, action, before, after, label]))
         prev_map[pk] = entry
-
-    return row_id
 
 
 def _format_fields(model, entry, field_labels: dict, value_cache: dict) -> str:

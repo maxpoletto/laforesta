@@ -24,6 +24,7 @@ export const FIELD_DATA_IDS = 'data_ids';
 export const FIELD_PREFIXES = 'prefixes';
 export const COLUMNS  = 'columns';
 export const ROWS     = 'rows';
+export const FIELD_TIMESTAMP_LABEL = 'timestamp_label';
 
 // Locale-independent digest column identifiers for internal fields.
 export const COL_REGION_ID  = 'Region id';

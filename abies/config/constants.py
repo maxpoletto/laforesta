@@ -25,6 +25,7 @@ FIELD_DATA_IDS = 'data_ids'
 FIELD_PREFIXES = 'prefixes'
 COLUMNS  = 'columns'
 ROWS     = 'rows'
+FIELD_TIMESTAMP_LABEL = 'timestamp_label'
 
 # Digest IDs.
 DIGEST_PARCELS = 'parcels'

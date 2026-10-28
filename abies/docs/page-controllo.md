@@ -6,6 +6,19 @@ Read-only sortable-table of writes to the domain tables, sourced from
 django-simple-history. Columns: time/date, user, table name,
 action (insert/edit/delete), value before, value after.
 
+Events default to newest first using the full stored timestamp, including
+microseconds, across all models. Exact timestamp ties use the model's stable
+label and numeric history ID, descending. Event `row_id` values are stable
+`<model-label>:<history-id>` strings rather than generated row numbers.
+
+The digest's `Data/Ora` value is canonical UTC ISO 8601 with microseconds. A
+hidden `timestamp_label` supplies the visible site-local date/time including
+seconds. Header sorting uses the precise UTC value in either direction, so
+events within one second and around daylight-saving transitions retain their
+chronological order. CSV exports preserve the UTC timestamp and microseconds.
+Migration 0030 invalidates previously generated audit files without altering
+stored history or creating new events.
+
 Stored protocol codes are rendered through their localized model-choice
 labels. In particular, Ipso upload modes, lifecycle states, and destination
 types appear as Italian labels rather than values such as `free_survey`,

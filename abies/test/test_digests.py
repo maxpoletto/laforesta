@@ -1111,7 +1111,9 @@ class TestGenerateAudit:
         with gzip.open(tmp_path / 'audit.json.gz', 'rt') as f:
             data = json.load(f)
         crew_rows = [row for row in data[ROWS] if row[3] == S.TABLE_CREW]
-        assert any(row[1] == '2026-01-01 13:00' for row in crew_rows)
+        label_index = data[COLUMNS].index('timestamp_label')
+        assert any(row[label_index] == '2026-01-01 13:00:00' for row in crew_rows)
+        assert any(row[1] == '2026-01-01T12:00:00.000000+00:00' for row in crew_rows)
 
     def test_hypso_params_and_archive_updates_appear(
         self, hypso_samples, settings, tmp_path,

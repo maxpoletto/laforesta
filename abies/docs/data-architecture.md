@@ -20,6 +20,11 @@ For tabular data, the format is a JSON object with two fields:
 data. Every row's first element is `row_id`, used for updates (see below). The
 client maps columns by name, so adding a column does not break cached data.
 
+The read-only audit digest is an identity exception: its `row_id` is a stable
+`<model-label>:<history-id>` string, rather than a mutable domain row's integer
+key. Its timestamp retains UTC microseconds for sorting/export; a separate
+hidden label supplies local display time. See [Controllo](page-controllo.md).
+
 ### JSON digest regeneration
 
 Digests are regenerated lazily on read, not on write. This avoids wasted work

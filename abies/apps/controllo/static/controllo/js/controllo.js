@@ -9,25 +9,13 @@ import {
   tableSort, writeTableState,
 } from '../../base/js/page-sync.js';
 import * as S from '../../base/js/strings.js';
+import { auditColumnDefs } from './columns.js';
 
 const DATA_ID = 'audit';
 const DATA_URL = '/api/controllo/data/';
 const PAGE_PATH = '/controllo';
 const CSS_URL = '/static/controllo/css/controllo.css';
 const DEFAULT_SORT = { column: S.COL_TIMESTAMP, ascending: false };
-const VALUE_COLUMN = {
-  width: '420px',
-  cellClassName: 'col-audit-value',
-};
-
-const COLUMN_DEFS = {
-  [S.COL_TIMESTAMP]: { label: S.COL_TIMESTAMP, width: '150px' },
-  [S.COL_USER]: { label: S.COL_USER, width: '150px' },
-  [S.COL_TABLE]: { label: S.COL_TABLE, width: '170px' },
-  [S.COL_ACTION]: { label: S.COL_ACTION, width: '120px' },
-  [S.COL_OLD_VALUE]: { label: S.COL_OLD_VALUE, ...VALUE_COLUMN },
-  [S.COL_NEW_VALUE]: { label: S.COL_NEW_VALUE, ...VALUE_COLUMN },
-};
 
 let table = null;
 
@@ -53,7 +41,7 @@ function buildPage(el, params, data) {
   table = new TableWrapper({
     container: el,
     digest: data,
-    columnDefs: COLUMN_DEFS,
+    columnDefs: auditColumnDefs(data.columns),
     canModify: false,
     sort: tableSort(state, DEFAULT_SORT),
     searchText: state.searchText,
