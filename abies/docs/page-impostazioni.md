@@ -167,7 +167,8 @@ email, login method, created-at, active.
 Form fields:
 
 - Login method radio (password / OAuth).
-- Email (required; for OAuth, must match Entra account).
+- Email (required, with syntax checked by the server; for OAuth, must match
+  the Entra account).
 - Username (password only; auto-populated from email for OAuth). Hidden when
   OAuth is selected.
 - Password (repeated; hidden when OAuth is selected).
@@ -177,6 +178,26 @@ Form fields:
 
 The initial admin account is configured at server installation time. OAuth users
 must be pre-added with a matching email to whitelist them.
+
+Account edits carry a hidden row version. Saving an old form returns a conflict
+without changing the account, email whitelist, Microsoft links, or audit history.
+The modal then shows the current account values and an explanatory message;
+review those values before editing and saving again. Ordinary validation errors
+keep the entered values available for correction. The users table also refreshes
+to the current row on a conflict.
+
+Settings rejects demoting or deactivating the last **active administrator**.
+Another active user with the Abies administrator role must exist first; an
+inactive administrator or Django staff/superuser flag does not count. Normal
+name/email corrections to the last administrator are allowed. Concurrent account
+edits are serialized so two administrators cannot each remove the other remaining
+administrator. This policy applies to Settings; installation and authorized
+server-side recovery tools can still provision an administrator.
+
+Migration 0031 initializes existing users and historical user rows at version 1.
+Subsequent account saves advance the version, including personal password and
+landing-page changes; login-time bookkeeping alone does not invalidate forms.
+No account or audit event is deleted by the migration.
 
 The edit form explains that changing the login method or email removes previous
 Microsoft account links and stored tokens. Email comparison is case-insensitive,

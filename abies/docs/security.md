@@ -8,6 +8,17 @@ Only admins can reopen a closed harvest-plan cantiere; normal opening and
 closing remain available to writers.
 Password users can change their own password.
 
+Settings account edits require the current user version and a syntactically
+valid email. Stale edits return the current row and form without changing
+credentials, roles, whitelist entries or OAuth links. Demoting/deactivating the
+last active Abies administrator is rejected. Account edits lock the active
+administrators, actor and target in primary-key order (SQLite reserves a write
+lock before reading); the actor's current active/admin status is rechecked
+inside the transaction. PostgreSQL uses row locks; revalidate the overlapping
+request tests against that backend as part of the database migration.
+Bootstrap/recovery tools remain outside this Settings policy. See
+[Impostazioni](page-impostazioni.md#app-users) for the conflict UI and versioning.
+
 ## Authorization
 
 MS 365 OAuth and username/password via django-allauth + django-axes

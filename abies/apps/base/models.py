@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.db import models, router, transaction
 from simple_history.models import HistoricalRecords
 
 from config import strings as S
@@ -136,6 +136,7 @@ class LoginMethod(models.TextChoices):
 
 
 class User(AbstractUser):
+    version = models.PositiveIntegerField(default=1)
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.READER)
     login_method = models.CharField(
         max_length=10, choices=LoginMethod.choices, default=LoginMethod.PASSWORD,
@@ -146,6 +147,20 @@ class User(AbstractUser):
     class Meta(AbstractUser.Meta):
         verbose_name = S.USER
         verbose_name_plural = S.USERS
+
+    def save(self, *args, **kwargs):
+        # Authentication's last_login bookkeeping must not stale edit forms.
+        fields = kwargs.get('update_fields')
+        if self._state.adding or (fields is not None and set(fields) <= {'last_login'}):
+            return super().save(*args, **kwargs)
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            current = type(self).objects.using(using).filter(pk=self.pk)
+            current.update(version=models.F('version') + 1)
+            self.version = current.values_list('version', flat=True).get()
+            if fields is not None:
+                kwargs['update_fields'] = set(fields) | {'version'}
+            return super().save(*args, **kwargs)
 
     @property
     def can_modify(self) -> bool:

@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 28 October 2026. **C1–C11, C13, S1–S4 and R1 are
+Progress updated: 28 October 2026. **C1–C11, C13–C14, S1–S4 and R1 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -72,8 +72,8 @@ in R2 keep their priorities.
 | P2 | C10 Input parsing coerces invalid types and can raise exceptions | Fixed | `3130ca3` |
 | P2 | C11 Some writes commit before invalidating their digests | Fixed | `6a7ceb8` |
 | P3 | C12 Concurrent digest generators can publish an old result as fresh | Deferred | Revisit before adding workers/threads or concurrent generators |
-| P2 | C13 Audit events within one minute are not reliably newest first | Fixed | Full timestamp ordering, stable event IDs and precise browser/CSV data |
-| P2 | C14 Account administration lacks a stale-form guard | Open | Choice validation done in C10; stale-form guard remains |
+| P2 | C13 Audit events within one minute are not reliably newest first | Fixed | `ce639ab`; full timestamp ordering, stable event IDs and precise browser/CSV data |
+| P2 | C14 Account administration lacks a stale-form guard | Fixed | Versioned edits, email validation and last-active-admin protection |
 | P2 | S2 Desktop observation photographs lack application byte limits | Fixed | `47baa8b`; shared stream/decoder limits and 1024 px normalization |
 | P2 | S3 Database OAuth tenant configuration is not guarded at authentication | Fixed | `4b11f46`; environment-only app discovery and runtime tenant validation |
 | P2 | S4 Dependency versions need a reproducible security-update policy | Fixed in branch | Upgraded locks/manifests, pinned base, inventories and automated checks; GitHub activation remains |
@@ -294,10 +294,18 @@ Sort using the full stored event timestamp and a deterministic event identity be
 
 ### C14 Account administration lacks a stale form guard
 
-**Status: Open — P2.** C10 now validates role/login-method choices. The
-stale-form guard, server-side email-syntax validation, and last-admin policy
-remain separate outstanding work; database row locking alone cannot detect an
-old form overwriting a newer administrative decision.
+**Status: Fixed.** Migration 0031 adds versions to users/history; account saves
+advance the version except for login bookkeeping. Settings checks the submitted
+version under account locks and returns the current row/form on a conflict;
+the UI refreshes both without silently preserving stale fields. Email syntax is
+validated server-side. Demoting/deactivating the last active administrator is
+rejected, including competing requests; the actor's permissions are rechecked
+under the same locks. Personal password writes update only the password field
+so they preserve intervening admin changes. Failed/conflicted edits leave user
+versions/history, whitelist entries, OAuth links/tokens, digest state and nonce
+receipts untouched. Regressions include real overlapping SQLite requests and
+the actual JS submit/modal flow. Target-backend locking remains a PostgreSQL
+migration validation task.
 
 Sources: [User model](../apps/base/models.py), line 129; [user save](../apps/impostazioni/views.py), line 627.
 
@@ -663,7 +671,7 @@ durability, and backup/restore behavior on that backend.
 
 ### I8 Add integration tests at the component boundaries
 
-**Status: Partly addressed.** C1–C11, S1–S4 and R1 add boundary regressions for
+**Status: Partly addressed.** C1–C11, C13–C14, S1–S4 and R1 add boundary regressions for
 writes, cache invalidation, offline saves/sessions, calculations, OAuth callbacks,
 streamed image validation, renditions, and database/media backup consistency.
 CI now runs the suites and verifies actual vendor assets and the production
@@ -684,22 +692,20 @@ treating a successful mocked fetch as the only path.
 ## Suggested implementation sequence
 
 Use small changes with their own regression tests and documentation updates.
-C1–C11, C13, S1–S4 and R1 are implemented; the remaining sequence is:
+C1–C11, C13–C14, S1–S4 and R1 are implemented; the remaining sequence is:
 
 1. **Validate recovery operationally:** complete the off-host/app restore drills
    for the now-coordinated database/media backup; continue the open R2 work.
 2. **Activate dependency automation:** merge the S4 configuration to the default
    branch, enable GitHub security notifications and run the workflow once.
-3. **Finish bounded admin work:** C14 stale account forms and remaining account
-   validation/policy decisions.
-4. **Strengthen recovery and field workflows:** the backend-independent parts
+3. **Strengthen recovery and field workflows:** the backend-independent parts
    of R2, plus R4 discoverable/enforced recording limits and recoverable sessions.
-5. **Clarify scientific identity and estimates:** M1 stable equation keys and
+4. **Clarify scientific identity and estimates:** M1 stable equation keys and
    I6 partial-volume coverage/provenance, when justified by the use cases.
-6. **Refactor and optimize selectively:** build on the completed shared
+5. **Refactor and optimize selectively:** build on the completed shared
    boundaries and measured query/mobile costs. Coordinate geometry work with
    PostgreSQL/PostGIS planning; keep structural moves separate from behavior.
-7. **Revisit deferred operational work when its conditions apply:** C12 before
+6. **Revisit deferred operational work when its conditions apply:** C12 before
    adding concurrent generators/workers; SQLite-only R3 tuning and related
    restore/test infrastructure remain P3 pending the backend decision.
 
@@ -731,7 +737,8 @@ Regression coverage and outstanding cases:
   normalization, metadata preservation, and stable staged upload identity.
 - [x] C13: precise cross-model ordering, deterministic ties, stable identities,
   DST, browser sorting/search/CSV and upgrade invalidation.
-- [ ] C14: stale account edits and account validation/policy decisions.
+- [x] C14: stale account edits, email validation, last-active-admin protection,
+  overlapping requests, rollback and safe modal refresh/400 handling.
 - [x] R1: deletion after DB snapshot, stable photo capture, writes during
   compression, missing/corrupt reference rejection, restore validation, and
   snapshot lock lifetime through nonce commit hooks.

@@ -1,6 +1,7 @@
 <div class="form-card">
   <form id="settings-form">
     <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
+    <input type="hidden" name="version" value="{{ obj.version|default_if_none:'' }}">
 
     <h2>{% if obj %}Modifica utente{% else %}Nuovo utente{% endif %}</h2>
 

@@ -26,13 +26,20 @@ audited and the contract that keeps that coverage complete.
     the request/transaction contract.
 
 - user: extends AbstractUser with (role:string, login_method:string,
-  landing_page:string)
+  landing_page:string, version:positive int)
   - role is one of `admin`, `writer`, `reader`.
   - login_method is one of `password`, `oauth`.
   - `landing_page` is a blank-or-same-site app URL used after login and by `/`.
   - Inherits from AbstractUser: username, password, email, first_name,
     last_name, is_active, date_joined.
   - AUTH_USER_MODEL = `apps.base.User` must be set before the first migration.
+  - `version` starts at 1 and advances atomically on ordinary model saves,
+    including partial saves. A `last_login`-only save or empty `update_fields`
+    leaves it unchanged. Settings compares the submitted version under its
+    account locks and rejects stale forms before any account mutations.
+  - Migration 0031 adds version 1 to existing users and historical user rows
+    without creating audit events. Direct bulk/queryset updates bypass `save()`;
+    any account-changing bulk writer must advance the version explicitly.
 
 - site_settings: singleton runtime settings row.
   - `default_landing_page` is the blank-or-same-site app URL used when a user

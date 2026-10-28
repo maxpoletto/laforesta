@@ -993,6 +993,7 @@ class TestUsers:
     def test_update_user(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             ROW_ID: str(writer_user.id),
+            VERSION: writer_user.version,
             FIELD_USERNAME: 'renamed', FIELD_FIRST_NAME: 'A', FIELD_LAST_NAME: 'B',
             FIELD_EMAIL: 'renamed@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
@@ -1021,6 +1022,7 @@ class TestUsers:
     def test_update_user_with_new_password(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             ROW_ID: str(writer_user.id),
+            VERSION: writer_user.version,
             FIELD_USERNAME: writer_user.username, FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'writer@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,
@@ -1038,6 +1040,7 @@ class TestUsers:
 
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             ROW_ID: str(writer_user.id),
+            VERSION: writer_user.version,
             FIELD_USERNAME: writer_user.username, FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'writer-oauth@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.OAUTH,
@@ -1075,6 +1078,7 @@ class TestUsers:
     def test_update_password_mismatch(self, admin_client, writer_user):
         resp = _post(admin_client, '/api/impostazioni/users/save/', {
             ROW_ID: str(writer_user.id),
+            VERSION: writer_user.version,
             FIELD_USERNAME: writer_user.username, FIELD_FIRST_NAME: '', FIELD_LAST_NAME: '',
             FIELD_EMAIL: 'writer@example.com',
             FIELD_LOGIN_METHOD: LoginMethod.PASSWORD,

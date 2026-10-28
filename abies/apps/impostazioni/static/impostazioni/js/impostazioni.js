@@ -19,20 +19,21 @@ import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
-import { fetchModalForm, interceptSubmit } from '../../base/js/forms.js';
+import { fetchModalForm } from '../../base/js/forms.js';
 import {
-  showConfirmModal, showLoadingIn, wireActions, wireCancelButtons,
+  showConfirmModal, showLoadingIn, wireActions,
   wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { PROTECTED_SPECIES_NAMES, speciesTypeColumns } from './species-types.js';
+import { wireSettingsForm } from './entity-form.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COUNTS,
   FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
   FIELD_DIAMETER_CLASS_MODE, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
-  FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE, FIELD_PRESSLER_DEFAULT,
+  FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE,
   FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_PLANS,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
@@ -40,7 +41,7 @@ import {
   DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN, ROLE_WRITER,
 } from '../../base/js/constants.js';
 import {
-  fmtDecimal2, fmtDecimal4, fmtInt, parseDecimal,
+  fmtDecimal2, fmtDecimal4, fmtInt,
 } from '../../base/js/format.js';
 
 const API = '/api/impostazioni/';
@@ -102,6 +103,7 @@ const ENTITY_SECTIONS = {
     saveUrl: `${API}users/save/`,
     csvFilename: S.CSV_USERS,
     columnDefs: {
+      [VERSION]: { hidden: true },
       [S.LABEL_LAST_NAME]: { label: S.LABEL_LAST_NAME, width: '140px' },
       [S.LABEL_EMAIL]: { label: S.LABEL_EMAIL, width: '240px' },
       [S.LABEL_LOGIN_METHOD]: { label: S.LABEL_LOGIN_METHOD, width: '140px' },
@@ -427,58 +429,6 @@ async function openForm(cfg, state, rowId) {
   const form = await fetchModalForm(url);
   if (!form) return;
   wireSettingsForm(form, cfg, state);
-}
-
-function wireSettingsForm(form, cfg, state) {
-  wirePasswordToggle(form);
-  wireCancelButtons(form, () => modals.dismiss());
-
-  interceptSubmit(form, cfg.saveUrl, {
-    validate(body) {
-      // Species density must be > 0 (only the species form has it).
-      if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
-        return S.ERR_DENSITY_POSITIVE;
-      }
-      if (body[FIELD_PRESSLER_DEFAULT] !== undefined && !(parseDecimal(body[FIELD_PRESSLER_DEFAULT]) > 0)) {
-        return S.ERR_PRESSLER_POSITIVE;
-      }
-      return null;
-    },
-    onSuccess(data) {
-      modals.dismiss();
-      // Settings tables are local state, not registered in cache.js.
-      const patch = data[PATCHES]?.find(p => p[DATA_ID] === cfg.key);
-      if (state.digest && patch?.[RECORD]) {
-        const rows = state.digest.rows;
-        const idx = rows.findIndex(r => r[0] === patch[RECORD][0]);
-        if (idx >= 0) {
-          rows[idx] = patch[RECORD];
-        } else {
-          rows.push(patch[RECORD]);
-        }
-        state.table?.setData(state.digest);
-      }
-    },
-  });
-}
-
-/**
- * For the user form: toggle password-login-only fields (username,
- * password, repeat-password) based on login_method radio.  OAuth users
- * are matched by email, so we auto-use email as username server-side.
- */
-function wirePasswordToggle(form) {
-  const radios = form.querySelectorAll('input[name="login_method"]');
-  if (!radios.length) return;
-
-  const pwFields = form.querySelectorAll('.password-login-only');
-  function toggle() {
-    const method = form.querySelector('input[name="login_method"]:checked')?.value;
-    const show = method === LOGIN_METHOD_PASSWORD;
-    for (const el of pwFields) el.style.display = show ? '' : 'none';
-  }
-  for (const r of radios) r.addEventListener('change', toggle);
-  toggle();
 }
 
 // ---------------------------------------------------------------------------

@@ -6,8 +6,8 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Count, Q
+from django.db import connection, transaction
+from django.db.models import Count, F, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -23,7 +23,8 @@ from apps.base.digests import (
     hypso_param_row, mark_stale, mark_stale_prefixes, serve_digest,
 )
 from apps.base.responses import (
-    parse_json_body, row_patch, save_model_response, success_response,
+    conflict_response, parse_json_body, row_patch, save_model_response,
+    submitted_version, success_response,
     validation_error,
 )
 from apps.base.selectors import (
@@ -91,7 +92,7 @@ def password_view(request):
         return _error(' '.join(e.messages))
     request.user.set_password(pw1)
     begin_nonce_write(request)
-    request.user.save()
+    request.user.save(update_fields=['password'])
     transaction.on_commit(lambda: update_session_auth_hash(request, request.user))
     return success_response(request, body, extra={MESSAGE: S.PASSWORD_CHANGED})
 
@@ -592,7 +593,7 @@ def _locked_site_settings():
 # Users (admin only)
 # ---------------------------------------------------------------------------
 
-USER_COLS = [ROW_ID, S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
+USER_COLS = [ROW_ID, VERSION, S.LABEL_FIRST_NAME, S.LABEL_LAST_NAME, S.LABEL_USERNAME,
              S.LABEL_EMAIL, S.LABEL_LOGIN_METHOD, S.LABEL_CREATED_AT, S.COL_ACTIVE]
 
 ROLE_LABELS = [
@@ -603,7 +604,7 @@ ROLE_LABELS = [
 
 
 def _user_row(u):
-    return [u.id, u.first_name, u.last_name, u.username, u.email,
+    return [u.id, u.version, u.first_name, u.last_name, u.username, u.email,
             u.login_method, u.date_joined.strftime('%Y-%m-%d'), u.is_active]
 
 
@@ -619,12 +620,31 @@ def users_form(request, obj_id=None):
     obj = User.objects.filter(id=obj_id).first() if obj_id else None
     if obj_id and obj is None:
         raise Http404
-    html = render_to_string('impostazioni/_user_form.html', {
+    return JsonResponse({HTML: _user_form_html(request, obj)})
+
+
+def _user_form_html(request, obj):
+    return render_to_string('impostazioni/_user_form.html', {
         'obj': obj,
         'roles': ROLE_LABELS,
         'login_methods': LoginMethod.choices,
     }, request=request)
-    return JsonResponse({HTML: html})
+
+
+def _lock_account_edit(actor_id, target_id):
+    """Serialize account decisions against all active administrators.
+
+    Lock in primary-key order, including the actor and target even if inactive.
+    SQLite has no row locks: acquire its write lock before reading any accounts.
+    The no-op write creates neither history nor a version change.
+    """
+    if not connection.features.has_select_for_update:
+        User.objects.filter(pk=actor_id).update(version=F('version'))
+    return list(User.objects.filter(
+        Q(role=Role.ADMIN, is_active=True) | Q(pk__in=[actor_id, target_id]),
+    ).order_by('pk').select_for_update(
+        no_key=connection.features.has_select_for_no_key_update,
+    ))
 
 
 @login_required
@@ -642,6 +662,10 @@ def users_save(request):
     email = body.get(FIELD_EMAIL, '').strip()
     if not email:
         return _error(S.ERR_EMAIL_REQUIRED)
+    try:
+        User._meta.get_field(FIELD_EMAIL).run_validators(email)
+    except ValidationError:
+        return _error(S.ERR_EMAIL_INVALID)
 
     login_method = body.get(FIELD_LOGIN_METHOD, LoginMethod.PASSWORD)
     if login_method not in LoginMethod.values:
@@ -667,6 +691,25 @@ def users_save(request):
 
     begin_nonce_write(request)
     with transaction.atomic():
+        accounts = _lock_account_edit(request.user.pk, row_id)
+        actor = next((u for u in accounts if u.pk == request.user.pk), None)
+        if actor is None or not actor.is_active or actor.role != Role.ADMIN:
+            return JsonResponse({MESSAGE: S.ERR_FORBIDDEN}, status=403)
+        if row_id:
+            user = next((u for u in accounts if u.pk == row_id), None)
+            if user is None:
+                raise Http404
+            if user.version != submitted_version(body):
+                return conflict_response(
+                    data_id='users', row_id=user.pk, record=_user_row(user),
+                    html=_user_form_html(request, user),
+                )
+            if (user.role == Role.ADMIN and user.is_active
+                    and (role != Role.ADMIN or not active)
+                    and not any(u.pk != user.pk and u.role == Role.ADMIN
+                                and u.is_active for u in accounts)):
+                return _error(S.ERR_LAST_ACTIVE_ADMIN)
+
         username_dupes = User.objects.filter(username__iexact=username)
         email_dupes = User.objects.filter(email__iexact=email)
         if row_id:
@@ -679,7 +722,6 @@ def users_save(request):
 
         unlink_social_accounts = False
         if row_id:
-            user = User.objects.select_for_update().get(id=row_id)
             unlink_social_accounts = (
                 login_method != LoginMethod.OAUTH
                 or user.login_method != login_method
@@ -699,7 +741,10 @@ def users_save(request):
                 if err:
                     return err
                 user.set_password(pw1)
-            user.save()
+            user.save(update_fields=[
+                'username', 'email', 'first_name', 'last_name', 'role',
+                'login_method', 'is_active', 'password',
+            ])
         else:
             if login_method == LoginMethod.PASSWORD:
                 if not pw1:
@@ -708,13 +753,11 @@ def users_save(request):
                 if err:
                     return err
             user = User.objects.create_user(
-                username=username, email=email, password=pw1 or None,
+                username=username, email=email,
+                password=pw1 if login_method == LoginMethod.PASSWORD else None,
                 first_name=first_name, last_name=last_name,
                 role=role, login_method=login_method, is_active=active,
             )
-            if login_method != LoginMethod.PASSWORD:
-                user.set_unusable_password()
-                user.save()
 
         # Reset old provider identities in the same transaction as the whitelist
         # change. A future matching OAuth login can establish a fresh link.

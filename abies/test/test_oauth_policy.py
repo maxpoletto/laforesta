@@ -152,7 +152,8 @@ def _save_user(admin_user, user, **changes):
     client = Client(raise_request_exception=False)
     client.force_login(admin_user)
     body = {
-        'row_id': user.pk, 'username': user.username, 'email': user.email,
+        'row_id': user.pk, 'version': user.version,
+        'username': user.username, 'email': user.email,
         'login_method': user.login_method, 'role': user.role, 'is_active': user.is_active,
         'password1': '', 'password2': '', 'nonce': 'change-oauth-policy',
         **changes,

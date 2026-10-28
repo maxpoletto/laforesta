@@ -239,6 +239,13 @@ Every retryable write carries a client-generated `nonce`. Versioned row edits
 and deletes also carry the cached `version`; a missing version is treated as
 stale (`0`) and returns a conflict instead of weakening optimistic locking.
 
+This includes Settings user edits: both the users digest and hidden form field
+carry `version`. On conflict the local settings table receives the current row,
+and the modal is replaced with the current server form and a fresh nonce. It
+never applies a new version to stale field values. `User.save()` advances the
+counter atomically (except login-time bookkeeping); password-only saves name
+their field explicitly so they cannot overwrite a concurrent role correction.
+
 ### Retry receipts and write transactions
 
 Authenticated API POSTs with a nonce use the same protocol for JSON and
