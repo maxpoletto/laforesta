@@ -149,3 +149,10 @@ distances localize with the active locale's decimal separator.
 Inside/on/outside sample radii and nearest-area selection have shared metric
 coverage; stored area IDs are preserved. Polygon geodesic area retains its
 existing 6378137 m Leaflet-compatible convention.
+
+Geometry labels accept region properties in precedence order `layer`,
+`compresa`, `Compresa`, and parcel properties `name`, `particella`, `Particella`.
+The first hyphen separates the existing full-name prefix from the parcel label.
+`parcelIdentity()` exposes internal `{regionName, parcelName}` strings; the
+legacy `parcelNames()` result remains compatible. Leading zeros and suffixes
+are preserved. Python `parcel_key()` follows the same alias policy.

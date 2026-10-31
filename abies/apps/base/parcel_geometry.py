@@ -71,7 +71,7 @@ class ParcelGeometryIndex:
 
 
 def parcel_key(feature: dict) -> tuple[str, str]:
-    """Return (compresa, particella), mirroring frontend geo.parcelNames()."""
+    """Return (region name, parcel name), matching geo.parcelIdentity()."""
     props = feature.get('properties') or {}
     region = props.get('layer') or props.get('compresa') or props.get('Compresa') or ''
     full_name = props.get('name') or props.get('particella') or props.get('Particella') or ''

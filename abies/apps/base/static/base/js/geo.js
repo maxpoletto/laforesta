@@ -200,13 +200,20 @@ export function distanceToBoundaryMeters(lng, lat, feature) {
  * `properties.layer`; particella is the slice after the first `-` of
  * `properties.name`.
  */
-export function parcelNames(feature) {
+/** Normalize supported source aliases without changing their string labels. */
+export function parcelIdentity(feature) {
   const p = (feature && feature.properties) || {};
-  const compresa = p.layer || '';
-  const fullName = p.name || '';
+  const regionName = p.layer || p.compresa || p.Compresa || '';
+  const fullName = p.name || p.particella || p.Particella || '';
   const dash = fullName.indexOf('-');
-  const particella = dash >= 0 ? fullName.slice(dash + 1) : fullName;
-  return { compresa, particella };
+  const parcelName = dash >= 0 ? fullName.slice(dash + 1) : fullName;
+  return { regionName, parcelName };
+}
+
+/** Legacy result shape retained for existing desktop/offline consumers. */
+export function parcelNames(feature) {
+  const { regionName, parcelName } = parcelIdentity(feature);
+  return { compresa: regionName, particella: parcelName };
 }
 
 export function parcelTypeLabel(feature) {
