@@ -53,6 +53,26 @@ def _free_record(parcel, species, number):
     }
 
 
+@pytest.mark.django_db
+@pytest.mark.parametrize('structured', [False, True])
+def test_import_context_keeps_ids_and_operator_override_rules(parcels, species, structured):
+    if structured:
+        survey, area = _sample_context(parcels[0])
+        records = [_sample_record(area, species[0], **{FIELD_NUMBER: n}) for n in (1, 2)]
+        importer = sample_import_rows
+    else:
+        survey = Survey.objects.create(name='Context free survey')
+        records = [_free_record(parcels[0], species[0], n) for n in (1, 2)]
+        importer = free_survey_import_rows
+    species[0].common_name = 'Renamed species'
+    species[0].save()
+    records[1]['operator'] = ' Record operator '
+    rows, errors = importer({SESSION: {'operator': ' Session operator '}, RECORDS: records}, survey)
+    assert not errors
+    assert [row['species'].pk for row in rows] == [species[0].pk] * 2
+    assert [row['operator'] for row in rows] == ['Session operator', 'Record operator']
+
+
 
 @pytest.mark.django_db
 def test_sample_import_rejects_non_array_records(parcels):

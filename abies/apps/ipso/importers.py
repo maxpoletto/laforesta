@@ -47,6 +47,15 @@ def _int_ids(records: list, field: str) -> set[int]:
     return ids
 
 
+def _species_and_operator(payload, records):
+    """Common reference lookup/defaults; mode-specific identity stays below."""
+    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    species = {sp.pk: sp for sp in Species.objects.filter(pk__in=species_ids)}
+    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
+    operator = (session.get(FIELD_OPERATOR) or '').strip() if isinstance(session, dict) else ''
+    return species, operator
+
+
 def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
     if survey.sample_grid_id is None:
         return [], [S.ERR_SURVEY_STRUCTURED_REQUIRED]
@@ -54,9 +63,8 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
     if records is None:
         return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
 
-    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    species, session_operator = _species_and_operator(payload, records)
     area_ids = _int_ids(records, FIELD_SAMPLE_AREA_ID)
-    species = {sp.id: sp for sp in Species.objects.filter(id__in=species_ids)}
     areas = {
         area.id: area
         for area in (SampleArea.objects
@@ -71,11 +79,6 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         TreeSample.objects
         .filter(sample__survey=survey, sample__sample_area_id__in=area_ids)
         .values_list('sample__sample_area_id', FIELD_NUMBER, FIELD_SHOOT)
-    )
-    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
-    session_operator = (
-        (session.get(FIELD_OPERATOR) or '').strip()
-        if isinstance(session, dict) else ''
     )
 
     rows = []
@@ -145,14 +148,8 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
     if records is None:
         return [], [S.IPSO_ERR_IMPORT_RECORDS_ARRAY]
 
-    session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
-    session_operator = (
-        (session.get(FIELD_OPERATOR) or '').strip()
-        if isinstance(session, dict) else ''
-    )
-    species_ids = _int_ids(records, FIELD_SPECIES_ID)
+    species, session_operator = _species_and_operator(payload, records)
     parcel_ids = _int_ids(records, FIELD_PARCEL_ID)
-    species = {sp.id: sp for sp in Species.objects.filter(id__in=species_ids)}
     parcels = {
         parcel.id: parcel
         for parcel in (Parcel.objects
