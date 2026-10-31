@@ -304,3 +304,4 @@ recorded without introducing a redundant refactor.
 | --- | --- | --- |
 | D01 | Covered by M2 | One intervention totals owner now serves manual/CSV writes; parent locks precede mutations/SUM; distinct marked NULL and actual zero rules retained. M2 totals, rollback and CSV regressions cover it. |
 | D02 | Covered by M2 | Row clocks now cover partial writes; accepted edits own tokens; total-only writes preserve metadata tokens; User, SiteSettings and staging intentionally retain separate contracts. Optional edit-helper cleanup is deferred. |
+| D03 | Completed | M1 supplies one estimate_volume_and_mass owner for both domains. Removed ignored species-name override parameters; CSV name resolution stays at its boundary. Configured-equation and CSV tests: 36 passed before/after cleanup. |

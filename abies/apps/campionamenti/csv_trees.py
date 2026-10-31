@@ -333,7 +333,6 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             lat=lat, lon=lon, acc_m=acc_m,
             operator=(row.get(S.CSV_COL_OPERATOR) or '').strip(),
             note=(row.get(S.CSV_COL_NOTE) or '').strip(),
-            volume_species_name=mapped,
         ))
     return parsed, errors
 
@@ -346,7 +345,7 @@ def _optional_coord(reader, value):
     return parsed, parsed is not None
 
 
-def tree_volume_and_mass(coppice, d_cm, h_m, species, species_name=None):
+def tree_volume_and_mass(coppice, d_cm, h_m, species):
     if coppice or d_cm is None or h_m is None:
         return None, None
     from apps.base.equations import estimate_volume_and_mass
@@ -358,11 +357,10 @@ def parsed_tree_row(
         d_cm, h_m, l10_mm, pressler_coeff, parcel=None, h_measured=False,
         lat=None, lon=None,
         acc_m=None, operator='', note='',
-        volume_species_name=None,
 ):
     h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
     volume_m3, mass_q = tree_volume_and_mass(
-        coppice, d_cm, h_m, species, species_name=volume_species_name,
+        coppice, d_cm, h_m, species,
     )
     return {
         FIELD_AREA: area,

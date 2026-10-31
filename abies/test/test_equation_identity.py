@@ -27,17 +27,19 @@ def test_volume_equation_has_a_species_identity_and_survives_rename(species):
     assert tree_volume_and_mass(False, 30, Decimal('20'), fir) == before
 
 
-def test_explicit_equation_changes_drive_calculation_instead_of_name(species):
+@pytest.mark.parametrize('estimate', [mark_volume_and_mass,
+    lambda d, h, sp: tree_volume_and_mass(False, d, h, sp)])
+def test_explicit_equation_changes_drive_calculation_instead_of_name(species, estimate):
     fir = species[0]
     equation = fir.volume_equation
     equation.b0 = 1000
     equation.b1 = 0
     equation.b2 = None
     equation.save()
-    assert mark_volume_and_mass(30, Decimal('20'), fir)[0] == Decimal('1.0000')
+    assert estimate(30, Decimal('20'), fir)[0] == Decimal('1.0000')
     equation.delete()
     fir.refresh_from_db()
-    assert mark_volume_and_mass(30, Decimal('20'), fir) == (None, None)
+    assert estimate(30, Decimal('20'), fir) == (None, None)
 
 
 def test_volume_proxy_keeps_its_own_species_and_density(species):
