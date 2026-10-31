@@ -47,7 +47,7 @@ from config.constants import (
     FIELD_LAST_DATE, FIELD_TIMESTAMP_LABEL,
     FIELD_NAME, FIELD_NUMBER, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
-    FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, M2_PER_HA,
+    FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, FIELD_VOLUME_COEFFICIENTS, M2_PER_HA,
     ROW_ID, VERSION,
 )
 
@@ -1150,7 +1150,7 @@ HARVEST_PLAN_ITEM_COLUMNS = [
     S.COL_REGION, S.COL_PARCEL, S.COL_PARCEL_AREA_HA,
     S.COL_TYPE, COL_COPPICE, S.COL_STATE, S.COL_NOTE,
     S.COL_VOLUME_PLANNED, S.COL_VOLUME_MARKED, S.COL_VOLUME_ACTUAL,
-    S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y, S.COL_EXTRA_NOTE,
+    S.COL_INTERVENTION_AREA_HA, S.COL_PERIOD_Y, S.COL_EXTRA_NOTE, FIELD_REGION_ID,
 ]
 
 
@@ -1234,7 +1234,7 @@ def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) 
         float(item.volume_actual_m3),
         float(item.intervention_area_ha) if item.intervention_area_ha is not None else '',
         _hpi_turno(item),
-        item.note,
+        item.note, item.region_id or item.parcel.region_id,
     ]
 
 
@@ -1262,25 +1262,27 @@ def generate_harvest_plan_items() -> None:
 
 HYPSO_PARAM_COLUMNS = [
     ROW_ID, S.COL_REGION, S.COL_SPECIES, S.COL_FUNCTION,
-    S.COL_A, S.COL_B, S.COL_N_REGRESSION, S.COL_R2,
+    S.COL_A, S.COL_B, S.COL_N_REGRESSION, S.COL_R2, FIELD_REGION_ID, FIELD_SPECIES_ID,
 ]
 
 
-def hypso_param_row(row_id, region_name, species_name, func, a, b, n, r2) -> list:
+def hypso_param_row(row_id, region_name, species_name, func, a, b, n, r2,
+                    region_id=None, species_id=None) -> list:
     """The `hypso_params` row shape (note: n before r2).
 
     Shared by the digest generator and the compute-candidate preview so the
     two never drift; `id` is None for an unsaved candidate row.
     """
     return [row_id, region_name, species_name, func,
-            float(a), float(b), n, float(r2)]
+            float(a), float(b), n, float(r2) if r2 is not None else None,
+            region_id, species_id]
 
 
 def build_hypso_param_record(p) -> list:
     """Build one row of the `hypso_params` digest from a HypsoParam."""
     return hypso_param_row(
         p.id, p.region.name, p.species.common_name, p.func,
-        p.a, p.b, p.n, p.r2,
+        p.a, p.b, p.n, p.r2, p.region_id, p.species_id,
     )
 
 

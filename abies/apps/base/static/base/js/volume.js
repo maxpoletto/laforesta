@@ -63,6 +63,12 @@ export const TABACCHI_PROXIES = {
  */
 export function tabacchiVolumeM3(dCm, hM, speciesName) {
   const b = TABACCHI_B[TABACCHI_PROXIES[speciesName] || speciesName];
+  return volumeFromCoefficientsM3(dCm, hM, b);
+}
+
+/** Current settings supply coefficients by species ID; labels never select them. */
+export function volumeFromCoefficientsM3(dCm, hM, b) {
+  if (!Array.isArray(b) || ![2, 3].includes(b.length) || !b.every(Number.isFinite)) return null;
   if (!b) return null;
   const d = Number(dCm);
   const h = Number(hM);

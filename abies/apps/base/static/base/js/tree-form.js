@@ -9,7 +9,7 @@
  * this JS so grep finds all references.
  */
 
-import { tabacchiVolumeM3, massQ } from './volume.js';
+import { volumeFromCoefficientsM3, massQ } from './volume.js';
 import { parseDecimal, fmtDecimal } from './format.js';
 import { PRESSLER_DEFAULT } from './constants.js';
 
@@ -74,10 +74,16 @@ export function wireVMPreview(form, opts = {}) {
     const hM = parseDecimal(h.value);
     if (!(dCm > 0 && hM > 0)) { clearPreview(); return; }
     const opt = sp.tagName === 'SELECT' ? sp.options[sp.selectedIndex] : sp;
-    const speciesName = opt?.dataset.name;
     const density = parseDecimal(opt?.dataset.density);
-    const v = tabacchiVolumeM3(dCm, hM, speciesName);
-    if (v == null) { clearPreview(); return; }
+    let coefficients = null;
+    try { coefficients = JSON.parse(opt?.dataset.volumeCoefficients || 'null'); } catch { /* unavailable */ }
+    const v = volumeFromCoefficientsM3(dCm, hM, coefficients);
+    if (v == null) {
+      clearPreview();
+      preview.hidden = false;
+      preview.textContent = S.VOLUME_UNAVAILABLE;
+      return;
+    }
     // Derive mass from the rounded volume actually stored (4 dp), so a tree
     // entered here matches the CSV-import path (tabacchi.py + tree_mass_q),
     // which computes mass from the stored volume. A ≤1-ULP residual remains

@@ -903,6 +903,7 @@ def _render_tree_form(request, ts_id, survey_id, area_id):
         'edit_species_name': tree.species.common_name if tree else '',
         'edit_species_id': tree.species_id if tree else '',
         'edit_species_density': tree.species.density if tree else '',
+        'edit_species_coefficients': tree.species.volume_coefficients_json if tree else 'null',
         'edit_species_pressler_default': tree.species.pressler_default if tree else '',
         'show_pressler': True,
         'pressler_coeff': (

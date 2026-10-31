@@ -14,6 +14,7 @@
 // API envelope keys.
 export const ROW_ID  = 'row_id';
 export const VERSION = 'version';
+export const FIELD_VOLUME_COEFFICIENTS = 'volume_coefficients';
 
 export const RECORD   = 'record';
 export const DATA_ID  = 'data_id';

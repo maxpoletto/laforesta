@@ -254,10 +254,10 @@ def _save_species_response(request, body, parsed):
     return save_model_response(
         request, body, model=Species, data_id=FIELD_SPECIES, values=parsed,
         row_fn=_species_row,
-        stale=('prelievi', FIELD_SPECIES, *BOSCO_SPECIES_DIGESTS, 'audit'),
+        stale=('prelievi', FIELD_SPECIES, DIGEST_HYPSO_PARAMS, *BOSCO_SPECIES_DIGESTS, 'audit'),
         stale_prefixes=(DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES),
         invalidates={
-            FIELD_DATA_IDS: ['prelievi', *BOSCO_SPECIES_DIGESTS],
+            FIELD_DATA_IDS: ['prelievi', DIGEST_HYPSO_PARAMS, *BOSCO_SPECIES_DIGESTS],
             FIELD_PREFIXES: [
                 DIGEST_PREFIX_MARK_TREES,
                 DIGEST_PREFIX_SAMPLED_TREES,
@@ -835,7 +835,7 @@ def hypso_params_surveys(request):
 def _candidate_payload(rows):
     return {COLUMNS: HYPSO_PARAM_COLUMNS, ROWS: [
         hypso_param_row(None, r.region.name, r.species.common_name,
-                        HYPSO_FUNC_LN, r.a, r.b, r.n, r.r2)
+                        HYPSO_FUNC_LN, r.a, r.b, r.n, r.r2, r.region.pk, r.species.pk)
         for r in rows
     ]}
 

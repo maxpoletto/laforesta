@@ -66,8 +66,10 @@ class ParamRow:
     species: Species
     a: float
     b: float
-    r2: float
-    n: int
+    r2: float | None
+    n: int | None
+    source: str | None = None
+    origin_set_id: int | None = None
 
 
 def compute_params(survey_ids: Sequence[int], min_n: int) -> list[ParamRow]:
@@ -196,8 +198,8 @@ def active_set() -> HypsoParamSet | None:
     return HypsoParamSet.objects.active().first()
 
 
-def _dec(x: float) -> Decimal:
-    return Decimal(str(x)).quantize(_DECIMAL_PLACES)
+def _dec(x: float | None) -> Decimal | None:
+    return Decimal(str(x)).quantize(_DECIMAL_PLACES) if x is not None else None
 
 
 def replace_active_set(
@@ -231,9 +233,38 @@ def replace_active_set(
             HypsoParam.objects.create(
                 param_set=new_set, region=r.region, species=r.species,
                 a=_dec(r.a), b=_dec(r.b), r2=_dec(r.r2), n=r.n,
+                source=r.source or source, origin_set_id=r.origin_set_id or new_set.pk,
             )
         mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return new_set
+
+
+def merge_active_set(rows, *, source, remove_keys=()):
+    """Publish a new snapshot, preserving every equation outside this edit."""
+    from django.db import transaction
+    from apps.base.equations import lock_species
+    from apps.base.models import HypsoParam, HypsoParamSource
+    with transaction.atomic():
+        lock_species()
+        current = active_set()
+        combined = {}
+        if current is not None:
+            for p in HypsoParam.objects.filter(param_set=current).select_related('region', 'species'):
+                combined[(p.region_id, p.species_id)] = ParamRow(
+                    p.region, p.species, p.a, p.b, p.r2, p.n,
+                    p.source, p.origin_set_id or p.param_set_id,
+                )
+        for key in remove_keys:
+            combined.pop(key, None)
+        for row in rows:
+            row.source = source
+            combined[(row.region.pk, row.species.pk)] = row
+        return replace_active_set(
+            list(combined.values()), source=HypsoParamSource.MIXED if current else source,
+            min_n=current.min_n if current else None,
+            survey_ids=list(current.surveys.values_list('pk', flat=True)) if current else [],
+            use_for_height_plots=current.use_for_height_plots if current else False,
+        )
 
 
 def clear_active_set() -> bool:

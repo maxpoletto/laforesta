@@ -49,7 +49,7 @@ def height_plot_survey_ids() -> list[int]:
     normal dendrometry survey setting.
     """
     active = (HypsoParamSet.objects.active()
-              .filter(source=HypsoParamSource.COMPUTED,
+              .filter(source__in=[HypsoParamSource.COMPUTED, HypsoParamSource.MIXED],
                       use_for_height_plots=True)
               .first())
     if active is not None:

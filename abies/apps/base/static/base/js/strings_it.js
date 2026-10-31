@@ -613,3 +613,4 @@ export const TREE_DENDROMETRY_EMPTY = 'Nessun dato dendrometrico nel filtro corr
 // (the JS code appends `<id>.csv`).
 export const CSV_MARKS_PREFIX    = 'martellate_';
 export const CSV_HARVESTS_PREFIX = 'prelievi_';
+export const VOLUME_UNAVAILABLE = 'Volume non calcolabile: equazione di volume mancante.';

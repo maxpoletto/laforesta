@@ -16,7 +16,7 @@ from apps.base.models import (
     HarvestPlanItem, HarvestPlanItemState, Parcel, Species, Tree, TreeMark,
     next_sequence_number, tree_mass_q,
 )
-from apps.base.tabacchi import tabacchi_volume_m3
+from apps.base.equations import estimate_volume_and_mass
 from config import strings as S
 from config.constants import DIGEST_FUTURE_PRODUCTION, FIELD_NUMBER
 
@@ -190,14 +190,7 @@ def mark_number_duplicate_errors(
 def mark_volume_and_mass(
         d_cm: int, h_m: Decimal | None, species: Species,
 ):
-    if h_m is None:
-        return None, None
-    try:
-        volume_m3 = tabacchi_volume_m3(d_cm, h_m, species.common_name)
-        mass_q = tree_mass_q(volume_m3, species.density)
-    except (ValueError, KeyError):
-        return None, None
-    return volume_m3, mass_q
+    return estimate_volume_and_mass(d_cm, h_m, species)
 
 
 def auto_advance_to_marked(item: HarvestPlanItem, mark_date: date_type) -> None:

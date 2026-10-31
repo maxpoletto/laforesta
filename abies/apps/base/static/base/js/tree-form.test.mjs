@@ -43,7 +43,8 @@ const d = new MockElement('input', { id: ID_D_CM, value: '30' });
 const h = new MockElement('input', { id: ID_H_M, value: '20' });
 const species = new MockElement('select', { id: ID_SPECIES });
 species.options = [
-  new MockElement('option', { dataset: { name: 'Abete', density: '', presslerDefault: '0.45' } }),
+  new MockElement('option', { dataset: { name: 'Abete bianco', density: '', presslerDefault: '0.45',
+    volumeCoefficients: '[-1.8381,0.037836,0.39934]' } }),
 ];
 const preview = new MockElement('div', { id: ID_PREVIEW });
 const volume = new MockElement('input', { id: ID_VOLUME });

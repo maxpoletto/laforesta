@@ -30,6 +30,7 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { recordIsCoppice } from '../../base/js/coppice.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
+import { heightEquationFor } from '../../base/js/equations.js';
 import { TreeDetail } from '../../base/js/tree-detail.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
@@ -39,7 +40,7 @@ import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_CHECK_ONLY, FIELD_COPPICE_FILE, FIELD_DATE, FIELD_DESCRIPTION,
-  FIELD_ERRORS, FIELD_FILE,
+  FIELD_ERRORS, FIELD_FILE, FIELD_REGION_ID,
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
   COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_ROW_IDS, FIELD_SPECIES,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
@@ -450,7 +451,7 @@ function rowIsCoppice(row) {
 }
 
 function buildItemColumnDefs(columns, hiddenCols) {
-  const hidden = new Set([VERSION, ...hiddenCols]);
+  const hidden = new Set([VERSION, FIELD_REGION_ID, ...hiddenCols]);
   const defs = {};
   for (const name of columns) {
     if (name === ROW_ID) continue;
@@ -1701,38 +1702,27 @@ function findHypsoParams(itemId) {
   const c = itemsData.columns;
   const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
   if (!row) return null;
-  const compresa = row[c.indexOf(S.COL_REGION)];
-  const rc = hypsoParamsData.columns;
-  return hypsoParamsData.rows.filter(
-    r => r[rc.indexOf(S.COL_REGION)] === compresa,
-  );
+  return row[c.indexOf(FIELD_REGION_ID)];
 }
 
-function wireHypsoAutoH(form, hypsoParams) {
-  if (!hypsoParams?.length) return;
+function wireHypsoAutoH(form, regionId) {
+  if (!regionId) return;
   const d = form.querySelector(`#${ID_D_CM}`);
   const h = form.querySelector(`#${ID_H_M}`);
   const sp = form.querySelector(`#${ID_SPECIES}`);
   const hMeasHidden = form.querySelector('#tf-h-measured');
   if (!d || !h || !sp) return;
 
-  const rc = hypsoParamsData.columns;
   let userEditedH = hMeasHidden?.value === '1';
   let programmaticH = false;
 
   function autoFillH() {
     if (userEditedH) return;
     const dCm = parseInt(d.value, 10);
-    const opt = sp.options[sp.selectedIndex];
-    const speciesName = opt?.dataset.name;
-    if (!speciesName || !(dCm > 0)) return;
-    const reg = hypsoParams.find(
-      r => r[rc.indexOf(S.COL_SPECIES)] === speciesName,
-    );
+    if (!(dCm > 0)) return;
+    const reg = heightEquationFor(hypsoParamsData, regionId, sp.value);
     if (!reg) return;
-    const fn = reg[rc.indexOf(S.COL_FUNCTION)];
-    const a = reg[rc.indexOf(S.COL_A)];
-    const b = reg[rc.indexOf(S.COL_B)];
+    const { func: fn, a, b } = reg;
     let hVal = null;
     if (fn === HYPSO_FUNC_LN) hVal = a * Math.log(dCm) + b;
     if (hVal != null && hVal > 0) {

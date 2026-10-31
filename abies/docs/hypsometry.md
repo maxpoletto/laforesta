@@ -71,6 +71,23 @@ better parameters from more data, independently of any plan.
 
 ## Data model
 
+Equation identity is independent of editable common names. Height rows link to
+Species and Region by ID; desktop digests include hidden `species_id` and
+`region_id` columns for automatic-height lookup. A species rename refreshes the
+height digest and labels without changing its regression associations.
+
+Volume coefficients now live in species-owned `VolumeEquation` rows. Desktop
+previews receive the current coefficients on species options; server calculations
+resolve the same species ID. The old name-keyed tables are initialization and
+legacy parity fixtures, not the runtime source for tree calculations. An absent
+equation gives an unavailable estimate; the entry form explains the missing
+volume equation instead of showing zero. Negative estimates still clamp to zero.
+
+`merge_active_set()` publishes an archived snapshot while preserving every
+species/region pair outside the change. Unchanged rows retain source and original
+set provenance. Imported/computed sets remain supported; mixed/manual edits can
+omit `n` and `r2` when there is no measured fit behind an equation.
+
 Schema lives in [`database.md`](database.md) → "Hypsometric parameters":
 `hypso_param_set` (one set + its `created_at`/`superseded_at` live interval and
 the at-most-one-active invariant), `hypso_param` (one immutable row per

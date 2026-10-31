@@ -32,6 +32,7 @@ Expected context variables:
              value="{{ edit_species_id }}"
              data-density="{{ edit_species_density|unlocalize }}"
              data-pressler-default="{{ edit_species_pressler_default|unlocalize }}"
+             data-volume-coefficients="{{ edit_species_coefficients|default:'null' }}"
              data-name="{{ edit_species_name }}">
     {% else %}
       <select id="tf-species" name="species_id" required>
@@ -39,6 +40,7 @@ Expected context variables:
           <option value="{{ sp.id }}"
                   data-density="{{ sp.density|unlocalize }}"
                   data-pressler-default="{{ sp.pressler_default|unlocalize }}"
+                  data-volume-coefficients="{{ sp.volume_coefficients_json }}"
                   data-name="{{ sp.common_name }}"
                   {% if sp.id == selected_species_id %}selected{% endif %}>
             {{ sp.common_name }}
@@ -48,6 +50,7 @@ Expected context variables:
           <option value="{{ sp.id }}" hidden disabled
                   data-density="{{ sp.density|unlocalize }}"
                   data-pressler-default="{{ sp.pressler_default|unlocalize }}"
+                  data-volume-coefficients="{{ sp.volume_coefficients_json }}"
                   data-name="{{ sp.common_name }}">{{ sp.common_name }}</option>
         {% endfor %}
       </select>

@@ -349,12 +349,8 @@ def _optional_coord(reader, value):
 def tree_volume_and_mass(coppice, d_cm, h_m, species, species_name=None):
     if coppice or d_cm is None or h_m is None:
         return None, None
-    from apps.base.tabacchi import has_species, tabacchi_volume_m3
-    name = species_name or species.common_name
-    if not has_species(name):
-        return None, None
-    volume_m3 = tabacchi_volume_m3(d_cm, h_m, name)
-    return volume_m3, tree_mass_q(volume_m3, species.density)
+    from apps.base.equations import estimate_volume_and_mass
+    return estimate_volume_and_mass(d_cm, h_m, species)
 
 
 def parsed_tree_row(
