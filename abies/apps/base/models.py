@@ -282,6 +282,26 @@ class Species(TimestampedModel):
     active = models.BooleanField(default=True)
     history = HistoricalRecords()
 
+    def save(self, *args, **kwargs):
+        adding = self._state.adding
+        with transaction.atomic(using=kwargs.get('using')):
+            result = super().save(*args, **kwargs)
+            if adding:
+                from apps.base.equations import seed_volume_equation
+                seed_volume_equation(self)
+            return result
+
+    @property
+    def volume_coefficients(self):
+        from apps.base.equations import coefficients_for_species
+        return coefficients_for_species(self.pk)
+
+    @property
+    def volume_coefficients_json(self):
+        import json
+        coefficients = self.volume_coefficients
+        return json.dumps([float(value) for value in coefficients]) if coefficients else 'null'
+
     class Meta:
         verbose_name = S.SPECIES
         verbose_name_plural = S.SPECIES_PLURAL
@@ -294,6 +314,42 @@ class Species(TimestampedModel):
     def selectable(self):
         """Legacy Altro remains reference data, never a new-entry choice."""
         return self.active and self.common_name != S.SPECIES_OTHER
+
+
+class VolumeEquation(TimestampedModel):
+    """Species-owned Tabacchi coefficients, or an explicit species proxy."""
+    species = models.OneToOneField(
+        Species, on_delete=models.CASCADE, related_name='volume_equation',
+    )
+    proxy_species = models.ForeignKey(
+        Species, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='volume_equation_users',
+    )
+    b0 = models.DecimalField(max_digits=18, decimal_places=10, null=True, blank=True)
+    b1 = models.DecimalField(max_digits=18, decimal_places=10, null=True, blank=True)
+    b2 = models.DecimalField(max_digits=18, decimal_places=10, null=True, blank=True)
+    source = models.TextField(blank=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.VOLUME_EQUATION
+        verbose_name_plural = S.VOLUME_EQUATIONS
+        constraints = [
+            models.CheckConstraint(condition=(
+                models.Q(proxy_species__isnull=True, b0__isnull=False, b1__isnull=False)
+                | models.Q(proxy_species__isnull=False, b0__isnull=True,
+                           b1__isnull=True, b2__isnull=True)
+            ), name='volume_equation_coefficients_or_proxy'),
+            models.CheckConstraint(condition=(
+                models.Q(proxy_species__isnull=True)
+                | ~models.Q(species=models.F('proxy_species'))
+            ), name='volume_equation_not_self_proxy'),
+        ]
+
+    @property
+    def coefficients(self):
+        from apps.base.equations import coefficients_for_species
+        return coefficients_for_species(self.species_id)
 
 
 class Product(models.Model):
@@ -938,6 +994,8 @@ HYPSO_FUNC_LN = 'ln'
 class HypsoParamSource(models.TextChoices):
     COMPUTED = 'computed', S.HYPSO_SOURCE_COMPUTED
     IMPORTED = 'imported', S.HYPSO_SOURCE_IMPORTED
+    MANUAL = 'manual', S.HYPSO_SOURCE_MANUAL
+    MIXED = 'mixed', S.HYPSO_SOURCE_MIXED
 
 
 class HypsoParamSetManager(models.Manager):
@@ -982,8 +1040,12 @@ class HypsoParam(TimestampedModel):
     func = models.CharField(max_length=10, default=HYPSO_FUNC_LN)
     a = models.DecimalField(max_digits=10, decimal_places=4)
     b = models.DecimalField(max_digits=10, decimal_places=4)
-    r2 = models.DecimalField(max_digits=6, decimal_places=4)
-    n = models.IntegerField()
+    r2 = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True)
+    n = models.IntegerField(null=True, blank=True)
+    source = models.CharField(max_length=10, choices=HypsoParamSource.choices, default='imported')
+    origin_set = models.ForeignKey(
+        HypsoParamSet, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+    )
     history = HistoricalRecords()
 
     class Meta:

@@ -523,13 +523,17 @@ def _audit_configs() -> list:
         Crew, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
         Observation, ObservationCategory, Parcel, SampleArea, SampleGrid,
         SiteSettings, Species, Survey,
-        Tractor, User,
+        Tractor, User, VolumeEquation,
     )
     from apps.ipso.models import IpsoUpload
     from apps.mannesi.models import ProductionCredit, WorkHour
     from apps.prelievi.models import Harvest
 
     return [
+        (VolumeEquation, S.VOLUME_EQUATION, {
+            'species_id': S.COL_SPECIES, 'proxy_species_id': S.COL_SPECIES,
+            'b0': 'b0', 'b1': 'b1', 'b2': 'b2', 'source': S.COL_SOURCE,
+        }),
         (Harvest, S.TABLE_HARVEST, {
             'date': S.COL_DATE, 'region_id': S.COL_REGION, 'parcel_id': S.COL_PARCEL,
             'crew_id': S.COL_CREW, 'product_id': S.COL_PRODUCT,

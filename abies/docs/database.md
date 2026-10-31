@@ -10,6 +10,33 @@ Mutable domain tables are tracked by django-simple-history and surface in
 the Controllo audit log; `docs/page-controllo.md` lists which tables are
 audited and the contract that keeps that coverage complete.
 
+## Species equation identity
+
+`volume_equation` is a history-tracked TimestampedModel with a unique
+`species_id`, matching the species foreign key already used by `hypso_param`.
+It stores `b0`, `b1`, optional `b2` (Decimal(18,10)), and a free-text source,
+or an explicit `proxy_species_id`. The two representations are mutually
+exclusive. Its equation is `V_dm³ = b0 + b1 D²h [+ b2 D]`, with D in cm and
+h in metres; divide by 1000 for m³. A proxy retains its own species identity
+and density and uses the referenced species' coefficients.
+
+Migration 0032 seeds the existing supported coefficient vectors and catch-all
+proxies, recognizing canonical Latin identities where an existing common name
+has changed. It does not add an Abete rosso equation, rewrite tree estimates,
+change species IDs or reset species versions. New recognized reference species
+receive initial defaults once; later saves do not reset edited equations.
+
+Height rows retain `(param_set_id, region_id, species_id)` identity. Their
+`source` records imported/computed/manual origin, and `origin_set_id` preserves
+the original set when an unchanged row is copied into a later snapshot.
+Manual equations may omit sample count `n` and fit quality `r2`; both are nullable.
+Set sources additionally include `mixed`. Partial edits preserve all other
+species/region pairs and archive the previous active snapshot.
+
+Runtime height lookup uses region/species IDs, and volume lookup uses the
+species-owned equation. Display names never select a runtime equation. Captured
+tree heights, volumes and masses remain unchanged by reference edits.
+
 ## App metadata
 
 - used_nonce: (id:int, nonce:string, user_id:int, request_hash:string,
