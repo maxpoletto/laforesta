@@ -303,3 +303,4 @@ recorded without introducing a redundant refactor.
 | Finding | Status | Result / verification |
 | --- | --- | --- |
 | D01 | Covered by M2 | One intervention totals owner now serves manual/CSV writes; parent locks precede mutations/SUM; distinct marked NULL and actual zero rules retained. M2 totals, rollback and CSV regressions cover it. |
+| D02 | Covered by M2 | Row clocks now cover partial writes; accepted edits own tokens; total-only writes preserve metadata tokens; User, SiteSettings and staging intentionally retain separate contracts. Optional edit-helper cleanup is deferred. |
