@@ -13,12 +13,13 @@ from django.db.models import Sum
 
 from apps.base.digests import mark_stale
 from apps.base.models import (
-    HarvestPlanItem, HarvestPlanItemState, Parcel, Species, Tree, TreeMark,
+    HarvestPlanItem, Parcel, Species, Tree, TreeMark,
     next_sequence_number,
 )
 from apps.base.equations import estimate_volume_and_mass
 from config import strings as S
 from config.constants import DIGEST_FUTURE_PRODUCTION, FIELD_NUMBER
+from apps.piano_di_taglio.totals import lock_plan_items, refresh_marked_total
 
 MARK_CSV_SPECIES_HEADERS = (S.CSV_COL_SPECIES, S.COL_SPECIES)
 
@@ -108,7 +109,7 @@ def ipso_mark_fingerprint(session_id: str, record: dict) -> str:
 
 def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkImportResult:
     with transaction.atomic():
-        item = HarvestPlanItem.objects.select_for_update().get(id=item.id)
+        item = lock_plan_items([item.id])[item.id]
         if any(not mark_parcel_matches_item(item, row.parcel) for row in rows):
             return MarkImportResult(
                 imported=0, skipped_duplicates=0,
@@ -134,8 +135,7 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
             )
 
         if parsed:
-            auto_advance_to_marked(item, min(row.date for row in parsed))
-            rematerialize_volume_marked(item.id)
+            refresh_marked_total(item.id, mark_date=min(row.date for row in parsed))
 
         mark_stale(
             f'mark_trees_{item.id}', 'harvest_plan_items',
@@ -191,15 +191,6 @@ def mark_volume_and_mass(
         d_cm: int, h_m: Decimal | None, species: Species,
 ):
     return estimate_volume_and_mass(d_cm, h_m, species)
-
-
-def auto_advance_to_marked(item: HarvestPlanItem, mark_date: date_type) -> None:
-    """Auto-advance state from planned to marked on first TreeMark."""
-    if item.state == HarvestPlanItemState.PLANNED:
-        item.state = HarvestPlanItemState.MARKED
-        item.date_actual = mark_date
-        item.version += 1
-        item.save()
 
 
 def rematerialize_volume_marked(item_id: int) -> None:

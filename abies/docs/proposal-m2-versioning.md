@@ -296,3 +296,4 @@ commit; they do not repeat the timestamp implementation.
 | Row | Result | Verification |
 | --- | --- | --- |
 | 01 — TimestampedModel | Implemented; normalize partial fields once and advance only the row clock | Two regressions failed before the fix; timestamp/model suite: 64 passed |
+| 04 — First mark | One state/date/total save for manual and imported marks; shared parent lock | Both new history regressions failed first; marking suite: 208 passed |

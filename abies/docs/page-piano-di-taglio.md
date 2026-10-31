@@ -483,6 +483,12 @@ separate one-time CLI operation, not a settings UI feature.
 
 Recording a mark always creates a new `tree` row alongside `tree_mark`.
 
+The first mark on a planned intervention writes its automatic state/date
+advancement and marked total together: one parent version increment, timestamp
+and history event. Imports use the same operation. The parent is locked before
+the child write and total calculation; an intervening target/closure change is
+rechecked at that boundary.
+
 Submit: "Salva" / "Salva e continua" (batch entry).
 
 ## CSV files

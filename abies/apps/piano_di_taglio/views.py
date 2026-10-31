@@ -61,7 +61,6 @@ from apps.base.models import (
 from apps.piano_di_taglio import csv_plan
 from apps.piano_di_taglio.mark_import import (
     MARK_CSV_SPECIES_HEADERS, MarkImportRow,
-    auto_advance_to_marked as _auto_advance_to_marked,
     csv_mark_fingerprint, import_mark_rows,
     legacy_csv_mark_fingerprint, mark_parcel_matches_item,
     mark_volume_and_mass,
@@ -71,6 +70,7 @@ from apps.piano_di_taglio.mark_import import (
 from apps.piano_di_taglio.plan_item_validation import (
     plan_item_invariant_errors,
 )
+from apps.piano_di_taglio.totals import lock_plan_items, refresh_marked_total
 from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest
 from config import strings as S
@@ -1053,6 +1053,14 @@ def mark_save_view(request):
 
     begin_nonce_write(request)
     with transaction.atomic():
+        item = lock_plan_items([item.id]).get(item.id)
+        if item is None:
+            return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+        if item.state == HarvestPlanItemState.CLOSED:
+            return validation_error([S.ERR_MARK_ITEM_CLOSED])
+        parcel = _resolve_mark_parcel(item, parcel_id)
+        if isinstance(parcel, JsonResponse):
+            return parcel
         if row_id:
             # Update existing mark.
             tm = (TreeMark.objects
@@ -1099,9 +1107,10 @@ def mark_save_view(request):
                 lat=lat, lon=lon, acc_m=acc_m,
                 operator=operator,
             )
-            _auto_advance_to_marked(item, date)
-
-        _rematerialize_volume_marked(item.id)
+        if row_id:
+            _rematerialize_volume_marked(item.id)
+        else:
+            refresh_marked_total(item.id, mark_date=date)
         mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
 
     tm = (TreeMark.objects
