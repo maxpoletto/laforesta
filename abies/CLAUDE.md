@@ -126,9 +126,12 @@ versions, automated audits, dependency updates and GitHub setup.
 SQLite (WAL mode). Digests are compressed JSON on the filesystem
 (see `docs/data-architecture.md`). GeoTIFF and GeoJSON on disk.
 
-Row-level optimistic locking via a `version` column that increments on
-every save. Edit forms include `version` as a hidden field; the server
-rejects stale submissions.
+Row-level optimistic locking uses an edit `version`: accepted domain edits
+advance it once under the write lock. Derived-only parent totals leave that
+token unchanged. `TimestampedModel` updates `modified_at` on full and nonempty
+partial saves; empty partial saves remain no-ops. Edit forms include `version`
+and the server rejects stale submissions. User, SiteSettings and Ipso staging
+have explicit separate contracts; see `docs/proposal-m2-versioning.md`.
 
 ## Database model
 

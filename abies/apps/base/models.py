@@ -103,13 +103,17 @@ def _coordinate_constraints(prefix: str) -> list[models.CheckConstraint]:
 # ---------------------------------------------------------------------------
 
 class TimestampedModel(models.Model):
-    """Optimistic-locking version + timestamps on every mutable table."""
+    """Caller-owned edit token and row timestamps, including partial writes."""
     version = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         from apps.base.validation import validate_decimal_storage
+        fields = kwargs.get('update_fields')
+        if fields is not None:
+            fields = set(fields)
+            kwargs['update_fields'] = fields | {'modified_at'} if fields else fields
         validate_decimal_storage(self, kwargs.get('update_fields'))
         return super().save(*args, **kwargs)
 

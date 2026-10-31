@@ -6,6 +6,14 @@ inherit `version` (int), `created_at`, and `modified_at` columns; table
 signatures below omit those inherited columns unless a timestamp has
 domain-specific meaning.
 
+`TimestampedModel.modified_at` advances on full and nonempty partial saves;
+`save(update_fields=[])` remains a no-op. `created_at` stays fixed. The base
+class does not increment `version`: accepted edit operations own that token,
+while derived-only parent totals keep it unchanged. Historical timestamps are
+not backfilled. Infrastructure queryset writes used only to acquire a lock do
+not create timestamps, versions or history. See the
+[M2 contract](proposal-m2-versioning.md) for model exceptions and rollout.
+
 Mutable domain tables are tracked by django-simple-history and surface in
 the Controllo audit log; `docs/page-controllo.md` lists which tables are
 audited and the contract that keeps that coverage complete.
