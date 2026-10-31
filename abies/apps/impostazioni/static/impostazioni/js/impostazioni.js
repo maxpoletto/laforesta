@@ -39,6 +39,7 @@ import {
   FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
   FIELD_YEAR_END, FIELD_YEAR_START, IPSO_REF_OBSERVATION_CATEGORIES,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN, ROLE_WRITER,
+  FIELD_VOLUME_COEFFICIENTS,
 } from '../../base/js/constants.js';
 import {
   fmtDecimal2, fmtDecimal4, fmtInt,
@@ -74,6 +75,10 @@ const ENTITY_SECTIONS = {
     saveUrl: `${API}species/save/`,
     csvFilename: S.CSV_SPECIES,
     columnDefs: {
+      [FIELD_VOLUME_COEFFICIENTS]: { hidden: true },
+      [S.COL_HEIGHT_EQUATIONS]: { type: 'number', width: '95px',
+        formatter: value => value ? S.EQUATION_COVERAGE(value) : '—' },
+      [S.COL_VOLUME_EQUATION]: booleanCol(S.COL_VOLUME_EQUATION),
       [VERSION]: { hidden: true },
       [S.COL_SORT_ORDER]: { hidden: true },
       [S.COL_DENSITY]: { label: S.COL_DENSITY, type: 'number', width: '100px', formatter: fmtDecimal2 },

@@ -38,8 +38,8 @@ def seed_volume_equation(species):
             proxy = Species.objects.filter(latin_name__iexact=latin).first() if latin else None
     values = {'source': 'Tabacchi', 'proxy_species': proxy}
     if proxy is None:
-        values.update(b0=str(coefficients[0]), b1=str(coefficients[1]),
-                      b2=str(coefficients[2]) if len(coefficients) == 3 else None)
+        values.update(b0=Decimal(str(coefficients[0])), b1=Decimal(str(coefficients[1])),
+                      b2=Decimal(str(coefficients[2])) if len(coefficients) == 3 else None)
     VolumeEquation.objects.get_or_create(species=species, defaults=values)
 
 

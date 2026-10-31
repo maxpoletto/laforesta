@@ -6,6 +6,16 @@
 
 .species-type-cell select { width: 120px; max-width: 100%; }
 
+.species-equations { margin: 16px 0; padding: 12px; border: 1px solid #aaa; }
+.species-equations legend { font-weight: 500; }
+.species-equations input[type="checkbox"] { width: auto; }
+.species-height-region { margin-top: 12px; }
+.species-height-region > label { display: flex; align-items: center; gap: 6px; }
+.species-height-region .form-row { flex-wrap: wrap; }
+.species-equations [hidden] { display: none; }
+[data-role="equation-toolbar"] { flex-wrap: wrap; }
+[data-role="equation-compute"] summary { cursor: pointer; font-weight: 500; }
+
 .hypso-description {
   font-size: 0.9rem;
   margin: 0 0 8px;

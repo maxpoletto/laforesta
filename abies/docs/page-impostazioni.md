@@ -56,6 +56,38 @@ table.
   categories are sent to Ipso in `reference.json`. The default rows are `fitosanitario`, `viabilità`,
   and `rifiuti`.
 
+### Species equation editor
+
+The Species summary includes `Eq. altezza` (a check mark and the number of
+comprese with an active regression) and `Eq. volume` (availability). Coverage in
+one compresa does not imply coverage everywhere. Equation coefficients are
+edited through the species pencil popup, alongside its existing parameters.
+
+The popup has three groups:
+
+1. Species parameters: common/Latin names, density, Pressler, botanical type,
+   minor and active flags. Existing protected catch-all identity rules remain.
+2. Volume: no equation, own coefficients, or another species' equation by a
+   stable reference. Own coefficients are `b0`, `b1`, optional `b2`; the displayed
+   formula documents D in cm, h in metres and volume in dm³ before conversion
+   to m³. Source text is editable. Every configured equation is inspectable
+   through its owning species, including explicit catch-all proxies.
+3. Height: one enabled/disabled row per compresa, with `a`, `b`, optional N/r²,
+   the logarithmic formula and retained origin information. Disabling a row
+   removes only that species/compresa equation from the next active snapshot.
+
+Saving is atomic: metadata, equation coefficients, history and invalidation
+either succeed together or leave the form/data unchanged. A stale species
+version or changed equation configuration returns the current form for review.
+Invalid coefficients, missing proxy targets and proxy cycles are rejected.
+An equation still needed by another species cannot be removed.
+
+Changing one species or regional equation preserves all other species and
+regions. Old height snapshots remain archived, and unchanged rows retain their
+original provenance. Renaming a species updates labels without requiring a
+second rename in an equation table. All runtime links use IDs. Neither edits
+nor migration 0032 recompute stored tree heights, volumes or masses.
+
 ### Species selectability and historical Altro
 
 `active`, `minor`, and selectability have different purposes:

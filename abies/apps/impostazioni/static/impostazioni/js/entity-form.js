@@ -3,6 +3,8 @@ import { interceptSubmit, renderModalForm, showFormError } from '../../base/js/f
 import { dismiss } from '../../base/js/modals.js';
 import { wireCancelButtons } from '../../base/js/ui-widgets.js';
 import { parseDecimal } from '../../base/js/format.js';
+import * as cache from '../../base/js/cache.js';
+import { collectSpeciesEquations, wireSpeciesEquations } from './species-equations.js';
 import * as S from '../../base/js/strings.js';
 import {
   DATA_ID, FIELD_PRESSLER_DEFAULT, HTML, LOGIN_METHOD_PASSWORD,
@@ -10,7 +12,7 @@ import {
 } from '../../base/js/constants.js';
 
 function updateRecord(state, record) {
-  if (!state.digest || !record) return;
+  if (!state.digest || !record?.length) return;
   const rows = state.digest.rows;
   const index = rows.findIndex(row => row[0] === record[0]);
   if (index >= 0) rows[index] = record;
@@ -20,9 +22,11 @@ function updateRecord(state, record) {
 
 export function wireSettingsForm(form, cfg, state) {
   wirePasswordToggle(form);
+  const speciesForm = wireSpeciesEquations(form);
   wireCancelButtons(form, dismiss);
   interceptSubmit(form, cfg.saveUrl, {
     validate(body) {
+      if (speciesForm) Object.assign(body, collectSpeciesEquations(form));
       if (body.density !== undefined && !(parseDecimal(body.density) > 0)) {
         return S.ERR_DENSITY_POSITIVE;
       }
@@ -32,11 +36,13 @@ export function wireSettingsForm(form, cfg, state) {
       return null;
     },
     onSuccess(data) {
+      cache.applyResponseChanges(data);
       dismiss();
       const patch = data[PATCHES]?.find(p => p[DATA_ID] === cfg.key);
       updateRecord(state, patch?.[RECORD]);
     },
     onConflict(data) {
+      cache.applyResponseChanges(data);
       updateRecord(state, data[RECORD]);
       if (!data[HTML]) return;
       const currentForm = renderModalForm(data[HTML]);

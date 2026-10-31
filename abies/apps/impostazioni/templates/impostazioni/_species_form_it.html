@@ -2,6 +2,7 @@
   <form id="settings-form">
     <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
+    <input type="hidden" name="equation_state" value="{{ equation_state }}">
 
     <h2>{% if obj %}Modifica specie{% else %}Nuova specie{% endif %}</h2>
 
@@ -62,6 +63,53 @@
         Attivo
       </label>
     </div>
+
+    <fieldset class="species-equations">
+      <legend>{{ S.EQUATION_VOLUME_TITLE }}</legend>
+      <p class="text-muted">{{ S.EQUATION_VOLUME_FORMULA }}</p>
+      <div class="form-group">
+        <select name="volume_mode" data-role="volume-mode">
+          <option value="none" {% if not volume %}selected{% endif %}>{{ S.EQUATION_NONE }}</option>
+          <option value="own" {% if volume and not volume.proxy_species_id %}selected{% endif %}>{{ S.EQUATION_OWN }}</option>
+          <option value="proxy" {% if volume.proxy_species_id %}selected{% endif %}>{{ S.EQUATION_PROXY }}</option>
+        </select>
+      </div>
+      <div data-volume-mode="own">
+        <div class="form-row narrow">
+          <div class="form-group"><label for="volume-b0">b0</label><input id="volume-b0" name="volume_b0" type="text" inputmode="decimal" value="{{ volume.b0|floatformat:10 }}"></div>
+          <div class="form-group"><label for="volume-b1">b1</label><input id="volume-b1" name="volume_b1" type="text" inputmode="decimal" value="{{ volume.b1|floatformat:10 }}"></div>
+          <div class="form-group"><label for="volume-b2">b2</label><input id="volume-b2" name="volume_b2" type="text" inputmode="decimal" value="{{ volume.b2|floatformat:10 }}"></div>
+        </div>
+      </div>
+      <div class="form-group" data-volume-mode="proxy">
+        <label for="volume-proxy">{{ S.EQUATION_REFERENCE }}</label>
+        <select name="volume_proxy_species_id" id="volume-proxy">
+          <option value="">—</option>
+          {% for choice in volume_choices %}<option value="{{ choice.pk }}" data-coefficients="{{ choice.volume_coefficients_json }}" {% if choice.pk == volume.proxy_species_id %}selected{% endif %}>{{ choice.common_name }}</option>{% endfor %}
+        </select>
+        <p class="text-muted" data-role="volume-reference-coefficients"></p>
+      </div>
+      <div class="form-group"><label for="volume-source">{{ S.EQUATION_SOURCE }}</label><textarea id="volume-source" name="volume_source">{{ volume.source|default:'' }}</textarea></div>
+    </fieldset>
+
+    <fieldset class="species-equations">
+      <legend>{{ S.EQUATION_HEIGHT_TITLE }}</legend>
+      <p class="text-muted">{{ S.EQUATION_HEIGHT_FORMULA }}</p>
+      {% for row in height_regions %}
+        <div class="species-height-region" data-region-id="{{ row.region.pk }}">
+          <label><input type="checkbox" data-field="enabled" {% if row.equation %}checked{% endif %}> {{ row.region.name }}</label>
+          <div data-role="height-coefficients">
+            <div class="form-row narrow">
+              <div class="form-group"><label>a<input type="text" inputmode="decimal" data-field="a" value="{{ row.equation.a|floatformat:4 }}"></label></div>
+              <div class="form-group"><label>b<input type="text" inputmode="decimal" data-field="b" value="{{ row.equation.b|floatformat:4 }}"></label></div>
+              <div class="form-group"><label>N<input type="number" min="1" data-field="n" value="{{ row.equation.n|default_if_none:'' }}"></label></div>
+              <div class="form-group"><label>r²<input type="text" inputmode="decimal" data-field="r2" value="{{ row.equation.r2|floatformat:4 }}"></label></div>
+            </div>
+            {% if row.equation %}<p class="text-muted">{{ S.EQUATION_SOURCE }}: {{ row.equation.get_source_display }}{% if row.equation.origin_set %} · {{ row.equation.origin_set.created_at|date:'Y-m-d' }}{% for survey in row.equation.origin_set.surveys.all %} · {{ survey.name }}{% endfor %}{% endif %}</p>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
 
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>

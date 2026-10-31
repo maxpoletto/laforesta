@@ -171,11 +171,11 @@ def species_data(request):
 @login_required
 @require_writer
 def species_form(request, obj_id=None):
-    return _form(
-        'impostazioni/_species_form.html', Species, obj_id, request,
-        extra={'pressler_default': PRESSLER_DEFAULT,
-               'protected_species_names': PROTECTED_SPECIES_NAMES},
-    )
+    from apps.impostazioni.species_equations import editor_html
+    obj = Species.objects.filter(pk=obj_id).first() if obj_id else None
+    if obj_id and obj is None:
+        raise Http404
+    return JsonResponse({HTML: editor_html(request, obj)})
 
 
 @login_required
@@ -248,6 +248,9 @@ def species_type_save(request):
 
 
 def _save_species_response(request, body, parsed):
+    if FIELD_COMMON_NAME in parsed and ('height_equations' in body or 'volume_equation' in body):
+        from apps.impostazioni.species_equations import save_configuration
+        return save_configuration(request, body, parsed)
     # species.minor / common_name / sort_order define the prelievi column
     # set; species.json is also consumed by V/m preview forms.  Bosco
     # dendrometry/PAI digests denormalize species names.

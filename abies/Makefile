@@ -244,6 +244,7 @@ test-js:
 	node apps/base/static/base/js/api.test.mjs
 	node apps/impostazioni/static/impostazioni/js/species-types.test.mjs
 	node apps/impostazioni/static/impostazioni/js/entity-form.test.mjs
+	node apps/impostazioni/static/impostazioni/js/species-equations.test.mjs
 	node apps/ipso/static/ipso/pwa/session.test.mjs
 	node apps/ipso/static/ipso/pwa/modes.test.mjs
 	node apps/ipso/static/ipso/pwa/csv.test.mjs

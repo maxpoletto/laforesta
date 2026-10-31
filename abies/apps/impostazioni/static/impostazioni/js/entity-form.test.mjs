@@ -85,6 +85,7 @@ process.on('exit', () => fs.rmSync(root, { recursive: true, force: true }));
 fs.mkdirSync(path.join(root, 'impostazioni/js'), { recursive: true });
 fs.cpSync(path.join(here, '../../../../base/static/base/js'), path.join(root, 'base/js'), { recursive: true });
 fs.copyFileSync(path.join(here, 'entity-form.js'), path.join(root, 'impostazioni/js/entity-form.js'));
+fs.copyFileSync(path.join(here, 'species-equations.js'), path.join(root, 'impostazioni/js/species-equations.js'));
 const { wireSettingsForm } = await import(pathToFileURL(path.join(root, 'impostazioni/js/entity-form.js')));
 const { renderModalForm } = await import(pathToFileURL(path.join(root, 'base/js/forms.js')));
 

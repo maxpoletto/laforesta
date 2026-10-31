@@ -614,3 +614,8 @@ export const TREE_DENDROMETRY_EMPTY = 'Nessun dato dendrometrico nel filtro corr
 export const CSV_MARKS_PREFIX    = 'martellate_';
 export const CSV_HARVESTS_PREFIX = 'prelievi_';
 export const VOLUME_UNAVAILABLE = 'Volume non calcolabile: equazione di volume mancante.';
+export const COL_HEIGHT_EQUATIONS = 'Eq. altezza';
+export const COL_VOLUME_EQUATION = 'Eq. volume';
+export const EQUATION_COVERAGE = count => `✓ · ${count}`;
+export const HYPSO_SOURCE_MANUAL_LABEL = 'Manuale';
+export const HYPSO_SOURCE_MIXED_LABEL = 'Misto';

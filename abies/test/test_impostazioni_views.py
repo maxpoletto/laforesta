@@ -376,7 +376,7 @@ class TestSpecies:
 
         assert resp.json()['invalidates'] == {
             'data_ids': [
-                'prelievi', DIGEST_PARCEL_DENDROMETRY,
+                'prelievi', 'hypso_params', DIGEST_PARCEL_DENDROMETRY,
                 DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
             ],
             'prefixes': ['mark_trees_', 'sampled_trees_'],

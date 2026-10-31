@@ -462,15 +462,20 @@ def generate_parcels() -> None:
 SPECIES_COLUMNS = [
     ROW_ID, VERSION, S.COL_NAME, S.COL_LATIN_NAME, S.COL_DENSITY,
     S.COL_PRESSLER, S.COL_SORT_ORDER, S.COL_ACTIVE, S.COL_MINOR,
-    S.COL_TYPE,
+    S.COL_TYPE, S.COL_HEIGHT_EQUATIONS, S.COL_VOLUME_EQUATION, FIELD_VOLUME_COEFFICIENTS,
 ]
 
 
 def build_species_record(sp):
+    from apps.base.models import HypsoParam
+    coefficients = sp.volume_coefficients
     return [
         sp.id, sp.version, sp.common_name, sp.latin_name,
         float(sp.density), float(sp.pressler_default), sp.sort_order, sp.active,
         sp.minor, sp.get_botanical_type_display(),
+        HypsoParam.objects.filter(species=sp, param_set__superseded_at__isnull=True).count(),
+        coefficients is not None,
+        [float(value) for value in coefficients] if coefficients is not None else None,
     ]
 
 
