@@ -242,3 +242,8 @@ Later total-only updates advance the parent timestamp without advancing its
 edit token. Create/edit/delete lock affected interventions in ID order before
 child mutations and aggregate reads. Unchanged totals create no timestamp or
 history event; an empty actual-volume sum remains zero.
+
+CSV imports use the same actual-total service and parent-lock order. They keep
+their existing state behavior: importing a linked CSV does not itself advance
+an open intervention to harvesting. Duplicate import retries do not write a
+parent timestamp or history event.

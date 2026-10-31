@@ -21,7 +21,7 @@ from datetime import date as date_type
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from apps.piano_di_taglio.totals import lock_plan_items, refresh_actual_total
 
 from apps.base import csv_io
 from apps.base.digests import mark_stale
@@ -521,6 +521,7 @@ def apply(parsed: list) -> int:
     Returns the number of Harvests created.
     """
     with transaction.atomic():
+        lock_plan_items([r['harvest_plan_item'].pk for r in parsed if r.get('harvest_plan_item')])
         rows = [(harvest_import_fingerprint(r), r) for r in parsed]
         fingerprints = [fingerprint for fingerprint, _row in rows]
         existing = set(
@@ -580,15 +581,7 @@ def apply(parsed: list) -> int:
             if harvest.harvest_plan_item_id is not None
         }
         for plan_item_id in sorted(plan_item_ids):
-            total = (Harvest.objects
-                     .filter(harvest_plan_item_id=plan_item_id)
-                     .aggregate(total=Sum('volume_m3'))['total']) or 0
-            item = HarvestPlanItem.objects.select_for_update().get(
-                id=plan_item_id,
-            )
-            if item.volume_actual_m3 != total:
-                item.volume_actual_m3 = total
-                item.save(update_fields=['volume_actual_m3'])
+            refresh_actual_total(plan_item_id)
 
         if harvests:
             stale = ['prelievi', 'audit']
