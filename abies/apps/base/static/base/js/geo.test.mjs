@@ -125,6 +125,10 @@ assertEqual(geo.parcelLabel({ properties: { layer: 'Capistrano',
 assertEqual(geo.parcelLabel({ properties: { layer: '', name: '' } }), null,
             'parcelLabel: empty properties');
 assertEqual(geo.parcelLabel({}), null, 'parcelLabel: no properties');
+assertEqual(geo.parcelIdentity(unitSquare), { regionName: 'X', parcelName: '1' },
+            'parcelIdentity: canonical internal names');
+assertEqual(geo.parcelNames(unitSquare), { compresa: 'X', particella: '1' },
+            'parcelNames: compatibility result retains its existing shape');
 
 // generateGrid emits Leaflet-convention points {lat, lng, compresa,
 // particella} — NOT `lon`.  Consumers that persist to the `lon` schema

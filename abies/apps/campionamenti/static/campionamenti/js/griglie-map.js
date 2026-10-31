@@ -46,7 +46,7 @@ export class GriglieMap extends ParcelMap {
 
   /**
    * Render markers for the active grid's sample areas.
-   * @param {Array<{id, lat, lon, compresa, particella, numero}>} areas
+   * @param {Array<{id, lat, lon, regionName, parcelName, number}>} areas
    */
   setAreas(areas) {
     this._clearMarkers();

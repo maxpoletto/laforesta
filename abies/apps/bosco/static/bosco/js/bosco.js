@@ -23,7 +23,7 @@ import {
   fmtArea, fmtCoord, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal,
 } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { findContainingParcel, sortFeaturesByArea, parcelNames } from '../../base/js/geo.js';
+import { findContainingParcel, sortFeaturesByArea, parcelIdentity } from '../../base/js/geo.js';
 import { PARCEL_STYLE, ParcelMap, parcelTooltipContent } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import {
@@ -805,7 +805,7 @@ function renderMap(state) {
     return;
   }
 
-  const features = parcelsGeo.features.filter(f => parcelNames(f).compresa === region.name);
+  const features = parcelsGeo.features.filter(f => parcelIdentity(f).regionName === region.name);
   if (!features.length) {
     setStatus(S.BOSCO_NO_GEOMETRY(region.name));
     return;
@@ -843,8 +843,8 @@ function buildMapParcelEntries(state) {
   const byKey = new Map(entries.map(e => [e.key, e]));
 
   map.parcelLayer.eachLayer(layer => {
-    const { compresa, particella } = parcelNames(layer.feature);
-    const entry = byKey.get(parcelKey(compresa, particella));
+    const { regionName, parcelName } = parcelIdentity(layer.feature);
+    const entry = byKey.get(parcelKey(regionName, parcelName));
     if (!entry) return;
     entry.layers.push(layer);
     entry.geoAreaHa += (layer.feature?.properties?._areaM2 || 0) / M2_PER_HA;
@@ -1488,8 +1488,8 @@ function buildTooltip(entry, value = undefined, displayFn = null) {
 }
 
 function entryForFeature(feature) {
-  const { compresa, particella } = parcelNames(feature);
-  return mapEntriesByKey?.get(parcelKey(compresa, particella)) || null;
+  const { regionName, parcelName } = parcelIdentity(feature);
+  return mapEntriesByKey?.get(parcelKey(regionName, parcelName)) || null;
 }
 
 function metricDisplay(metricId, value) {
@@ -2171,8 +2171,8 @@ function selectPaiParcelFromLatLon(form) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || !parcelsGeo?.features) return;
   const feature = findContainingParcel(lon, lat, parcelsGeo.features);
   if (!feature) return;
-  const { compresa, particella } = parcelNames(feature);
-  const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
+  const { regionName, parcelName } = parcelIdentity(feature);
+  const entry = mapEntriesByKey?.get(parcelKey(regionName, parcelName));
   const select = form.querySelector('#id_pai_parcel');
   if (entry && select) select.value = String(entry.id);
 }
@@ -3066,8 +3066,8 @@ function promptNewPaiTreeAt(latlng, feature) {
   if (!canModify()) return;
   const defaults = { lat: latlng.lat, lon: latlng.lng };
   if (feature) {
-    const { compresa, particella } = parcelNames(feature);
-    const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
+    const { regionName, parcelName } = parcelIdentity(feature);
+    const entry = mapEntriesByKey?.get(parcelKey(regionName, parcelName));
     if (entry) defaults.parcelId = entry.id;
   }
   showConfirmModal(
@@ -3091,8 +3091,8 @@ function onMapClick(latlng, feature) {
     openRegionDetail();
     return;
   }
-  const { compresa, particella } = parcelNames(feature);
-  const entry = mapEntriesByKey?.get(parcelKey(compresa, particella));
+  const { regionName, parcelName } = parcelIdentity(feature);
+  const entry = mapEntriesByKey?.get(parcelKey(regionName, parcelName));
   updateSidebarTitle(currentState);
   if (entry) openParcelDetail(entry);
 }

@@ -35,7 +35,7 @@ export const ID_OPERATOR  = 'tf-operator';
  * Tabacchi, and updates the preview line + hidden fields.
  *
  * Options:
- *   ceduoEl — checkbox element; when checked, preview is suppressed.
+ *   coppiceInput — checkbox element; when checked, preview is suppressed.
  */
 export function wireVMPreview(form, opts = {}) {
   const d = form.querySelector(`#${ID_D_CM}`);
@@ -47,7 +47,7 @@ export function wireVMPreview(form, opts = {}) {
   const mHidden = form.querySelector(`#${ID_MASS}`);
   if (!d || !h || !sp || !preview || !vHidden || !mHidden) return;
 
-  const ceduoEl = opts.ceduoEl || null;
+  const coppiceInput = opts.coppiceInput || null;
   let lastPresslerDefault = null;
 
   function syncPresslerDefault() {
@@ -70,7 +70,7 @@ export function wireVMPreview(form, opts = {}) {
 
   function update() {
     syncPresslerDefault();
-    if (ceduoEl?.checked) { clearPreview(); return; }
+    if (coppiceInput?.checked) { clearPreview(); return; }
     const dCm = parseInt(d.value, 10);
     const hM = parseDecimal(h.value);
     const opt = sp.tagName === 'SELECT' ? sp.options[sp.selectedIndex] : sp;
@@ -101,7 +101,7 @@ export function wireVMPreview(form, opts = {}) {
   d.addEventListener('input', update);
   h.addEventListener('input', update);
   sp.addEventListener('change', update);
-  ceduoEl?.addEventListener('change', update);
+  coppiceInput?.addEventListener('change', update);
   update();
 
   return update;

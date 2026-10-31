@@ -6,7 +6,7 @@ import {
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
 import { fmtInt } from '../../base/js/format.js';
-import { distanceMeters, findContainingParcel, parcelNames } from '../../base/js/geo.js';
+import { distanceMeters, findContainingParcel, parcelIdentity } from '../../base/js/geo.js';
 
 export function buildObservations(digest) {
   if (!digest) return [];
@@ -65,8 +65,8 @@ export function attributeObservationParcels(observations, features) {
   return observations.map(obs => {
     const feature = findContainingParcel(obs.lon, obs.lat, source);
     if (!feature) return { ...obs };
-    const names = parcelNames(feature);
-    return { ...obs, region: names.compresa || '', parcel: names.particella || '' };
+    const names = parcelIdentity(feature);
+    return { ...obs, region: names.regionName || '', parcel: names.parcelName || '' };
   });
 }
 

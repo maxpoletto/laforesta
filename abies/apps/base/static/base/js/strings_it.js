@@ -209,8 +209,8 @@ export const SAMPLES_TREE_COUNT = (n) =>
 export const SAMPLES_TREES_HEADER_ALL = (n) =>
   `(Tutte le aree di campionamento / ${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_TREES_HEADER_AREA = (area, n) =>
-  `(${area.compresa} ${area.particella} / ` +
-  `area di campionamento ${area.numero} / ${SAMPLES_TREE_COUNT(n)})`;
+  `(${area.regionName} ${area.parcelName} / ` +
+  `area di campionamento ${area.number} / ${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_TREES_HEADER_COUNT = (n) =>
   `(${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_FREE_SURVEYS_GROUP = '-- Rilevamenti liberi --';
@@ -315,14 +315,14 @@ export const STATUS_PLAN_COMPLETE = n => `Pianificazione completata: ${n} punti.
 export const STATS_POINTS = (n, target) => `Punti: ${n} (obiettivo: ${target})`;
 export const STATS_TOTAL_AREA_HA = ha => `Superficie totale: ${ha} ha`;
 export const STATS_AREA_PER_POINT_M2 = area => `Area singola adc: ${area} m²`;
-export const TOOLTIP_ADC = (n, compresa, particella) =>
-  `adc ${n} · ${compresa} ${particella}`;
+export const TOOLTIP_ADC = (n, regionName, parcelName) =>
+  `adc ${n} · ${regionName} ${parcelName}`;
 // Sample-area marker tooltips on the Griglie / Rilevamenti maps.  Flat
 // templates (not concatenated fragments) so word order stays translatable.
 export const TOOLTIP_SAMPLE_AREA = area =>
-  `${area.compresa} ${area.particella} / adc ${area.numero}`;
-export const TOOLTIP_SAMPLE_AREA_VISITED = (area, alberi) =>
-  `${area.compresa} ${area.particella} / adc ${area.numero} / ${alberi}`;
+  `${area.regionName} ${area.parcelName} / adc ${area.number}`;
+export const TOOLTIP_SAMPLE_AREA_VISITED = (area, treesLabel) =>
+  `${area.regionName} ${area.parcelName} / adc ${area.number} / ${treesLabel}`;
 
 // Bosco placeholder page
 export const BOSCO_PLACEHOLDER_MESSAGE =

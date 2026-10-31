@@ -343,7 +343,7 @@ ERR_CSV_WHOLE_REGION_REQUIRES_FLAG = (
     'Riga {}: voce a livello di compresa (Particella = "{}"): la colonna '
     'Note deve contenere "Catastrofato" o "Fitosanitario".'
 )
-ERR_PLAN_ITEM_COMPRESA_REQUIRED = (
+ERR_PLAN_ITEM_REGION_REQUIRED = (
     'Compresa obbligatoria.'
 )
 ERR_PLAN_ITEM_REGION_REQUIRES_FLAG = (

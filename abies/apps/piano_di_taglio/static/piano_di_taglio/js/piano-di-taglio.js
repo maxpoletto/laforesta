@@ -709,7 +709,7 @@ async function confirmDeleteItem(itemId) {
   const row = itemsData.rows.find(r => r[c.indexOf(ROW_ID)] === itemId);
   if (!row) return;
 
-  const compresa = row[c.indexOf(S.COL_REGION)];
+  const regionName = row[c.indexOf(S.COL_REGION)];
   const parcel = row[c.indexOf(S.COL_PARCEL)];
   const year = row[c.indexOf(S.COL_YEAR_PLANNED)];
 
@@ -717,7 +717,7 @@ async function confirmDeleteItem(itemId) {
   // substantive row to back up, so this flow does not force an export.
   showCascadeDeleteModal({
     title: S.DELETE_ITEM_TITLE,
-    warning: S.DELETE_ITEM_WARNING(year, compresa, parcel || ''),
+    warning: S.DELETE_ITEM_WARNING(year, regionName, parcel || ''),
     onDelete: () => doDeleteItem(itemId),
   });
 }
@@ -1239,7 +1239,7 @@ async function renderItemView(itemId) {
   // Metadata pane.
   const meta = frag.querySelector('[data-target="metadata"]');
   const planName = lookupPlanName(record[c.indexOf(S.COL_HARVEST_PLAN)]);
-  const compresa = record[c.indexOf(S.COL_REGION)];
+  const regionName = record[c.indexOf(S.COL_REGION)];
   const parcel = record[c.indexOf(S.COL_PARCEL)];
   const yearPlanned = record[c.indexOf(S.COL_YEAR_PLANNED)];
   const yearActual = record[c.indexOf(S.COL_YEAR_ACTUAL)];
@@ -1255,7 +1255,7 @@ async function renderItemView(itemId) {
   const isCoppice = recordIsCoppice(record, c);
 
   addMetaRow(meta, S.LABEL_HARVEST_PLAN, planName);
-  addMetaRow(meta, S.COL_REGION, compresa);
+  addMetaRow(meta, S.COL_REGION, regionName);
   if (parcel) addMetaRow(meta, S.COL_PARCEL, parcel);
   addMetaRow(meta, S.COL_YEAR_PLANNED, yearPlanned);
   if (yearActual) addMetaRow(meta, S.COL_YEAR_ACTUAL, yearActual);
@@ -1337,11 +1337,11 @@ function addMetaRow(dl, label, value) {
 }
 
 function formatItemTitle(record, columns) {
-  const compresa = record[columns.indexOf(S.COL_REGION)];
+  const regionName = record[columns.indexOf(S.COL_REGION)];
   const parcel = record[columns.indexOf(S.COL_PARCEL)];
   const year = record[columns.indexOf(S.COL_YEAR_PLANNED)];
   const planName = lookupPlanName(record[columns.indexOf(S.COL_HARVEST_PLAN)]);
-  const location = parcel ? `${compresa}/${parcel}` : compresa;
+  const location = parcel ? `${regionName}/${parcel}` : regionName;
   return S.VIEW_ITEM_HEADING(planName, year, location);
 }
 

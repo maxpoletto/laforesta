@@ -1447,7 +1447,7 @@ def _parse_item_body(body):
         if not (damaged or unhealthy):
             errors.append(S.ERR_PLAN_ITEM_REGION_REQUIRES_FLAG)
     else:
-        errors.append(S.ERR_PLAN_ITEM_COMPRESA_REQUIRED)
+        errors.append(S.ERR_PLAN_ITEM_REGION_REQUIRED)
     try:
         year_planned = int(body.get(FIELD_YEAR_PLANNED))
     except (TypeError, ValueError):

@@ -47,8 +47,8 @@ export class RilevamentiMap extends ParcelMap {
 
   /**
    * Render markers for the survey's sample areas.
-   * @param {Array<{id, lat, lon, compresa, particella, numero}>} areas
-   * @param {Map<number, {nAlberi:number}>} visitedById — missing = unvisited.
+   * @param {Array<{id, lat, lon, regionName, parcelName, number}>} areas
+   * @param {Map<number, {treeCount:number}>} visitedById — missing = unvisited.
    */
   setAreas(areas, visitedById) {
     this._clearMarkers();
@@ -59,7 +59,7 @@ export class RilevamentiMap extends ParcelMap {
         ? this._areaTooltip(
             S.TOOLTIP_SAMPLE_AREA_VISITED,
             area,
-            S.SAMPLES_TREE_COUNT(visited.nAlberi),
+            S.SAMPLES_TREE_COUNT(visited.treeCount),
           )
         : this._areaTooltip(S.TOOLTIP_SAMPLE_AREA, area);
       this._addAreaMarker(area, {

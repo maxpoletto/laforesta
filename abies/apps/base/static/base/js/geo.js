@@ -194,12 +194,6 @@ export function distanceToBoundaryMeters(lng, lat, feature) {
   return best;
 }
 
-/**
- * Split a parcel feature into its `{ compresa, particella }` names, following
- * the `bosco/data/terreni.geojson` convention: compresa lives in
- * `properties.layer`; particella is the slice after the first `-` of
- * `properties.name`.
- */
 /** Normalize supported source aliases without changing their string labels. */
 export function parcelIdentity(feature) {
   const p = (feature && feature.properties) || {};
@@ -229,10 +223,10 @@ export function parcelTypeLabel(feature) {
  * null for non-parcel features.
  */
 export function parcelLabel(feature) {
-  const { compresa, particella } = parcelNames(feature);
-  if (!compresa && !particella) return null;
+  const { regionName, parcelName } = parcelIdentity(feature);
+  if (!regionName && !parcelName) return null;
   return {
-    title: `${compresa} ${particella}`.trim(),
+    title: `${regionName} ${parcelName}`.trim(),
     type: parcelTypeLabel(feature),
   };
 }
@@ -266,8 +260,9 @@ export function generateGrid(features, spacingLng, spacingLat) {
     for (let lng = bb.minLng; lng <= bb.maxLng; lng += spacingLng) {
       const f = findContainingParcel(lng, lat, features);
       if (f) {
-        const { compresa, particella } = parcelNames(f);
-        points.push({ lat, lng, compresa, particella });
+        const { regionName, parcelName } = parcelIdentity(f);
+        // Preserve the existing grid endpoint shape at this boundary.
+        points.push({ lat, lng, compresa: regionName, particella: parcelName });
       }
     }
   }

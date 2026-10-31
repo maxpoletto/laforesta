@@ -1094,7 +1094,7 @@ class TestItemCRUD:
             FIELD_YEAR_PLANNED: 2027,
         })
         assert resp.status_code == 400
-        assert S.ERR_PLAN_ITEM_COMPRESA_REQUIRED in resp.json()[MESSAGE]
+        assert S.ERR_PLAN_ITEM_REGION_REQUIRED in resp.json()[MESSAGE]
 
     def test_create_with_both_region_and_parcel(
         self, writer_client, plan, parcels,

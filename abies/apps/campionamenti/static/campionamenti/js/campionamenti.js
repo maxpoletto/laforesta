@@ -18,14 +18,14 @@ import { searchTerms, TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_COPPICE, FIELD_COMPRESA, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
+  COL_COPPICE, LEGACY_FIELD_REGION_NAME, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
   FIELD_DIAMETER_CLASS_MODE,
   FIELD_LAT, FIELD_LON,
-  FIELD_NONCE, FIELD_PARTICELLA, FIELD_PRESSLER_COEFF, FIELD_ROW_IDS,
+  FIELD_NONCE, LEGACY_FIELD_PARCEL_NAME, FIELD_PRESSLER_COEFF, FIELD_ROW_IDS,
   FIELD_SAMPLE_GRID_ID, FIELD_SPECIES, FIELD_SURVEY_ID,
   MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
-import { parcelNames, sortFeaturesByArea } from '../../base/js/geo.js';
+import { parcelIdentity, sortFeaturesByArea } from '../../base/js/geo.js';
 import { fileToBase64, postBlob, postJSON } from '../../base/js/api.js';
 import {
   importWarningLines, isImportWarningResponse, showImportWarningModal,
@@ -495,9 +495,9 @@ function renderGriglieMap(gridId) {
       id: r[c.indexOf(ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
       lon: r[c.indexOf(S.COL_LON)],
-      compresa: r[c.indexOf(S.COL_REGION)],
-      particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMBER)],
+      regionName: r[c.indexOf(S.COL_REGION)],
+      parcelName: r[c.indexOf(S.COL_PARCEL)],
+      number: r[c.indexOf(S.COL_NUMBER)],
       altitude: r[c.indexOf(S.COL_ALT)],
       r_m: r[c.indexOf(S.COL_RADIUS)],
       note: r[c.indexOf(S.COL_NOTE)],
@@ -654,9 +654,9 @@ function renderRilevamentiMap(surveyId) {
       id: r[c.indexOf(ROW_ID)],
       lat: r[c.indexOf(S.COL_LAT)],
       lon: r[c.indexOf(S.COL_LON)],
-      compresa: r[c.indexOf(S.COL_REGION)],
-      particella: r[c.indexOf(S.COL_PARCEL)],
-      numero: r[c.indexOf(S.COL_NUMBER)],
+      regionName: r[c.indexOf(S.COL_REGION)],
+      parcelName: r[c.indexOf(S.COL_PARCEL)],
+      number: r[c.indexOf(S.COL_NUMBER)],
     }));
 
   const sc = samplesData.columns;
@@ -664,7 +664,7 @@ function renderRilevamentiMap(surveyId) {
   for (const r of samplesData.rows) {
     if (r[sc.indexOf(S.COL_SURVEY)] !== surveyId) continue;
     visitedById.set(r[sc.indexOf(S.COL_SAMPLE_AREA)], {
-      nAlberi: r[sc.indexOf(S.COL_N_TREES)],
+      treeCount: r[sc.indexOf(S.COL_N_TREES)],
     });
   }
 
@@ -837,9 +837,9 @@ function sampleAreaSummary(areaId) {
   const row = sampleAreasData.rows.find(r => r[idCol] === areaId);
   if (!row) return null;
   return {
-    compresa: row[c.indexOf(S.COL_REGION)] ?? '',
-    particella: row[c.indexOf(S.COL_PARCEL)] ?? '',
-    numero: row[c.indexOf(S.COL_NUMBER)] ?? '',
+    regionName: row[c.indexOf(S.COL_REGION)] ?? '',
+    parcelName: row[c.indexOf(S.COL_PARCEL)] ?? '',
+    number: row[c.indexOf(S.COL_NUMBER)] ?? '',
   };
 }
 
@@ -1097,8 +1097,8 @@ function showAreaPopover(area) {
   const frag = cloneTemplate('tmpl-campionamenti-area-popover');
   const fields = frag.querySelector('[data-target="fields"]');
   for (const [label, val] of [
-    [S.COL_REGION, area.compresa], [S.COL_PARCEL, area.particella],
-    [S.COL_NUMBER, area.numero],
+    [S.COL_REGION, area.regionName], [S.COL_PARCEL, area.parcelName],
+    [S.COL_NUMBER, area.number],
     [S.COL_RADIUS, fmtInt(area.r_m)],
     [S.COL_LAT, fmtCoord(area.lat)],
     [S.COL_LON, fmtCoord(area.lon)],
@@ -1131,22 +1131,22 @@ function promptNewAreaAt(lat, lon, feature) {
   if (activeGridId == null) return;
   // A click inside a parcel pre-fills its region+parcel; an empty-space click
   // (feature null) leaves them for the writer to pick.
-  const { compresa, particella } = feature ? parcelNames(feature) : {};
+  const { regionName, parcelName } = feature ? parcelIdentity(feature) : {};
   showConfirmModal(
     S.SAMPLES_INSERT_AREA_HERE,
-    () => showAddAreaForm({ lat, lon, compresa, particella }),
+    () => showAddAreaForm({ lat, lon, regionName, parcelName }),
     { confirmLabel: S.CONFIRM, intent: 'confirm' },
   );
 }
 
-async function showAddAreaForm({ lat, lon, compresa, particella } = {}) {
+async function showAddAreaForm({ lat, lon, regionName, parcelName } = {}) {
   if (activeGridId == null) return;
   inForm = true;
   const qs = new URLSearchParams({ grid: String(activeGridId) });
   if (lat != null) qs.set(FIELD_LAT, String(lat));
   if (lon != null) qs.set(FIELD_LON, String(lon));
-  if (compresa) qs.set(FIELD_COMPRESA, compresa);
-  if (particella) qs.set(FIELD_PARTICELLA, particella);
+  if (regionName) qs.set(LEGACY_FIELD_REGION_NAME, regionName);
+  if (parcelName) qs.set(LEGACY_FIELD_PARCEL_NAME, parcelName);
   const form = await fetchModalForm(`${AREA_FORM_URL}?${qs}`);
   if (!form) { finishForm(); return; }
   onDismiss(finishForm);
@@ -1783,9 +1783,9 @@ function wireTreeParcelByRegion(form) {
 function wireTreeForm(form) {
   wireTreeParcelByRegion(form);
   wireTreePick(form);
-  wireCeduoToggle(form);
+  wireCoppiceToggle(form);
   wireCoppiceBlock(form);
-  wireVMPreviewShared(form, { ceduoEl: form.querySelector('#tf-ceduo') });
+  wireVMPreviewShared(form, { coppiceInput: form.querySelector('#tf-ceduo') });
   mountUseLocationButton(
     form.querySelector('#tf-lat'),
     form.querySelector('#tf-lon'),
@@ -1923,7 +1923,7 @@ function wireTreePick(form) {
  * submitted, so we can disable instead of removing — switching modes
  * preserves any in-progress entry on the inactive side.
  */
-function wireCeduoToggle(form) {
+function wireCoppiceToggle(form) {
   const ceduo = form.querySelector('#tf-ceduo');
   const fustaiaBlock = form.querySelector('.tree-fustaia-fields');
   const coppiceBlock = form.querySelector('.tree-coppice-block');
@@ -2023,7 +2023,7 @@ function wireCoppiceBlock(form) {
   form.addEventListener('submit', () => {
     if (!shootsHidden) return;
     // Always serialise — the server ignores `shoots` when in fustaia
-    // mode.  Disabling the coppice inputs (wireCeduoToggle) does NOT
+    // mode.  Disabling the coppice inputs (wireCoppiceToggle) does NOT
     // remove the hidden field, so blank it explicitly here.
     if (!ceduo?.checked) {
       shootsHidden.value = '';

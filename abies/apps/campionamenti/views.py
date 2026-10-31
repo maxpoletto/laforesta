@@ -58,14 +58,14 @@ from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_TREE_DIGESTS, DEFAULT_RADIUS_M,
     DIGEST_PARCELS, DIGEST_PRESERVED_TREES, PRESSLER_DEFAULT,
     FIELD_ALTITUDE, FIELD_ALTITUDE_M, FIELD_AREA,
-    FIELD_COMPRESA, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
+    LEGACY_FIELD_REGION_NAME, FIELD_COPPICE, FIELD_DATE, FIELD_DEFAULT_DATE,
     FIELD_DATA_IDS, FIELD_DESCRIPTION, FIELD_D_CM,
     FIELD_FILE, FIELD_HIGHFOREST, FIELD_H_M, FIELD_H_MEASURED, FIELD_L10_MM,
     FIELD_LAT, FIELD_LON,
     FIELD_PRESSLER_COEFF,
     FIELD_MASS_Q,
     FIELD_NAME, FIELD_NEXT_SHOOT, FIELD_NOTE, FIELD_NUMBER,
-    FIELD_PARCEL, FIELD_PARCEL_ID, FIELD_PARTICELLA, FIELD_POINTS,
+    FIELD_PARCEL, FIELD_PARCEL_ID, LEGACY_FIELD_PARCEL_NAME, FIELD_POINTS,
     FIELD_PRESERVED, FIELD_R_M,
     FIELD_ROW_IDS,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
@@ -639,7 +639,7 @@ def area_form_view(request, area_id: int | None = None):
     # map-click: the parcel under the click, passed as compresa+particella
     # names.  Adding via the button: nothing pre-selected.
     sel_parcel = area.parcel if area else _parcel_from_names(
-        parcels, request.GET.get(FIELD_COMPRESA), request.GET.get(FIELD_PARTICELLA),
+        parcels, request.GET.get(LEGACY_FIELD_REGION_NAME), request.GET.get(LEGACY_FIELD_PARCEL_NAME),
     )
     return JsonResponse({HTML: render_to_string(
         'campionamenti/_area_form.html', {

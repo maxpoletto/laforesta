@@ -2,7 +2,7 @@
  * "Genera automaticamente" grid planner — Campionamenti modal.
  *
  * Logic vendored from `bosco/pac/app.js`, generalized to:
- *   - support multiple comprese in one run;
+ *   - support multiple regions in one run;
  *   - take a radius (matching schema r_m) instead of pac's diameter;
  *   - persist the result via /api/campionamenti/grid/save-auto/
  *     instead of exporting a CSV.
@@ -47,7 +47,7 @@ export class GridPlanner {
     // Caller may hand us the already-loaded terreni.geojson (the
     // campionamenti page keeps it cached); fall back to fetching otherwise.
     this.geojson = opts.geojson || null;
-    this.featuresByCompresa = {};   // compresa → [GeoJSON features]
+    this.featuresByRegion = {};   // region → [GeoJSON features]
     this.points = [];                // {lat, lon, compresa, particella}
     this.parcelMap = null;
     this.mapHost = null;
@@ -95,16 +95,16 @@ export class GridPlanner {
     }));
 
     // Compresa multi-select.
-    const compresaGroup = document.createElement('div');
-    compresaGroup.className = 'form-group';
-    const compresaLabel = document.createElement('label');
-    compresaLabel.textContent = S.LABEL_REGIONS;
-    compresaGroup.appendChild(compresaLabel);
-    this.compreseListEl = document.createElement('div');
-    this.compreseListEl.className = 'grid-planner-compresa-list';
-    this.compreseListEl.textContent = S.LOADING;
-    compresaGroup.appendChild(this.compreseListEl);
-    h.appendChild(compresaGroup);
+    const regionGroup = document.createElement('div');
+    regionGroup.className = 'form-group';
+    const regionLabel = document.createElement('label');
+    regionLabel.textContent = S.LABEL_REGIONS;
+    regionGroup.appendChild(regionLabel);
+    this.regionListEl = document.createElement('div');
+    this.regionListEl.className = 'grid-planner-compresa-list';
+    this.regionListEl.textContent = S.LOADING;
+    regionGroup.appendChild(this.regionListEl);
+    h.appendChild(regionGroup);
 
     // Parameters: raggio (m) + copertura %.
     const params = document.createElement('div');
@@ -183,16 +183,16 @@ export class GridPlanner {
       f => f.properties && f.properties.type === 'polygon'
         && f.geometry && f.geometry.type === 'Polygon',
     );
-    this.featuresByCompresa = {};
+    this.featuresByRegion = {};
     for (const f of polys) {
       const name = f.properties.layer;
       if (!name) continue;
-      if (!this.featuresByCompresa[name]) this.featuresByCompresa[name] = [];
-      this.featuresByCompresa[name].push(f);
+      if (!this.featuresByRegion[name]) this.featuresByRegion[name] = [];
+      this.featuresByRegion[name].push(f);
     }
-    // Render the compresa checklist.
-    this.compreseListEl.replaceChildren();
-    const names = Object.keys(this.featuresByCompresa).sort();
+    // Render the region checklist.
+    this.regionListEl.replaceChildren();
+    const names = Object.keys(this.featuresByRegion).sort();
     for (const name of names) {
       const lab = document.createElement('label');
       lab.className = 'grid-planner-compresa-item';
@@ -201,9 +201,9 @@ export class GridPlanner {
       cb.value = name;
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(
-        ` ${S.GRID_PLANNER_REGION_OPTION(name, this.featuresByCompresa[name].length)}`,
+        ` ${S.GRID_PLANNER_REGION_OPTION(name, this.featuresByRegion[name].length)}`,
       ));
-      this.compreseListEl.appendChild(lab);
+      this.regionListEl.appendChild(lab);
     }
     // Render parcels + frame the map via the shared ParcelMap abstraction
     // (shared yellow style, hover labels, fit-to-parcels).  The planner needs
@@ -221,13 +221,13 @@ export class GridPlanner {
   }
 
   _selectedComprese() {
-    return [...this.compreseListEl.querySelectorAll('input:checked')]
+    return [...this.regionListEl.querySelectorAll('input:checked')]
       .map(cb => cb.value);
   }
 
   _selectedFeatures() {
     return this._selectedComprese().flatMap(
-      name => this.featuresByCompresa[name] || [],
+      name => this.featuresByRegion[name] || [],
     );
   }
 
@@ -252,8 +252,8 @@ export class GridPlanner {
     // pipeline (render, _save payload, server, DB) speaks `lon`.  Normalize at
     // this single boundary so the points carry `lon` everywhere downstream.
     this.points = planGridForTarget(features, targetN).map(
-      ({ lat, lng, compresa, particella }) =>
-        ({ lat, lon: lng, compresa, particella }),
+      ({ lat, lng, compresa: regionName, particella: parcelName }) =>
+        ({ lat, lon: lng, compresa: regionName, particella: parcelName }),
     );
     this._renderPoints();
     this._renderStats(totalAreaM2, perPointAreaM2, targetN);
@@ -263,13 +263,13 @@ export class GridPlanner {
 
   _renderPoints() {
     this.pointLayer.clearLayers();
-    // Number each point per compresa, restarting at 1, to mirror
+    // Number each point per region, restarting at 1, to mirror
     // grid_save_auto_view's server-side numbering — otherwise the preview
     // adc numbers wouldn't match the saved grid.
-    const countByCompresa = {};
+    const countByRegion = {};
     this.points.forEach((pt) => {
-      const n = (countByCompresa[pt.compresa] || 0) + 1;
-      countByCompresa[pt.compresa] = n;
+      const n = (countByRegion[pt.compresa] || 0) + 1;
+      countByRegion[pt.compresa] = n;
       const m = L.circleMarker([pt.lat, pt.lon], POINT_STYLE);
       m.bindTooltip(S.TOOLTIP_ADC(n, pt.compresa, pt.particella));
       m.addTo(this.pointLayer);

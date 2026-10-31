@@ -46,3 +46,21 @@ def test_shared_wire_values_match_three_runtimes():
     for name in SHARED_WIRE_NAMES:
         assert name in actual['desktop'] and name in actual['mobile'], name
         assert actual['desktop'][name] == actual['mobile'][name] == getattr(constants, name), name
+
+
+def test_legacy_sampling_query_names_keep_their_wire_spelling():
+    if shutil.which('node') is None:
+        pytest.skip('node required')
+    module = (Path(__file__).resolve().parents[1]
+              / 'apps/base/static/base/js/constants.js').as_uri()
+    script = f"""
+      import * as c from {json.dumps(module)};
+      process.stdout.write(JSON.stringify([
+        c.LEGACY_FIELD_REGION_NAME, c.LEGACY_FIELD_PARCEL_NAME
+      ]));
+    """
+    result = subprocess.run(['node', '--input-type=module', '-e', script],
+        check=True, capture_output=True, text=True, timeout=10)
+    assert json.loads(result.stdout) == ['compresa', 'particella']
+    assert constants.LEGACY_FIELD_REGION_NAME == 'compresa'
+    assert constants.LEGACY_FIELD_PARCEL_NAME == 'particella'

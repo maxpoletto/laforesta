@@ -422,10 +422,13 @@ const payloads = new Map([
     [ROW_ID, S.COL_NAME, S.COL_N_AREAS, S.COL_REGIONS, S.COL_N_SURVEYS, S.COL_LAST_UPDATE],
     [[10, 'Griglia', 0, '', 2, '2026-01-01']],
   )],
-  ['/api/campionamenti/sample-areas/data/', digest([ROW_ID, S.COL_GRID], [])],
+  ['/api/campionamenti/sample-areas/data/', digest(
+    [ROW_ID, S.COL_GRID, S.COL_REGION, S.COL_PARCEL, S.COL_NUMBER, S.COL_LAT, S.COL_LON],
+    [[50, 10, 'Serra', '01b', 7, 38.1, 16.2]],
+  )],
   ['/api/campionamenti/samples/data/', digest(
     [ROW_ID, S.COL_SURVEY, S.COL_SAMPLE_AREA, S.COL_N_TREES],
-    [[100, 2, null, 1490], [101, 2, null, 5], [102, 3, null, 1]],
+    [[99, 1, 50, 12], [100, 2, null, 1490], [101, 2, null, 5], [102, 3, null, 1]],
   )],
   ['/api/species/data/', digest(
     [ROW_ID, S.COL_NAME],
@@ -510,6 +513,17 @@ eq(
 
 const surveyMap = contentEl.querySelector('[data-target="survey-map"]');
 eq(surveyMap.hidden, false, 'structured survey keeps the sample-area map visible');
+const mappedSurvey = globalThis.__rilevamentiMapInstances.at(-1);
+const mappedArea = mappedSurvey.areas[0];
+eq(S.TOOLTIP_SAMPLE_AREA(mappedArea), 'Serra 01b / adc 7',
+   'map tooltip retains string parcel labels and the sample-area number');
+eq(S.TOOLTIP_SAMPLE_AREA_VISITED(
+  mappedArea, S.SAMPLES_TREE_COUNT(mappedSurvey.visited.get(50).treeCount)),
+  'Serra 01b / adc 7 / 12 alberi',
+  'visited-area tooltip retains the count from the selected survey');
+eq(S.SAMPLES_TREES_HEADER_AREA(mappedArea, 12),
+   '(Serra 01b / area di campionamento 7 / 12 alberi)',
+   'selected-area header uses the same private map identity');
 
 campionamenti.onQueryChange({ s: '2' });
 eq(

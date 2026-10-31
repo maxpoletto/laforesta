@@ -21,7 +21,7 @@ from config import strings as S
 
 _TEXT_FIELDS = {
     C.FIELD_NAME, C.FIELD_DESCRIPTION, C.FIELD_NOTE, C.FIELD_NOTES, C.FIELD_EXTRA_NOTE,
-    C.FIELD_COMPRESA,
+    C.LEGACY_FIELD_REGION_NAME,
     C.FIELD_DATE, C.FIELD_DEFAULT_DATE, C.FIELD_OPERATOR, C.FIELD_TEXT,
     C.FIELD_MANUFACTURER, C.FIELD_MODEL, C.FIELD_COMMON_NAME, C.FIELD_LATIN_NAME,
     C.FIELD_EMAIL, C.FIELD_USERNAME, C.FIELD_FIRST_NAME, C.FIELD_LAST_NAME,
@@ -114,7 +114,7 @@ def json_fields_valid(body):
             return False
     # Area numbers are free text, while tree numbers are integers. Both APIs
     # accept an integer rendered as text; neither may truncate a JSON float.
-    for key in {C.FIELD_NUMBER, C.FIELD_PARTICELLA} & body.keys():
+    for key in {C.FIELD_NUMBER, C.LEGACY_FIELD_PARCEL_NAME} & body.keys():
         value = body[key]
         if isinstance(value, bool) or (value is not None and not isinstance(value, (str, int))):
             return False
