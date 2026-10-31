@@ -140,11 +140,12 @@ does not alter saved sessions or observations. Previously recorded Altro trees
 remain displayable, exportable, and uploadable by their original species ID;
 server staging/import continues accepting historical IDs.
 
-On import, Abies estimates volume for the new choices using the Abete bianco
-and Faggio Tabacchi equations, respectively, and mass using the catch-all's
-current density. These aliases do not change the species ID, stored field
-measurements, or height auto-population. Historical Altro remains unsupported
-by Tabacchi. Migration 0027 fills missing volume/mass pairs for earlier
+On import, Abies estimates volume from each species' configured equation and
+mass from its own density. The new catch-alls initially reference Abete bianco
+and Faggio, respectively; these explicit references are editable in Abies
+Settings. They do not change species identity, field measurements or height
+auto-population. Historical Altro initially has no volume equation. Migration
+0027 filled missing volume/mass pairs for earlier
 high-forest observations of the two new choices with positive D/h, without
 overwriting existing estimates.
 
@@ -152,6 +153,32 @@ After deployment, connected devices must fetch the refreshed references and
 activate the new shell with `Aggiorna app` (or fully close/reopen after the
 update downloads). A disconnected device cannot receive new species IDs until
 it reconnects; failed refreshes retain the last-good snapshot and warning.
+
+### Species equation identity (Ipso 1.5.5)
+
+Abies migration 0032 stores volume equations by species ID. Height equations
+already use species and region foreign keys; both the Abies marks form and
+Ipso now use these IDs internally. Renaming a species in Settings therefore
+preserves its configured height and volume associations.
+
+`reference.json` includes an additive `hypsometry_by_id` map:
+
+```json
+{"hypsometry_by_id": {"3": {"17": {"a": 7.0306, "b": -4.2563, "hypso_param_set_id": 12}}}}
+```
+
+The outer key is region ID and the inner key is species ID. The legacy
+name-keyed `ipsometrica` map remains available for installed older clients.
+Ipso 1.5.5 prefers the ID map when present; a missing pair means no automatic
+height and never borrows an equation by name. Older last-good bundles without
+this map still work through the legacy lookup.
+
+Activate the new shell and refresh references to receive this behavior. A
+disconnected device keeps its last-good bundle. No IndexedDB, local session,
+CSV or upload-schema migration is required: saved sessions and pending uploads
+retain their measurements and original species IDs. Abies applies configured
+volume coefficients when importing new records; settings edits and migration
+0032 do not rewrite previously imported estimates or intervention totals.
 
 ## Storico
 

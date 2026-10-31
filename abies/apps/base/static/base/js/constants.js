@@ -98,6 +98,7 @@ export const IPSO_REF_GENERATED_AT = 'generated_at';
 export const IPSO_REF_SPECIES = 'species';
 export const IPSO_REF_PARCELS = 'parcels';
 export const IPSO_REF_HYPSOMETRY = 'ipsometrica';
+export const IPSO_REF_HYPSOMETRY_IDS = 'hypsometry_by_id';
 export const IPSO_REF_SAMPLING = 'sampling';
 export const IPSO_REF_PAI = 'pai';
 export const IPSO_REF_WORK_PACKAGES = 'work_packages';

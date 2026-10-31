@@ -1582,9 +1582,7 @@ function recomputeAutoH() {
     if (hint) hint.hidden = true;
     return;
   }
-  const compresa = State.session ? State.session.compresa : '';
-  const ipsTable = State.reference[IPSO_REF_HYPSOMETRY];
-  const eq = ipso.lookup(ipsTable, compresa, State.specie);
+  const eq = currentHeightEquation();
   const d = parseInt(State.numpad.value('d'), 10);
   const hint = document.getElementById('hint-autoh');
 
@@ -1868,9 +1866,18 @@ function currentRecord() {
 }
 
 
-function currentHypsoParamSetId() {
+function currentHeightEquation() {
   if (!State.session || !State.reference) return null;
-  const eq = ipso.lookup(State.reference[IPSO_REF_HYPSOMETRY], State.session.compresa, State.specie);
+  const species = (State.reference[IPSO_REF_SPECIES] || []).find(sp => sp.common === State.specie);
+  const region = (State.reference[IPSO_REF_PARCELS] || []).find(p => p.compresa === State.session.compresa);
+  const regionId = Number.isInteger(State.session[FIELD_REGION_ID])
+    ? State.session[FIELD_REGION_ID] : region && region[FIELD_REGION_ID];
+  return ipso.lookupReference(State.reference, regionId, species && species.id,
+    State.session.compresa, State.specie);
+}
+
+function currentHypsoParamSetId() {
+  const eq = currentHeightEquation();
   return eq && Number.isInteger(eq.hypso_param_set_id)
     ? eq.hypso_param_set_id
     : null;

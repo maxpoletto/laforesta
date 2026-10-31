@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { Store: RealStore } = createRequire(import.meta.url)('./store.js');
 const RealUpload = createRequire(import.meta.url)('./upload.js');
+const RealIpso = createRequire(import.meta.url)('./ipso.js');
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, updateSaveEnabled, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
@@ -412,6 +413,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       fmtDecimal2(value) { return Number(value).toFixed(2).replace('.', ','); },
     },
     ipso: {
+      lookupReference: RealIpso.lookupReference,
       lookup(ipsometrica, compresa, specie) {
         return ipsometrica && ipsometrica[compresa]
           ? ipsometrica[compresa][specie] || null : null;

@@ -105,7 +105,7 @@ from config.constants import (
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
     IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
-    IPSO_REF_HISTORY, IPSO_REF_HYPSOMETRY, IPSO_REF_OBSERVATION_CATEGORIES,
+    IPSO_REF_HISTORY, IPSO_REF_HYPSOMETRY, IPSO_REF_HYPSOMETRY_IDS, IPSO_REF_OBSERVATION_CATEGORIES,
     IPSO_REF_PAI,
     IPSO_REF_PARCELS, IPSO_REF_UPLOAD,
     IPSO_REF_PRESERVED_TREES, IPSO_REF_SAMPLE_AREA_MAX_NUMBERS,
@@ -246,13 +246,15 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         return _auth_error()
     sampling = _sampling_context()
     pai = _pai_context()
+    height_names, height_ids = _height_equation_references()
     payload = {
         FIELD_SCHEMA_VERSION: SCHEMA_VERSION,
         IPSO_REF_GENERATED_AT: django_timezone.now().astimezone(timezone.utc)
                        .isoformat(timespec='seconds').replace('+00:00', 'Z'),
         IPSO_REF_SPECIES: _species_rows(),
         IPSO_REF_PARCELS: _parcel_rows(),
-        IPSO_REF_HYPSOMETRY: _ipsometrica(),
+        IPSO_REF_HYPSOMETRY: height_names,
+        IPSO_REF_HYPSOMETRY_IDS: height_ids,
         IPSO_REF_SAMPLING: sampling,
         IPSO_REF_PAI: pai,
         IPSO_REF_OBSERVATION_CATEGORIES: _observation_category_rows(),
@@ -604,22 +606,25 @@ def _mapped_tree_count(trees: list[dict]) -> int:
     )
 
 
-def _ipsometrica() -> dict:
+def _height_equation_references() -> tuple[dict, dict]:
     active = HypsoParamSet.objects.active().first()
     if active is None:
-        return {}
+        return {}, {}
     out: dict[str, dict[str, dict[str, float]]] = {}
+    by_id = {}
     params = (HypsoParam.objects
               .filter(param_set=active, func=HYPSO_FUNC_LN)
               .select_related('region', 'species')
               .order_by('region__name', 'species__common_name'))
     for p in params:
-        out.setdefault(p.region.name, {})[p.species.common_name] = {
+        equation = {
             'a': float(p.a),
             'b': float(p.b),
             FIELD_HYPSO_PARAM_SET_ID: active.id,
         }
-    return out
+        out.setdefault(p.region.name, {})[p.species.common_name] = equation
+        by_id.setdefault(str(p.region_id), {})[str(p.species_id)] = equation
+    return out, by_id
 
 
 def _reference_version(payload: dict) -> str:
