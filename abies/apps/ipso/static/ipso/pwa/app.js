@@ -14,11 +14,11 @@ const OBSERVATION_CAMERA_INPUT_ID = 'in-observation-photos-camera';
 const State = {
   mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
-  terreni: null,      // parsed terreni.geojson features array (compresa-wide)
+  parcelFeatures: null, // parsed terreni.geojson features array (all regions)
   bearerToken: '',    // non-public bearer from authenticated Abies bootstrap
   db: null,           // open IDBDatabase
   session: null,      // current session row (null until pre_session submits)
-  specie: '',
+  speciesName: '',
   hMeasured: false,   // flips true once the user touches the h field
   inAutoFill: false,  // true while recomputeAutoH() is writing to h
   saveLockUntil: 0,   // ms timestamp; Salva is disabled while now < this
@@ -272,7 +272,7 @@ async function boot() {
   wireDone();
   State.bootReady = true;
   populateOperator();
-  populateComprese();
+  populateRegionOptions();
 
   // Re-acquire the screen wake lock when the page returns to the
   // foreground (the Wake Lock API auto-releases on visibility loss).
@@ -408,7 +408,7 @@ function validateHistoryDetail(value, item) {
   return value;
 }
 
-function validateTerreniFeatures(value) {
+function validateParcelFeatures(value) {
   if (!Array.isArray(value) || !value.every(isObject)) {
     throw new Error(S.ERROR_GEOJSON_INVALID);
   }
@@ -427,7 +427,7 @@ async function restoreCachedBootResources() {
   }
   if (cached.terreni !== null) {
     try {
-      State.terreni = validateTerreniFeatures(cached.terreni);
+      State.parcelFeatures = validateParcelFeatures(cached.terreni);
     } catch (e) {
       errors.push(e.message);
     }
@@ -436,9 +436,9 @@ async function restoreCachedBootResources() {
 }
 
 async function refreshBootResources() {
-  const [referenceResult, terreniResult] = await Promise.all([
+  const [referenceResult, parcelFeaturesResult] = await Promise.all([
     fetchReference().then((value) => ({ value }), (error) => ({ error })),
-    fetchTerreni().then((value) => ({ value }), (error) => ({ error })),
+    fetchParcelFeatures().then((value) => ({ value }), (error) => ({ error })),
   ]);
 
   if (referenceResult.value) {
@@ -448,25 +448,25 @@ async function refreshBootResources() {
       refreshReferenceControls();
     }
   }
-  if (terreniResult.value) {
-    await persistBootResource(Store.cacheTerreni, terreniResult.value);
-    if (!State.session) State.terreni = terreniResult.value;
+  if (parcelFeaturesResult.value) {
+    await persistBootResource(Store.cacheTerreni, parcelFeaturesResult.value);
+    if (!State.session) State.parcelFeatures = parcelFeaturesResult.value;
   }
 
-  if (referenceResult.error || terreniResult.error) {
+  if (referenceResult.error || parcelFeaturesResult.error) {
     if (State.reference) showReferenceWarning(S.REFERENCE_OFFLINE_WARNING);
     if (referenceResult.error && !State.reference) {
       showToast(S.TOAST_REFERENCE_LOAD_ERROR(referenceResult.error.message));
     }
-    if (terreniResult.error && !State.terreni) {
-      showToast(S.TOAST_TERRENI_LOAD_ERROR(terreniResult.error.message));
+    if (parcelFeaturesResult.error && !State.parcelFeatures) {
+      showToast(S.TOAST_TERRENI_LOAD_ERROR(parcelFeaturesResult.error.message));
     }
   } else {
     hideReferenceWarning();
   }
   return {
     reference: !referenceResult.error,
-    terreni: !terreniResult.error,
+    terreni: !parcelFeaturesResult.error,
   };
 }
 
@@ -480,7 +480,7 @@ async function persistBootResource(writer, value) {
 
 function refreshReferenceControls() {
   if (!State.bootReady) return;
-  populateComprese();
+  populateRegionOptions();
   populateSampleSurveyOptions();
 }
 
@@ -493,7 +493,7 @@ async function fetchReference() {
   return validateReference(await r.json());
 }
 
-async function fetchTerreni() {
+async function fetchParcelFeatures() {
   const r = await fetch('terreni.geojson', {
     cache: 'reload',
     headers: bearerHeaders(),
@@ -501,7 +501,7 @@ async function fetchTerreni() {
   if (!r.ok) throw new Error(S.ERROR_HTTP_STATUS(r.status));
   const gj = await r.json();
   if (!gj || !Array.isArray(gj.features)) throw new Error(S.ERROR_GEOJSON_INVALID);
-  return validateTerreniFeatures(gj.features);
+  return validateParcelFeatures(gj.features);
 }
 
 async function requestPersist() {
@@ -559,7 +559,7 @@ function formatYMD(d) {
     String(d.getDate()).padStart(2, '0');
 }
 
-function populateComprese() {
+function populateRegionOptions() {
   const sel = document.getElementById('in-compresa');
   const keep = sel.value;
   sel.replaceChildren();
@@ -567,9 +567,9 @@ function populateComprese() {
     appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
     return;
   }
-  const comprese = [...new Set(State.reference[IPSO_REF_PARCELS].map((p) => p.compresa))].sort();
+  const regionNames = [...new Set(State.reference[IPSO_REF_PARCELS].map((p) => p.compresa))].sort();
   appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
-  for (const c of comprese) appendOption(sel, c, c);
+  for (const c of regionNames) appendOption(sel, c, c);
   if (keep && Array.from(sel.options).some((opt) => opt.value === keep)) {
     sel.value = keep;
   }
@@ -633,7 +633,7 @@ function samplingRows(kind) {
     : [];
 }
 
-function sampleAreasForSurvey(surveyId, compresa) {
+function sampleAreasForSurvey(surveyId, regionName) {
   const survey = samplingRows(IPSO_REF_SURVEYS).find((s) =>
     s && s[FIELD_SURVEY_ID] === surveyId
   );
@@ -642,7 +642,7 @@ function sampleAreasForSurvey(surveyId, compresa) {
   return samplingRows(IPSO_REF_SAMPLE_AREAS)
     .filter((area) =>
       area && area[FIELD_SAMPLE_GRID_ID] === survey[FIELD_SAMPLE_GRID_ID] &&
-      (!compresa || area.compresa === compresa)
+      (!regionName || area.compresa === regionName)
     )
     .map((area) => {
       const maxNumber = maxNumbers[String(area[FIELD_SAMPLE_AREA_ID])];
@@ -735,18 +735,18 @@ function setMode(modeId) {
 }
 
 function applyModeUi() {
-  const catastrofata = document.getElementById('in-catastrofata');
-  const catastrofataField = catastrofata ? catastrofata.closest('label') : null;
+  const damagedInput = document.getElementById('in-catastrofata');
+  const damagedField = damagedInput ? damagedInput.closest('label') : null;
   const surveyField = document.getElementById('field-sample-survey');
   const surveySelect = document.getElementById('in-sample-survey');
   const freeOptions = document.getElementById('field-free-survey-options');
   const observationOptions = document.getElementById('field-observation-options');
-  const martellate = currentMode().id === IpsoModes.MARTELLATE;
+  const marks = currentMode().id === IpsoModes.MARTELLATE;
   const samples = currentMode().id === IpsoModes.SAMPLES;
   const freeSurvey = currentMode().id === IpsoModes.FREE_SURVEY;
   const observations = currentMode().id === IpsoModes.OBSERVATIONS;
-  if (catastrofataField) catastrofataField.hidden = !martellate;
-  if (catastrofata && !martellate) catastrofata.checked = false;
+  if (damagedField) damagedField.hidden = !marks;
+  if (damagedInput && !marks) damagedInput.checked = false;
   if (surveyField) surveyField.hidden = !samples;
   if (surveySelect && !samples) surveySelect.value = '';
   if (freeOptions) freeOptions.hidden = !freeSurvey;
@@ -916,12 +916,12 @@ function wirePreSession() {
   document.getElementById('pre-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const operator = document.getElementById('in-operatore').value.trim();
-    const data = document.getElementById('in-data').value;
-    const compresa = document.getElementById('in-compresa').value;
-    const catastrofata = document.getElementById('in-catastrofata').checked;
+    const date = document.getElementById('in-data').value;
+    const regionName = document.getElementById('in-compresa').value;
+    const damaged = document.getElementById('in-catastrofata').checked;
     const modeId = currentMode().id;
     const sampleSurveyId = selectedSampleSurveyId();
-    if (!operator || !data || !compresa) return;
+    if (!operator || !date || !regionName) return;
     if (modeId === IpsoModes.SAMPLES && sampleSurveyId == null) return;
 
     // Fire the GPS permission prompt now (during setup, not mid-mark).
@@ -933,7 +933,7 @@ function wirePreSession() {
 
     try {
       const region = State.reference[IPSO_REF_PARCELS].find((parcel) =>
-        parcel && parcel.compresa === compresa
+        parcel && parcel.compresa === regionName
       );
       const sess = await Store.startSession(State.db, {
         mode: modeId,
@@ -944,7 +944,8 @@ function wirePreSession() {
         [FIELD_REGION_ID]: region && Number.isInteger(region[FIELD_REGION_ID])
           ? region[FIELD_REGION_ID] : null,
         [FIELD_SURVEY_ID]: modeId === IpsoModes.SAMPLES ? sampleSurveyId : null,
-        data, compresa, operatore: operator, catastrofata,
+        // Keep the existing stored-session shape at this boundary.
+        data: date, compresa: regionName, operatore: operator, catastrofata: damaged,
       });
       State.session = sess;
       State.lastGroup = '';
@@ -982,7 +983,7 @@ function wireRecording() {
   State.numpad.mount();
 
   document.getElementById('in-specie').addEventListener('change', (e) => {
-    State.specie = e.target.value;
+    State.speciesName = e.target.value;
     if (shouldAutoHeight() && !State.hMeasured) recomputeAutoH();
     updateSaveEnabled();
   });
@@ -1009,13 +1010,13 @@ function wireRecording() {
         : S.REC_PARTICELLA_AUTO;
     }
   });
-  partSel.addEventListener('blur', refreshParticellaSelect);
+  partSel.addEventListener('blur', refreshParcelSelect);
   partSel.addEventListener('change', () => {
     if (!State.override) return;
     if (partSel.value === AUTO_SENTINEL) State.override.setAuto();
     else State.override.setManual(partSel.value);
     if (isSamplesMode()) State.numpad.setValue('numero', '');
-    refreshParticellaSelect();
+    refreshParcelSelect();
     if (isSamplesMode()) prefillNumber();
     updateSaveEnabled();
   });
@@ -1072,7 +1073,7 @@ function wireMap() {
 }
 
 function enterRecording() {
-  if (!isObservationMode()) populateSpecie();
+  if (!isObservationMode()) populateSpeciesOptions();
   populateGruppo();
   applyRecordingModeUi();
   document.getElementById('field-gruppo').hidden = isFreeSurveyMode() || isObservationMode();
@@ -1122,33 +1123,33 @@ function setupLocator() {
   State.locator = null;
   State.override = createOverride();
   if (isSamplesMode()) {
-    populateParticellaOptions(null);
-    refreshParticellaSelect();
+    populateParcelOptions(null);
+    refreshParcelSelect();
     return;
   }
-  if (!State.terreni || !State.session) {
-    populateParticellaOptions(null);
-    refreshParticellaSelect();
+  if (!State.parcelFeatures || !State.session) {
+    populateParcelOptions(null);
+    refreshParcelSelect();
     return;
   }
-  const compresa = State.session.compresa;
-  const filtered = State.terreni.filter(
-    (f) => f.properties && f.properties.layer === compresa
+  const regionName = State.session.compresa;
+  const filtered = State.parcelFeatures.filter(
+    (f) => f.properties && f.properties.layer === regionName
   );
-  populateParticellaOptions(filtered);
+  populateParcelOptions(filtered);
   if (filtered.length === 0) {
-    refreshParticellaSelect();
+    refreshParcelSelect();
     return;
   }
   buildBboxIndex(filtered);
   State.locator = createLocator(filtered);
   State.locator.subscribe(onLocatorCommit);
-  refreshParticellaSelect();
+  refreshParcelSelect();
 }
 
 function onLocatorCommit(feature) {
   updateRecWhere(feature);
-  refreshParticellaSelect();
+  refreshParcelSelect();
   refreshMapParcels();
   updateMapHeader();
 }
@@ -1195,7 +1196,7 @@ function currentParcelReference() {
   ) || null;
 }
 
-function populateParticellaOptions(features) {
+function populateParcelOptions(features) {
   const sel = document.getElementById('in-particella-rec');
   sel.replaceChildren();
   const sentinel = document.createElement('option');
@@ -1225,7 +1226,7 @@ function populateParticellaOptions(features) {
   }
 }
 
-function refreshParticellaSelect() {
+function refreshParcelSelect() {
   if (isSamplesMode()) {
     refreshSampleAreaSelect();
     return;
@@ -1299,7 +1300,7 @@ function populateGruppo() {
   }
 }
 
-function populateSpecie() {
+function populateSpeciesOptions() {
   const sel = document.getElementById('in-specie');
   sel.replaceChildren();
   appendOption(sel, '', S.REC_PICK_SPECIE, true);
@@ -1315,9 +1316,9 @@ function populateSpecie() {
   const sticky = localStorage.getItem(IPSO_SPECIES_STORAGE_KEY) || '';
   if (sticky && ordered.some((s) => s.common === sticky)) {
     sel.value = sticky;
-    State.specie = sticky;
+    State.speciesName = sticky;
   } else {
-    State.specie = '';
+    State.speciesName = '';
   }
 }
 
@@ -1588,7 +1589,7 @@ function recomputeAutoH() {
 
   State.inAutoFill = true;
   try {
-    if (!State.specie) {
+    if (!State.speciesName) {
       State.numpad.setValue('h', '');
       hint.hidden = true;
       return;
@@ -1819,14 +1820,14 @@ function currentRecord() {
   const h = parseInt(State.numpad.value('h'), 10);
   const nStr = State.numpad.value('numero');
   const n = nStr === '' ? null : parseInt(nStr, 10);
-  const gruppo = document.getElementById('in-gruppo').value || '';
+  const group = document.getElementById('in-gruppo').value || '';
   const sampleArea = currentSampleArea();
   const parcel = sampleArea || currentParcelReference();
   const species = State.reference && State.reference[IPSO_REF_SPECIES].find((row) =>
-    row && row.common === State.specie
+    row && row.common === State.speciesName
       && row[FIELD_SELECTABLE] !== false && row.common !== S.SPECIES_OTHER
   );
-  const particella = sampleArea
+  const parcelName = sampleArea
     ? sampleArea.particella
     : State.override
       ? State.override.resolve(currentAutoParcelName())
@@ -1839,14 +1840,14 @@ function currentRecord() {
   const preserved = freeSurvey && document.getElementById('in-preserved').checked;
   const gps = currentGpsSnapshot();
   return {
-    specie: species ? State.specie : '',
+    specie: species ? State.speciesName : '',
     d_cm: Number.isFinite(d) ? d : null,
     h_m: Number.isFinite(h) ? h : null,
     h_measured: hMeasured ? 1 : 0,
     hypso_param_set_id: autoHeight && !hMeasured ? currentHypsoParamSetId() : null,
     numero: Number.isInteger(n) ? n : null,
-    gruppo,
-    particella,
+    gruppo: group,
+    particella: parcelName,
     [FIELD_REGION_ID]: parcel && Number.isInteger(parcel[FIELD_REGION_ID])
       ? parcel[FIELD_REGION_ID]
       : State.session && Number.isInteger(State.session[FIELD_REGION_ID])
@@ -1868,12 +1869,12 @@ function currentRecord() {
 
 function currentHeightEquation() {
   if (!State.session || !State.reference) return null;
-  const species = (State.reference[IPSO_REF_SPECIES] || []).find(sp => sp.common === State.specie);
+  const species = (State.reference[IPSO_REF_SPECIES] || []).find(sp => sp.common === State.speciesName);
   const region = (State.reference[IPSO_REF_PARCELS] || []).find(p => p.compresa === State.session.compresa);
   const regionId = Number.isInteger(State.session[FIELD_REGION_ID])
     ? State.session[FIELD_REGION_ID] : region && region[FIELD_REGION_ID];
   return ipso.lookupReference(State.reference, regionId, species && species.id,
-    State.session.compresa, State.specie);
+    State.session.compresa, State.speciesName);
 }
 
 function currentHypsoParamSetId() {
@@ -2064,7 +2065,7 @@ async function enterMapScreen(returnScreen, options) {
   const standalone = !!(options && options.standalone);
   const history = !!(options && options.history);
   if (!State.session && !standalone && !history) return;
-  if (standalone && !history && (!State.terreni || !State.terreni.length)) {
+  if (standalone && !history && (!State.parcelFeatures || !State.parcelFeatures.length)) {
     showToast(S.MAP_UNAVAILABLE);
     return;
   }
@@ -2152,11 +2153,11 @@ function ensureMap() {
 }
 
 function currentMapFeatures() {
-  if (!State.terreni) return [];
-  if (State.mapStandalone || !State.session) return State.terreni;
-  const compresa = State.session.compresa;
-  return State.terreni.filter(
-    (f) => f.properties && f.properties.layer === compresa
+  if (!State.parcelFeatures) return [];
+  if (State.mapStandalone || !State.session) return State.parcelFeatures;
+  const regionName = State.session.compresa;
+  return State.parcelFeatures.filter(
+    (f) => f.properties && f.properties.layer === regionName
   );
 }
 
@@ -2668,7 +2669,7 @@ function wireDone() {
     if (State.gps) { State.gps.stop(); State.gps = null; }
     document.getElementById('pre-form').reset();
     populateOperator();
-    populateComprese();
+    populateRegionOptions();
     populateSampleSurveyOptions();
     showModeScreen();
   });

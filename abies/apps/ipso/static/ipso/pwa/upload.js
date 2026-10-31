@@ -70,7 +70,7 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   if (!isSupportedUploadMode(mode)) throw new Error(S.UPLOAD_ERROR_MODE_UNSUPPORTED);
   const regionId = Number.isInteger(sess[FIELD_REGION_ID])
     ? sess[FIELD_REGION_ID]
-    : regionIdForCompresa(reference, sess.compresa);
+    : regionIdForName(reference, sess.compresa);
   const records = mode === IPSO_MODE_OBSERVATIONS
     ? trees.map((t) => canonicalObservationRecord(sess, t))
     : trees.map((t) => canonicalRecord(sess, t, reference));
@@ -374,20 +374,20 @@ function speciesIdForName(reference, name) {
   return row.id;
 }
 
-function regionIdForCompresa(reference, compresa) {
-  const row = (reference[IPSO_REF_PARCELS] || []).find((p) => p.compresa === compresa);
+function regionIdForName(reference, regionName) {
+  const row = (reference[IPSO_REF_PARCELS] || []).find((p) => p.compresa === regionName);
   if (!row || !Number.isInteger(row[FIELD_REGION_ID])) {
-    throw new Error(S.UPLOAD_ERROR_REGION_ID_MISSING(compresa));
+    throw new Error(S.UPLOAD_ERROR_REGION_ID_MISSING(regionName));
   }
   return row[FIELD_REGION_ID];
 }
 
-function parcelForName(reference, compresa, particella) {
+function parcelForName(reference, regionName, parcelName) {
   const row = (reference[IPSO_REF_PARCELS] || []).find(
-    (p) => p.compresa === compresa && p.particella === particella
+    (p) => p.compresa === regionName && p.particella === parcelName
   );
   if (!row || !Number.isInteger(row[FIELD_PARCEL_ID]) || !Number.isInteger(row[FIELD_REGION_ID])) {
-    throw new Error(S.UPLOAD_ERROR_PARCEL_ID_MISSING(compresa, particella));
+    throw new Error(S.UPLOAD_ERROR_PARCEL_ID_MISSING(regionName, parcelName));
   }
   return row;
 }

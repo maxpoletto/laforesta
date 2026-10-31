@@ -1,4 +1,4 @@
-// Ipsometric regression: h = a * ln(D) + b, per (compresa, specie).
+// Ipsometric regression: h = a * ln(D) + b, per (region, species).
 // Pure functions; the reference table is whatever shape `reference.json`
 // produces, preferring region/species IDs with legacy name-map support.
 'use strict';
@@ -8,12 +8,12 @@ if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
   Object.assign(globalThis, require('./constants.js'));
 }
 
-// Returns {a, b} or null if no entry for this (compresa, specie).
-function lookup(ipsometrica, compresa, specie) {
-  if (!ipsometrica) return null;
-  const r = ipsometrica[compresa];
+// Returns {a, b} or null if no entry for this (regionName, speciesName).
+function lookup(hypsometry, regionName, speciesName) {
+  if (!hypsometry) return null;
+  const r = hypsometry[regionName];
   if (!r) return null;
-  const eq = r[specie];
+  const eq = r[speciesName];
   return eq || null;
 }
 

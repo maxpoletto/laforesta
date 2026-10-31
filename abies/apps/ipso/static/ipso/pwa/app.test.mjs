@@ -16,7 +16,7 @@ const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
   `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
   `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
-  `shouldAutoHeight, populateSpecie, validateReference, validateTerreniFeatures, ` +
+  `shouldAutoHeight, populateSpeciesOptions, validateReference, validateParcelFeatures, ` +
   `validateHistoryItem, validateHistoryDetail, formatHistoryMapRecordText, ` +
   `showHistoryScreen, loadHistoryDetail, ` +
   `restoreCachedBootResources, refreshBootResources, wireAppUpdateButton, ` +
@@ -527,7 +527,7 @@ const session = {
     ipsometrica: { Serra: { Abete: { a: 0, b: 18, hypso_param_set_id: 44 } } },
   };
   app.State.session = { ...session, status: 'open', mode: 'free_survey', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   let hValue = '';
   app.State.numpad = {
@@ -558,7 +558,7 @@ const session = {
   const app = context.__ipsoAppTest;
   app.State.reference = referenceFixture();
   app.State.session = { ...session, status: 'open', mode: 'free_survey', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   app.State.numpad = {
     value(field) { return { d: '42', h: '22', numero: '' }[field] || ''; },
@@ -568,6 +568,8 @@ const session = {
 
   const record = app.currentRecord();
   check(record.numero === null, 'free-survey tree number is optional');
+  eq([record.specie, record.particella, record.gruppo], ['Abete', '1', ''],
+     'transient UI names still produce the stored name snapshots and group');
   check(record.h_measured === 0, 'free-survey row preserves h_measured false');
   check(record.preserved === true, 'free-survey row preserves the PAI flag');
 }
@@ -579,7 +581,7 @@ const session = {
   const app = context.__ipsoAppTest;
   app.State.reference = referenceFixture();
   app.State.session = { ...session, status: 'open', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   app.State.numpad = {
     value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
@@ -612,7 +614,7 @@ const session = {
     ...session, status: 'open', mode: 'samples', region_id: 1,
     work_package_id: 'sampling_survey:7',
   };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = {
     getMode: () => 'manual', getManual: () => '123',
   };
@@ -794,7 +796,7 @@ const session = {
   context.Store.getCachedBootResources = async () => ({ reference, terreni });
   await app.restoreCachedBootResources();
   eq(app.State.reference, reference, 'boot restores the last-good reference snapshot');
-  eq(app.State.terreni, terreni, 'boot restores the last-good parcel geometry');
+  eq(app.State.parcelFeatures, terreni, 'boot restores the last-good parcel geometry');
 
   let invalidRejected = false;
   try { app.validateReference({ parcels: [] }); } catch (_) { invalidRejected = true; }
@@ -818,7 +820,7 @@ const session = {
   const result = await app.refreshBootResources();
   eq(result, { reference: true, terreni: true }, 'online refresh reports both resources fresh');
   eq(app.State.reference, reference, 'online refresh adopts the fresh reference');
-  eq(app.State.terreni, terreni, 'online refresh adopts fresh parcel geometry');
+  eq(app.State.parcelFeatures, terreni, 'online refresh adopts fresh parcel geometry');
   check(events.some((event) => Array.isArray(event) && event[0] === 'cacheReference'),
         'online refresh persists the validated reference');
   check(events.some((event) => Array.isArray(event) && event[0] === 'cacheTerreni'),
@@ -834,12 +836,12 @@ const session = {
   app.State.db = {};
   app.State.bearerToken = 'test-token';
   app.State.reference = reference;
-  app.State.terreni = terreni;
+  app.State.parcelFeatures = terreni;
   context.fetch = async () => ({ ok: false, status: 503 });
   const result = await app.refreshBootResources();
   eq(result, { reference: false, terreni: false }, 'offline refresh reports cached resources');
   eq(app.State.reference, reference, 'offline refresh preserves the cached reference');
-  eq(app.State.terreni, terreni, 'offline refresh preserves cached parcel geometry');
+  eq(app.State.parcelFeatures, terreni, 'offline refresh preserves cached parcel geometry');
   check(elements.get('banner-reference').textContent === 'offline reference',
         'offline refresh shows a persistent stale-data warning');
   check(!elements.get('banner-reference').classList.contains('hidden'),
@@ -1216,7 +1218,7 @@ const session = {
   app.State.db = {};
   app.State.reference = referenceFixture();
   app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   app.State.numpad = {
     value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
@@ -1238,7 +1240,7 @@ const session = {
   app.State.db = {};
   app.State.reference = referenceFixture();
   app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   app.State.numpad = {
     value(field) { return { d: '42', h: '22', numero: '7' }[field] || ''; },
@@ -1267,7 +1269,7 @@ function recordingHarness() {
   app.State.db = {};
   app.State.reference = referenceFixture();
   app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   app.State.numpad = {
     value: field => values[field] || '', setValue() {}, setFocus() {},
@@ -1544,7 +1546,7 @@ for (const failure of ['session-refresh', 'preference', 'backup']) {
   app.State.db = {};
   app.State.reference = referenceFixture();
   app.State.session = { ...session, id: 's1', status: 'open', region_id: 1 };
-  app.State.specie = 'Abete';
+  app.State.speciesName = 'Abete';
   app.State.override = { resolve: () => '1' };
   app.State.numpad = {
     value(field) { return { d: '42', h: '22', numero: '' }[field] || ''; },
@@ -1585,16 +1587,16 @@ for (const failure of ['session-refresh', 'preference', 'backup']) {
     ],
   };
   context.localStorage.setItem('ipso.specie', 'Altro');
-  app.populateSpecie();
+  app.populateSpeciesOptions();
   eq(elements.get('in-specie').options.slice(1).map(option => option.value),
      ['Abete', 'Altra conifera', 'Altra latifoglia'],
      'species selector excludes legacy and unselectable metadata and keeps ordering');
-  check(app.State.specie === '', 'legacy sticky default is not selected');
+  check(app.State.speciesName === '', 'legacy sticky default is not selected');
   check(app.State.reference.species.some(row => row.common === 'Altro'),
         'selector does not erase legacy IDs from the reference bundle');
   context.localStorage.setItem('ipso.specie', 'Altra latifoglia');
-  app.populateSpecie();
-  check(app.State.specie === 'Altra latifoglia', 'new catch-all sticky default is restored');
+  app.populateSpeciesOptions();
+  check(app.State.speciesName === 'Altra latifoglia', 'new catch-all sticky default is restored');
 }
 
 if (failures.length) {

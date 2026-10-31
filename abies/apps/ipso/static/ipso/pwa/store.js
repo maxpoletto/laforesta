@@ -278,7 +278,7 @@ async function startSession(db, fields) {
   // fields: {mode, reference_version, work_package_id, region_id, survey_id,
   //          data, compresa, operatore, catastrofata}
   const id = uuid();
-  const catastrofata = !!fields.catastrofata;
+  const damaged = !!fields.catastrofata;
   const row = {
     id,
     schema_version: SCHEMA_VERSION,
@@ -288,7 +288,7 @@ async function startSession(db, fields) {
     exported_at: null,
     data: fields.data,
     compresa: fields.compresa,
-    catastrofata,
+    catastrofata: damaged,
     operatore: fields.operatore || '',
     reference_version: fields.reference_version || '',
     work_package_id: fields.work_package_id || '',

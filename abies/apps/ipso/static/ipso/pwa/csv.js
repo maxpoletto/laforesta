@@ -26,7 +26,7 @@ const FORMULA_PREFIX_RE = /^[=+\-@\t\r\n]/;
 const NUMERIC_LITERAL_RE = /^[+-]?(?:\d+|\d*[.,]\d+)(?:[eE][+-]?\d+)?$/;
 
 // Sentinel used in the filename's particella slot for catastrofate sessions.
-const FILENAME_CATASTROFATE = S.CSV_FILENAME_CATASTROFATE;
+const FILENAME_DAMAGED = S.CSV_FILENAME_CATASTROFATE;
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -107,7 +107,7 @@ function formatHeader(session) {
 
 function formatRow(rec, session, reference) {
   if (includeObservations(session)) return formatObservationRow(rec, session);
-  const catastrofata = !!session.catastrofata;
+  const damaged = !!session.catastrofata;
   // Particella is per-tree (auto-detected or manually overridden) so it
   // is carried on `rec`, not the session. Catastrofate sessions are
   // identified by the dedicated column; their Particella column is the
@@ -121,7 +121,7 @@ function formatRow(rec, session, reference) {
     cells.push(sampleAreaNumber(reference, rec[FIELD_SAMPLE_AREA_ID]));
   }
   cells.push(
-    catastrofata ? '1' : '0',
+    damaged ? '1' : '0',
     fmtInt(rec.numero),
     rec.specie,
     fmtInt(rec.d_cm),
@@ -175,13 +175,13 @@ function formatFile(session, trees, reference) {
 // `now` is a Date (caller supplies; tests inject a fixed Date).
 // `kind` is 'final' (default) or 'backup' (then includes a seq suffix).
 function filename(session, now, kind, seq) {
-  const compresa = sanitize(session.compresa);
+  const regionName = sanitize(session.compresa);
   const date = session.data;  // already YYYY-MM-DD
   const hhmm = pad2(now.getHours()) + pad2(now.getMinutes());
   const parts = ['ipso'];
   if (includeObservations(session)) parts.push(S.CSV_FILENAME_OBSERVATIONS);
-  parts.push(compresa);
-  if (session.catastrofata) parts.push(FILENAME_CATASTROFATE);
+  parts.push(regionName);
+  if (session.catastrofata) parts.push(FILENAME_DAMAGED);
   parts.push(date, hhmm);
   let base = parts.join('_');
   if (kind === 'backup') base += '_backup_' + seq;
@@ -196,7 +196,7 @@ function sanitize(s) {
 
 const csv = {
   CSV_BOM, CSV_SEP, CSV_NL, HEADER, SAMPLE_AREA_HEADER, PRESERVED_HEADER,
-  FILENAME_CATASTROFATE,
+  FILENAME_DAMAGED,
   formatDate, fmtFloat, fmtInt, hardenCSVFormula, escapeField, sampleAreaNumber,
   includeSampleArea, includePreserved, includeObservations,
   formatHeader, formatRow, formatFile,
