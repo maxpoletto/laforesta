@@ -12,6 +12,8 @@ from pathlib import Path
 from django.conf import settings
 from django.utils import timezone as django_timezone
 
+from apps.base.file_io import fsync_directory as _fsync_dir
+
 from config.constants import (
     FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
@@ -99,13 +101,7 @@ def _write_photo_files(session_dir: Path, photo_files: dict[str, bytes]) -> None
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
-    tmp = path.with_name(path.name + '.tmp')
-    with tmp.open('w', encoding='utf-8') as f:
-        f.write(text)
-        f.flush()
-        os.fsync(f.fileno())
-    tmp.replace(path)
-    _fsync_dir(path.parent)
+    _atomic_write_bytes(path, text.encode('utf-8'))
 
 
 def _atomic_write_bytes(path: Path, content: bytes) -> None:
@@ -116,11 +112,3 @@ def _atomic_write_bytes(path: Path, content: bytes) -> None:
         os.fsync(f.fileno())
     tmp.replace(path)
     _fsync_dir(path.parent)
-
-
-def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)

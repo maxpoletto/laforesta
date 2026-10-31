@@ -10,6 +10,8 @@ from pathlib import Path
 
 from django.conf import settings
 
+from apps.base.file_io import fsync_directory as _fsync_dir
+
 _CHECKSUM_RE = re.compile(r'^[0-9a-f]{64}$')
 _CONTENT_TYPE_EXTENSIONS = {
     'image/jpeg': '.jpg',
@@ -324,11 +326,3 @@ def _photo_extension(original_filename: str, content_type: str) -> str:
     if suffix in _FILENAME_EXTENSIONS:
         return suffix
     return '.bin'
-
-
-def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
