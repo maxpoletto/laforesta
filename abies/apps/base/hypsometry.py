@@ -156,11 +156,11 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
         bad = next((col for col, v in (
             (S.CSV_COL_A, a), (S.CSV_COL_B, b),
             (S.CSV_COL_R2, r2), (S.CSV_COL_N_REGRESSION, n),
-        ) if v is None), None)
+        ) if v is None and (col in (S.CSV_COL_A, S.CSV_COL_B) or (row.get(col) or '').strip())), None)
         if bad is not None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(i, bad, row.get(bad, '')))
             continue
-        a, b, r2 = float(a), float(b), float(r2)
+        a, b, r2 = float(a), float(b), float(r2) if r2 is not None else None
         range_error = _range_error(i, a, b, r2, n)
         if range_error:
             errors.append(range_error)
@@ -174,7 +174,7 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
     return rows, errors
 
 
-def _range_error(line: int, a: float, b: float, r2: float, n: int) -> str | None:
+def _range_error(line: int, a: float, b: float, r2: float | None, n: int | None) -> str | None:
     """Reject values that overflow storage or are out of their valid range.
 
     Guards the persist step: `a`/`b` must fit DecimalField(10,4); `r2` is a
@@ -183,8 +183,8 @@ def _range_error(line: int, a: float, b: float, r2: float, n: int) -> str | None
     checks = [
         (S.CSV_COL_A, a, abs(a) < _COEF_MAX),
         (S.CSV_COL_B, b, abs(b) < _COEF_MAX),
-        (S.CSV_COL_R2, r2, 0.0 <= r2 <= 1.0),
-        (S.CSV_COL_N_REGRESSION, n, n >= 1),
+        (S.CSV_COL_R2, r2, r2 is None or 0.0 <= r2 <= 1.0),
+        (S.CSV_COL_N_REGRESSION, n, n is None or n >= 1),
     ]
     for col, val, ok in checks:
         if not ok:

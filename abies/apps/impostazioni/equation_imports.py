@@ -6,6 +6,7 @@ from django.core import signing
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.utils.formats import number_format
 from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
@@ -93,8 +94,8 @@ def _preview_rows(request, body):
                 values['n'] = n
                 previous = HypsoParam.objects.filter(param_set__superseded_at__isnull=True,
                     species=sp, region=region).first() if sp and region else None
-                old = f'a={previous.a}; b={previous.b}; n={previous.n}; r²={previous.r2}' if previous else '—'
-                new = f"a={values['a']}; b={values['b']}; n={n}; r²={values['r2']}"
+                old = _height_label(previous) if previous else '—'
+                new = _height_label(values)
             else:
                 raw_values = {'mode': 'proxy' if proxy_name else 'own',
                               'proxy_species_id': proxy.pk if proxy else None,
@@ -143,12 +144,21 @@ def _preview_rows(request, body):
     return data
 
 
+def _scalar_label(value):
+    return '—' if value is None or value == '' else number_format(value, use_l10n=True)
+
+
+def _height_label(equation):
+    get = equation.get if isinstance(equation, dict) else lambda key: getattr(equation, key)
+    return '; '.join(f'{key}={_scalar_label(get(key))}' for key in ('a', 'b', 'n', 'r2'))
+
+
 def _volume_label(equation):
     get = equation.get if isinstance(equation, dict) else lambda key: getattr(equation, key)
     if get('proxy_species_id'):
         sp = Species.objects.filter(pk=get('proxy_species_id')).first()
         return f'{S.EQUATION_REFERENCE}: {sp.common_name if sp else get("proxy_species_id")}'
-    return '; '.join(f'{key}={get(key)}' for key in ('b0', 'b1', 'b2')) + f'; {S.EQUATION_SOURCE}: {get("source")}'
+    return '; '.join(f'{key}={_scalar_label(get(key))}' for key in ('b0', 'b1', 'b2')) + f'; {S.EQUATION_SOURCE}: {get("source")}'
 
 
 @login_required

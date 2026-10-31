@@ -136,6 +136,14 @@ def test_manual_height_export_remains_importable_without_fit_statistics(client, 
     assert data['token'] and not data['errors']
 
 
+def test_preview_localizes_coefficients_and_unknown_statistics(client, species, regions):
+    data = preview(client, 'height',
+        f'compresa,genere,funzione,a,b,n,r2\n{regions[0].name},Abete,ln,7.25,-4,,\n')
+    proposed = data['rows'][0][5]
+    assert 'None' not in proposed
+    assert '7,25' in proposed
+
+
 def test_late_confirmation_failure_rolls_back_equations_history_and_nonce(client, species, monkeypatch):
     from apps.base.models import UsedNonce
     data = preview(client, 'volume', 'genere,b0,b1\nAbete,1000,0\n')

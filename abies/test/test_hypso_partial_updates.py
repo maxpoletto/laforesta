@@ -31,6 +31,14 @@ def test_csv_update_preserves_an_unmentioned_species_region(client, species, reg
     assert HypsoParam.objects.filter(param_set__superseded_at__isnull=True).count() == 2
 
 
+def test_legacy_csv_endpoint_accepts_manual_equations_without_fit_statistics(client, species, regions):
+    text = f'compresa,genere,funzione,a,b,n,r2\n{regions[0].name},Abete,ln,7,-4,,\n'
+    response = post(client, 'import', {'file': base64.b64encode(text.encode()).decode()})
+    assert response.status_code == 200, response.content
+    param = HypsoParam.objects.get(param_set__superseded_at__isnull=True)
+    assert param.n is None and param.r2 is None
+
+
 def test_computed_update_preserves_unfitted_pairs_and_detects_changed_preview(
         client, hypso_samples, species, regions):
     old = hypsometry.replace_active_set([

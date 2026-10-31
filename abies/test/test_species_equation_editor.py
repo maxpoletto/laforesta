@@ -120,3 +120,24 @@ def test_reader_cannot_edit_equations(reader_user, species):
     client = Client()
     client.force_login(reader_user)
     assert client.get(f'/api/impostazioni/species/form/{species[0].pk}/').status_code == 403
+
+
+def test_form_snapshot_precedes_loading_its_equation_values(species, regions, monkeypatch):
+    from apps.impostazioni import species_equations as editor
+    hypsometry.merge_active_set([
+        hypsometry.ParamRow(regions[0], species[0], 7, -4, None, None),
+    ], source='manual')
+    original = editor.equation_state
+    changed = False
+    def concurrent_change():
+        nonlocal changed
+        if not changed:
+            changed = True
+            hypsometry.merge_active_set([
+                hypsometry.ParamRow(regions[0], species[0], 8, -4, None, None),
+            ], source='manual')
+        return original()
+    monkeypatch.setattr(editor, 'equation_state', concurrent_change)
+    context = editor.editor_context(species[0])
+    row = next(row for row in context['height_regions'] if row['region'].pk == regions[0].pk)
+    assert row['equation'].a == 8, 'A fresh token must not accompany old displayed coefficients'

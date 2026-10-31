@@ -33,19 +33,22 @@ def equation_state():
         'species': list(Species.objects.order_by('pk').values('id', 'version', 'common_name')),
         'regions': list(Region.objects.order_by('pk').values('id', 'name')),
         'volume': list(VolumeEquation.objects.order_by('pk').values()),
-        'height_set': active.pk if active else None,
+        'height_set': list(type(active).objects.filter(pk=active.pk).values()) if active else None,
+        'height_surveys': list(active.surveys.order_by('pk').values_list('pk', flat=True)) if active else [],
+        'height': list(HypsoParam.objects.filter(param_set=active).order_by('pk').values()) if active else [],
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def editor_context(obj):
+    state = equation_state()
     current = {p.region_id: p for p in HypsoParam.objects.filter(
         param_set__superseded_at__isnull=True, species=obj,
     ).select_related('origin_set').prefetch_related('origin_set__surveys')} if obj else {}
     return {
         'obj': obj, 'pressler_default': PRESSLER_DEFAULT,
         'protected_species_names': PROTECTED_SPECIES_NAMES,
-        'equation_state': equation_state(),
+        'equation_state': state,
         'height_regions': [{'region': r, 'equation': current.get(r.pk)}
                            for r in Region.objects.order_by('name')],
         'volume': VolumeEquation.objects.filter(species=obj).first() if obj else None,
