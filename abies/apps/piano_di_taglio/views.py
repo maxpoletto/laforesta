@@ -1172,12 +1172,14 @@ def mark_delete_view(request):
     item_id = item.id
     begin_nonce_write(request)
     with transaction.atomic():
+        item = lock_plan_items([item_id]).get(item_id)
+        if item is None:
+            return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
         error = check_delete_version(
             tm, body, data_id=f'mark_trees_{item_id}', record_fn=build_tree_mark_record,
         )
         if error:
             return error
-        item.refresh_from_db()
         if item.state == HarvestPlanItemState.CLOSED:
             return validation_error([S.ERR_MARK_ITEM_CLOSED])
         tm.delete()

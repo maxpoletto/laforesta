@@ -9,7 +9,6 @@ from datetime import date as date_type
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
 
 from apps.base.digests import mark_stale
 from apps.base.models import (
@@ -193,15 +192,9 @@ def mark_volume_and_mass(
     return estimate_volume_and_mass(d_cm, h_m, species)
 
 
-def rematerialize_volume_marked(item_id: int) -> None:
-    """Recompute volume_marked_m3 on the linked HarvestPlanItem."""
-    total = (TreeMark.objects
-             .filter(harvest_plan_item_id=item_id)
-             .aggregate(s=Sum('volume_m3'))['s'])
-    item = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
-    if item is not None and item.volume_marked_m3 != total:
-        item.volume_marked_m3 = total
-        item.save(update_fields=['volume_marked_m3'])
+def rematerialize_volume_marked(item_id: int) -> HarvestPlanItem | None:
+    """Compatibility entry point for the intervention totals service."""
+    return refresh_marked_total(item_id)
 
 
 def next_mark_number(item_id: int) -> int:

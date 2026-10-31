@@ -489,6 +489,11 @@ and history event. Imports use the same operation. The parent is locked before
 the child write and total calculation; an intervening target/closure change is
 rechecked at that boundary.
 
+Later marked-total changes update the parent's `modified_at` without changing
+its edit version. A metadata form remains valid and cannot overwrite the live
+total. An unchanged total creates no timestamp/history event. No known marked
+volumes yields NULL, preserving the distinction from a measured zero.
+
 Submit: "Salva" / "Salva e continua" (batch entry).
 
 ## CSV files

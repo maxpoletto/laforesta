@@ -297,3 +297,4 @@ commit; they do not repeat the timestamp implementation.
 | --- | --- | --- |
 | 01 — TimestampedModel | Implemented; normalize partial fields once and advance only the row clock | Two regressions failed before the fix; timestamp/model suite: 64 passed |
 | 04 — First mark | One state/date/total save for manual and imported marks; shared parent lock | Both new history regressions failed first; marking suite: 208 passed |
+| 05 — Later marked totals | Shared locked-sum service; parent-first deletion; unchanged total is a no-op | Pre-lock interleaving regression failed first; totals/rollback tests: 38 passed |

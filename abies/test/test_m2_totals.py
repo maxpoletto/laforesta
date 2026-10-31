@@ -7,8 +7,8 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from apps.base.models import HarvestPlan, HarvestPlanItem, HarvestPlanItemState
-from apps.piano_di_taglio.mark_import import MarkImportRow, import_mark_rows
+from apps.base.models import HarvestPlan, HarvestPlanItem, HarvestPlanItemState, Tree, TreeMark
+from apps.piano_di_taglio.mark_import import MarkImportRow, import_mark_rows, rematerialize_volume_marked
 
 pytestmark = pytest.mark.django_db
 
@@ -50,3 +50,44 @@ def test_first_mark_has_one_complete_parent_history_event(item, species, client,
     event = item.history.first()
     assert event.volume_marked_m3 == item.volume_marked_m3
     assert event.state == item.state and event.version == item.version
+
+
+def add_mark(item, species, volume):
+    return TreeMark.objects.create(harvest_plan_item=item, parcel=item.parcel,
+        tree=Tree.objects.create(species=species), date='2026-10-01',
+        d_cm=30, h_m=20, volume_m3=volume)
+
+
+def test_later_mark_aggregates_after_parent_lock(item, species, monkeypatch):
+    from django.db.models.query import QuerySet
+    add_mark(item, species[0], 2)
+    original = QuerySet.select_for_update
+    completed_writer = False
+    def lock_after_writer(queryset, *args, **kwargs):
+        nonlocal completed_writer
+        if queryset.model is HarvestPlanItem and not completed_writer:
+            completed_writer = True
+            add_mark(item, species[0], 3)
+        return original(queryset, *args, **kwargs)
+    monkeypatch.setattr(QuerySet, 'select_for_update', lock_after_writer)
+    rematerialize_volume_marked(item.pk)
+    item.refresh_from_db()
+    assert item.volume_marked_m3 == 5, 'Include the child writer that finished before our parent lock'
+    assert item.version == 1
+
+
+def test_total_only_mark_write_preserves_metadata_token_and_noop_history(item, species):
+    add_mark(item, species[0], 2)
+    before = (item.version, item.created_at, item.modified_at)
+    rematerialize_volume_marked(item.pk)
+    item.refresh_from_db()
+    assert (item.version, item.created_at) == before[:2]
+    assert item.modified_at > before[2]
+    unchanged = (item.modified_at, item.history.count())
+    rematerialize_volume_marked(item.pk)
+    item.refresh_from_db()
+    assert (item.modified_at, item.history.count()) == unchanged
+    TreeMark.objects.filter(harvest_plan_item=item).delete()
+    rematerialize_volume_marked(item.pk)
+    item.refresh_from_db()
+    assert item.volume_marked_m3 is None and item.version == before[0]
