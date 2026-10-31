@@ -237,3 +237,8 @@ The first manual harvest on an open intervention writes its harvesting state
 and actual total together, advancing its edit token once and creating one
 complete parent history event. The worksite is locked and validated before
 creating the harvest. Its existing date rules are unchanged.
+
+Later total-only updates advance the parent timestamp without advancing its
+edit token. Create/edit/delete lock affected interventions in ID order before
+child mutations and aggregate reads. Unchanged totals create no timestamp or
+history event; an empty actual-volume sum remains zero.

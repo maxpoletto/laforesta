@@ -9,6 +9,8 @@ from django.urls import reverse
 
 from apps.base.models import HarvestPlan, HarvestPlanItem, HarvestPlanItemState, Tree, TreeMark
 from apps.piano_di_taglio.mark_import import MarkImportRow, import_mark_rows, rematerialize_volume_marked
+from apps.prelievi.models import Harvest
+from apps.prelievi.views import _rematerialize_volume_actual
 
 pytestmark = pytest.mark.django_db
 
@@ -107,3 +109,35 @@ def test_first_harvest_has_one_complete_parent_event(item, species, crews, produ
     assert item.volume_actual_m3 == 2
     assert item.history.count() == before + 1
     assert item.history.first().volume_actual_m3 == item.volume_actual_m3
+
+
+def test_later_actual_total_reads_after_parent_lock(item, crews, products, monkeypatch):
+    from django.db.models.query import QuerySet
+    def add(volume):
+        return Harvest.objects.create(harvest_plan_item=item, parcel=item.parcel,
+            crew=crews[0], product=products[0], date='2026-10-01', mass_q=18, volume_m3=volume)
+    add(2)
+    original = QuerySet.select_for_update
+    completed_writer = False
+    def lock_after_writer(queryset, *args, **kwargs):
+        nonlocal completed_writer
+        if queryset.model is HarvestPlanItem and not completed_writer:
+            completed_writer = True
+            add(3)
+        return original(queryset, *args, **kwargs)
+    monkeypatch.setattr(QuerySet, 'select_for_update', lock_after_writer)
+    _rematerialize_volume_actual(item.pk)
+    item.refresh_from_db()
+    assert item.volume_actual_m3 == 5
+    assert item.version == 1
+
+
+def test_actual_empty_total_is_zero_and_repeated_materialization_is_noop(item):
+    before = item.version
+    _rematerialize_volume_actual(item.pk)
+    item.refresh_from_db()
+    assert item.volume_actual_m3 == 0 and item.version == before
+    unchanged = (item.modified_at, item.history.count())
+    _rematerialize_volume_actual(item.pk)
+    item.refresh_from_db()
+    assert (item.modified_at, item.history.count()) == unchanged

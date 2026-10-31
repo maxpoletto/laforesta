@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Min, Q, Sum
+from django.db.models import Min, Q
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.formats import date_format
@@ -150,12 +150,13 @@ def save_view(request):
     begin_nonce_write(request)
     with transaction.atomic():
         affected_item_ids = set()
-        if not row_id:
-            items = lock_plan_items([parsed.get(FIELD_HARVEST_PLAN_ITEM_ID)])
-            _, parsed, errors = _parse_body(body, locked_items=items)
-            if errors:
-                return _validation_error(errors, row_id, request, body)
-            parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
+        previous_item_id = (Harvest.objects.filter(pk=row_id)
+            .values_list(FIELD_HARVEST_PLAN_ITEM_ID, flat=True).first()) if row_id else None
+        items = lock_plan_items([previous_item_id, parsed.get(FIELD_HARVEST_PLAN_ITEM_ID)])
+        _, parsed, errors = _parse_body(body, locked_items=items)
+        if errors:
+            return _validation_error(errors, row_id, request, body)
+        parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
         if row_id:
             result = _update_op(row_id, parsed, body, request)
             if isinstance(result, JsonResponse):
@@ -234,6 +235,7 @@ def delete_view(request):
     had_item_id = op.harvest_plan_item_id
     begin_nonce_write(request)
     with transaction.atomic():
+        lock_plan_items([had_item_id])
         error = check_delete_version(
             op, body, data_id='prelievi', record_fn=build_harvest_record,
         )
@@ -343,15 +345,9 @@ def csv_export_view(request):
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _rematerialize_volume_actual(item_id: int) -> None:
-    """Recompute volume_actual_m3 on the linked HarvestPlanItem."""
-    total = (Harvest.objects
-             .filter(harvest_plan_item_id=item_id)
-             .aggregate(s=Sum('volume_m3'))['s']) or 0
-    item = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
-    if item is not None and item.volume_actual_m3 != total:
-        item.volume_actual_m3 = total
-        item.save(update_fields=['volume_actual_m3'])
+def _rematerialize_volume_actual(item_id: int) -> HarvestPlanItem | None:
+    """Compatibility entry point for the intervention totals service."""
+    return refresh_actual_total(item_id)
 
 
 def _open_cantieri():
