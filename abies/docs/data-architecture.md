@@ -394,3 +394,22 @@ record through the write view, then asserts they are equal.  See
 Bulk paths (CSV imports) that would return megabytes of records may
 skip the optimistic path — `tree_csv_import_view` is the documented
 exception.
+
+## Domain edit tokens and row clocks
+
+`version` identifies an accepted editable state; `modified_at` records the last
+write to that row, including derived totals. TimestampedModel adds its clock
+to nonempty partial saves and preserves empty saves as no-ops. It never infers
+a version increment. Accepted edits own one increment; unchanged batch rows
+can be skipped. User, SiteSettings and staging retain their separate contracts.
+
+The intervention totals service locks affected parents in ID order before
+child mutations and aggregate reads. First-mark/first-manual-harvest state and
+total changes share one parent save/history event and one edit-token increment.
+Later total-only writes advance only the clock and preserve metadata forms.
+Unchanged totals do not save. Marked NULL and actual empty-to-zero semantics
+remain distinct. Digest content ETags still detect total-only changes.
+
+These clocks are row-local, not recursive child-activity clocks. Pre-M2
+timestamps are not backfilled. See [M2](proposal-m2-versioning.md) for the
+complete contract, model exceptions, tests and optional follow-up work.

@@ -25,9 +25,8 @@ def get_preserved_tree_survey() -> Survey:
     )
     if survey.sample_grid_id is not None:
         raise RuntimeError(f'Survey {PRESERVED_SURVEY_NAME!r} is structured')
-    if survey.active:
-        survey.active = False
-        survey.save(update_fields=['active'])
+    # An unstructured survey is inactive by the database constraint; an
+    # existing valid lookup must not manufacture an edit or audit event.
     return survey
 
 

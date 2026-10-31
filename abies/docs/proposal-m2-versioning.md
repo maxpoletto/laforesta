@@ -2,7 +2,7 @@
 
 30 October 2026. Reviewed revision: `8d0aaa98e30ec1d00de93f66f49262e73282a37d`.
 Scope clarified on 31 October 2026 against `5c03af5` (after M1).
-Implementation is in progress. The table records the pre-M2 behavior; completed
+The initial implementation is complete. The table records the pre-M2 behavior; completed
 rows and verification are recorded below. Keep/refactor-only rows retain their
 existing behavior unless a separate change is justified.
 
@@ -58,7 +58,7 @@ rows at once.
 | [Observation edit](../apps/bosco/views.py), `observation_save_view()` | Version increments | Partial save omits `modified_at`, even for text/location edits | Keep one version increment for the observation edit, including its form-owned photo/category changes; update the observation timestamp too. | **Fix through the base rule.** The observation's existing edit boundary is retained; no independent photo/category edit token. |
 | [Hypsometric-set archive](../apps/base/hypsometry.py), `_archive_active_sets()` | Version increments | Partial save omits `modified_at`; `superseded_at` still records archival time | Keep the increment and explicit archival time; also update the archived set's `modified_at`. | **Fix through the base rule.** Corrects set metadata; height rows remain immutable and M1's archived equations/provenance are preserved. |
 | [Reference CSV updates](../apps/base/csv_reference.py), `apply()` | Increments changed versioned rows | Explicitly includes `modified_at` | Same version and timestamp behavior. The explicit timestamp inclusion can remain or become redundant under the base rule. | **Keep.** Already follows the proposed contract; no importer rewrite is needed for the timestamp fix. |
-| [Reserved PAI survey repair](../apps/base/preserved_trees.py), `get_preserved_tree_survey()` | Changes an incorrectly true `active` flag without incrementing | Partial save omits timestamp | When correcting `active`, increment the survey version once and update its timestamp. Leave an already-valid survey untouched. | **Fix.** The automatic metadata correction becomes visible to edit concurrency. This needs one explicit version increment in addition to the shared timestamp fix. |
+| [Reserved PAI survey helper](../apps/base/preserved_trees.py), `get_preserved_tree_survey()` | Contains an apparent active-flag repair without incrementing | Apparent repair omits timestamp, but the schema forbids active unstructured surveys | Remove the unreachable repair. Keep valid lookups as complete no-ops and reject a structured survey using the reserved name. | **Corrected after testing.** No reachable version/timestamp defect: `survey_active_requires_sample_grid` prevents that state. Remove dead code and lock the invariant in tests. |
 | [`User.save()`](../apps/base/models.py), added in C14 | Database counter advances on ordinary saves; login-only/empty saves excluded | User deliberately has no `modified_at` | Keep C14 unchanged; exclude User from the generic domain edit helper. Do not add a timestamp. | **Keep.** No account schema, login or last-admin policy changes; avoid accidentally incrementing twice. |
 | `SiteSettings` in the same module | No version | No timestamps; singleton writer lock instead | Keep its current locked, last-save-wins behavior and document it. Do not add fields or stale-form guards in this work. | **Keep.** A versioned settings form would be separate work. This exception concerns SiteSettings, not M1's Species/equation snapshot guard. |
 | [`IpsoUpload.save()`](../apps/ipso/models.py) | No edit version | Explicitly adds `updated_at` to partial saves | Keep this staging model's existing status-clock contract; do not route it through TimestampedModel/edit-version helpers. | **Keep.** No staging, mobile-storage, session or upload-protocol change. |
@@ -77,7 +77,7 @@ changing which of those two situations constitutes an edit conflict.
 
 The initial work is the shared partial-save timestamp fix, consolidation of
 intervention total/state writes (including locking before aggregate reads),
-the reserved-PAI-survey correction, regression tests and accurate documentation.
+removal of the unreachable reserved-survey repair, regression tests and accurate documentation.
 The aggregate values, units, rounding and null-versus-zero rules stay the same.
 These changes need no schema migration, timestamp backfill, new form token,
 CSV/mobile format change or reorganization of every writer in the application.
@@ -158,9 +158,10 @@ Do not automatically give every table every field:
   settings version with form guards in a separate change. A universal save
   override would not solve stale forms by itself.
 
-For the PAI reserved-survey `active` correction, use a semantic metadata save
-when a correction is needed: version and timestamp advance once. Leave a valid
-row untouched. Keep bootstrap/repair entry points explicit.
+The original PAI repair proposal was incorrect: `survey_active_requires_sample_grid`
+already prevents an active unstructured survey. Keep existing reserved-survey
+lookups as complete no-ops, reject structured name collisions, and remove the
+unreachable repair. No version-changing correction is needed.
 
 ## Implementation boundaries
 
@@ -259,9 +260,10 @@ Each step starts with failing tests and is independently reviewable:
    harvest create/edit/delete/CSV. Assert exact totals, `None` versus zero,
    parent version behavior, one-save transitions, unchanged-total no-ops and
    matching response/digest rows.
-3. **Reserved PAI survey correction.** Cover the missing semantic version
-   increment and unchanged-row no-op. Keep User, SiteSettings and staging
-   exceptions explicit. This completes the initial behavior-fix scope.
+3. **Reserved PAI survey invariant.** Remove the unreachable active-flag repair;
+   cover the schema constraint, unchanged-row no-op and structured name collision.
+   Keep User, SiteSettings and staging exceptions explicit. This completes the
+   initial scope.
 4. **Optional edit-helper cleanup.** If useful after those fixes, introduce the
    narrow edit helper and migrate explicit increments in small domain groups.
    This should preserve already-correct behavior, not widen version semantics.
@@ -305,3 +307,4 @@ commit; they do not repeat the timestamp implementation.
 | 10 — Existing-parcel CSV | Covered by row 01; preserve unchanged-row skipping | Real CSV clock regression fails with old base hook; parcel CSV suite: 16 passed |
 | 11 — Observation edit | Covered by row 01; metadata/categories/photos retain one edit boundary | Endpoint clock regression fails with old hook; observation suite: 14 passed |
 | 12 — Height-set archive | Covered by row 01; equations remain immutable | Archive clock regression fails with old hook; archive/partial-update tests: 4 passed |
+| 14 — Reserved PAI survey | Corrected the proposal: active unstructured surveys are forbidden; removed unreachable repair | Constraint/no-op/name-collision checks pass before and after cleanup; PAI suite: 13 passed |
