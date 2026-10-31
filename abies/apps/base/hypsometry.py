@@ -219,9 +219,11 @@ def replace_active_set(
     from django.utils import timezone
 
     from apps.base.models import HypsoParam, HypsoParamSet
+    from apps.base.equations import lock_species
     from apps.base.digests import mark_stale
 
     with transaction.atomic():
+        lock_species()
         _archive_active_sets(HypsoParamSet, timezone.now())
         new_set = HypsoParamSet.objects.create(
             source=source, min_n=min_n,
@@ -235,11 +237,11 @@ def replace_active_set(
                 a=_dec(r.a), b=_dec(r.b), r2=_dec(r.r2), n=r.n,
                 source=r.source or source, origin_set_id=r.origin_set_id or new_set.pk,
             )
-        mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
+        mark_stale('species', DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return new_set
 
 
-def merge_active_set(rows, *, source, remove_keys=()):
+def merge_active_set(rows, *, source, remove_keys=(), set_options=None):
     """Publish a new snapshot, preserving every equation outside this edit."""
     from django.db import transaction
     from apps.base.equations import lock_species
@@ -259,11 +261,18 @@ def merge_active_set(rows, *, source, remove_keys=()):
         for row in rows:
             row.source = source
             combined[(row.region.pk, row.species.pk)] = row
+        incoming = {(row.region.pk, row.species.pk) for row in rows}
+        retained = bool(set(combined) - incoming)
+        options = {
+            'min_n': current.min_n if current and retained else None,
+            'survey_ids': list(current.surveys.values_list('pk', flat=True)) if current and retained else [],
+            'use_for_height_plots': current.use_for_height_plots if current and retained else False,
+        }
+        if set_options:
+            options.update(set_options)
         return replace_active_set(
-            list(combined.values()), source=HypsoParamSource.MIXED if current else source,
-            min_n=current.min_n if current else None,
-            survey_ids=list(current.surveys.values_list('pk', flat=True)) if current else [],
-            use_for_height_plots=current.use_for_height_plots if current else False,
+            list(combined.values()), source=HypsoParamSource.MIXED if current and retained else source,
+            **options,
         )
 
 
@@ -277,10 +286,12 @@ def clear_active_set() -> bool:
 
     from apps.base.models import HypsoParamSet
     from apps.base.digests import mark_stale
+    from apps.base.equations import lock_species
 
     with transaction.atomic():
+        lock_species()
         archived = _archive_active_sets(HypsoParamSet, timezone.now())
-        mark_stale(DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
+        mark_stale('species', DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS, 'audit')
     return archived > 0
 
 

@@ -1,0 +1,31 @@
+<div class="form-card">
+  <form data-role="equation-import-form">
+    <h2>{{ S.EQUATION_IMPORT_TITLE }}</h2>
+    <p>{{ S.EQUATION_IMPORT_NOTE }}</p>
+    <input type="hidden" name="token" value="{{ token }}">
+    <div data-target="equation-preview-table"></div>
+    {% if errors %}<ul class="form-error">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+    {% for row in missing %}
+      <fieldset class="species-equations" data-import-row="{{ row.index }}">
+        <legend>{{ row.index }} · {{ row.name }}</legend>
+        {% if not row.species %}<div class="form-group"><label>{{ S.COL_SPECIES }}
+          <select data-mapping="species_map"><option value="">—</option>
+          {% for sp in species %}<option value="{{ sp.pk }}">{{ sp.common_name }}</option>{% endfor %}</select>
+        </label></div>{% endif %}
+        {% if row.needs_region %}<div class="form-group"><label>{{ S.COL_REGION }} · {{ row.region_name }}
+          <select data-mapping="region_map"><option value="">—</option>
+          {% for region in regions %}<option value="{{ region.pk }}">{{ region.name }}</option>{% endfor %}</select>
+        </label></div>{% endif %}
+        {% if row.proxy_name and not row.proxy %}<div class="form-group"><label>{{ S.EQUATION_REFERENCE }} · {{ row.proxy_name }}
+          <select data-mapping="proxy_map"><option value="">—</option>
+          {% for sp in species %}<option value="{{ sp.pk }}">{{ sp.common_name }}</option>{% endfor %}</select>
+        </label></div>{% endif %}
+      </fieldset>
+    {% endfor %}
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      {% if missing %}<button type="button" class="btn" data-action="recheck">{{ S.EQUATION_RECHECK }}</button>{% endif %}
+      <button type="submit" class="btn btn-save" {% if errors %}disabled{% endif %}>{{ S.CONFIRM }}</button>
+    </div>
+  </form>
+</div>

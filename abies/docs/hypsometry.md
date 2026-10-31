@@ -164,6 +164,55 @@ CSV backup first; "Esporta" remains available for an explicit export.
 
 ## Data serving
 
+### Reviewed batch imports
+
+`POST /api/impostazioni/equations/import/preview/` accepts `kind=height` or
+`kind=volume` and the base64 CSV `file`. It performs no writes. The response
+contains the incoming/matched species, region, current/proposed values, errors,
+and server-rendered mapping controls. Unknown or case-ambiguous names require
+explicit `species_map`, `region_map`, or `proxy_map` entries keyed by CSV row
+number. A missing mapping never creates a species or guesses an association.
+
+Only an error-free preview has a confirmation token. It is signed, bound to
+the authenticated user and configuration snapshot, and expires after 15 minutes.
+`POST .../confirm/` accepts that token and a normal retry nonce. It rechecks
+the configuration under the equation-write lock before applying all accepted
+rows together with history, digest invalidation and the nonce receipt.
+Changed configuration returns a conflict and requires a new preview; canceling
+the preview writes nothing. Invalid/duplicate rows cannot be partially imported.
+
+Both import kinds **upsert only supplied equations**, preserving every omitted
+species/region pair. The same preservation rule applies to the existing height
+import endpoint and computed parameter acceptance. Computation additionally
+returns configuration/candidate fingerprints so the UI can detect a changed
+preview before acceptance. Explicit clear remains an archival service/API
+operation, not an implicit consequence of importing a partial file.
+
+Readable height CSV (N/r² may be blank for manually supplied equations):
+
+```csv
+compresa,genere,funzione,a,b,n,r2
+Capistrano,Abete bianco,ln,7.0306,-4.2563,48,0.6312
+```
+
+Volume CSV uses species names and either coefficients or an explicit proxy:
+
+```csv
+genere,b0,b1,b2,fonte,riferimento
+Abete bianco,-1.8381,0.037836,0.39934,Tabacchi,
+Altra conifera,,,,Tabacchi,Abete bianco
+```
+
+Exports use the installation's CSV delimiter/decimal convention; imports accept
+both supported conventions through the shared CSV codec. Volume export is
+`GET /api/impostazioni/equations/volume/export/`. Proxy rows round-trip without
+copying coefficients or changing their species identity.
+
+Historical tree repair is outside these endpoints. Equation edits/imports never
+rewrite captured heights, volume, mass or intervention totals. A future repair
+of previously unavailable Abete rosso estimates will be a separate one-time CLI
+operation, with no production repair UI.
+
 The active set is served as the `hypso_params` JSON digest
 (`/api/impostazioni/hypso-params/data/`, readable by any authenticated role):
 one row per active `hypso_param`, columns `row_id, Compresa, Specie, funzione,

@@ -963,6 +963,9 @@ EQUATION_EXPORT_VOLUME = 'Esporta volume'
 EQUATION_COMPUTE_TITLE = 'Calcola equazioni di altezza'
 EQUATION_COMPUTE = 'Calcola'
 EQUATION_HEIGHT_PLOTS = 'Usa questi rilevamenti per i grafici altezza/diametro.'
+CSV_COL_EQUATION_SOURCE = 'fonte'
+CSV_COL_EQUATION_REFERENCE = 'riferimento'
+CSV_FILE_VOLUME_EQUATIONS = 'equazioni_volume.csv'
 
 # Hypsometric-parameter-set audit field labels.
 COL_HYPSO_SOURCE          = 'Origine'

@@ -41,7 +41,7 @@ from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
     DIAMETER_CLASS_MODES,
     DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
-    DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
+    DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME,
     FIELD_COUNTS,
@@ -843,6 +843,14 @@ def _candidate_payload(rows):
     ]}
 
 
+def _candidate_state(rows):
+    import hashlib
+    import json
+    values = sorted((r.region.pk, r.species.pk, round(float(r.a), 4),
+                     round(float(r.b), 4), round(float(r.r2), 4), r.n) for r in rows)
+    return hashlib.sha256(json.dumps(values).encode()).hexdigest()
+
+
 def _parse_compute_body(body):
     """Validate {min_n, survey_ids}; returns (survey_ids, min_n, error)."""
     raw_ids = body.get(FIELD_SURVEY_IDS)
@@ -875,8 +883,13 @@ def hypso_params_compute(request):
     survey_ids, min_n, err = _parse_compute_body(body)
     if err:
         return err
+    from apps.impostazioni.species_equations import equation_state
+    state = equation_state()
     rows = hypsometry.compute_params(survey_ids, min_n)
-    return JsonResponse(_candidate_payload(rows))
+    if state != equation_state():
+        return JsonResponse({'status': 'conflict', 'message': S.ERR_EQUATION_PREVIEW_STALE}, status=400)
+    return JsonResponse({**_candidate_payload(rows), 'equation_state': state,
+                         'candidate_state': _candidate_state(rows)})
 
 
 @login_required
@@ -891,12 +904,19 @@ def hypso_params_accept(request):
         return err
     rows = hypsometry.compute_params(survey_ids, min_n)
     begin_nonce_write(request)
-    hypsometry.replace_active_set(
-        rows, source=HypsoParamSource.COMPUTED, min_n=min_n,
-        survey_ids=survey_ids,
-        use_for_height_plots=is_truthy(body.get(FIELD_USE_FOR_HEIGHT_PLOTS)),
-    )
-    return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
+    from apps.base.equations import lock_species
+    from apps.impostazioni.species_equations import equation_state
+    with transaction.atomic():
+        lock_species()
+        if ((body.get('equation_state') is not None and body['equation_state'] != equation_state())
+                or (body.get('candidate_state') is not None and body['candidate_state'] != _candidate_state(rows))):
+            return JsonResponse({'status': 'conflict', 'message': S.ERR_EQUATION_PREVIEW_STALE}, status=400)
+        hypsometry.merge_active_set(rows, source=HypsoParamSource.COMPUTED, set_options={
+            'min_n': min_n, 'survey_ids': survey_ids,
+            'use_for_height_plots': is_truthy(body.get(FIELD_USE_FOR_HEIGHT_PLOTS)),
+        })
+        return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED},
+            invalidates={FIELD_DATA_IDS: ['species', DIGEST_HYPSO_PARAMS, DIGEST_PARCEL_DENDROMETRY_POINTS]})
 
 
 @login_required
@@ -918,9 +938,7 @@ def hypso_params_import(request):
     if not rows:
         return _error(S.ERR_CSV_EMPTY)
     begin_nonce_write(request)
-    hypsometry.replace_active_set(
-        rows, source=HypsoParamSource.IMPORTED, min_n=None, survey_ids=[],
-    )
+    hypsometry.merge_active_set(rows, source=HypsoParamSource.IMPORTED)
     return success_response(request, body, extra={MESSAGE: S.HYPSO_SAVED})
 
 

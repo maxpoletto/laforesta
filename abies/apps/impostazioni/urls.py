@@ -3,8 +3,12 @@
 from django.urls import path
 
 from apps.impostazioni import views
+from apps.impostazioni import equation_imports
 
 urlpatterns = [
+    path('equations/import/preview/', equation_imports.preview_import, name='impostazioni-equation-preview'),
+    path('equations/import/confirm/', equation_imports.confirm_import, name='impostazioni-equation-confirm'),
+    path('equations/volume/export/', equation_imports.export_volume, name='impostazioni-volume-export'),
     # Password
     path('password/', views.password_view, name='impostazioni-password'),
 
