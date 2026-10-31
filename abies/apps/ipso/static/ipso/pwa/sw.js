@@ -21,6 +21,7 @@ const SHELL = [
   '/static/vendor/leaflet/leaflet.js',
   '/static/base/js/map-common.js',
   '/static/base/js/map-palette.js',
+  '/static/base/js/palette-core.js',
   '/static/base/js/geo.js',
   '/static/base/js/distance.js',
   '/static/base/js/strings.js',
