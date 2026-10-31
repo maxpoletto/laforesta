@@ -269,6 +269,7 @@ test-js:
 	node apps/base/static/base/js/templates.test.mjs
 	node apps/base/static/base/js/forms.test.mjs
 	node apps/base/static/base/js/ui-widgets-modals.test.mjs
+	node apps/base/static/base/js/sections.test.mjs
 	node apps/base/static/base/js/tests.mjs
 	node apps/base/static/base/js/cache.test.mjs
 	node apps/base/static/base/js/router.test.mjs

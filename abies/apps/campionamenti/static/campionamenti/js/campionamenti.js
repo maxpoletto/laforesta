@@ -37,7 +37,7 @@ import {
 } from '../../base/js/forms.js';
 import {
   showConfirmModal, showCascadeDeleteModal, wireActions, wireCancelButtons,
-  wireCollapsibleToggle, wireTabbedModal,
+  wirePageSections, wireTabbedModal,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
@@ -281,21 +281,10 @@ function buildPage(el, params) {
   const frag = cloneTemplate('tmpl-campionamenti-page');
   el.appendChild(frag);
 
-  for (const key of SECTION_KEYS) {
-    const s = sections[key];
-    s.open = p.o.includes(key);
-    s.header = el.querySelector(`[data-section="${key}"].collapsible-header`);
-    s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
-    s.header?.classList.toggle('open', s.open);
-    s.body?.classList.toggle('open', s.open);
-    if (s.header && s.body) {
-      wireCollapsibleToggle(s.header, s.body, (open) => {
-        s.open = open;
-        if (open) onSectionOpen(s);
-        syncURL();
-      });
-    }
-  }
+  wirePageSections(el, sections, SECTION_KEYS, p.o, (s, open) => {
+    if (open) onSectionOpen(s);
+    syncURL();
+  });
 
   // Grid section refs.
   const g = sections.g;

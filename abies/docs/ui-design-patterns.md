@@ -145,7 +145,10 @@ Infrastructure:
   validation errors / conflicts).
 - **`ui-widgets.js`**: shared UI widgets and wiring helpers, none of
   them form-specific. Collapsibles:
-  `wireCollapsibleToggle(header, body, onToggle?)`. Tabbed modals:
+  `wireCollapsibleToggle(header, body, onToggle?)`. Page section maps can use
+  `wirePageSections(root, sections, keys, openKeys, onToggle)`: it restores
+  open state and binds headers; the caller owns URL sync and lazy rendering.
+  Tabbed modals:
   `wireTabbedModal(root, { initialTab, onSwitch })`. Page loading:
   `showLoadingIn(el)`. Delegated click dispatch: `wireActions(root,
   handlers)`. Per-button cancel wiring:

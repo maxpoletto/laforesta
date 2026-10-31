@@ -11,7 +11,7 @@ import {
   submitCsvImport,
 } from '../../base/js/forms.js';
 import {
-  showConfirmModal, wireActions, wireCancelButtons, wireCollapsibleToggle,
+  showConfirmModal, wireActions, wireCancelButtons, wirePageSections,
 } from '../../base/js/ui-widgets.js';
 import { canModify } from '../../base/js/roles.js';
 import { fileToBase64, postBlob, postJSON } from '../../base/js/api.js';
@@ -689,21 +689,10 @@ function buildPage(el, data, p) {
   sections.a.parcelBreakdown = p.pb;
   sections.a.byMonth = p.m;
   sections.b.byMonth = p.cm;
-  for (const key of SECTION_KEYS) {
-    const s = sections[key];
-    s.open = p.o.includes(key);
-    s.header = el.querySelector(`[data-section="${key}"].collapsible-header`);
-    s.body = el.querySelector(`[data-section="${key}"].collapsible-body`);
-    s.header?.classList.toggle('open', s.open);
-    s.body?.classList.toggle('open', s.open);
-    if (s.header && s.body) {
-      wireCollapsibleToggle(s.header, s.body, (open) => {
-        s.open = open;
-        if (open && s.render && s.dirty) s.render();
-        syncURL();
-      });
-    }
-  }
+  wirePageSections(el, sections, SECTION_KEYS, p.o, (s, open) => {
+    if (open && s.render && s.dirty) s.render();
+    syncURL();
+  });
 
   // Summary charts: wire breakdown selects and month toggle.
   const a = sections.a;

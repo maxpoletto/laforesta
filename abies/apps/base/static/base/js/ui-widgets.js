@@ -27,6 +27,24 @@ export function wireCollapsibleToggle(header, body, onToggle) {
   });
 }
 
+/** Restore page-section state and bind toggles; callers retain render/URL policy. */
+export function wirePageSections(root, sections, keys, openKeys, onToggle) {
+  for (const key of keys) {
+    const state = sections[key];
+    state.open = openKeys.includes(key);
+    state.header = root.querySelector(`[data-section="${key}"].collapsible-header`);
+    state.body = root.querySelector(`[data-section="${key}"].collapsible-body`);
+    state.header?.classList.toggle('open', state.open);
+    state.body?.classList.toggle('open', state.open);
+    if (state.header && state.body) {
+      wireCollapsibleToggle(state.header, state.body, open => {
+        state.open = open;
+        onToggle?.(state, open);
+      });
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Cancel buttons
 // ---------------------------------------------------------------------------
