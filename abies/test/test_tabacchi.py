@@ -1,8 +1,8 @@
 """Tabacchi volume formula parity (Python ↔ JS).
 
-Reads the JS source `apps/base/static/base/js/volume.js`, extracts
-the TABACCHI_B table by regex, and confirms it matches the Python
-table in `apps/base/tabacchi.py` (same coefficients, same shape).
+Supplies one coefficient fixture to the Python and JavaScript numerical cores.
+The browser has no separate species catalogue; live previews receive database
+configuration from the species form.
 
 Also verifies the Python volume function against a small fixture of
 known D/h/species triples (sanity check, not parity).
@@ -16,7 +16,6 @@ than equality.  It is skipped when node is unavailable.
 """
 
 import json
-import re
 import shutil
 import subprocess
 from decimal import Decimal
@@ -30,51 +29,6 @@ from config import strings as S
 
 JS_PATH = (Path(__file__).resolve().parent.parent
            / 'apps/base/static/base/js/volume.js')
-
-# Numeric tuple in JS: `[ -1.8381, 3.7836e-2, 3.9934e-1 ]`.
-_NUMBER = r'-?\d+(?:\.\d+)?(?:e[+-]?\d+)?'
-
-
-def _parse_js_table() -> dict[str, tuple[float, ...]]:
-    """Pull `[SP_X]: [ ... ]` rows out of TABACCHI_B."""
-    text = JS_PATH.read_text(encoding='utf-8')
-    # Map JS SP_* constants to their string values.
-    consts = dict(re.findall(
-        r"export const (SP_\w+) = '([^']+)';", text,
-    ))
-    rows = re.findall(
-        r"\[(SP_\w+)\]:\s*\[([^\]]+)\]",
-        text,
-    )
-    table: dict[str, tuple[float, ...]] = {}
-    for const_name, body in rows:
-        species = consts[const_name]
-        coeffs = tuple(
-            float(m.group(0))
-            for m in re.finditer(_NUMBER, body)
-        )
-        table[species] = coeffs
-    return table
-
-
-def test_js_table_parses():
-    """Sanity check: the regex extraction finds all 13 species."""
-    js = _parse_js_table()
-    assert len(js) == len(tabacchi.TABACCHI_B), \
-        f'JS: {len(js)} species, Python: {len(tabacchi.TABACCHI_B)}'
-
-
-def test_js_python_coefficient_parity():
-    """Every species' b vector matches between JS and Python."""
-    js = _parse_js_table()
-    for name, py_b in tabacchi.TABACCHI_B.items():
-        assert name in js, f'Missing in JS: {name}'
-        js_b = js[name]
-        assert len(js_b) == len(py_b), f'Length mismatch for {name}'
-        for i, (a, b) in enumerate(zip(py_b, js_b)):
-            assert abs(a - b) < 1e-9, \
-                f'{name}[{i}]: py={a} != js={b}'
-
 
 @pytest.mark.parametrize('d_cm,h_m,species,expected_m3', [
     # Faggio (length-2): V = (0.81151 + 0.038965 * D²h) / 1000
@@ -136,21 +90,25 @@ _MASS_TOLERANCE = Decimal('0.001')
 # Representative densities (q/m³): one whole, one fractional, to exercise the
 # half-way rounding cases that drive the JS/Python residual.
 _PARITY_DENSITIES = ('9.0', '7.5')
+_PARITY_EQUATIONS = {**tabacchi.TABACCHI_B,
+    **{name: tabacchi.TABACCHI_B[target] for name, target in tabacchi.TABACCHI_PROXIES.items()},
+    'Configured equation': (123.45, .012345, .5),
+}
 
 # Mirrors tree-form.js: store volume at 4 dp and derive mass from that stored
 # volume.  `{volume_url}` / `{densities}` are filled in by _run_js_sweep.
 _JS_DRIVER = '''
-import {{ TABACCHI_B, TABACCHI_PROXIES, tabacchiVolumeM3, hasSpecies, massQ }} from {volume_url};
+import {{ volumeFromCoefficientsM3, massQ }} from {volume_url};
+const COEFFICIENTS = {coefficients};
 const DENSITIES = {densities};
 const out = [];
-if (hasSpecies({legacy_name}) || tabacchiVolumeM3(30, 20, {legacy_name}) !== null) {{
+if (volumeFromCoefficientsM3(30, 20, null) !== null) {{
   throw new Error('Legacy catch-all must remain unsupported');
 }}
-for (const sp of [...Object.keys(TABACCHI_B), ...Object.keys(TABACCHI_PROXIES)]) {{
-  if (!hasSpecies(sp)) throw new Error(`Unsupported species: ${{sp}}`);
+for (const sp of Object.keys(COEFFICIENTS)) {{
   for (let d = 1; d <= 80; d += 1) {{
     for (let h = 1; h <= 35; h += 2) {{
-      const v = tabacchiVolumeM3(d, h, sp);
+      const v = volumeFromCoefficientsM3(d, h, COEFFICIENTS[sp]);
       if (v == null) continue;
       if (v < 0 || Object.is(v, -0)) throw new Error('Negative harvestable volume');
       const vStored = Number(v.toFixed(4));
@@ -171,7 +129,7 @@ def _run_js_sweep(tmp_path):
     driver = tmp_path / 'parity_driver.mjs'
     driver.write_text(_JS_DRIVER.format(
         volume_url=json.dumps(JS_PATH.as_uri()),
-        legacy_name=json.dumps(S.SPECIES_OTHER),
+        coefficients=json.dumps(_PARITY_EQUATIONS),
         densities='[' + ', '.join(_PARITY_DENSITIES) + ']',
     ), encoding='utf-8')
     proc = subprocess.run(
@@ -190,7 +148,7 @@ def _run_js_sweep(tmp_path):
 def test_js_python_stored_value_parity(tmp_path):
     """A tree entered via the interactive form (volume.js) stores the same
     volume and mass as the CSV-import path (tabacchi.py + tree_mass_q), within
-    1 ULP.  Guards against the coefficient tables, the 4-dp volume rounding, or
+    1 ULP.  Guards against configured-coefficient evaluation, the 4-dp volume rounding, or
     the mass-from-stored-volume rule drifting apart between JS and Python."""
     from apps.base.models import tree_mass_q
 
@@ -198,7 +156,7 @@ def test_js_python_stored_value_parity(tmp_path):
     assert rows, 'JS driver produced no rows'
     assert {S.SPECIES_OTHER_CONIFER, S.SPECIES_OTHER_BROADLEAF} <= {row[0] for row in rows}
     for species, d, h, dens_str, js_vol, js_mass in rows:
-        py_vol = tabacchi.tabacchi_volume_m3(d, h, species)
+        py_vol = tabacchi._volume_from_b(float(d), float(h), _PARITY_EQUATIONS[species])
         py_mass = tree_mass_q(py_vol, Decimal(dens_str))
         assert abs(Decimal(js_vol) - py_vol) <= _VOL_TOLERANCE, \
             f'{species} D={d} h={h}: vol js={js_vol} py={py_vol}'

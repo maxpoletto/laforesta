@@ -75,6 +75,11 @@ legacy parity fixtures, not the runtime source for tree calculations. An absent
 equation gives an unavailable estimate; the entry form explains the missing
 volume equation instead of showing zero. Negative estimates still clamp to zero.
 
+`volume.js` contains only the numerical evaluation, with no browser copy of the
+species/default-coefficient catalogue. Numeric parity tests supply the same
+coefficient fixture to Python and JS; DB-to-preview tests additionally cover
+edited coefficients, explicit proxies and renamed species.
+
 This does not yet localize the species reference catalogue. Some Italian common
 names remain in default initialization, legacy name-map compatibility and
 numeric parity fixtures. Frozen migrations retain their original labels so
