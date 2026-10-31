@@ -32,6 +32,7 @@ from apps.base.digests import (
 )
 from apps.base.numparse import int_or_none, parse_decimal, positive_int_list
 from apps.base.species import selectable_species
+from apps.piano_di_taglio.totals import lock_plan_items, refresh_actual_total
 from apps.base.responses import (
     check_delete_version,
     conflict_response, csv_error_list, parse_json_body, row_delete, row_patch,
@@ -149,6 +150,12 @@ def save_view(request):
     begin_nonce_write(request)
     with transaction.atomic():
         affected_item_ids = set()
+        if not row_id:
+            items = lock_plan_items([parsed.get(FIELD_HARVEST_PLAN_ITEM_ID)])
+            _, parsed, errors = _parse_body(body, locked_items=items)
+            if errors:
+                return _validation_error(errors, row_id, request, body)
+            parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
         if row_id:
             result = _update_op(row_id, parsed, body, request)
             if isinstance(result, JsonResponse):
@@ -160,18 +167,15 @@ def save_view(request):
             )
         else:
             op = Harvest.objects.create(**parsed)
-            item = op.harvest_plan_item
-            if (item is not None
-                    and item.state == HarvestPlanItemState.OPEN):
-                item.state = HarvestPlanItemState.HARVESTING
-                item.version += 1
-                item.save()
             if op.harvest_plan_item_id is not None:
                 affected_item_ids.add(op.harvest_plan_item_id)
 
         _write_junctions(op, sp_pcts, tr_pcts)
         for item_id in sorted(affected_item_ids):
-            _rematerialize_volume_actual(item_id)
+            if not row_id:
+                refresh_actual_total(item_id, start_harvesting=True)
+            else:
+                _rematerialize_volume_actual(item_id)
         stale = ['prelievi', 'audit']
         if affected_item_ids:
             stale.extend(['harvest_plan_items', DIGEST_FUTURE_PRODUCTION])
@@ -500,7 +504,7 @@ def _optional_int(body, field, label, errors):
     return value
 
 
-def _parse_body(body):
+def _parse_body(body, *, locked_items=None):
     """Extract and validate core fields from the POST body.
 
     Returns (row_id, parsed_dict, error_list).  For new harvests the
@@ -547,12 +551,14 @@ def _parse_body(body):
         if not item_id_raw:
             errors.append(S.ERR_CANTIERE_REQUIRED)
         elif item_id is not None:
-            item = HarvestPlanItem.objects.filter(id=item_id).first()
+            item = (locked_items.get(item_id) if locked_items is not None
+                    else HarvestPlanItem.objects.filter(id=item_id).first())
             if item is None or item.state not in _OPEN_STATES:
                 errors.append(S.ERR_CANTIERE_STATE_INVALID)
     else:
         if item_id is not None:
-            item = HarvestPlanItem.objects.filter(id=item_id).first()
+            item = (locked_items.get(item_id) if locked_items is not None
+                    else HarvestPlanItem.objects.filter(id=item_id).first())
             unchanged_item = item_id == current_item_id
             if item is None or (not unchanged_item and item.state not in _OPEN_STATES):
                 errors.append(S.ERR_CANTIERE_STATE_INVALID)

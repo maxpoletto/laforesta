@@ -37,3 +37,23 @@ def refresh_marked_total(item_id, *, mark_date=None):
     if fields:
         item.save(update_fields=fields)
     return item
+
+
+@transaction.atomic
+def refresh_actual_total(item_id, *, start_harvesting=False):
+    from apps.prelievi.models import Harvest
+    item = lock_plan_items([item_id]).get(item_id)
+    if item is None:
+        return None
+    total = Harvest.objects.filter(harvest_plan_item_id=item_id).aggregate(total=Sum('volume_m3'))['total'] or 0
+    fields = []
+    if item.volume_actual_m3 != total:
+        item.volume_actual_m3 = total
+        fields.append('volume_actual_m3')
+    if start_harvesting and item.state == HarvestPlanItemState.OPEN:
+        item.state = HarvestPlanItemState.HARVESTING
+        item.version += 1
+        fields.extend(['state', 'version'])
+    if fields:
+        item.save(update_fields=fields)
+    return item

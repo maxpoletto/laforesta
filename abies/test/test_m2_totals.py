@@ -91,3 +91,19 @@ def test_total_only_mark_write_preserves_metadata_token_and_noop_history(item, s
     rematerialize_volume_marked(item.pk)
     item.refresh_from_db()
     assert item.volume_marked_m3 is None and item.version == before[0]
+
+
+def test_first_harvest_has_one_complete_parent_event(item, species, crews, products, tractors, client):
+    item.state = HarvestPlanItemState.OPEN
+    item.save()
+    before = item.history.count()
+    body = dict(date='2026-10-01', harvest_plan_item_id=item.pk,
+        crew_id=crews[0].pk, product_id=products[0].pk, mass_q='18',
+        **{f'sp_{species[0].pk}': '100', f'tr_{tractors[0].pk}': '100'})
+    response = client.post(reverse('prelievi-save'), json.dumps(body), content_type='application/json')
+    assert response.status_code == 200, response.content
+    item.refresh_from_db()
+    assert item.state == HarvestPlanItemState.HARVESTING and item.version == 2
+    assert item.volume_actual_m3 == 2
+    assert item.history.count() == before + 1
+    assert item.history.first().volume_actual_m3 == item.volume_actual_m3

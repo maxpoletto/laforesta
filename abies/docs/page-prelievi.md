@@ -230,3 +230,10 @@ species. Re-saving a harvest through the percentage form folds individual
 minor junctions into their botanical buckets and recomputes volume using those
 buckets' current densities, as the existing minor-species edit flow did with
 Altro.
+
+### Intervention update clock
+
+The first manual harvest on an open intervention writes its harvesting state
+and actual total together, advancing its edit token once and creating one
+complete parent history event. The worksite is locked and validated before
+creating the harvest. Its existing date rules are unchanged.
