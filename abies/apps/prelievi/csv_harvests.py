@@ -22,6 +22,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from apps.piano_di_taglio.totals import lock_plan_items, refresh_actual_total
+from apps.piano_di_taglio.dependencies import harvest_dependencies
 
 from apps.base import csv_io
 from apps.base.digests import mark_stale
@@ -36,7 +37,6 @@ from apps.prelievi.harvest_validation import (
     valid_harvest_mass, valid_percentage,
 )
 from config import strings as S
-from config.constants import DIGEST_FUTURE_PRODUCTION
 
 # Required static columns — blank Particella is permitted (region-wide row).
 HARVEST_CSV_REQUIRED = [
@@ -584,11 +584,6 @@ def apply(parsed: list) -> int:
             refresh_actual_total(plan_item_id)
 
         if harvests:
-            stale = ['prelievi', 'audit']
-            if plan_item_ids:
-                stale.extend([
-                    'harvest_plan_items', DIGEST_FUTURE_PRODUCTION,
-                ])
-            mark_stale(*stale)
+            mark_stale(*harvest_dependencies(plan_item_ids).data_ids)
 
     return len(harvests)

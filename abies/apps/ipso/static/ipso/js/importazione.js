@@ -553,6 +553,7 @@ async function importUpload(uploadId, config, targetId, warningsConfirmed = fals
     showError(importErrorMessage(data));
     return;
   }
+  cache.applyResponseChanges(data);
   await cache.load(DATA_ID);
   await openUpload(uploadId);
 }

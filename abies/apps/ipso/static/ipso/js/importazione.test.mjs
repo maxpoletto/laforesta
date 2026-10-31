@@ -554,7 +554,7 @@ globalThis.fetch = async (url, opts = {}) => {
         [FIELD_WARNINGS]: importWarnings,
       }, 'v1', 409);
     }
-    return response({ imported: 1, upload: {} }, 'v2', 200);
+    return response({ imported: 1, upload: {}, invalidates: { data_ids: ['future_production'] } }, 'v2', 200);
   }
   if (url === '/api/ipso/inbox/') return response(inboxDigest());
   if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
@@ -563,6 +563,7 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 const importazione = await import(staticModule('ipso/js/importazione.js'));
+const cache = await import(staticModule('base/js/cache.js'));
 
 function clickInboxOpen(index) {
   const tableEl = contentEl.querySelector('.table-scroll');
@@ -622,6 +623,7 @@ clickInboxOpen(2);
 await flushSeveral();
 
 const samplePanel = detailEl.querySelector('.ipso-import-target');
+cache.set('future_production', { columns: ['row_id'], rows: [[1]] });
 check(Boolean(samplePanel), 'sample upload shows the import target panel');
 const sampleTarget = samplePanel.querySelector('select');
 sampleTarget.value = '900';
@@ -639,6 +641,7 @@ check(!sampleImportBodies[0][FIELD_WARNINGS_CONFIRMED],
       'first warning import submit is unconfirmed');
 check(sampleImportBodies[1][FIELD_WARNINGS_CONFIRMED] === true,
       'warning import confirmation adds warnings_confirmed');
+eq(cache.get('future_production'), null, 'successful imports apply dependent-cache invalidations');
 
 importazione.unmount();
 

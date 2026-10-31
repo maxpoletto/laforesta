@@ -33,6 +33,7 @@ from apps.base.digests import (
 from apps.base.numparse import int_or_none, parse_decimal, positive_int_list
 from apps.base.species import selectable_species
 from apps.piano_di_taglio.totals import lock_plan_items, refresh_actual_total
+from apps.piano_di_taglio.dependencies import harvest_dependencies
 from apps.base.responses import (
     check_delete_version,
     conflict_response, csv_error_list, parse_json_body, row_delete, row_patch,
@@ -51,7 +52,7 @@ from apps.prelievi.models import (
 )
 from config import strings as S
 from config.constants import (
-    DATA_ID, DIGEST_FUTURE_PRODUCTION, FIELD_CREW_ID, FIELD_DATE, FIELD_FILE,
+    DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_FILE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID,
     FIELD_PRODUCT_ID, FIELD_RECORD1, FIELD_RECORD2, FIELD_REGION_ID,
     FIELD_SORT_ORDER, FIELD_SPECIES_ID, FIELD_SPECIES_PCT_PREFIX,
@@ -177,10 +178,8 @@ def save_view(request):
                 refresh_actual_total(item_id, start_harvesting=True)
             else:
                 _rematerialize_volume_actual(item_id)
-        stale = ['prelievi', 'audit']
-        if affected_item_ids:
-            stale.extend(['harvest_plan_items', DIGEST_FUTURE_PRODUCTION])
-        mark_stale(*stale)
+        dependencies = harvest_dependencies(affected_item_ids)
+        mark_stale(*dependencies.data_ids)
 
     op = Harvest.objects.select_related(
         'parcel__region', 'crew', 'product', 'harvest_plan_item',
@@ -200,6 +199,7 @@ def save_view(request):
     return success_response(
         request, body, data_id='prelievi', row_id=op.id,
         patches=patches,
+        invalidates=dependencies.invalidates('prelievi', 'harvest_plan_items'),
     )
 
 
@@ -244,10 +244,8 @@ def delete_view(request):
         op.delete()
         if had_item_id is not None:
             _rematerialize_volume_actual(had_item_id)
-        stale = ['prelievi', 'audit']
-        if had_item_id is not None:
-            stale.extend(['harvest_plan_items', DIGEST_FUTURE_PRODUCTION])
-        mark_stale(*stale)
+        dependencies = harvest_dependencies([had_item_id])
+        mark_stale(*dependencies.data_ids)
 
     patches = []
     if had_item_id is not None:
@@ -262,6 +260,7 @@ def delete_view(request):
     return success_response(
         request, body, data_id='prelievi', row_id=row_id,
         patches=patches, deletes=[row_delete('prelievi', row_id)],
+        invalidates=dependencies.invalidates('prelievi', 'harvest_plan_items'),
     )
 
 
@@ -302,7 +301,8 @@ def csv_import_view(request):
 
     begin_nonce_write(request)
     csv_harvests.apply(parsed)
-    return success_response(request, body)
+    item_ids = [r['harvest_plan_item'].pk for r in parsed if r.get('harvest_plan_item')]
+    return success_response(request, body, invalidates=harvest_dependencies(item_ids).invalidates())
 
 
 @login_required

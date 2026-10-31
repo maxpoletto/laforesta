@@ -17,8 +17,9 @@ from apps.base.models import (
 )
 from apps.base.equations import estimate_volume_and_mass
 from config import strings as S
-from config.constants import DIGEST_FUTURE_PRODUCTION, FIELD_NUMBER
+from config.constants import FIELD_NUMBER
 from apps.piano_di_taglio.totals import lock_plan_items, refresh_marked_total
+from apps.piano_di_taglio.dependencies import marked_tree_dependencies
 
 MARK_CSV_SPECIES_HEADERS = (S.CSV_COL_SPECIES, S.COL_SPECIES)
 
@@ -136,10 +137,7 @@ def import_mark_rows(item: HarvestPlanItem, rows: list[MarkImportRow]) -> MarkIm
         if parsed:
             refresh_marked_total(item.id, mark_date=min(row.date for row in parsed))
 
-        mark_stale(
-            f'mark_trees_{item.id}', 'harvest_plan_items',
-            DIGEST_FUTURE_PRODUCTION, 'audit',
-        )
+        mark_stale(*marked_tree_dependencies([item.id]).data_ids)
 
     return MarkImportResult(imported=len(parsed), skipped_duplicates=skipped, errors=[])
 

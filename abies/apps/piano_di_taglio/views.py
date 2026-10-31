@@ -71,6 +71,7 @@ from apps.piano_di_taglio.plan_item_validation import (
     plan_item_invariant_errors,
 )
 from apps.piano_di_taglio.totals import lock_plan_items, refresh_marked_total
+from apps.piano_di_taglio.dependencies import marked_tree_dependencies
 from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest
 from config import strings as S
@@ -1111,7 +1112,8 @@ def mark_save_view(request):
             _rematerialize_volume_marked(item.id)
         else:
             refresh_marked_total(item.id, mark_date=date)
-        mark_stale(f'mark_trees_{item.id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
+        dependencies = marked_tree_dependencies([item.id])
+        mark_stale(*dependencies.data_ids)
 
     tm = (TreeMark.objects
           .select_related('tree__species', 'parcel')
@@ -1125,6 +1127,7 @@ def mark_save_view(request):
     return success_response(
         request, body,
         data_id=f'mark_trees_{item.id}', row_id=tm.id,
+        invalidates=dependencies.invalidates(f'mark_trees_{item.id}', 'harvest_plan_items'),
         patches=[
             row_patch(f'mark_trees_{item.id}', tm.id, mark_record),
             row_patch('harvest_plan_items', item_record[0], item_record),
@@ -1186,7 +1189,8 @@ def mark_delete_view(request):
         if not TreeMark.objects.filter(tree=tree).exists():
             tree.delete()
         _rematerialize_volume_marked(item_id)
-        mark_stale(f'mark_trees_{item_id}', 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
+        dependencies = marked_tree_dependencies([item_id])
+        mark_stale(*dependencies.data_ids)
 
     item_fresh = (HarvestPlanItem.objects
                   .select_related('parcel__region', 'parcel__eclass',
@@ -1196,6 +1200,7 @@ def mark_delete_view(request):
     return success_response(
         request, body,
         data_id=f'mark_trees_{item_id}', row_id=row_id,
+        invalidates=dependencies.invalidates(f'mark_trees_{item_id}', 'harvest_plan_items'),
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
         deletes=[row_delete(f'mark_trees_{item_id}', row_id)],
     )
@@ -1358,6 +1363,7 @@ def mark_csv_import_view(request):
     return success_response(
         request, body,
         patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
+        invalidates=marked_tree_dependencies([item.id]).invalidates('harvest_plan_items'),
         extra={
             'imported': import_result.imported,
             'skipped_duplicates': import_result.skipped_duplicates,

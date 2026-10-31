@@ -785,7 +785,10 @@ async function importCsv(form) {
     [FIELD_FILE]: await fileToBase64(file),
     [FIELD_NONCE]: crypto.randomUUID(),
   });
-  if (status === 200) return { ok: true };
+  if (status === 200) {
+    cache.applyResponseChanges(data);
+    return { ok: true };
+  }
   return data?.[FIELD_ERRORS]?.length
     ? { errors: data[FIELD_ERRORS] }
     : { error: data?.[MESSAGE] };

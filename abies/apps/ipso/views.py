@@ -866,7 +866,8 @@ def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonRespon
         return _upload_validation_error(
             upload, [S.IPSO_ERR_IMPORT_MARK_CONFLICT], request=request,
         )
-    return success_response(request, body, extra={
+    from apps.piano_di_taglio.dependencies import marked_tree_dependencies
+    return success_response(request, body, invalidates=marked_tree_dependencies([item.id]).invalidates(), extra={
         IMPORTED: result.imported,
         SKIPPED_DUPLICATES: result.skipped_duplicates,
         UPLOAD: data,

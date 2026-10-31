@@ -413,3 +413,10 @@ remain distinct. Digest content ETags still detect total-only changes.
 These clocks are row-local, not recursive child-activity clocks. Pre-M2
 timestamps are not backfilled. See [M2](proposal-m2-versioning.md) for the
 complete contract, model exceptions, tests and optional follow-up work.
+
+Mark/harvest write dependencies live in `piano_di_taglio/dependencies.py`.
+The same operation description supplies server dirtiness and response cache
+invalidations. Datasets updated by a row patch or delete are excluded from the
+invalidation list; other dependents, including future production and audit,
+are evicted. CSV and staged-upload controllers apply the response envelope
+before reloading their own data, so a loaded SPA and a cold reader converge.
