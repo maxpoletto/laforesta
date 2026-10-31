@@ -303,3 +303,4 @@ commit; they do not repeat the timestamp implementation.
 | 08 — Harvest CSV | Removed duplicated actual-total implementation; lock parents before imported children | Stale-sum regression failed first; CSV suite: 35 passed, including duplicate replay and unchanged state |
 | 09 — Parcel metadata endpoint | Covered by row 01; no duplicate timestamp setter added | Real endpoint regression fails with the old base hook, passes with current hook; stale edit preserves clock/history |
 | 10 — Existing-parcel CSV | Covered by row 01; preserve unchanged-row skipping | Real CSV clock regression fails with old base hook; parcel CSV suite: 16 passed |
+| 11 — Observation edit | Covered by row 01; metadata/categories/photos retain one edit boundary | Endpoint clock regression fails with old hook; observation suite: 14 passed |
