@@ -420,3 +420,24 @@ invalidations. Datasets updated by a row patch or delete are excluded from the
 invalidation list; other dependents, including future production and audit,
 are evicted. CSV and staged-upload controllers apply the response envelope
 before reloading their own data, so a loaded SPA and a cold reader converge.
+
+## Internal naming and compatibility boundaries
+
+Application Python uses English snake_case names; private JavaScript view data,
+options and transient state use English camelCase names. For example, map
+tooltips receive `regionName`, `parcelName`, `number` and `treeCount`, and Ipso's
+selected species lives in `State.speciesName`. Readable text and CSV headers
+continue to come from the localization catalogs.
+
+Translate legacy names explicitly at the existing boundary. `parcelIdentity()`
+normalizes supported source GeoJSON aliases; `parcelNames()` retains its legacy
+result shape, and generated grid points still encode the endpoint's existing
+keys. `LEGACY_FIELD_REGION_NAME` / `LEGACY_FIELD_PARCEL_NAME` intentionally carry
+the query literals `compresa` / `particella`. CSV importers map readable headers
+to English private fields without changing file formats or retry fingerprints.
+
+This cleanup does not rename stored IndexedDB fields, reference bundle keys,
+pending uploads, localStorage preferences, URLs or DOM identifiers. Those
+contracts need separate adapters and compatibility review. The
+[M3 inventory](audit-m3-inventory.csv) records that review boundary; no IndexedDB
+schema or upload-schema migration is part of this work.

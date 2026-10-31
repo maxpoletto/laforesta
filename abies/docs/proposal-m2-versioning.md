@@ -244,9 +244,9 @@ especially for deliberately untracked Tree/Sample rows. Do not backdate them
 from unrelated children or rewrite historic versions. Subsequent writes acquire
 the clarified behavior; document that pre-upgrade timestamps have the old limits.
 
-Update CLAUDE.md's universal-save claim, the base model docstring,
-`docs/database.md`, `docs/data-architecture.md`, and affected page docs when the
-behavior is implemented. This proposal does not change those contracts yet.
+The implementation updates CLAUDE.md's universal-save claim, the base model
+docstring, `docs/database.md`, `docs/data-architecture.md`, and affected page
+docs to reflect these contracts and their exceptions.
 
 ## Suggested sequence and acceptance tests
 
@@ -294,6 +294,18 @@ tuning remains lower priority; these write rules are backend-independent.
 Each numbered row refers to its position in the current-behavior table. Rows
 fixed by the common base rule receive their own endpoint/service regression
 commit; they do not repeat the timestamp implementation.
+
+Completed 1 November 2026. Commit order: row 01 `109332f`, 04 `cf5bed5`,
+05 `6cd2ec5`, 06 `d186185`, 07 `ad80f57`, 08 `7dadbe0`, 09 `765090a`,
+10 `f8b513b`, 11 `7c49f99`, 12 `7dff33a`, 14 `0d1b14e`.
+The full Python suite passed 1,903 tests at the M2 milestone. Later M3/naming
+verification is recorded in the [M3 audit](audit-m3-duplication-and-naming.md).
+
+Aggregate tests deterministically simulate a writer completing before the
+parent lock and verify that SUM is read after the lock. They also cover rollback,
+history, token/clock behavior and metadata preservation. They do not establish
+multi-connection PostgreSQL behavior; run that backend's overlapping-writer
+tests when it is introduced. No production or historical data was changed.
 
 | Row | Result | Verification |
 | --- | --- | --- |

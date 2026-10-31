@@ -137,7 +137,8 @@ have explicit separate contracts; see `docs/proposal-m2-versioning.md`.
 
 Full schema in [`docs/database.md`](docs/database.md). Cross-cutting conventions:
 
-- Implicit `version`, `created_at`, `modified_at` on all tables.
+- Domain tables inheriting `TimestampedModel` have `version`, `created_at` and
+  `modified_at`; User, SiteSettings and staging have the exceptions above.
 - Mutable domain tables tracked by django-simple-history.
 - Validation is done client-side (quick feedback) and in Django (authoritative);
   only a small subset of constraints are enforced in the schema (see `docs/database.md`).

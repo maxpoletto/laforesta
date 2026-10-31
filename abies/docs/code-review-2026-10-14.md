@@ -2,8 +2,10 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 31 October 2026. **C1–C11, C13–C14, S1–S4, R1 and M1 are
-fixed in this branch.** The status table and notes below describe the completed
+Progress updated: 1 November 2026. **C1–C11, C13–C14, S1–S4, R1, M1 and M2 are
+fixed in this branch. M3's D01–D15 dispositions and the internal naming cleanup
+are complete; stored/reference/wire naming work is paused for review.**
+The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
 present. Completion here means implemented and tested; deployment is separate.
@@ -44,6 +46,14 @@ volumes and found no negatives, so C9 requires no historical-data repair or
 migration. The completion notes do not establish deployed package versions or
 retest the remaining findings against production.
 
+M2/M3 follow-up verification, 1 November 2026: **1,927 Python tests passed**,
+all JavaScript suites passed, and Django system/migration checks passed against
+an isolated temporary configuration. M2 has 11 row-specific commits; M3 has
+one commit per D01–D15 plus three internal naming commits. Their linked progress
+tables distinguish fixes, existing shared implementations and deliberately
+retained duplication. No database migration is needed for M2/M3. No deployment,
+real-device/browser smoke test or multi-connection PostgreSQL test was run.
+
 ### Priorities
 
 **P1** means address soon because ordinary workflows can produce incorrect durable data, access-policy surprises, or incomplete recovery. **P2** means a bounded defect or a risk requiring malformed input, interruption, or a particular deployment condition. **P3** means maintainability or an improvement to undertake when useful. These are application priorities, not CVSS scores.
@@ -80,6 +90,9 @@ in R2 keep their priorities.
 | P2 | R2 Restore documentation and replacement sequencing need hardening | Open, partly addressed | Photo restore docs/validation and unique archive publication done; broader maintenance/mirroring remains |
 | P3 | R3 SQLite acknowledged writes are not durable across every host failure | Deferred | SQLite-specific; revisit durability against the PostgreSQL target |
 | P2 | R4 Ipso can record more rows than its upload API accepts | Open | Source review |
+| P3 | M1 Scientific identity depends on editable species labels | Fixed | Species-ID height/volume configuration, unified Settings editor and previewed batch imports |
+| P3 | M2 Version/modification semantics differ across writers | Fixed | [Row-by-row implementation and tests](proposal-m2-versioning.md#implementation-progress); edit tokens, row clocks and digest ETags remain distinct |
+| P3 | M3 Duplication and mixed internal naming | Completed within agreed scope | [D01–D15 dispositions and naming boundary](audit-m3-duplication-and-naming.md#implementation-progress); stored/wire renaming paused |
 
 ## Correctness and data integrity
 
@@ -560,9 +573,21 @@ This recommendation is separate from the intentionally narrow legacy-Altro exclu
 
 ### M2 Version and modification semantics are not uniform
 
-**Status: Open for version/modification semantics.** C6 now identifies published
-digest changes by content ETag; the per-model edit-version and `modified_at`
-contracts remain to be clarified.
+**Status: Fixed, 1 November 2026.** The [version/timestamp proposal](proposal-m2-versioning.md)
+records the pre-M2 inventory and one implementation/test commit for each of its
+11 changed rows. Nonempty partial domain saves update their row clock; empty
+saves remain no-ops. One intervention totals service locks parents before child
+writes and aggregate reads. A first-mark or first-manual-harvest transition and
+its total share one history event/token increment; later total-only writes
+preserve metadata edit tokens and skip unchanged totals. User, SiteSettings,
+Ipso staging and M1's species snapshot retain their separate contracts.
+
+Testing corrected row 14: the schema already forbids an active unstructured
+survey. The apparent PAI repair was unreachable and has been removed, with
+constraint/no-op/collision coverage. No schema change or timestamp backfill is
+required. Optional edit-helper cleanup and the separate shared-tree concurrency
+investigation remain outside this bounded implementation. Digest identity
+continues to use C6's content ETag.
 
 Sources: [timestamped model](../apps/base/models.py), `TimestampedModel`; [marked-volume materialization](../apps/piano_di_taglio/mark_import.py), `rematerialize_volume_marked`; [actual-volume materialization](../apps/prelievi/views.py), line 332.
 
@@ -572,9 +597,24 @@ A derived-only update need not necessarily invalidate an unrelated edit form, so
 
 ### M3 Consolidate policy duplication before cosmetic duplication
 
-**Status: Partly addressed.** C2/C11 centralize write/receipt/invalidation
-boundaries, C4 shares target-scope validation, and C10 consolidates typed parsing
-and validation responses. Broader service/module cleanup remains optional work.
+**Status: Agreed scope complete, 1 November 2026; naming boundary paused.**
+The [duplication/naming audit](audit-m3-duplication-and-naming.md) and
+[32-entry inventory](audit-m3-inventory.csv) retain the original proposals and
+record the final disposition. D01–D15 each have a separate commit. D01/D02 are
+covered by M2; D03/D04 build on M1's database species/equation configuration.
+New parity and frozen-vector tests protect deliberately separate protocol
+decoders, scientific runtimes and identity serializers. Code changes share
+operation dependencies, the pure distance/palette cores, geometry aliases,
+import defaults, directory durability and section binding. Distance now uses
+the requested mean radius of 6371009 m; polygon-area computation retains its
+existing Leaflet convention.
+
+Three further commits rename server locals/private CSV fields, desktop private
+view data/helper options and transient mobile state. English symbols explicitly
+identify legacy query fields. IndexedDB rows, reference keys, pending envelopes,
+wire values, CSV headers, routes, source GeoJSON properties and stored preference
+keys retain their compatibility contracts. Further naming adapters/migrations
+await review. No blanket serializer or CRUD framework was introduced.
 
 There are useful shared components already: response envelopes, row builders, CSV utilities, species selection, domain import helpers, and shared diameter-class logic. Reusing row builders between patches and full digests is particularly valuable and should be retained.
 

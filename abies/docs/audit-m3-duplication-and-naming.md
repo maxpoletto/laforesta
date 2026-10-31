@@ -3,7 +3,9 @@
 30 October 2026. Reviewed revision: `8d0aaa98e30ec1d00de93f66f49262e73282a37d`.
 Original audit and proposed resolutions are retained below. Implementation
 progress after M1/M2 is recorded at the end and in the inventory status columns.
-Stored/offline/wire naming changes remain deferred pending review.
+Updated 1 November 2026: D01–D15 dispositions are complete in separate commits,
+followed by three internal naming commits. Stored/offline/wire naming changes
+remain paused at the requested review boundary.
 
 The row-by-row inventory is in [audit-m3-inventory.csv](audit-m3-inventory.csv).
 IDs below correspond to that file. Priorities describe implementation order;
@@ -300,20 +302,61 @@ Italian field names.
 One commit per D finding; already-resolved or intentional duplication is
 recorded without introducing a redundant refactor.
 
-| Finding | Status | Result / verification |
+| Finding | Status | Result / verification | Commit |
+| --- | --- | --- | --- |
+| D01 | Covered by M2 | One intervention totals owner now serves manual/CSV writes; parent locks precede mutations/SUM; distinct marked NULL and actual zero rules retained. M2 totals, rollback and CSV regressions cover it. | `9f36486` |
+| D02 | Covered by M2 | Row clocks now cover partial writes; accepted edits own tokens; total-only writes preserve metadata tokens; User, SiteSettings and staging intentionally retain separate contracts. Optional edit-helper cleanup is deferred. | `71f1128` |
+| D03 | Completed | M1 supplies one estimate_volume_and_mass owner for both domains. Removed ignored species-name override parameters; CSV name resolution stays at its boundary. Configured-equation and CSV tests: 36 passed before/after cleanup. | `8fe5694` |
+| D04 | Completed after M1 | Live coefficients already came from DB. Removed the unused browser default/proxy catalogue and name-based API; one-source numeric parity plus DB-to-preview/custom/proxy tests pass (14 Python, preview JS). | `159e09e` |
+| D05 | Completed | Added actual-value parity for 58 explicit wire identifiers across Python, desktop ESM and mobile classic exports; two parity/import tests pass. Kept wire values and deliberate UI/default/preference differences unchanged. | `3042595` |
+| D06 | Existing sharing retained; contract tested | Keep strict native JSON integers/booleans, form integer strings and spreadsheet integral CSV values distinct. They converge on existing normalize_sample_tree_values/decimal_field_value policy. Cross-edge/domain/parser matrix: 91 passed; no permissive universal decoder added. | `1e91a15` |
+| D07 | Completed | One mark/harvest dependency description drives dirtiness and client invalidation, excluding patched/deleted datasets. Fixed ignored CSV/staged-import envelopes. Python dependent-cache and JS import regressions failed first; 311 write tests, 21 Ipso tests and affected JS suites pass. | `08e1b0f` |
+| D08 | Retained with parity coverage | Kept server, live UI and offline algorithms. Shared cross-runtime diameter/area fixtures and explicit Ipso whole-metre height/unknown cases pass (7 Python tests); configured-volume rounding parity remains covered by D04. | `74fd434` |
+| D09 | Completed | Unified Haversine distance at the requested WGS84 mean radius 6371009 m; reused the geometry bridge with an offline-precached pure core. Radius regression failed first; 5 Python, 36 geometry, 66 upload and 162 app-shell checks pass, including edge/nearest/captured-ID cases. Ipso 1.5.6. | `801c9a5` |
+| D10 | Completed | Added canonical parcelIdentity adapter and retained legacy parcelNames shape. Desktop now accepts the same layer/name and Italian aliases as Python, with precedence and string labels preserved. Alias parity failed first; geometry and importer tests pass. | `7f11b15` |
+| D11 | Completed | Extracted one pure palette owner shared by desktop charts and mobile markers; kept distinct formatter string-coercion behavior under explicit tests. Core is synchronously loaded and precached offline. Palette/display/shell tests (5) and chart/map/format JS suites pass. | `8d97cbb` |
+| D12 | Completed | Kept separate structured/free orchestrators; extracted only identical species-ID lookup and session-operator defaults. Added cross-mode rename/operator-override fixtures; 39 importer/context tests pass, including number and identity edge cases. | `70bac58` |
+| D13 | Completed | Shared fsync_directory preserves descriptor close on success/failure; staging text writes delegate to its byte writer. Kept photo/staging publication and rollback workflows separate. New primitive contract failed before extraction; 170 durability/photo/backup/upload tests pass. | `697d111` |
+| D14 | Completed | Added a small shared page-section binder used by Campionamenti and Prelievi. Restores URL state without initial click effects; callers retain rendering/URL policy. New binder test failed first; binder, 31 sampling and 54 harvest JS checks pass. Classic test bootstraps remain explicit. | `87110b0` |
+| D15 | Retained with frozen vectors | Kept distinct CSV v2, legacy CSV, Ipso-record, staged-payload and authenticated-request serializers. Added frozen Unicode/decimal/URL golden hashes before naming cleanup. Frozen vectors and nonce/rollback suite: 22 passed; no identity serializer extraction or durable hash changes. | `73f3a5f` |
+
+### Internal naming completed; pause boundary
+
+The original naming inventory remains a proposal for stored/reference formats.
+Its status columns now distinguish completed internal work from the changes
+awaiting review:
+
+| Commit | Scope | Compatibility evidence |
 | --- | --- | --- |
-| D01 | Covered by M2 | One intervention totals owner now serves manual/CSV writes; parent locks precede mutations/SUM; distinct marked NULL and actual zero rules retained. M2 totals, rollback and CSV regressions cover it. |
-| D02 | Covered by M2 | Row clocks now cover partial writes; accepted edits own tokens; total-only writes preserve metadata tokens; User, SiteSettings and staging intentionally retain separate contracts. Optional edit-helper cleanup is deferred. |
-| D03 | Completed | M1 supplies one estimate_volume_and_mass owner for both domains. Removed ignored species-name override parameters; CSV name resolution stays at its boundary. Configured-equation and CSV tests: 36 passed before/after cleanup. |
-| D04 | Completed after M1 | Live coefficients already came from DB. Removed the unused browser default/proxy catalogue and name-based API; one-source numeric parity plus DB-to-preview/custom/proxy tests pass (14 Python, preview JS). |
-| D05 | Completed | Added actual-value parity for 58 explicit wire identifiers across Python, desktop ESM and mobile classic exports; two parity/import tests pass. Kept wire values and deliberate UI/default/preference differences unchanged. |
-| D06 | Existing sharing retained; contract tested | Keep strict native JSON integers/booleans, form integer strings and spreadsheet integral CSV values distinct. They converge on existing normalize_sample_tree_values/decimal_field_value policy. Cross-edge/domain/parser matrix: 91 passed; no permissive universal decoder added. |
-| D07 | Completed | One mark/harvest dependency description drives dirtiness and client invalidation, excluding patched/deleted datasets. Fixed ignored CSV/staged-import envelopes. Python dependent-cache and JS import regressions failed first; 311 write tests, 21 Ipso tests and affected JS suites pass. |
-| D08 | Retained with parity coverage | Kept server, live UI and offline algorithms. Shared cross-runtime diameter/area fixtures and explicit Ipso whole-metre height/unknown cases pass (7 Python tests); configured-volume rounding parity remains covered by D04. |
-| D09 | Completed | Unified Haversine distance at the requested WGS84 mean radius 6371009 m; reused the geometry bridge with an offline-precached pure core. Radius regression failed first; 5 Python, 36 geometry, 66 upload and 162 app-shell checks pass, including edge/nearest/captured-ID cases. Ipso 1.5.6. |
-| D10 | Completed | Added canonical parcelIdentity adapter and retained legacy parcelNames shape. Desktop now accepts the same layer/name and Italian aliases as Python, with precedence and string labels preserved. Alias parity failed first; geometry and importer tests pass. |
-| D11 | Completed | Extracted one pure palette owner shared by desktop charts and mobile markers; kept distinct formatter string-coercion behavior under explicit tests. Core is synchronously loaded and precached offline. Palette/display/shell tests (5) and chart/map/format JS suites pass. |
-| D12 | Completed | Kept separate structured/free orchestrators; extracted only identical species-ID lookup and session-operator defaults. Added cross-mode rename/operator-override fixtures; 39 importer/context tests pass, including number and identity edge cases. |
-| D13 | Completed | Shared fsync_directory preserves descriptor close on success/failure; staging text writes delegate to its byte writer. Kept photo/staging publication and rollback workflows separate. New primitive contract failed before extraction; 170 durability/photo/backup/upload tests pass. |
-| D14 | Completed | Added a small shared page-section binder used by Campionamenti and Prelievi. Restores URL state without initial click effects; callers retain rendering/URL policy. New binder test failed first; binder, 31 sampling and 54 harvest JS checks pass. Classic test bootstraps remain explicit. |
-| D15 | Retained with frozen vectors | Kept distinct CSV v2, legacy CSV, Ipso-record, staged-payload and authenticated-request serializers. Added frozen Unicode/decimal/URL golden hashes before naming cleanup. Frozen vectors and nonce/rollback suite: 22 passed; no identity serializer extraction or durable hash changes. |
+| `8a8d72c` | Server locals, parser functions and private CSV mappings: English region/parcel/species/number and explicit plan fields | Existing CSV/import/view fixtures and frozen retry identities pass; filenames, headers, accepted aliases and payloads retained |
+| `d22fd85` | Desktop region/parcel view data, tree-preview option, grid-planner fields and helper/local symbols; English symbols for legacy query keys | Full JS suite plus map-tooltip/header and wire-literal checks pass; string parcel labels such as `01b` preserved |
+| `74404ae` | Transient mobile `speciesName`/`parcelFeatures`, selector/lookup helpers, and session/record locals | Full JS suite includes cached boot, legacy resume, CSV/export, saved snapshots, captured IDs and pending-upload retries; durable row fields remain encoded explicitly |
+
+N13–N15 and N17 have their internal portion completed; N16 is covered by M1.
+N01–N10 remain paused at stored/reference boundaries. N11 preference keys and
+N12 route/mode/file/DOM identifiers retain their existing compatibility values.
+No IndexedDB, reference-bundle, upload-schema, pending-envelope or localStorage
+migration has been introduced. Do not begin that next stage without review.
+
+Cross-language algorithms and protocol-specific decoders deliberately remain
+where their runtime/input contracts differ (D06/D08). Identity serializers stay
+separate because their bytes identify different durable operations (D15).
+D01/D02 required no redundant implementation after M2; their commits record the
+shared owner and tested contract. D04 removes obsolete browser configuration,
+while live previews continue to consume M1's database coefficients.
+
+### Final verification, 1 November 2026
+
+- Full Python suite: **1,927 passed** on the Python 3.14 test environment.
+- `make test-js`: all suites passed, including the 163 mobile app-shell checks,
+  scientific/configuration parity, offline storage/export/upload and desktop
+  controllers. Desktop map identity checks preserve leading-zero parcel names.
+- Django `check`: no issues. `makemigrations --check --dry-run`: no changes.
+  These checks used an isolated temporary database configuration.
+- `git diff --check`: clean. No production database, deployment or push was
+  performed. Existing untracked worktree files remain untouched.
+
+This is automated local verification. No real-browser/device smoke test or
+multi-connection PostgreSQL concurrency test was run. M2's deterministic
+aggregate-ordering regressions and rollback tests cover its current write
+contract; verify actual overlapping writers against PostgreSQL when introduced.
