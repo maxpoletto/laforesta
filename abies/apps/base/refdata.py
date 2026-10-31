@@ -3,7 +3,7 @@
 These tables and the in-repo species defaults have a single home so bootstrap
 and the sampled-trees core share the same canonical aliases/defaults:
 
-- ``GENERE_MAP``  — CSV ``Genere`` → ``Species.common_name`` aliasing (sampled
+- ``SPECIES_NAME_ALIASES``  — CSV ``Genere`` → ``Species.common_name`` aliasing (sampled
   trees), to absorb minor naming drift between the survey files and Abies.
 - ``SPECIES_CSV`` / ``load_species()`` — the in-repo canonical species list
   (``apps/base/data/species.csv``), seeded as the default when a data dir omits
@@ -48,7 +48,7 @@ def load_species() -> list[
 # CSV Genere → Species.common_name.  Most species match by name; a couple of
 # synonyms are mapped explicitly so the import is robust to minor naming drift
 # between the survey files (pdg-2026 lineage) and Abies.
-GENERE_MAP = {
+SPECIES_NAME_ALIASES = {
     'Abete': 'Abete',
     'Castagno': 'Castagno',
     'Douglas': 'Douglas',

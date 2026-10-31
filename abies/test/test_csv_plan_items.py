@@ -129,7 +129,7 @@ def test_apply_row_id_update_bumps_item_version(parcels, species):
 
     csv_plan.apply(
         target_plan=plan, name=plan.name, description=plan.description,
-        fustaia_parsed=[{
+        highforest_rows=[{
             ROW_ID: item.id,
             FIELD_REGION_ID: None,
             FIELD_PARCEL_ID: parcels[0],
@@ -139,7 +139,7 @@ def test_apply_row_id_update_bumps_item_version(parcels, species):
             FIELD_UNHEALTHY: False,
             FIELD_PSR: False,
         }],
-        ceduo_parsed=[],
+        coppice_rows=[],
     )
 
     item.refresh_from_db()

@@ -1803,8 +1803,8 @@ class TestItemExport:
         text = zf.read(f'martellate_{planned_item.id}.csv').decode('utf-8-sig')
         delimiter, _ = csv_io.export_format()
         rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
-        numero = rows[1][rows[0].index(S.CSV_COL_NUMBER)]
-        assert numero == '1440', f'expected mark number 1440, got {numero!r}'
+        number = rows[1][rows[0].index(S.CSV_COL_NUMBER)]
+        assert number == '1440', f'expected mark number 1440, got {number!r}'
 
     def test_export_unknown_height_as_blank(
         self, writer_client, planned_item, species,

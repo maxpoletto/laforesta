@@ -4,7 +4,7 @@ bootstrap file.
 
 Each valid row creates a physical ``Tree(coppice=False)`` and
 one preserved ``TreeSample`` observation row.  Species are resolved by
-``common_name.lower()`` (strict canonical — no GENERE_MAP aliasing).  Lon/Lat
+``common_name.lower()`` (strict canonical — no SPECIES_NAME_ALIASES aliasing).  Lon/Lat
 are converted via ``reader.decimal`` → ``coord_float``.
 """
 
@@ -73,17 +73,17 @@ def validate_rows(reader, idx: PreservedIndexes):
     parsed = []
     seen_numbers = set(idx.preserved_numbers)
     for i, row in enumerate(reader, 2):
-        compresa = (row.get(S.CSV_COL_REGION) or '').strip()
-        particella = (row.get(S.CSV_COL_PARCEL) or '').strip()
-        parcel = idx.parcels.get((compresa.lower(), particella))
+        region_name = (row.get(S.CSV_COL_REGION) or '').strip()
+        parcel_name = (row.get(S.CSV_COL_PARCEL) or '').strip()
+        parcel = idx.parcels.get((region_name.lower(), parcel_name))
         if parcel is None:
-            errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella))
+            errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(i, region_name, parcel_name))
             continue
 
-        genere = (row.get(S.CSV_COL_SPECIES) or '').strip()
-        sp = idx.species.get(genere.lower())
+        species_name = (row.get(S.CSV_COL_SPECIES) or '').strip()
+        sp = idx.species.get(species_name.lower())
         if sp is None:
-            errors.append(S.ERR_CSV_ROW_SPECIES.format(i, genere))
+            errors.append(S.ERR_CSV_ROW_SPECIES.format(i, species_name))
             continue
 
         number = reader.integer(row.get(S.CSV_COL_NUMBER))
@@ -98,7 +98,7 @@ def validate_rows(reader, idx: PreservedIndexes):
         if number_key in seen_numbers:
             errors.append(S.ERR_CSV_DUPLICATE_KEY.format(
                 i, f'{S.CSV_COL_PARCEL}/{S.CSV_COL_NUMBER}',
-                f'{compresa} {particella}/{number}',
+                f'{region_name} {parcel_name}/{number}',
             ))
             continue
         seen_numbers.add(number_key)

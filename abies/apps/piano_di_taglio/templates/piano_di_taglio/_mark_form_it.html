@@ -27,7 +27,7 @@ the h_measured flag is set implicitly if the user edits h manually
 
     <div class="form-readonly-flat">
       <div>
-        <span class="label">Compresa:</span> {{ compresa }}
+        <span class="label">Compresa:</span> {{ region_name }}
       </div>
       {% if parcel_choices %}
         <div class="form-group narrow">
@@ -43,7 +43,7 @@ the h_measured flag is set implicitly if the user edits h manually
         </div>
       {% else %}
         <div>
-          <span class="label">Particella:</span> {{ particella }}
+          <span class="label">Particella:</span> {{ parcel_name }}
         </div>
       {% endif %}
     </div>

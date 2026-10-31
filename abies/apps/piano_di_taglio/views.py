@@ -288,30 +288,30 @@ def plan_csv_import_view(request):
             return validation_error([S.ERR_PLAN_NAME_DUPLICATE])
 
     try:
-        fustaia_upload = csv_io.json_file_bytes(body, FIELD_HIGHFOREST_FILE)
-        ceduo_upload = csv_io.json_file_bytes(body, FIELD_COPPICE_FILE)
+        highforest_upload = csv_io.json_file_bytes(body, FIELD_HIGHFOREST_FILE)
+        coppice_upload = csv_io.json_file_bytes(body, FIELD_COPPICE_FILE)
     except csv_io.CsvError as e:
         return validation_error([str(e)])
 
-    fustaia_rows = csv_plan.read_optional(
-        fustaia_upload, csv_plan.HIGHFOREST_REQUIRED, csv_plan.HIGHFOREST_OPTIONAL)
-    ceduo_rows = csv_plan.read_optional(
-        ceduo_upload, csv_plan.COPPICE_REQUIRED, csv_plan.COPPICE_OPTIONAL)
-    if fustaia_rows is None and ceduo_rows is None:
+    highforest_csv = csv_plan.read_optional(
+        highforest_upload, csv_plan.HIGHFOREST_REQUIRED, csv_plan.HIGHFOREST_OPTIONAL)
+    coppice_csv = csv_plan.read_optional(
+        coppice_upload, csv_plan.COPPICE_REQUIRED, csv_plan.COPPICE_OPTIONAL)
+    if highforest_csv is None and coppice_csv is None:
         return validation_error([S.ERR_CSV_NO_FILES])
-    for result in (fustaia_rows, ceduo_rows):
+    for result in (highforest_csv, coppice_csv):
         if isinstance(result, csv_plan.CsvError):
             return validation_error([result.message])
 
     idx = csv_plan.db_indexes()
     errors: list[str] = []
-    fustaia_parsed = (
-        csv_plan.parse_fustaia_rows(fustaia_rows, idx.parcels, idx.regions, errors)
-        if fustaia_rows else []
+    highforest_rows = (
+        csv_plan.parse_highforest_rows(highforest_csv, idx.parcels, idx.regions, errors)
+        if highforest_csv else []
     )
-    ceduo_parsed = (
-        csv_plan.parse_ceduo_rows(ceduo_rows, idx.parcels, errors)
-        if ceduo_rows else []
+    coppice_rows = (
+        csv_plan.parse_coppice_rows(coppice_csv, idx.parcels, errors)
+        if coppice_csv else []
     )
     if errors:
         return csv_error_list(errors)
@@ -320,7 +320,7 @@ def plan_csv_import_view(request):
         begin_nonce_write(request)
         plan, n_items = csv_plan.apply(
             target_plan=target_plan, name=name, description=description,
-            fustaia_parsed=fustaia_parsed, ceduo_parsed=ceduo_parsed,
+            highforest_rows=highforest_rows, coppice_rows=coppice_rows,
         )
     except csv_plan.PlanItemValidationError as exc:
         return csv_error_list(exc.errors)
@@ -894,8 +894,8 @@ def mark_form_view(request, mark_id: int | None = None):
             raise Http404
 
     species = list(selectable_species(existing_id=tree.species_id if tree else None))
-    compresa = (item.region or item.parcel.region).name if (item.region or item.parcel) else ''
-    particella = item.parcel.name if item.parcel else ''
+    region_name = (item.region or item.parcel.region).name if (item.region or item.parcel) else ''
+    parcel_name = item.parcel.name if item.parcel else ''
 
     # Region-wide items: offer a parcel pulldown.
     parcel_choices = None
@@ -915,8 +915,8 @@ def mark_form_view(request, mark_id: int | None = None):
         'tree': tree,
         'item': item,
         'species': species,
-        'compresa': compresa,
-        'particella': particella,
+        'region_name': region_name,
+        'parcel_name': parcel_name,
         'parcel_choices': parcel_choices,
         'selected_parcel_id': selected_parcel_id,
         'next_number': next_number,
@@ -952,7 +952,7 @@ def _parse_optional_mark_number(body: dict):
 
 
 def _parse_csv_mark_number(reader, row: dict):
-    raw = row.get('numero')
+    raw = row.get('number')
     if raw is None or str(raw).strip() == '':
         return None, None
     number = reader.integer(raw)
@@ -1243,20 +1243,20 @@ def mark_csv_import_view(request):
         return validation_error([S.ERR_MARK_ITEM_CLOSED])
 
     result = csv_plan.read_optional(upload, required={
-        'date':      [S.CSV_COL_DATA],
-        'compresa':  [S.CSV_COL_REGION],
-        'particella': [S.CSV_COL_PARCEL],
-        'species':   MARK_CSV_SPECIES_HEADERS,
-        'd_cm':      [S.CSV_COL_D_CM],
-        'h_m':       [S.CSV_COL_H_M],
-        'lat':       [S.CSV_COL_LAT],
-        'lon':       [S.CSV_COL_LON],
+        'date': [S.CSV_COL_DATA],
+        'region_name': [S.CSV_COL_REGION],
+        'parcel_name': [S.CSV_COL_PARCEL],
+        'species_name': MARK_CSV_SPECIES_HEADERS,
+        'd_cm': [S.CSV_COL_D_CM],
+        'h_m': [S.CSV_COL_H_M],
+        'lat': [S.CSV_COL_LAT],
+        'lon': [S.CSV_COL_LON],
     }, optional={
-        'catastrofata': [S.CSV_COL_DAMAGED],
-        'numero':    [S.CSV_COL_NUMBER],
+        'damaged': [S.CSV_COL_DAMAGED],
+        'number': [S.CSV_COL_NUMBER],
         'h_measured': [S.CSV_COL_H_MEASURED],
-        'acc_m':     [S.CSV_COL_ACC_M],
-        'operator':  [S.CSV_COL_OPERATOR],
+        'acc_m': [S.CSV_COL_ACC_M],
+        'operator': [S.CSV_COL_OPERATOR],
     })
     if isinstance(result, csv_plan.CsvError):
         return validation_error([result.message])
@@ -1273,9 +1273,9 @@ def mark_csv_import_view(request):
     parsed = []
     for i, row in enumerate(rows, start=1):
         date_str = row['date'].strip()
-        compresa = row['compresa'].strip()
-        particella = row['particella'].strip()
-        species_name = row['species'].strip()
+        region_name = row['region_name'].strip()
+        parcel_name = row['parcel_name'].strip()
+        species_name = row['species_name'].strip()
         operator = row.get('operator', '').strip()
 
         try:
@@ -1284,10 +1284,10 @@ def mark_csv_import_view(request):
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, date_str))
             continue
 
-        parcel = parcel_map.get((compresa.lower(), particella.lower()))
+        parcel = parcel_map.get((region_name.lower(), parcel_name.lower()))
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
-                i, compresa, particella))
+                i, region_name, parcel_name))
             continue
         if not mark_parcel_matches_item(item, parcel):
             errors.append(S.ERR_MARK_ROW_TARGET_MISMATCH.format(i))
@@ -1325,17 +1325,17 @@ def mark_csv_import_view(request):
             continue
         h_measured = bool(h_measured)
 
-        numero, numero_error = _parse_csv_mark_number(reader, row)
-        if numero_error is not None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, numero_error))
+        number, number_error = _parse_csv_mark_number(reader, row)
+        if number_error is not None:
+            errors.append(S.ERR_CSV_ROW_PARSE.format(i, number_error))
             continue
         parsed.append(MarkImportRow(
             date=date, parcel=parcel, species=species,
-            number=numero, d_cm=d_cm, h_m=h_m, h_measured=h_measured,
+            number=number, d_cm=d_cm, h_m=h_m, h_measured=h_measured,
             lat=lat, lon=lon, acc_m=acc_m, operator=operator,
             fingerprint=csv_mark_fingerprint(
                 source_row=i, date=date, parcel_id=parcel.id,
-                species_id=species.id, number=numero, d_cm=d_cm, h_m=h_m,
+                species_id=species.id, number=number, d_cm=d_cm, h_m=h_m,
                 h_measured=h_measured, lat=lat, lon=lon, acc_m=acc_m,
                 operator=operator,
             ),

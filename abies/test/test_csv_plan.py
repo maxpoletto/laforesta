@@ -42,7 +42,7 @@ def _ceduo(csv_text):
 def test_parse_fustaia_happy(parcels):
     idx = csv_plan.db_indexes()
     errors = []
-    parsed = csv_plan.parse_fustaia_rows(_fustaia(FUSTAIA_CSV), idx.parcels, idx.regions, errors)
+    parsed = csv_plan.parse_highforest_rows(_fustaia(FUSTAIA_CSV), idx.parcels, idx.regions, errors)
     assert errors == []
     assert len(parsed) == 1
     assert parsed[0][csv_plan.FIELD_YEAR_PLANNED] == 2027
@@ -60,7 +60,7 @@ def test_parse_fustaia_parcel_name_matching_is_case_insensitive(parcels):
         'Compresa,Particella,Anno,Prelievo (m³)\r\n'
         f'{parcel.region.name.upper()},{parcel.name.lower()},2027,250\r\n'
     )
-    parsed = csv_plan.parse_fustaia_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
+    parsed = csv_plan.parse_highforest_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
     assert errors == []
     assert parsed[0][csv_plan.FIELD_PARCEL_ID] == parcel
 
@@ -77,7 +77,7 @@ def test_parse_ceduo_parcel_name_matching_is_case_insensitive(parcels):
         'Anno,Compresa,Particella,Superficie intervento (ha),Turno (a),Note\r\n'
         f'2028,{parcel.region.name.upper()},{parcel.name.lower()},2.5,18,Cont.\r\n'
     )
-    parsed = csv_plan.parse_ceduo_rows(_ceduo(csv_in), idx.parcels, errors)
+    parsed = csv_plan.parse_coppice_rows(_ceduo(csv_in), idx.parcels, errors)
     assert errors == []
     assert parsed[0][csv_plan.FIELD_PARCEL_ID] == parcel
 
@@ -87,7 +87,7 @@ def test_parse_fustaia_unknown_parcel_flagged(parcels):
     idx = csv_plan.db_indexes()
     errors = []
     bad = 'Compresa,Particella,Anno,Prelievo (m³)\r\nCapistrano,999,2027,250\r\n'
-    parsed = csv_plan.parse_fustaia_rows(_fustaia(bad), idx.parcels, idx.regions, errors)
+    parsed = csv_plan.parse_highforest_rows(_fustaia(bad), idx.parcels, idx.regions, errors)
     assert parsed == []
     assert len(errors) == 1
 
@@ -100,7 +100,7 @@ def test_parse_fustaia_whole_region_with_flag(parcels):
         f'Compresa,Particella,Anno,Prelievo (m³),Note\r\n'
         f'Capistrano,{S.PARCEL_WHOLE_REGION_MARK},2027,250,{S.FLAG_DAMAGED}\r\n'
     )
-    parsed = csv_plan.parse_fustaia_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
+    parsed = csv_plan.parse_highforest_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
     assert errors == []
     assert len(parsed) == 1
     assert parsed[0][csv_plan.FIELD_PARCEL_ID] is None
@@ -116,7 +116,7 @@ def test_parse_fustaia_whole_region_without_flag_flagged(parcels):
         f'Compresa,Particella,Anno,Prelievo (m³),Note\r\n'
         f'Capistrano,{S.PARCEL_WHOLE_REGION_MARK},2027,250,\r\n'
     )
-    parsed = csv_plan.parse_fustaia_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
+    parsed = csv_plan.parse_highforest_rows(_fustaia(csv_in), idx.parcels, idx.regions, errors)
     assert parsed == []
     assert len(errors) == 1
 
@@ -125,12 +125,12 @@ def test_parse_fustaia_whole_region_without_flag_flagged(parcels):
 def test_apply_creates_plan_items_and_detail(parcels):
     idx = csv_plan.db_indexes()
     errors = []
-    fustaia = csv_plan.parse_fustaia_rows(_fustaia(FUSTAIA_CSV), idx.parcels, idx.regions, errors)
-    ceduo = csv_plan.parse_ceduo_rows(_ceduo(CEDUO_CSV), idx.parcels, errors)
+    highforest = csv_plan.parse_highforest_rows(_fustaia(FUSTAIA_CSV), idx.parcels, idx.regions, errors)
+    coppice = csv_plan.parse_coppice_rows(_ceduo(CEDUO_CSV), idx.parcels, errors)
     assert errors == []
     plan, n_items = csv_plan.apply(
         target_plan=None, name='Unit plan', description='',
-        fustaia_parsed=fustaia, ceduo_parsed=ceduo)
+        highforest_rows=highforest, coppice_rows=coppice)
     assert n_items == 2
     assert plan.year_start == 2027 and plan.year_end == 2028
     assert HarvestPlanItem.objects.filter(harvest_plan=plan).count() == 2

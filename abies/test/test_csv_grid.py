@@ -32,11 +32,11 @@ def _reader(csv_text):
 def test_validate_rows_happy_path(parcels):
     parcel = parcels[0]
     grid = SampleGrid.objects.create(name='vr-happy')
-    compresa = parcel.region.name
-    particella = parcel.name
+    region_name = parcel.region.name
+    parcel_name = parcel.name
     reader = _reader(
         'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-        f'{compresa},{particella},10,16.1,38.5,500,15\n'
+        f'{region_name},{parcel_name},10,16.1,38.5,500,15\n'
     )
     cols, missing = csv_grid.resolve_columns(reader.fieldnames)
     assert not missing
@@ -66,11 +66,11 @@ def test_validate_rows_blank_radius_flagged(parcels):
 def test_validate_rows_unparseable_radius_flagged(parcels):
     parcel = parcels[0]
     grid = SampleGrid.objects.create(name='vr-bad-radius')
-    compresa = parcel.region.name
-    particella = parcel.name
+    region_name = parcel.region.name
+    parcel_name = parcel.name
     reader = _reader(
         'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-        f'{compresa},{particella},10,16.1,38.5,500,abc\n'
+        f'{region_name},{parcel_name},10,16.1,38.5,500,abc\n'
     )
     cols, _ = csv_grid.resolve_columns(reader.fieldnames)
     parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
@@ -130,12 +130,12 @@ def test_validate_rows_unknown_parcel_flagged(parcels):
 def test_validate_rows_duplicate_within_upload_flagged(parcels):
     parcel = parcels[0]
     grid = SampleGrid.objects.create(name='vr-dup')
-    compresa = parcel.region.name
-    particella = parcel.name
+    region_name = parcel.region.name
+    parcel_name = parcel.name
     reader = _reader(
         'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-        f'{compresa},{particella},10,16.1,38.5,500,15\n'
-        f'{compresa},{particella},10,16.2,38.6,510,15\n'
+        f'{region_name},{parcel_name},10,16.1,38.5,500,15\n'
+        f'{region_name},{parcel_name},10,16.2,38.6,510,15\n'
     )
     cols, _ = csv_grid.resolve_columns(reader.fieldnames)
     parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
@@ -152,11 +152,11 @@ def test_validate_rows_existing_db_key_flagged(parcels):
         sample_grid=grid, parcel=parcel, number='10',
         lat=16.1, lon=38.5, r_m=12,
     )
-    compresa = parcel.region.name
-    particella = parcel.name
+    region_name = parcel.region.name
+    parcel_name = parcel.name
     reader = _reader(
         'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-        f'{compresa},{particella},10,16.2,38.6,510,15\n'
+        f'{region_name},{parcel_name},10,16.2,38.6,510,15\n'
     )
     cols, _ = csv_grid.resolve_columns(reader.fieldnames)
     parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))
@@ -203,11 +203,11 @@ def test_validate_rows_same_number_different_regions_ok(parcels):
 def test_apply_creates_sample_areas(parcels):
     parcel = parcels[0]
     grid = SampleGrid.objects.create(name='apply-create')
-    compresa = parcel.region.name
-    particella = parcel.name
+    region_name = parcel.region.name
+    parcel_name = parcel.name
     reader = _reader(
         'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-        f'{compresa},{particella},10,16.1,38.5,500,15\n'
+        f'{region_name},{parcel_name},10,16.1,38.5,500,15\n'
     )
     cols, _ = csv_grid.resolve_columns(reader.fieldnames)
     parsed, errors = csv_grid.validate_rows(reader, cols, csv_grid.db_indexes(grid))

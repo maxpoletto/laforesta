@@ -135,16 +135,16 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
     seen: set[tuple[int, int]] = set()
     for i, raw in enumerate(reader, 2):
         row = {(k or '').strip().lower(): v for k, v in raw.items()}
-        compresa = (row.get(S.CSV_COL_REGION.lower()) or '').strip()
-        genere = (row.get(S.CSV_COL_SPECIES.lower()) or '').strip()
+        region_name = (row.get(S.CSV_COL_REGION.lower()) or '').strip()
+        species_name = (row.get(S.CSV_COL_SPECIES.lower()) or '').strip()
         function = (row.get(S.CSV_COL_FUNCTION) or '').strip().lower()
-        region = region_cache.get(compresa.lower())
+        region = region_cache.get(region_name.lower())
         if region is None:
-            errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
+            errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, region_name))
             continue
-        species = species_cache.get(genere.lower())
+        species = species_cache.get(species_name.lower())
         if species is None:
-            errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, genere))
+            errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, species_name))
             continue
         if function != HYPSO_FUNC_LN:
             errors.append(S.ERR_CSV_FUNCTION_INVALID.format(i, function))
@@ -167,7 +167,7 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
             continue
         key = (region.id, species.id)
         if key in seen:
-            errors.append(S.ERR_CSV_DUPLICATE_PARAM.format(i, compresa, genere))
+            errors.append(S.ERR_CSV_DUPLICATE_PARAM.format(i, region_name, species_name))
             continue
         seen.add(key)
         rows.append(ParamRow(region, species, a, b, r2, n))

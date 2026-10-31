@@ -18,7 +18,7 @@ from apps.base.models import (
 )
 from apps.base.numparse import coord_float
 from apps.base.preserved_trees import latest_preserved_tree_samples
-from apps.base.refdata import GENERE_MAP
+from apps.base.refdata import SPECIES_NAME_ALIASES
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
 from config import strings as S
 from config.constants import (
@@ -179,22 +179,22 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
     errors = []
     parsed = []
     for i, row in enumerate(reader, 2):
-        compresa = row[S.CSV_COL_REGION].strip()
-        particella = row[S.CSV_COL_PARCEL].strip()
+        region_name = row[S.CSV_COL_REGION].strip()
+        parcel_name = row[S.CSV_COL_PARCEL].strip()
         if idx.is_unstructured:
-            adc = ''
+            area_number = ''
             area = None
-            parcel = idx.parcel_cache.get((compresa.lower(), particella))
+            parcel = idx.parcel_cache.get((region_name.lower(), parcel_name))
             if parcel is None:
                 errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
-                    i, compresa, particella,
+                    i, region_name, parcel_name,
                 ))
                 continue
         else:
-            adc = row[S.CSV_COL_SAMPLE_AREA].strip()
-            area = idx.area_cache.get((compresa.lower(), particella, adc))
+            area_number = row[S.CSV_COL_SAMPLE_AREA].strip()
+            area = idx.area_cache.get((region_name.lower(), parcel_name, area_number))
             if area is None:
-                errors.append(S.ERR_CSV_ROW_AREA.format(i, compresa, particella, adc))
+                errors.append(S.ERR_CSV_ROW_AREA.format(i, region_name, parcel_name, area_number))
                 continue
             parcel = area.parcel
         number = reader.integer(row.get(S.CSV_COL_TREE))
@@ -256,23 +256,23 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
         standard = bool(standard)        # required column; blank → False
         preserved = bool(preserved)      # optional; absent/blank → False
         # Fustaia is required: a blank or unrecognised value is an error.
-        fustaia, fustaia_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
-        if not fustaia_ok or fustaia is None:
+        highforest, highforest_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
+        if not highforest_ok or highforest is None:
             errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_HIGHFOREST))
             continue
-        coppice = not fustaia
+        coppice = not highforest
 
-        genere = row[S.CSV_COL_SPECIES].strip()
-        mapped = GENERE_MAP.get(genere, genere)
+        species_name = row[S.CSV_COL_SPECIES].strip()
+        mapped = SPECIES_NAME_ALIASES.get(species_name, species_name)
         species = idx.species_cache.get(mapped.lower())
         if species is None:
-            errors.append(S.ERR_CSV_ROW_SPECIES.format(i, genere))
+            errors.append(S.ERR_CSV_ROW_SPECIES.format(i, species_name))
             continue
         if preserved:
             existing_tree = idx.preserved_tree_by_key.get((parcel.id, values.number))
             if existing_tree is not None and existing_tree.species_id != species.id:
                 errors.append(S.ERR_CSV_ROW_PAI_SPECIES_CONFLICT.format(
-                    i, compresa, particella, values.number,
+                    i, region_name, parcel_name, values.number,
                     existing_tree.species.common_name,
                 ))
                 continue
@@ -305,13 +305,13 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             existing_sample = idx.existing_sample_by_area.get(area.id)
             if existing_sample and existing_sample.date != row_date:
                 errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
-                    i, compresa, particella, adc, existing_sample.date.isoformat(),
+                    i, region_name, parcel_name, area_number, existing_sample.date.isoformat(),
                 ))
                 continue
             previous_date = csv_date_by_area.get(area.id)
             if previous_date is not None and previous_date != row_date:
                 errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
-                    i, compresa, particella, adc, previous_date.isoformat(),
+                    i, region_name, parcel_name, area_number, previous_date.isoformat(),
                 ))
                 continue
             csv_date_by_area.setdefault(area.id, row_date)

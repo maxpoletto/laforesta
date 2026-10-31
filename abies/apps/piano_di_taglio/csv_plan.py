@@ -2,7 +2,7 @@
 decoder, index builder, and the write transaction, shared by the in-app
 upload view and bootstrap.
 
-``parse_fustaia_rows`` and ``parse_ceduo_rows`` are pure — no DB writes,
+``parse_highforest_rows`` and ``parse_coppice_rows`` are pure — no DB writes,
 foreign keys resolved against an injected ``PlanIndexes`` — so the same
 code can back a true ``--check`` dry-run against a staged index.
 """
@@ -60,38 +60,38 @@ class PlanItemValidationError(Exception):
 # a missing-column error pre-parse; `optional` keys are absent from row
 # dicts when the CSV doesn't carry them.
 HIGHFOREST_REQUIRED = {
-    'compresa':   [S.CSV_COL_REGION],
-    'particella': [S.CSV_COL_PARCEL],
-    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
-    'prelievo':   [S.CSV_COL_HARVEST_M3, S.COL_VOLUME_PLANNED],
+    'region_name': [S.CSV_COL_REGION],
+    'parcel_name': [S.CSV_COL_PARCEL],
+    'year_planned': [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
+    'volume_planned_m3': [S.CSV_COL_HARVEST_M3, S.COL_VOLUME_PLANNED],
 }
 HIGHFOREST_OPTIONAL = {
     # Present in Abies plan exports. Used as row identity when re-importing
     # rows that otherwise share the same plan/parcel/year.
-    'row_id':     [S.COL_ID, ROW_ID],
+    'row_id': [S.COL_ID, ROW_ID],
     # Holds the flag string ("Catastrofato" / "Fitosanitario" / "PSR")
     # in Abies exports; required for region-wide rows (Particella = 'X').
-    'note':       [S.COL_NOTE],
-    # Free text; separate from `note` because Abies exports use `note` for
+    'flag_note': [S.COL_NOTE],
+    # Free text; separate from `flag_note` because Abies exports use `note` for
     # the flag string. Legacy pdg-2026 fustaia CSVs simply omit this.
-    'free_note':  [S.CSV_COL_EXTRA_NOTE],
+    'free_note': [S.CSV_COL_EXTRA_NOTE],
 }
 COPPICE_REQUIRED = {
-    'anno':       [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
-    'compresa':   [S.CSV_COL_REGION],
-    'particella': [S.CSV_COL_PARCEL],
-    'superficie': [S.CSV_COL_SURFACE_HA],                     # 'Superficie intervento (ha)'
-    'turno':      [S.CSV_COL_PERIOD_Y],                           # 'Turno (a)'
+    'year_planned': [S.COL_YEAR_PLANNED, S.CSV_COL_YEAR],
+    'region_name': [S.CSV_COL_REGION],
+    'parcel_name': [S.CSV_COL_PARCEL],
+    'intervention_area_ha': [S.CSV_COL_SURFACE_HA],
+    'period_y': [S.CSV_COL_PERIOD_Y],
 }
 COPPICE_OPTIONAL = {
     # Present in Abies plan exports. Used as row identity when re-importing
     # rows that otherwise share the same plan/parcel/year.
-    'row_id':     [S.COL_ID, ROW_ID],
+    'row_id': [S.COL_ID, ROW_ID],
     # In Abies exports: 'Altre note' = free-text, 'Note' = flag string.
     # In legacy pdg-2026 exports: only 'Note' is present and is itself
-    # free-text — handled by checking `has_altre_note` at parse time.
-    'free_note':  [S.CSV_COL_EXTRA_NOTE],                        # 'Altre note'
-    'flag_note':  [S.COL_NOTE],                                  # 'Note' (flag string)
+    # free-text — handled by checking `has_free_note_column` at parse time.
+    'free_note': [S.CSV_COL_EXTRA_NOTE],
+    'flag_note': [S.COL_NOTE],
 }
 
 
@@ -178,9 +178,9 @@ def read_optional(upload, required, optional=None) -> AliasedCsv | CsvError | No
 # flag inference on import.  Matches the per-flag labels used by
 # `render_flag_note` so a round-trip preserves the boolean.
 _FLAG_KEYWORDS = {
-    'damaged':   S.FLAG_DAMAGED.lower(),
+    'damaged': S.FLAG_DAMAGED.lower(),
     'unhealthy': S.FLAG_UNHEALTHY.lower(),
-    'psr':       S.FLAG_PSR.lower(),
+    'psr': S.FLAG_PSR.lower(),
 }
 
 
@@ -224,7 +224,7 @@ def _parcel_key(region_name, parcel_name):
     return (str(region_name or '').lower(), str(parcel_name or '').lower())
 
 
-def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
+def parse_highforest_rows(data, parcel_cache, region_cache, errors):
     """Parse fustaia.csv rows.  A row is either parcel-scoped (the
     common case) or whole-region (Particella = ``X`` — see
     ``S.PARCEL_WHOLE_REGION_MARK``).  The Note column, when present,
@@ -235,45 +235,45 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
     """
     out = []
     for i, row in enumerate(data.rows, 2):
-        compresa = (row.get('compresa') or '').strip()
-        particella = (row.get('particella') or '').strip()
+        region_name = (row.get('region_name') or '').strip()
+        parcel_name = (row.get('parcel_name') or '').strip()
         row_id, row_id_ok = _optional_row_id(data, row, i, errors)
         if not row_id_ok:
             continue
-        note_raw = (row.get('note') or '').strip()
+        note_raw = (row.get('flag_note') or '').strip()
         damaged, unhealthy, psr = parse_flag_keywords(note_raw)
         is_whole_region = (
-            particella.upper() == S.PARCEL_WHOLE_REGION_MARK.upper()
+            parcel_name.upper() == S.PARCEL_WHOLE_REGION_MARK.upper()
         )
         if is_whole_region:
-            region = region_cache.get(compresa.lower())
+            region = region_cache.get(region_name.lower())
             if region is None:
-                errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
+                errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, region_name))
                 continue
             if not (damaged or unhealthy):
                 errors.append(S.ERR_CSV_WHOLE_REGION_REQUIRES_FLAG.format(
-                    i, particella,
+                    i, parcel_name,
                 ))
                 continue
             parcel = None
         else:
             region = None
-            parcel = parcel_cache.get(_parcel_key(compresa, particella))
+            parcel = parcel_cache.get(_parcel_key(region_name, parcel_name))
             if parcel is None:
                 errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
-                    i, compresa, particella,
+                    i, region_name, parcel_name,
                 ))
                 continue
-        year = data.reader.integer(row.get('anno'))
+        year = data.reader.integer(row.get('year_planned'))
         if year is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_YEAR, row.get('anno', ''),
+                i, S.CSV_COL_YEAR, row.get('year_planned', ''),
             ))
             continue
-        prelievo, prelievo_ok = _optional_decimal(
-            data.reader, row, 'prelievo', i, errors,
+        planned_volume, planned_volume_ok = _optional_decimal(
+            data.reader, row, 'volume_planned_m3', i, errors,
         )
-        if not prelievo_ok:
+        if not planned_volume_ok:
             continue
         parsed = {
             _SOURCE_ROW: i,
@@ -281,7 +281,7 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
             FIELD_REGION_ID: region,
             FIELD_PARCEL_ID: parcel,
             FIELD_YEAR_PLANNED: year,
-            FIELD_VOLUME_PLANNED_M3: prelievo,
+            FIELD_VOLUME_PLANNED_M3: planned_volume,
             FIELD_DAMAGED:   damaged,
             FIELD_UNHEALTHY: unhealthy,
             FIELD_PSR:       psr,
@@ -292,7 +292,7 @@ def parse_fustaia_rows(data, parcel_cache, region_cache, errors):
     return out
 
 
-def parse_ceduo_rows(data, parcel_cache, errors):
+def parse_coppice_rows(data, parcel_cache, errors):
     """Parse ceduo.csv rows.  Disambiguates Abies-exported (`Altre note`
     = free-text + `Note` = flag string) from legacy pdg-2026 (`Note` =
     free-text, no flag column) via header presence: if `Altre note` is
@@ -300,32 +300,32 @@ def parse_ceduo_rows(data, parcel_cache, errors):
     `Note` as free-text and skip flag parsing.
     """
     out = []
-    has_altre_note = S.CSV_COL_EXTRA_NOTE in data.reader.fieldnames
+    has_free_note_column = S.CSV_COL_EXTRA_NOTE in data.reader.fieldnames
     for i, row in enumerate(data.rows, 2):
         row_id, row_id_ok = _optional_row_id(data, row, i, errors)
         if not row_id_ok:
             continue
-        compresa = (row.get('compresa') or '').strip()
-        particella = (row.get('particella') or '').strip()
-        parcel = parcel_cache.get(_parcel_key(compresa, particella))
+        region_name = (row.get('region_name') or '').strip()
+        parcel_name = (row.get('parcel_name') or '').strip()
+        parcel = parcel_cache.get(_parcel_key(region_name, parcel_name))
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
-                i, compresa, particella,
+                i, region_name, parcel_name,
             ))
             continue
-        year = data.reader.integer(row.get('anno'))
-        interval = data.reader.integer(row.get('turno'))
+        year = data.reader.integer(row.get('year_planned'))
+        interval = data.reader.integer(row.get('period_y'))
         area, area_ok = _optional_decimal(
-            data.reader, row, 'superficie', i, errors,
+            data.reader, row, 'intervention_area_ha', i, errors,
         )
         if not area_ok:
             continue
         if year is None or interval is None:
             errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_PERIOD_Y, row.get('turno', ''),
+                i, S.CSV_COL_PERIOD_Y, row.get('period_y', ''),
             ))
             continue
-        if has_altre_note:
+        if has_free_note_column:
             free_note = (row.get('free_note') or '').strip()
             damaged, unhealthy, psr = parse_flag_keywords(
                 row.get('flag_note') or '',
@@ -367,7 +367,7 @@ def db_indexes() -> PlanIndexes:
     return PlanIndexes(parcels, regions)
 
 
-def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
+def apply(*, target_plan, name, description, highforest_rows, coppice_rows):
     """Create or upsert a HarvestPlan and its items from parsed rows.
 
     Returns ``(plan, n_items)``.  Rows exported by Abies carry an optional
@@ -377,8 +377,8 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
     matching calendar item.
     """
     all_years = (
-        [r[FIELD_YEAR_PLANNED] for r in fustaia_parsed]
-        + [r[FIELD_YEAR_PLANNED] for r in ceduo_parsed]
+        [r[FIELD_YEAR_PLANNED] for r in highforest_rows]
+        + [r[FIELD_YEAR_PLANNED] for r in coppice_rows]
     )
     with transaction.atomic():
         if target_plan is None:
@@ -410,7 +410,7 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 .select_related('harvest_detail')
             if ppd.harvest_detail.interval is not None
         }
-        for r in ceduo_parsed:
+        for r in coppice_rows:
             interval = r[FIELD_PERIOD_Y]
             desc = f'{S.HARVEST_DETAIL} {interval}a'
             key = (desc, interval)
@@ -465,12 +465,12 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
             return item
 
         n_items = 0
-        for r in fustaia_parsed:
+        for r in highforest_rows:
             flag_defaults = {
                 'volume_planned_m3': r[FIELD_VOLUME_PLANNED_M3],
-                'damaged':   r[FIELD_DAMAGED],
+                'damaged': r[FIELD_DAMAGED],
                 'unhealthy': r[FIELD_UNHEALTHY],
-                'psr':       r[FIELD_PSR],
+                'psr': r[FIELD_PSR],
             }
             if FIELD_NOTE in r:
                 flag_defaults['note'] = r[FIELD_NOTE]
@@ -490,7 +490,7 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 }
             save_plan_item(r, identity, flag_defaults)
             n_items += 1
-        for r in ceduo_parsed:
+        for r in coppice_rows:
             save_plan_item(r, {
                 'harvest_plan': plan,
                 'region': None,
@@ -498,10 +498,10 @@ def apply(*, target_plan, name, description, fustaia_parsed, ceduo_parsed):
                 'year_planned': r[FIELD_YEAR_PLANNED],
             }, {
                 'intervention_area_ha': r[FIELD_INTERVENTION_AREA_HA],
-                'note':      r[FIELD_NOTE],
-                'damaged':   r[FIELD_DAMAGED],
+                'note': r[FIELD_NOTE],
+                'damaged': r[FIELD_DAMAGED],
                 'unhealthy': r[FIELD_UNHEALTHY],
-                'psr':       r[FIELD_PSR],
+                'psr': r[FIELD_PSR],
             })
             n_items += 1
 
@@ -605,19 +605,19 @@ def _plan_item_export_row(
         section: str,
         ctx: PlanExportContext,
 ) -> list:
-    compresa, particella = _plan_item_export_location(item)
+    region_name, parcel_name = _plan_item_export_location(item)
     area = (
         ctx.region_area_by_id.get(item.region_id, '') if item.parcel_id is None
         else item.parcel.area_ha
     )
     parcel_area = csv_io.format_decimal(area, ctx.decimal_sep)
-    anno_eff = item.date_actual.year if item.date_actual else ''
+    year_actual = item.date_actual.year if item.date_actual else ''
     flag_note = render_flag_note(item.damaged, item.unhealthy, item.psr)
     state_label = item.get_state_display()
     if section == PLAN_SECTION_COPPICE:
         return [
-            item.id, item.year_planned, anno_eff,
-            compresa, particella, parcel_area,
+            item.id, item.year_planned, year_actual,
+            region_name, parcel_name, parcel_area,
             state_label, flag_note,
             csv_io.format_decimal(item.intervention_area_ha, ctx.decimal_sep),
             ctx.parcel_intervals.get(item.parcel_id, ''),
@@ -625,8 +625,8 @@ def _plan_item_export_row(
             item.note or '',
         ]
     return [
-        item.id, item.year_planned, anno_eff,
-        compresa, particella, parcel_area,
+        item.id, item.year_planned, year_actual,
+        region_name, parcel_name, parcel_area,
         state_label, flag_note,
         csv_io.format_decimal(item.volume_planned_m3, ctx.decimal_sep),
         csv_io.format_decimal(item.volume_marked_m3, ctx.decimal_sep),
@@ -638,8 +638,8 @@ def _plan_item_export_row(
 @dataclass
 class CanonicalItemsForPlan:
     plan: HarvestPlan
-    fustaia: list
-    ceduo: list
+    highforest: list
+    coppice: list
 
 
 def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
@@ -655,7 +655,7 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
         plan = plans[plan_name]
         group = rows_by_plan.get(plan_name)
         if group is None:
-            group = CanonicalItemsForPlan(plan=plan, fustaia=[], ceduo=[])
+            group = CanonicalItemsForPlan(plan=plan, highforest=[], coppice=[])
             rows_by_plan[plan_name] = group
         return group
 
@@ -665,9 +665,9 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
             errors.append(S.ERR_CSV_PLAN_NOT_FOUND.format(i, plan_name))
             continue
 
-        compresa = (row.get(S.CSV_COL_REGION) or '').strip()
-        particella = (row.get(S.CSV_COL_PARCEL) or '').strip()
-        is_region_wide = not particella
+        region_name = (row.get(S.CSV_COL_REGION) or '').strip()
+        parcel_name = (row.get(S.CSV_COL_PARCEL) or '').strip()
+        is_region_wide = not parcel_name
 
         year = reader.integer(row.get(S.CSV_COL_YEAR))
         if year is None:
@@ -693,9 +693,9 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
         group = group_for(plan_name)
 
         if is_region_wide:
-            region = indexes.regions.get(compresa.lower())
+            region = indexes.regions.get(region_name.lower())
             if region is None:
-                errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, compresa))
+                errors.append(S.ERR_CSV_REGION_NOT_FOUND.format(i, region_name))
                 continue
             if not (damaged or unhealthy):
                 errors.append(S.ERR_CSV_PLAN_ITEM_REGION_REQUIRES_FLAG.format(i))
@@ -705,7 +705,7 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
             )
             if not ok:
                 continue
-            group.fustaia.append({
+            group.highforest.append({
                 FIELD_REGION_ID: region,
                 FIELD_PARCEL_ID: None,
                 FIELD_YEAR_PLANNED: year,
@@ -715,10 +715,10 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                 FIELD_PSR: psr,
             })
         else:
-            parcel = indexes.parcels.get(_parcel_key(compresa, particella))
+            parcel = indexes.parcels.get(_parcel_key(region_name, parcel_name))
             if parcel is None:
                 errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
-                    i, compresa, particella))
+                    i, region_name, parcel_name))
                 continue
             if parcel.eclass.coppice:
                 area, ok = _optional_decimal(
@@ -731,7 +731,7 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     errors.append(S.ERR_CSV_VALUE_PARSE.format(
                         i, S.CSV_COL_PERIOD_Y, row.get(S.CSV_COL_PERIOD_Y, '')))
                     continue
-                group.ceduo.append({
+                group.coppice.append({
                     FIELD_PARCEL_ID: parcel,
                     FIELD_YEAR_PLANNED: year,
                     FIELD_INTERVENTION_AREA_HA: area,
@@ -747,7 +747,7 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                 )
                 if not ok:
                     continue
-                group.fustaia.append({
+                group.highforest.append({
                     FIELD_REGION_ID: None,
                     FIELD_PARCEL_ID: parcel,
                     FIELD_YEAR_PLANNED: year,
@@ -769,8 +769,8 @@ def apply_canonical_items(rows_by_plan: dict[str, CanonicalItemsForPlan]) -> int
             target_plan=plan,
             name=plan.name,
             description=plan.description,
-            fustaia_parsed=group.fustaia,
-            ceduo_parsed=group.ceduo,
+            highforest_rows=group.highforest,
+            coppice_rows=group.coppice,
         )
         total_items += n
     return total_items

@@ -120,18 +120,18 @@ def validate_rows(reader, cols, idx: GridIndexes):
     parsed = []
     seen_in_csv = set()
     for i, row in enumerate(reader, 2):
-        compresa = row[cols[S.CSV_COL_REGION]].strip()
-        particella = row[cols[S.CSV_COL_PARCEL]].strip()
-        parcel = idx.parcels.get((compresa.lower(), particella))
+        region_name = row[cols[S.CSV_COL_REGION]].strip()
+        parcel_name = row[cols[S.CSV_COL_PARCEL]].strip()
+        parcel = idx.parcels.get((region_name.lower(), parcel_name))
         if parcel is None:
             errors.append(
-                S.ERR_CSV_PARCEL_NOT_FOUND.format(i, compresa, particella))
+                S.ERR_CSV_PARCEL_NOT_FOUND.format(i, region_name, parcel_name))
             continue
         number = row[cols[S.CSV_COL_SAMPLE_AREA]].strip()
         key = (parcel.region_id, number)
         if key in idx.existing_keys or key in seen_in_csv:
             errors.append(S.ERR_CSV_ROW_AREA_DUPLICATE.format(
-                i, compresa, particella, number))
+                i, region_name, parcel_name, number))
             continue
         seen_in_csv.add(key)
         lat = reader.decimal(row.get(cols[S.CSV_COL_LAT]))

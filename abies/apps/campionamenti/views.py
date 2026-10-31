@@ -584,19 +584,19 @@ def _area_number_taken(grid, region_id, number, exclude_id=None) -> bool:
     return qs.exists()
 
 
-def _parcel_from_names(parcels, compresa, particella):
-    """Resolve (compresa, particella) names to a Parcel from `parcels`, or None.
+def _parcel_from_names(parcels, region_name, parcel_name):
+    """Resolve (region, parcel) names to a Parcel from `parcels`, or None.
 
     Matches the CSV import's key: case-insensitive region name + exact parcel
     name.  `parcels` must have `region` pre-loaded.
     """
-    compresa = (compresa or '').strip().lower()
-    particella = (particella or '').strip()
-    if not compresa or not particella:
+    region_name = (region_name or '').strip().lower()
+    parcel_name = (parcel_name or '').strip()
+    if not region_name or not parcel_name:
         return None
     return next(
         (p for p in parcels
-         if p.region.name.lower() == compresa and p.name == particella),
+         if p.region.name.lower() == region_name and p.name == parcel_name),
         None,
     )
 
@@ -1907,29 +1907,29 @@ def _resolve_grid_points(points):
             coord_float(parse_decimal(pt.get(key))) is None for key in (FIELD_LAT, FIELD_LON)
         ):
             return None, S.ERR_JSON_FIELD_INVALID
-        compresa = (pt.get('compresa') or '').strip()
-        particella = str(pt.get('particella') or '').strip()
-        if not compresa or not particella:
+        region_name = (pt.get('compresa') or '').strip()
+        parcel_name = str(pt.get('particella') or '').strip()
+        if not region_name or not parcel_name:
             return None, S.ERR_GRID_AUTO_PARCEL_UNRESOLVED.format(
-                compresa or '?', particella or '?',
+                region_name or '?', parcel_name or '?',
             )
-        region = region_cache.get(compresa.lower())
+        region = region_cache.get(region_name.lower())
         if region is None:
-            region = Region.objects.filter(name__iexact=compresa).first()
+            region = Region.objects.filter(name__iexact=region_name).first()
             if region is None:
                 return None, S.ERR_GRID_AUTO_PARCEL_UNRESOLVED.format(
-                    compresa, particella,
+                    region_name, parcel_name,
                 )
-            region_cache[compresa.lower()] = region
-        key = (region.id, particella)
+            region_cache[region_name.lower()] = region
+        key = (region.id, parcel_name)
         parcel = parcel_cache.get(key)
         if parcel is None:
             parcel = Parcel.objects.filter(
-                region=region, name=particella,
+                region=region, name=parcel_name,
             ).first()
             if parcel is None:
                 return None, S.ERR_GRID_AUTO_PARCEL_UNRESOLVED.format(
-                    compresa, particella,
+                    region_name, parcel_name,
                 )
             parcel_cache[key] = parcel
         resolved.append((pt, parcel))

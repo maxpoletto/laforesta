@@ -280,26 +280,26 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
     parsed = []
     for i, row in enumerate(reader, 2):
         # --- Location resolution. ---
-        compresa = (row.get(S.CSV_COL_REGION) or '').strip()
-        particella = (row.get(S.CSV_COL_PARCEL) or '').strip()
+        region_name = (row.get(S.CSV_COL_REGION) or '').strip()
+        parcel_name = (row.get(S.CSV_COL_PARCEL) or '').strip()
 
-        if not compresa:
+        if not region_name:
             errors.append(S.ERR_CSV_HARVEST_LOCATION.format(i, S.CSV_COL_REGION))
             continue
 
-        if particella:
-            parcel = idx.parcels.get((compresa.lower(), particella))
+        if parcel_name:
+            parcel = idx.parcels.get((region_name.lower(), parcel_name))
             if parcel is None:
                 errors.append(S.ERR_CSV_HARVEST_LOCATION.format(
-                    i, f'{compresa}/{particella}',
+                    i, f'{region_name}/{parcel_name}',
                 ))
                 continue
             region = None
         else:
             parcel = None
-            region = idx.regions.get(compresa.lower())
+            region = idx.regions.get(region_name.lower())
             if region is None:
-                errors.append(S.ERR_CSV_HARVEST_LOCATION.format(i, compresa))
+                errors.append(S.ERR_CSV_HARVEST_LOCATION.format(i, region_name))
                 continue
 
         # --- Date. ---

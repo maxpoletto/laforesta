@@ -33,9 +33,9 @@ SESSION_NAMESPACE = uuid.UUID('6bde56d0-9184-4962-9b61-7df0e16e3d2d')
 
 REQUIRED = {
     'date': [S.CSV_COL_DATA],
-    'compresa': [S.CSV_COL_REGION],
-    'particella': [S.CSV_COL_PARCEL],
-    'species': MARK_CSV_SPECIES_HEADERS,
+    'region_name': [S.CSV_COL_REGION],
+    'parcel_name': [S.CSV_COL_PARCEL],
+    'species_name': MARK_CSV_SPECIES_HEADERS,
     'd_cm': [S.CSV_COL_D_CM],
     'h_m': [S.CSV_COL_H_M],
 }
@@ -136,12 +136,12 @@ def _payload_from_csv(path: Path, parcels: dict, species: dict) -> tuple[dict, s
 
 
 def _record_from_row(path: Path, index: int, reader, row: dict, parcels: dict, species: dict):
-    compresa = row['compresa'].strip()
-    particella = row['particella'].strip()
-    species_name = row['species'].strip()
-    parcel = parcels.get((compresa.lower(), particella.lower()))
+    region_name = row['region_name'].strip()
+    parcel_name = row['parcel_name'].strip()
+    species_name = row['species_name'].strip()
+    parcel = parcels.get((region_name.lower(), parcel_name.lower()))
     if parcel is None:
-        raise CommandError(f'{path}: row {index}: unknown parcel {compresa}/{particella}')
+        raise CommandError(f'{path}: row {index}: unknown parcel {region_name}/{parcel_name}')
     sp = species.get(species_name.lower())
     if sp is None:
         raise CommandError(f'{path}: row {index}: unknown species {species_name}')

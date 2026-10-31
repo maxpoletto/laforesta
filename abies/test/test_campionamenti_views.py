@@ -2944,12 +2944,12 @@ class TestGridCsvImport:
         s = sample_setup
         grid = SampleGrid.objects.create(name='Import target')
         n_grids_before = SampleGrid.objects.count()
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,12\n'
-            f'{compresa},{particella},11,16.11,38.51,510,12\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,12\n'
+            f'{region_name},{parcel_name},11,16.11,38.51,510,12\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
@@ -2965,11 +2965,11 @@ class TestGridCsvImport:
         """A ';'-delimited, comma-decimal file imports; lat/lon parsed."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='IT-format target')
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa;Particella;Area saggio;Lon;Lat;Quota;Raggio\n'
-            f'{compresa};{particella};10;16,1;38,5;500;12\n'
+            f'{region_name};{parcel_name};10;16,1;38,5;500;12\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
@@ -2981,11 +2981,11 @@ class TestGridCsvImport:
         """Unit-bearing display headers are accepted as aliases."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='Unit headers')
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Alt. (m),Raggio (m)\n'
-            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,12\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
@@ -2995,14 +2995,14 @@ class TestGridCsvImport:
     def test_legacy_sample_grid_headers_import(self, writer_client, sample_setup):
         """Legacy-shaped setup CSV headers are accepted when Raggio is supplied."""
         s = sample_setup
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
 
         grid = SampleGrid.objects.create(name='Legacy header import')
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,12\n'
-            f'{compresa},{particella},11,16.2,38.6,501,12\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,12\n'
+            f'{region_name},{parcel_name},11,16.2,38.6,501,12\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 200, resp.content
@@ -3015,11 +3015,11 @@ class TestGridCsvImport:
         """A present-but-garbage Raggio is flagged, not silently defaulted."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='Bad radius')
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,abc\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,abc\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
@@ -3029,11 +3029,11 @@ class TestGridCsvImport:
         """A blank Raggio cell is flagged (Raggio is required, no default)."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='Blank radius')
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
@@ -3043,15 +3043,15 @@ class TestGridCsvImport:
         """Two successive imports on the same grid should accumulate."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='Two-pass target')
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv1 = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,12\n'
         )
         csv2 = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},20,16.2,38.6,510,12\n'
+            f'{region_name},{parcel_name},20,16.2,38.6,510,12\n'
         )
         assert self._post(writer_client, grid.id, csv1).status_code == 200
         assert self._post(writer_client, grid.id, csv2).status_code == 200
@@ -3068,11 +3068,11 @@ class TestGridCsvImport:
             lat=16.1, lon=38.5, r_m=12,
         )
         n_areas_before = SampleArea.objects.filter(sample_grid=grid).count()
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,12\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,12\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
@@ -3087,12 +3087,12 @@ class TestGridCsvImport:
         flagged as duplicate."""
         s = sample_setup
         grid = SampleGrid.objects.create(name='Intra-csv dup')
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
         csv_text = (
             'Compresa,Particella,Area saggio,Lon,Lat,Quota,Raggio\n'
-            f'{compresa},{particella},10,16.1,38.5,500,12\n'
-            f'{compresa},{particella},10,16.2,38.6,520,12\n'
+            f'{region_name},{parcel_name},10,16.1,38.5,500,12\n'
+            f'{region_name},{parcel_name},10,16.2,38.6,520,12\n'
         )
         resp = self._post(writer_client, grid.id, csv_text)
         assert resp.status_code == 400
@@ -3264,18 +3264,18 @@ class TestTreeCsvImport:
             before['surveys'][COLUMNS].index(S.COL_N_AREAS_VISITED)
         ] == 0
 
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
-        adc = s['area'].number
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
+        area_number = s['area'].number
         n_trees_before = Tree.objects.count()
         n_preserved_before = TreeSample.objects.filter(preserved_number__isnull=False).count()
         n_ts_before = TreeSample.objects.count()
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,PAI\n'
-            f'{compresa},{particella},{adc},10,,false,30,20.5,10,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},10,,false,30,20.5,10,2,Abete,true,'
             '2024-09-15,true\n'
-            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},11,0,false,32,22.5,11,2,Abete,true,'
             '2024-09-15,false\n'
         )
         resp = self._post(writer_client, empty_survey.id, csv_text)
@@ -3348,13 +3348,13 @@ class TestTreeCsvImport:
         )
         centers = write_terreni_geojson(provided, other)
         gps = centers[other.id]
-        compresa = provided.region.name
-        particella = provided.name
-        adc = s['area'].number
+        region_name = provided.region.name
+        parcel_name = provided.name
+        area_number = s['area'].number
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data,H_measured,Lat,Lon\n'
-            f'{compresa},{particella},{adc},20,0,false,30,20.5,10,2,'
+            f'{region_name},{parcel_name},{area_number},20,0,false,30,20.5,10,2,'
             f'{species[0].common_name},true,2024-09-15,false,'
             f'{gps["lat"]},{gps["lon"]}\n'
         )
@@ -3418,14 +3418,14 @@ class TestTreeCsvImport:
         target = Survey.objects.create(
             name='CSV h measured target', sample_grid=s['grid'],
         )
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
-        adc = s['area'].number
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
+        area_number = s['area'].number
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,H_measured\n'
-            f'{compresa},{particella},{adc},20,0,false,30,20.5,10,2,Abete,true,true\n'
-            f'{compresa},{particella},{adc},21,0,false,32,22.5,11,2,Abete,true,false\n'
+            f'{region_name},{parcel_name},{area_number},20,0,false,30,20.5,10,2,Abete,true,true\n'
+            f'{region_name},{parcel_name},{area_number},21,0,false,32,22.5,11,2,Abete,true,false\n'
         )
 
         resp = self._post(writer_client, target.id, csv_text, default_date='2024-09-15')
@@ -3446,15 +3446,15 @@ class TestTreeCsvImport:
         empty_survey = Survey.objects.create(
             name='CSV duplicate tree target', sample_grid=s['grid'],
         )
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
-        adc = s['area'].number
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
+        area_number = s['area'].number
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
-            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},10,0,false,30,20.5,10,2,Abete,true,'
             '2024-09-15\n'
-            f'{compresa},{particella},{adc},10,0,false,32,22.5,11,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},10,0,false,32,22.5,11,2,Abete,true,'
             '2024-09-15\n'
         )
 
@@ -3473,22 +3473,22 @@ class TestTreeCsvImport:
         empty_survey = Survey.objects.create(
             name='CSV date conflict target', sample_grid=s['grid'],
         )
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
-        adc = s['area'].number
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
+        area_number = s['area'].number
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
-            f'{compresa},{particella},{adc},10,0,false,30,20.5,10,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},10,0,false,30,20.5,10,2,Abete,true,'
             '2024-09-15\n'
-            f'{compresa},{particella},{adc},11,0,false,32,22.5,11,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},11,0,false,32,22.5,11,2,Abete,true,'
             '2024-09-16\n'
         )
         resp = self._post(writer_client, empty_survey.id, csv_text)
         assert resp.status_code == 400
         body = resp.json()
         assert S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
-            3, compresa, particella, adc, '2024-09-15',
+            3, region_name, parcel_name, area_number, '2024-09-15',
         ) in body[FIELD_ERRORS]
         assert Sample.objects.filter(survey=empty_survey).count() == 0
         assert TreeSample.objects.filter(sample__survey=empty_survey).count() == 0
@@ -3497,21 +3497,21 @@ class TestTreeCsvImport:
         self, writer_client, sample_setup,
     ):
         s = sample_setup
-        compresa = s['area'].parcel.region.name
-        particella = s['area'].parcel.name
-        adc = s['area'].number
+        region_name = s['area'].parcel.region.name
+        parcel_name = s['area'].parcel.name
+        area_number = s['area'].number
         n_trees_before = TreeSample.objects.filter(sample=s['sample']).count()
         csv_text = (
             'Compresa,Particella,Area saggio,Albero,Pollone,Matricina,'
             'D_cm,H_m,L10_mm,Pressler,Genere,Fustaia,Data\n'
-            f'{compresa},{particella},{adc},99,0,false,30,20.5,10,2,Abete,true,'
+            f'{region_name},{parcel_name},{area_number},99,0,false,30,20.5,10,2,Abete,true,'
             '2025-01-01\n'
         )
         resp = self._post(writer_client, s['survey'].id, csv_text)
         assert resp.status_code == 400
         body = resp.json()
         assert S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
-            2, compresa, particella, adc, '2024-09-15',
+            2, region_name, parcel_name, area_number, '2024-09-15',
         ) in body[FIELD_ERRORS]
         assert TreeSample.objects.filter(sample=s['sample']).count() == n_trees_before
 

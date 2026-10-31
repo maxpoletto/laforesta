@@ -850,15 +850,15 @@ def build_grid_record(g) -> list:
 
     areas = SampleArea.objects.filter(sample_grid=g) \
                               .select_related('parcel__region')
-    n_aree = areas.count()
-    comprese = sorted({sa.parcel.region.name for sa in areas})
-    n_rilev = Survey.objects.filter(sample_grid=g).count()
+    sample_area_count = areas.count()
+    region_names = sorted({sa.parcel.region.name for sa in areas})
+    survey_count = Survey.objects.filter(sample_grid=g).count()
     last_area = areas.order_by('-modified_at').values_list(
         'modified_at', flat=True).first()
     last_updated = max(filter(None, [g.modified_at, last_area]))
     return [
-        g.id, g.version, g.name, g.description, n_aree,
-        ', '.join(comprese), n_rilev,
+        g.id, g.version, g.name, g.description, sample_area_count,
+        ', '.join(region_names), survey_count,
         last_updated.isoformat() if last_updated else '',
     ]
 
@@ -1216,13 +1216,13 @@ def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) 
     `get_state_display()` for the human-readable label.
     """
     if item.parcel_id is not None:
-        compresa = item.parcel.region.name
-        particella = item.parcel.name
+        region_name = item.parcel.region.name
+        parcel_name = item.parcel.name
         parcel_area = float(item.parcel.area_ha)
     else:
-        compresa = item.region.name
+        region_name = item.region.name
         # Whole-region marker — also the CSV round-trip representation.
-        particella = S.PARCEL_WHOLE_REGION_MARK
+        parcel_name = S.PARCEL_WHOLE_REGION_MARK
         if region_area_by_id is None:
             region_area_by_id = _region_area_by_id([item.region_id])
         parcel_area = region_area_by_id.get(item.region_id, '')
@@ -1231,7 +1231,7 @@ def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) 
         item.id, item.version, item.harvest_plan_id,
         item.year_planned,
         item.date_actual.year if item.date_actual else '',
-        compresa, particella, parcel_area, _hpi_type(item), _hpi_coppice(item),
+        region_name, parcel_name, parcel_area, _hpi_type(item), _hpi_coppice(item),
         item.get_state_display(),
         render_flag_note(item.damaged, item.unhealthy, item.psr),
         float(item.volume_planned_m3) if item.volume_planned_m3 is not None else '',
