@@ -5,6 +5,10 @@
 // screen-upload state machine.
 'use strict';
 
+if (typeof module !== 'undefined' && typeof require !== 'undefined') {
+  require('../../../../base/static/base/js/distance.js');
+}
+
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
     typeof UPLOAD_SCHEMA_VERSION === 'undefined') {
   Object.assign(globalThis, require('./constants.js'));
@@ -359,16 +363,8 @@ function sampleAreaForTree(reference, sess, tree, parcelId) {
   return best;
 }
 
-function distanceMeters(lat1, lon1, lat2, lon2) {
-  const toRad = (deg) => deg * Math.PI / 180;
-  const phi1 = toRad(lat1);
-  const phi2 = toRad(lat2);
-  const dPhi = toRad(lat2 - lat1);
-  const dLambda = toRad(lon2 - lon1);
-  const a = Math.sin(dPhi / 2) ** 2 +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
-  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// The existing geometry bridge loads this core before recording/upload starts.
+const distanceMeters = (...args) => globalThis.AbiesDistance.distanceMeters(...args);
 
 function speciesIdForName(reference, name) {
   const row = (reference[IPSO_REF_SPECIES] || []).find((s) => s.common === name);

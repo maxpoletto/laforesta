@@ -140,3 +140,12 @@ All map control labels are `strings.js` constants (`MAP_ZOOM_IN`,
 `MAP_MEASURE_TITLE`, `MAP_LOCATION_*`, …); every displayed number goes through
 `format.js` (e.g. `formatDistance` → `fmtDecimal*`), never `.toFixed()`, so
 distances localize with the active locale's decimal separator.
+
+## Distance metric
+
+`geo.distanceMeters()` and Ipso upload inference delegate to the shared
+`base/js/distance.js` numerical core: a sphere with WGS84 mean radius
+6371009 m. The Ipso geometry bridge and offline precache include that core.
+Inside/on/outside sample radii and nearest-area selection have shared metric
+coverage; stored area IDs are preserved. Polygon geodesic area retains its
+existing 6378137 m Leaflet-compatible convention.

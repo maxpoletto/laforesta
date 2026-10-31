@@ -22,6 +22,7 @@ const SHELL = [
   '/static/base/js/map-common.js',
   '/static/base/js/map-palette.js',
   '/static/base/js/geo.js',
+  '/static/base/js/distance.js',
   '/static/base/js/strings.js',
   '/static/base/js/strings_it.js',
   '/static/base/js/format.js',

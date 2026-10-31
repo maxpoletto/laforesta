@@ -454,3 +454,13 @@ Because `_UPLOAD_ATTEMPTS` is in-process memory, the app-level limit is per
 Django process and resets on restart. Treat it as a modest backstop. Apache-side
 controls can still be added for stronger DoS protection, but Apache
 `mod_ratelimit` is bandwidth throttling, not request-count rate limiting.
+
+### Shared distance metric (Ipso 1.5.6)
+
+Desktop and mobile distance/sample-area inference use one Haversine core with
+the WGS84 mean radius **6371009 m**. The existing geometry bridge loads it;
+the service worker precaches its shared module. Legacy coordinate inference
+keeps the inclusive sample-radius boundary and nearest-centre rule. Captured
+sample-area IDs and prepared uploads remain authoritative. Polygon area keeps
+its existing Leaflet-compatible convention. Activate the updated shell before
+expecting disconnected devices to use the new distance metric.
