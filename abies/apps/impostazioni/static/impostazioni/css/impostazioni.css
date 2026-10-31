@@ -14,6 +14,13 @@
 .species-height-region .form-row { flex-wrap: wrap; }
 .species-equations [hidden] { display: none; }
 [data-role="equation-toolbar"] { flex-wrap: wrap; }
+.equation-transfer-actions { display: grid; gap: 6px; min-width: 0; max-width: 100%; }
+.equation-transfer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: 8px;
+}
 [data-role="equation-compute"] summary { cursor: pointer; font-weight: 500; }
 
 .hypso-description {

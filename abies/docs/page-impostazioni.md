@@ -98,8 +98,8 @@ results clamped to zero.
 
 ### Batch equation updates
 
-The Species toolbar has separate `Importa altezza`, `Importa volume`,
-`Esporta altezza` and `Esporta volume` actions. Imports retain human-readable
+The Species toolbar has two rows: `Importa equazioni:` and `Esporta equazioni:`,
+each with `ipsometriche` and `di volume` buttons. Imports retain human-readable
 species and compresa names in CSVs; database IDs are not required in the file.
 
 1. Select a height or volume CSV. Abies reads it without changing settings.

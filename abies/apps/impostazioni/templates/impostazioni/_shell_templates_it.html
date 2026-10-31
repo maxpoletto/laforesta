@@ -73,10 +73,18 @@ S (string constants) provided by the shell's render context.
     {% include "base/_partials/_collapsible_header.html" with section="" title="Specie" %}
     <div class="collapsible-body">
       <div class="table-toolbar" data-role="equation-toolbar">
-        <button type="button" class="btn btn-import" data-action="import-height">{{ S.EQUATION_IMPORT_HEIGHT }}</button>
-        <button type="button" class="btn btn-import" data-action="import-volume">{{ S.EQUATION_IMPORT_VOLUME }}</button>
-        <button type="button" class="btn btn-export" data-action="export-height">{{ S.EQUATION_EXPORT_HEIGHT }}</button>
-        <button type="button" class="btn btn-export" data-action="export-volume">{{ S.EQUATION_EXPORT_VOLUME }}</button>
+        <div class="equation-transfer-actions">
+          <div class="equation-transfer-row" role="group" aria-labelledby="species-equation-import-label">
+            <span id="species-equation-import-label">{{ S.EQUATION_IMPORT_LABEL }}</span>
+            <button type="button" class="btn btn-import" data-action="import-height">{{ S.EQUATION_KIND_HEIGHT }}</button>
+            <button type="button" class="btn btn-import" data-action="import-volume">{{ S.EQUATION_KIND_VOLUME }}</button>
+          </div>
+          <div class="equation-transfer-row" role="group" aria-labelledby="species-equation-export-label">
+            <span id="species-equation-export-label">{{ S.EQUATION_EXPORT_LABEL }}</span>
+            <button type="button" class="btn btn-export" data-action="export-height">{{ S.EQUATION_KIND_HEIGHT }}</button>
+            <button type="button" class="btn btn-export" data-action="export-volume">{{ S.EQUATION_KIND_VOLUME }}</button>
+          </div>
+        </div>
         <input type="file" accept=".csv" data-role="equation-import-file" hidden>
         <label class="active-toggle ms-auto">
           <input type="checkbox" data-role="active-toggle" checked>

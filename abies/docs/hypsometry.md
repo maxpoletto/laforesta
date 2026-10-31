@@ -75,6 +75,17 @@ legacy parity fixtures, not the runtime source for tree calculations. An absent
 equation gives an unavailable estimate; the entry form explains the missing
 volume equation instead of showing zero. Negative estimates still clamp to zero.
 
+This does not yet localize the species reference catalogue. Some Italian common
+names remain in default initialization, legacy name-map compatibility and
+numeric parity fixtures. Frozen migrations retain their original labels so
+upgrades are reproducible. Current Species names are editable stored data, not
+automatically translated labels; changing a string catalogue alone does not
+translate those records. A future catalogue cleanup can identify real taxa by
+Latin name, localize their default common names and preserve user overrides.
+Catch-all categories need their own identity because they are not individual
+taxa. Neither change is required for runtime equation associations to survive
+renaming: those already use IDs.
+
 `merge_active_set()` publishes an archived snapshot while preserving every
 species/region pair outside the change. Unchanged rows retain source and original
 set provenance. Imported/computed sets remain supported; mixed/manual edits can

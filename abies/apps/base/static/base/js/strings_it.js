@@ -144,7 +144,7 @@ export const SPECIES_OTHER = 'Altro';
 export const SPECIES_OTHER_CONIFER = 'Altra conifera';
 export const SPECIES_OTHER_BROADLEAF = 'Altra latifoglia';
 
-// Hypsometric-parameters section.  (Accept/Reject/title are literal in the
+// Height computation tools in Species. (Accept/Reject/title are literal in the
 // candidate <template>, per docs/ui-design-patterns.md.)
 export const HYPSO_DESC_NONE = 'Nessun parametro ipsometrico attivo.';
 export const HYPSO_SOURCE_COMPUTED_LABEL = 'Calcolato';
@@ -152,10 +152,6 @@ export const HYPSO_SOURCE_IMPORTED_LABEL = 'Importato da CSV';
 export const HYPSO_DESC_MIN_N = 'N minimo';
 export const HYPSO_DESC_SURVEYS = 'Rilevamenti';
 export const HYPSO_DESC_HEIGHT_PLOTS = 'Altezze: rilevamenti ipsometrici';
-export const HYPSO_IMPORT_CONFIRM =
-  "L'importazione sostituisce i parametri attivi. Continuare?";
-export const HYPSO_CLEAR_CONFIRM =
-  'I parametri attivi verranno eliminati. Continuare?';
 export const PASSWORD_CURRENT = 'Password attuale';
 export const PASSWORD_NEW = 'Nuova password';
 export const PASSWORD_REPEAT = 'Ripeti password';

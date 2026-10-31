@@ -60,6 +60,15 @@ def test_equation_toolbar_button_intents(writer_client):
     assert 'class="btn btn-import" data-action="import-volume"' in html
     assert 'class="btn btn-export" data-action="export-volume"' in html
     assert 'class="btn" data-action="compute"' in html
+    toolbar = html.split('data-role="equation-toolbar"', 1)[1].split('data-target="table-host"', 1)[0]
+    groups = re.findall(r'<div\b[^>]*role="group"[^>]*>(.*?)</div>', toolbar, re.S)
+    assert len(groups) == 2
+    for group, operation, label in zip(groups, ('import', 'export'),
+                                       ('Importa equazioni:', 'Esporta equazioni:')):
+        assert label in group
+        buttons = re.findall(r'data-action="([^"]+)"[^>]*>([^<]+)</button>', group)
+        assert buttons == [(f'{operation}-height', 'ipsometriche'),
+                           (f'{operation}-volume', 'di volume')]
 
 
 @override_settings(ABIES_VERSION='abies-test-version')
