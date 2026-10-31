@@ -51,12 +51,14 @@ def writer_client(writer_user):
     return c
 
 
-def test_hypso_toolbar_button_intents(writer_client):
+def test_equation_toolbar_button_intents(writer_client):
     resp = writer_client.get('/impostazioni')
 
     assert resp.status_code == 200
     html = resp.content.decode()
-    assert 'class="btn btn-delete" data-action="clear"' in html
+    assert 'class="btn btn-import" data-action="import-height"' in html
+    assert 'class="btn btn-import" data-action="import-volume"' in html
+    assert 'class="btn btn-export" data-action="export-volume"' in html
     assert 'class="btn" data-action="compute"' in html
 
 

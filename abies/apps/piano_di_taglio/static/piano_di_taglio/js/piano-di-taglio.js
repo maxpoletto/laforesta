@@ -30,7 +30,7 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { recordIsCoppice } from '../../base/js/coppice.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
-import { heightEquationFor } from '../../base/js/equations.js';
+import { wireHeightAutofill } from '../../base/js/equations.js';
 import { TreeDetail } from '../../base/js/tree-detail.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
@@ -44,7 +44,7 @@ import {
   FIELD_HIGHFOREST_FILE, FIELD_HARVEST_PLAN_ID, FIELD_HARVEST_PLAN_ITEM_ID,
   COL_COPPICE, FIELD_NAME, FIELD_NONCE, FIELD_NOTE, FIELD_ROW_IDS, FIELD_SPECIES,
   FIELD_OPEN, FIELD_YEAR_END, FIELD_YEAR_START,
-  HYPSO_FUNC_LN, MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
+  MESSAGE, ROW_ID, STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import {
   fmtAccuracyM, fmtDecimal2, fmtDecimal3, fmtInt, fmtCoord,
@@ -1713,35 +1713,8 @@ function wireHypsoAutoH(form, regionId) {
   const hMeasHidden = form.querySelector('#tf-h-measured');
   if (!d || !h || !sp) return;
 
-  let userEditedH = hMeasHidden?.value === '1';
-  let programmaticH = false;
-
-  function autoFillH() {
-    if (userEditedH) return;
-    const dCm = parseInt(d.value, 10);
-    if (!(dCm > 0)) return;
-    const reg = heightEquationFor(hypsoParamsData, regionId, sp.value);
-    if (!reg) return;
-    const { func: fn, a, b } = reg;
-    let hVal = null;
-    if (fn === HYPSO_FUNC_LN) hVal = a * Math.log(dCm) + b;
-    if (hVal != null && hVal > 0) {
-      programmaticH = true;
-      h.value = fmtDecimal2(hVal);
-      h.dispatchEvent(new Event('input'));
-      programmaticH = false;
-      if (hMeasHidden) hMeasHidden.value = '0';
-    }
-  }
-
-  h.addEventListener('input', () => {
-    if (programmaticH) return;
-    userEditedH = String(h.value || '').trim() !== '';
-    if (hMeasHidden) hMeasHidden.value = userEditedH ? '1' : '0';
-  });
-  d.addEventListener('input', autoFillH);
-  sp.addEventListener('change', () => { userEditedH = false; autoFillH(); });
-  autoFillH();
+  wireHeightAutofill({ diameter: d, height: h, species: sp, measured: hMeasHidden,
+    notice: form.querySelector('[data-role="height-equation-status"]') }, hypsoParamsData, regionId);
 }
 
 async function wireMarkForm(form, itemId) {

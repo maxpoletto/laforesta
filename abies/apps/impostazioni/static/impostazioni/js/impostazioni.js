@@ -13,30 +13,30 @@
  * Forms open in modals.
  */
 
-import { fileToBase64, postJSON } from '../../base/js/api.js';
+import { postJSON } from '../../base/js/api.js';
 import * as cache from '../../base/js/cache.js';
-import { downloadFromURL } from '../../base/js/csv-export.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import { fetchModalForm } from '../../base/js/forms.js';
 import {
-  showConfirmModal, showLoadingIn, wireActions,
+  showLoadingIn, wireActions,
   wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { PROTECTED_SPECIES_NAMES, speciesTypeColumns } from './species-types.js';
 import { wireSettingsForm } from './entity-form.js';
+import { wireEquationImports } from './equation-imports.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COUNTS,
   FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
-  FIELD_DIAMETER_CLASS_MODE, FIELD_FILE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
+  FIELD_DIAMETER_CLASS_MODE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE,
   FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_PLANS,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
-  FIELD_USE_FOR_HEIGHT_PLOTS, HYPSO_SOURCE_COMPUTED, LOGIN_METHOD_PASSWORD,
+  FIELD_USE_FOR_HEIGHT_PLOTS, LOGIN_METHOD_PASSWORD,
   FIELD_YEAR_END, FIELD_YEAR_START, IPSO_REF_OBSERVATION_CATEGORIES,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN, ROLE_WRITER,
   FIELD_VOLUME_COEFFICIENTS,
@@ -137,7 +137,6 @@ const SECTION_CONFIGS = {
   },
   'future-production': { minRole: ROLE_WRITER, wire: wireFutureProductionSection },
   dendrometry: { minRole: ROLE_WRITER, wire: wireDendrometrySection },
-  hypso: { minRole: ROLE_WRITER, wire: wireHypsoSection },
   'diameter-classes': { minRole: ROLE_WRITER, wire: wireDiameterClassesSection },
   users: {
     minRole: ROLE_ADMIN,
@@ -175,16 +174,11 @@ export function mount() {
 export function unmount() {
   unloadCSS(CSS_URL);
   for (const state of Object.values(sections)) {
+    state.dispose?.();
     if (state.table) { state.table.destroy(); state.table = null; }
   }
   // Clear state for next mount.
   for (const key of Object.keys(sections)) delete sections[key];
-
-  // Hypso isn't an entity section: it manages a whole parameter set via a
-  // module-level singleton, so it's reset directly rather than via `sections`.
-  if (hypsoState.table) { hypsoState.table.destroy(); hypsoState.table = null; }
-  hypsoState.digest = null;
-  hypsoState.loaded = false;
 }
 
 export function onQueryChange() {}
@@ -326,6 +320,7 @@ function wireEntitySection(root, cfg) {
   sections[cfg.key] = state;
   const tableContainer = root.querySelector('[data-target="table-host"]');
   const activeCheck = root.querySelector('[data-role="active-toggle"]');
+  if (cfg.key === 'species') state.dispose = wireSpeciesEquationTools(root, cfg, state, tableContainer);
 
   activeCheck.addEventListener('change', () => {
     state.activeOnly = activeCheck.checked;
@@ -360,6 +355,7 @@ async function loadEntityData(cfg, state, container) {
   container.replaceChildren();
   state.digest = data;
 
+  state.table?.destroy();
   state.table = new TableWrapper({
     container,
     digest: data,
@@ -661,84 +657,45 @@ async function loadDiameterClasses(form) {
 }
 
 // ---------------------------------------------------------------------------
-// Hypsometric parameters (writer+).  Whole-set management: a read-only table
-// of the active set plus compute / import / export / clear.  See
-// docs/hypsometry.md.
+// Height computation tools within Species (writer+). Accepted candidates merge
+// into the active snapshot; the import controller handles reviewed CSV updates.
 // ---------------------------------------------------------------------------
 
 const HYPSO = {
-  data:    `${API}hypso-params/data/`,
   active:  `${API}hypso-params/active-set/`,
   compute: `${API}hypso-params/compute/`,
   accept:  `${API}hypso-params/accept/`,
-  upload:  `${API}hypso-params/import/`,
-  export:  `${API}hypso-params/export/`,
-  clear:   `${API}hypso-params/clear/`,
   surveys: `${API}hypso-params/surveys/`,
 };
 
-const hypsoState = { table: null, digest: null, loaded: false };
-
 // Hypso table numeric columns: a/b/r² are 4-dp decimals, n a count.
 const HYPSO_COL_DEFS = {
+  region_id: { hidden: true },
+  species_id: { hidden: true },
   [S.COL_A]: { type: 'number', formatter: fmtDecimal4 },
   [S.COL_B]: { type: 'number', formatter: fmtDecimal4 },
   [S.COL_R2]: { type: 'number', formatter: fmtDecimal4 },
   [S.COL_N_REGRESSION]: { type: 'number', formatter: fmtInt },
 };
 
-function wireHypsoSection(root) {
-  const body = root.querySelector('.collapsible-body');
-  const tableHost = body.querySelector('[data-target="table-host"]');
-  const descEl = body.querySelector('[data-target="description"]');
-  const fileInput = body.querySelector('[data-role="import-file"]');
-
-  wireCollapsibleToggle(
-    root.querySelector('.collapsible-header'), body,
-    () => {
-      if (hypsoState.loaded) return;
-      hypsoState.loaded = true;
-      loadHypso(tableHost, descEl);
-      loadSurveys(body);
-    },
-  );
-
-  wireActions(body, {
-    export: () => downloadFromURL(HYPSO.export),
-    import: () => fileInput.click(),
-    clear: () => confirmClear(tableHost, descEl),
-    compute: () => runCompute(body, tableHost, descEl),
-  });
-
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
-    fileInput.value = '';
-    if (file) confirmImport(file, tableHost, descEl);
-  });
-}
-
-async function loadHypso(tableHost, descEl) {
-  showLoadingIn(tableHost);
-  let digest, meta;
-  try {
-    const [d, m] = await Promise.all([fetch(HYPSO.data), fetch(HYPSO.active)]);
-    if (!d.ok || !m.ok) throw new Error();
-    digest = await d.json();
-    meta = await m.json();
-  } catch {
-    tableHost.replaceChildren();
-    showError(S.ERROR_NETWORK);
-    return;
+function wireSpeciesEquationTools(root, cfg, state, container) {
+  const body = root.querySelector('[data-role="equation-compute"]');
+  const desc = body.querySelector('[data-target="description"]');
+  async function refresh() {
+    await loadEntityData(cfg, state, container);
+    await description();
   }
-  tableHost.replaceChildren();
-  hypsoState.digest = digest;
-  if (hypsoState.table) hypsoState.table.destroy();
-  hypsoState.table = new TableWrapper({
-    container: tableHost, digest, canModify: false, inlineToolbar: false,
-    labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
-    columnDefs: HYPSO_COL_DEFS,
+  async function description() {
+    try {
+      const response = await fetch(HYPSO.active);
+      if (response.ok) renderDescription(desc, await response.json());
+    } catch { /* The editable species table remains available. */ }
+  }
+  body.addEventListener('toggle', () => {
+    if (body.open) { loadSurveys(body); description(); }
   });
-  renderDescription(descEl, meta);
+  body.querySelector('[data-action="compute"]').addEventListener('click', () => runCompute(body, refresh));
+  return wireEquationImports(root, refresh);
 }
 
 function renderDescription(el, meta) {
@@ -746,8 +703,12 @@ function renderDescription(el, meta) {
     el.textContent = S.HYPSO_DESC_NONE;
     return;
   }
-  const label = meta[FIELD_SOURCE] === HYPSO_SOURCE_COMPUTED
-    ? S.HYPSO_SOURCE_COMPUTED_LABEL : S.HYPSO_SOURCE_IMPORTED_LABEL;
+  const label = {
+    computed: S.HYPSO_SOURCE_COMPUTED_LABEL,
+    imported: S.HYPSO_SOURCE_IMPORTED_LABEL,
+    manual: S.HYPSO_SOURCE_MANUAL_LABEL,
+    mixed: S.HYPSO_SOURCE_MIXED_LABEL,
+  }[meta[FIELD_SOURCE]] || meta[FIELD_SOURCE];
   const parts = [`${label} (${meta[FIELD_CREATED_AT]})`];
   if (meta[FIELD_MIN_N] != null) {
     parts.push(`${S.HYPSO_DESC_MIN_N}: ${meta[FIELD_MIN_N]}`);
@@ -786,7 +747,7 @@ function selectedSurveyIds(body) {
     .map(o => parseInt(o.value, 10));
 }
 
-async function runCompute(body, tableHost, descEl) {
+async function runCompute(body, onSaved) {
   const minN = parseInt(body.querySelector('[data-role="min-n"]').value, 10);
   const surveyIds = selectedSurveyIds(body);
   const useForHeightPlots = body
@@ -794,11 +755,11 @@ async function runCompute(body, tableHost, descEl) {
   const data = await postOrError(postJSON(HYPSO.compute,
     { [FIELD_MIN_N]: minN, [FIELD_SURVEY_IDS]: surveyIds }));
   if (data) {
-    showCandidate(data, minN, surveyIds, useForHeightPlots, tableHost, descEl);
+    showCandidate(data, minN, surveyIds, useForHeightPlots, onSaved);
   }
 }
 
-function showCandidate(payload, minN, surveyIds, useForHeightPlots, tableHost, descEl) {
+function showCandidate(payload, minN, surveyIds, useForHeightPlots, onSaved) {
   const frag = cloneTemplate('tmpl-hypso-candidate');
   const root = frag.querySelector('.hypso-candidate');
   const host = root.querySelector('[data-target="candidate-table"]');
@@ -807,6 +768,8 @@ function showCandidate(payload, minN, surveyIds, useForHeightPlots, tableHost, d
     reject: () => modals.dismiss(),
     accept: async () => {
       const data = await postOrError(postJSON(HYPSO.accept, {
+        equation_state: payload.equation_state,
+        candidate_state: payload.candidate_state,
         [FIELD_MIN_N]: minN,
         [FIELD_SURVEY_IDS]: surveyIds,
         [FIELD_USE_FOR_HEIGHT_PLOTS]: useForHeightPlots,
@@ -814,7 +777,7 @@ function showCandidate(payload, minN, surveyIds, useForHeightPlots, tableHost, d
       }));
       if (!data) return;
       modals.dismiss();
-      loadHypso(tableHost, descEl);
+      await onSaved();
     },
   });
   modals.show(root);
@@ -826,28 +789,6 @@ function showCandidate(payload, minN, surveyIds, useForHeightPlots, tableHost, d
     columnDefs: HYPSO_COL_DEFS,
   });
   modals.onDismiss(() => table.destroy());
-}
-
-function confirmImport(file, tableHost, descEl) {
-  showConfirmModal(S.HYPSO_IMPORT_CONFIRM, async () => {
-    const body = {
-      [FIELD_FILE]: await fileToBase64(file),
-      [FIELD_NONCE]: crypto.randomUUID(),
-    };
-    if (await postOrError(postJSON(HYPSO.upload, body))) {
-      loadHypso(tableHost, descEl);
-    }
-  }, { confirmLabel: S.IMPORT_LABEL, intent: 'confirm' });
-}
-
-function confirmClear(tableHost, descEl) {
-  showConfirmModal(S.HYPSO_CLEAR_CONFIRM, async () => {
-    if (await postOrError(postJSON(HYPSO.clear, {
-      [FIELD_NONCE]: crypto.randomUUID(),
-    }))) {
-      loadHypso(tableHost, descEl);
-    }
-  }, { confirmLabel: S.ACTION_DELETE });
 }
 
 /**

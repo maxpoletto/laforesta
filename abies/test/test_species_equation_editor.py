@@ -122,6 +122,15 @@ def test_reader_cannot_edit_equations(reader_user, species):
     assert client.get(f'/api/impostazioni/species/form/{species[0].pk}/').status_code == 403
 
 
+def test_species_section_owns_the_equation_tools(client):
+    html = client.get('/impostazioni').content.decode()
+    assert 'data-settings-section="hypso"' not in html
+    assert 'data-action="import-height"' in html
+    assert 'data-action="import-volume"' in html
+    assert 'data-action="export-volume"' in html
+    assert 'data-role="equation-compute"' in html
+
+
 def test_form_snapshot_precedes_loading_its_equation_values(species, regions, monkeypatch):
     from apps.impostazioni import species_equations as editor
     hypsometry.merge_active_set([

@@ -46,9 +46,10 @@ table.
   Initially, the new catch-all defaults copy Abete bianco (`Abete` / `Abies alba`
   in the canonical list) and Faggio, respectively: canonical density 9.00 / 10.50
   q/m³ and Pressler 2.00 / 2.00. These are initial values, not live links.
-  Tree-volume calculations use the same two reference species' Tabacchi
-  equations as fixed proxies; changing a catch-all's density changes its mass
-  calculation, not its volume equation. Legacy Altro has no Tabacchi equation.
+  Their volume equations initially reference the same two species through
+  editable, explicit proxies. Changing a catch-all's density changes its mass
+  calculation, not its volume equation. Legacy Altro initially has no volume
+  equation; equation availability is visible and editable in the popup.
   Recognized existing species are classified during migration. Custom taxa that
   cannot be recognized show `—` until a writer selects a type;
   this avoids silently guessing their botanical type.
@@ -87,6 +88,53 @@ regions. Old height snapshots remain archived, and unchanged rows retain their
 original provenance. Renaming a species updates labels without requiring a
 second rename in an equation table. All runtime links use IDs. Neither edits
 nor migration 0032 recompute stored tree heights, volumes or masses.
+
+Volume proxies share coefficients only: they never borrow height regressions,
+density or Pressler defaults. A proxy follows later edits to its referenced
+equation. Each height equation belongs to its own `(compresa ID, species ID)`
+pair. The tree-entry form reports unavailable height/volume estimates; zero is
+reserved for a calculated zero harvestable volume, including negative formula
+results clamped to zero.
+
+### Batch equation updates
+
+The Species toolbar has separate `Importa altezza`, `Importa volume`,
+`Esporta altezza` and `Esporta volume` actions. Imports retain human-readable
+species and compresa names in CSVs; database IDs are not required in the file.
+
+1. Select a height or volume CSV. Abies reads it without changing settings.
+2. Review a table of incoming names, matched species/compresa, current and
+   proposed values, and row errors. Case-insensitive matching is automatic only
+   when it identifies exactly one existing record.
+3. Resolve unknown or ambiguous names with the provided selectors, then recheck
+   the preview. For example, map an old `Abete` label to `Abete bianco`. Proxy
+   references in volume files also require an unambiguous match. No species or
+   compresa is silently created, and invalid or duplicate rows block confirmation.
+4. Confirm to apply all reviewed rows atomically, or cancel to leave everything
+   unchanged. Configuration changes during review, or a preview older than
+   15 minutes, require a refreshed preview before confirmation.
+
+Both imports update only the supplied equations. Omitted species and comprese
+are preserved; a partial file never clears the rest of the configuration.
+Removing a regional height equation is an explicit action in its species popup.
+There is no global delete button. Height exports contain the entire active set;
+volume exports include configured equations and explicit proxy references.
+See [`hypsometry.md`](hypsometry.md#reviewed-batch-imports) for CSV formats.
+
+`Calcola equazioni di altezza`, inside the Species section, fits regressions from
+selected surveys with measured non-coppice trees. Its preview shows `a`, `b`,
+N and r² before acceptance. Acceptance recomputes and verifies the reviewed
+candidate, updates only the resulting pairs, and preserves every other
+equation. An optional checkbox uses those surveys for Bosco's height/diameter
+chart. The panel describes the active snapshot and its source surveys; the
+species popup retains each regional row's original provenance even when a
+snapshot combines imported, computed and manual equations.
+
+All accepted changes appear in Controllo, refresh dependent digests and evict
+affected browser caches. Ipso receives the new height references on its next
+reference refresh; already-recorded observations keep their measurements.
+Repairing old unavailable/zero volume estimates is a separate one-time CLI
+operation, outside the production settings UI.
 
 ### Species selectability and historical Altro
 
@@ -161,18 +209,9 @@ materialized from the selected surveys), `parcel_dendrometry.json`, and
 ipsometrici when a computed parameter set opts the Altezze chart into its
 source surveys. A successful save evicts those full client caches.
 
-## Hypsometric parameters (Parametri ipsometrici)
-
-Visible to writers and admins. A read-only table shows the active hypsometric
-parameter set, with Importa / Esporta / Elimina controls and a `Calcola nuovi
-parametri` panel that fits new coefficients from selected surveys. The selector
-lists surveys only when they have measured non-coppice tree rows, and displays
-that eligible-row count. Fully documented — behavior, the compute→accept flow,
-the CSV format, and the served digest — in [`hypsometry.md`](hypsometry.md).
-
 ## Diameter classes (Classi diametriche)
 
-Visible to writers and admins, immediately below Parametri ipsometrici. The
+Visible to writers and admins, below Parametri dendrometrici. The
 radio control selects one site-wide five-centimetre class convention used by
 every diameter-class chart and export:
 

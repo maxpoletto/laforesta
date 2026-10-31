@@ -65,5 +65,12 @@ check(volume.value !== '', 'volume hidden field is still populated without densi
 eq(mass.value, '', 'mass hidden field stays blank without density');
 check(preview.textContent.includes('m = — q'), 'preview renders missing mass as a dash');
 
+species.options[0].dataset.volumeCoefficients = 'null';
+h.value = '';
+wireVMPreview(form);
+check(!preview.hidden, 'missing volume equation is visible even before height is entered');
+check(preview.textContent.includes('equazione di volume mancante'), 'missing equation is explained');
+eq(volume.value, '', 'an unavailable estimate is not submitted as zero');
+
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

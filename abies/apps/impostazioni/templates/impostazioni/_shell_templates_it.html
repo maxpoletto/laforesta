@@ -72,13 +72,19 @@ S (string constants) provided by the shell's render context.
   <section data-settings-section="species" data-settings-entity>
     {% include "base/_partials/_collapsible_header.html" with section="" title="Specie" %}
     <div class="collapsible-body">
-      <div class="table-toolbar">
+      <div class="table-toolbar" data-role="equation-toolbar">
+        <button type="button" class="btn btn-import" data-action="import-height">{{ S.EQUATION_IMPORT_HEIGHT }}</button>
+        <button type="button" class="btn btn-import" data-action="import-volume">{{ S.EQUATION_IMPORT_VOLUME }}</button>
+        <button type="button" class="btn btn-export" data-action="export-height">{{ S.EQUATION_EXPORT_HEIGHT }}</button>
+        <button type="button" class="btn btn-export" data-action="export-volume">{{ S.EQUATION_EXPORT_VOLUME }}</button>
+        <input type="file" accept=".csv" data-role="equation-import-file" hidden>
         <label class="active-toggle ms-auto">
           <input type="checkbox" data-role="active-toggle" checked>
           Solo attivi
         </label>
       </div>
       <div data-target="table-host"></div>
+      {% include "impostazioni/_species_equation_tools.html" %}
     </div>
   </section>
 
@@ -144,38 +150,7 @@ S (string constants) provided by the shell's render context.
     </div>
   </section>
 
-  <section data-settings-section="hypso">
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri ipsometrici" %}
-    <div class="collapsible-body">
-      <div class="table-toolbar">
-        <button type="button" class="btn btn-import ms-auto" data-action="import">{{ S.IMPORT_LABEL }}</button>
-        <button type="button" class="btn btn-export" data-action="export">{{ S.EXPORT }}</button>
-        <button type="button" class="btn btn-delete" data-action="clear">{{ S.ACTION_DELETE }}</button>
-        <input type="file" accept=".csv" data-role="import-file" hidden>
-      </div>
-      <p class="hypso-description" data-target="description"></p>
-      <div data-target="table-host"></div>
 
-      <div class="hypso-compute">
-        <h3>Calcola nuovi parametri</h3>
-        <div class="form-row narrow">
-          <div class="form-group narrow">
-            <label for="hypso-min-n">N minimo</label>
-            <input type="number" id="hypso-min-n" min="1" value="10" data-role="min-n">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="hypso-surveys">Rilevamenti</label>
-          <select id="hypso-surveys" multiple size="6" data-role="surveys"></select>
-        </div>
-        <label class="hypso-check">
-          <input type="checkbox" data-role="use-for-height-plots" checked>
-          Usa questi rilevamenti per i grafici altezza/diametro.
-        </label>
-        <button type="button" class="btn" data-action="compute">Calcola</button>
-      </div>
-    </div>
-  </section>
 
   <section data-settings-section="diameter-classes">
     {% include "base/_partials/_collapsible_header.html" with section="" title="Classi diametriche" %}

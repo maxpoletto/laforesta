@@ -1,0 +1,19 @@
+<details class="hypso-compute" data-role="equation-compute">
+  <summary>{{ S.EQUATION_COMPUTE_TITLE }}</summary>
+  <p class="hypso-description" data-target="description"></p>
+  <div class="form-row narrow">
+    <div class="form-group narrow">
+      <label for="hypso-min-n">{{ S.COL_MIN_N }}</label>
+      <input type="number" id="hypso-min-n" min="1" value="10" data-role="min-n">
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="hypso-surveys">{{ S.SURVEYS }}</label>
+    <select id="hypso-surveys" multiple size="6" data-role="surveys"></select>
+  </div>
+  <label class="hypso-check">
+    <input type="checkbox" data-role="use-for-height-plots" checked>
+    {{ S.EQUATION_HEIGHT_PLOTS }}
+  </label>
+  <button type="button" class="btn" data-action="compute">{{ S.EQUATION_COMPUTE }}</button>
+</details>

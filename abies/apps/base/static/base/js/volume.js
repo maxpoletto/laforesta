@@ -1,9 +1,9 @@
 /**
- * Tabacchi volume equations (JS mirror of apps/base/tabacchi.py).
+ * Tabacchi volume evaluation using configured, species-linked coefficients.
  *
  * Used by Campionamenti and Piano di taglio entry forms for the
- * live V/m preview line.  Parity with the Python copy is enforced
- * by test/test_tabacchi.py.
+ * live V/m preview line. The name table remains a compatibility/parity fixture;
+ * forms call volumeFromCoefficientsM3 with the current settings, never a name.
  *
  *     if len(b) == 2:  V_dm3 = b[0] + b[1] * D²h
  *     if len(b) == 3:  V_dm3 = b[0] + b[1] * D²h + b[2] * D

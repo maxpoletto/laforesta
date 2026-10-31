@@ -40,16 +40,17 @@ def post(client, data):
     )
 
 
-def test_settings_page_places_localized_radio_section_below_hypsometry(
+def test_settings_page_places_localized_radio_section_below_species_equations(
         writer_client):
     response = writer_client.get('/impostazioni')
 
     assert response.status_code == 200
     html = response.content.decode()
-    hypso = html.index('data-settings-section="hypso"')
+    species = html.index('data-settings-section="species"')
+    hypso = html.index('data-role="equation-compute"')
     diameter = html.index('data-settings-section="diameter-classes"')
     users = html.index('data-settings-section="users"')
-    assert hypso < diameter < users
+    assert species < hypso < diameter < users
     assert 'Le classi diametriche sono:' in html
     for value, label in (
         (
