@@ -301,3 +301,4 @@ commit; they do not repeat the timestamp implementation.
 | 06 — First manual harvest | One state/actual-total event; revalidate the worksite after locking it | New history regression failed first; create tests: 6 passed |
 | 07 — Later actual totals | Shared locked-sum service; parent-first edit/delete; zero and no-op rules preserved | Pre-lock sum regression failed first; harvest/totals/rollback suite: 111 passed |
 | 08 — Harvest CSV | Removed duplicated actual-total implementation; lock parents before imported children | Stale-sum regression failed first; CSV suite: 35 passed, including duplicate replay and unchanged state |
+| 09 — Parcel metadata endpoint | Covered by row 01; no duplicate timestamp setter added | Real endpoint regression fails with the old base hook, passes with current hook; stale edit preserves clock/history |
