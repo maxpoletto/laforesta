@@ -400,8 +400,9 @@ explicitly reuses the same `tree_id`.
     not eligible for computing hypsometric parameters. When `h_m` is NULL,
     `h_measured` is false.
   - `l10_mm`: width (mm) of outer ten rings. 0 if tree was not cored.
-  - `volume_m3`: computed from (d_cm, h_m, species) via Tabacchi equations.
-    JS form computes a live preview; CSV imports compute server-side.
+  - `volume_m3`: computed from (d_cm, h_m, species_id) through the species'
+    configured volume equation. JS previews use those same coefficients; the
+    server computes authoritative values for manual, CSV and Ipso entry.
     `mass_q` = `volume_m3 × species.density`. Both NULL for coppice rows
     (coppice harvests are mass-based at parcel level, not per-tree).
   - `lat`, `lon`, and `acc_m` are the GPS fix and reported accuracy for this
@@ -493,11 +494,11 @@ display totals.
     override; saving an override sets `h_measured = true`. The
     `tree_mark_h_measured_false_without_h_m` constraint requires
     `h_measured = false` when `h_m` is null.
-  - `volume_m3` is computed from (d_cm, h_m, species) via Tabacchi equations
+  - `volume_m3` is computed from (d_cm, h_m, species_id) via the configured equation
     at write time. `mass_q` is `volume_m3 × species.density`. The
     `tree_mark_no_derived_values_without_h_m` constraint requires both to
-    remain null when height is unknown. Both are also null when no Tabacchi
-    equation supports the species.
+    remain null when height is unknown. Both are also null when the species
+    has no configured volume equation.
     Aggregate volume treats null values as no volume contribution; it does not
     infer a zero-volume tree.
   - `lat`, `lon`, `acc_m`, `parcel_id`, and `operator` are populated from the
@@ -633,11 +634,13 @@ the dendrometry setting.
 - hypso_param_set: (id:int, source:string, min_n:int nullable,
   use_for_height_plots:bool, superseded_at:datetime nullable)
   - One set of parameters and the interval during which it was live.
-  - `source` is `computed` (fitted from surveys) or `imported` (from CSV).
+  - `source` is `computed`, `imported`, `manual`, or `mixed` when a partial
+    update retains rows from another source. Each row retains its own origin.
   - `min_n` is the minimum per-(region, species) sample count used when
-    computing (NULL for imported sets).
-  - `use_for_height_plots` is true only for computed sets whose source surveys
-    should also feed Bosco's diameter/height scatter plot. (Other Bosco
+    computing (normally NULL for a wholly imported/manual set).
+  - `use_for_height_plots` is enabled by accepting a computation whose source
+    surveys should also feed Bosco's diameter/height scatter plot; partial
+    edits can retain that choice in a mixed set. (Other Bosco
     dendrometry charts use the Parametri dendrometrici surveys.)
   - The implicit `created_at` is when the set became active; `superseded_at`
     is when it stopped. A NULL `superseded_at` marks the single currently
@@ -647,22 +650,26 @@ the dendrometry setting.
     "which parameters were live when" log.
 
 - hypso_param: (id:int, param_set_id:int, region_id:int, species_id:int,
-  func:string, a:decimal, b:decimal, r2:decimal, n:int) — UNIQUE(param_set_id,
+  func:string, a:decimal, b:decimal, r2:decimal nullable, n:int nullable,
+  source:string, origin_set_id:int nullable) — UNIQUE(param_set_id,
   region_id, species_id)
   - One (region, species) regression within a set. `param_set_id` →
     hypso_param_set (ON DELETE CASCADE); `region_id` / `species_id` are
     PROTECT.
   - `func` is the regression family (currently always `"ln"`).
   - `n` is the sample count for this fit; `r2` the coefficient of
-    determination (diagnostic display, not used in the D→h mapping).
-  - Immutable once written: a set is created whole and never edited row by
-    row.  Rows carry django-simple-history entries so Controllo records the
-    actual coefficients created by compute/import.
+    determination (diagnostic display, not used in the D→h mapping). Both may
+    be omitted for an equation entered without measured fit statistics.
+  - `source` records computed/imported/manual origin; `origin_set_id` is a
+    protected reference to the original snapshot for unchanged copied rows.
+  - Immutable once written: even a popup edit publishes a complete new
+    snapshot, copying all untouched pairs and their provenance. Rows carry
+    django-simple-history entries so Controllo records the actual coefficients.
 
 - params_surveys: many-to-many (`hypso_param_set` ↔ `survey`)
-  - Provenance: the surveys whose samples fed a computed set (empty for
-    imported sets). Records "this set is based on this data"; it is not the
-    historical log.
+  - Provenance: the surveys whose samples fed a computed set. Mixed snapshots
+    can retain the chart's survey selection; a copied row's `origin_set`
+    identifies its original computation's surveys. It is not the historical log.
 
 ## Other parameters
 
@@ -699,11 +706,12 @@ Most of these are configurable in the Settings section.
     catch-alls. Their density and Pressler defaults initially copy current
     Abete bianco / Abies alba and Faggio / Fagus sylvatica, respectively;
     the canonical values are 9.00 / 10.50 q/m³ and 2.00 / 2.00.
-    Their tree-volume estimates use the Abete (`Abete bianco`) and Faggio
-    Tabacchi equations as explicit proxies, respectively, in Python and JS.
+    Their tree-volume equations initially reference Abete (`Abete bianco`) and
+    Faggio as explicit, configurable proxies in `volume_equation`, respectively.
     Mass still uses each catch-all's own current density. This does not alias
-    height-regression parameters or relabel trees. Historical Altro has no
-    Tabacchi equation.
+    height-regression parameters or relabel trees. Historical Altro initially
+    has no volume equation. See the species equation identity section above;
+    runtime calculations resolve IDs rather than common names.
     `Altro` (999) remains reference data for existing trees, harvests, backups,
     and offline Ipso records, but cannot be selected for a newly entered tree
     or harvest. Classification is historical/audited; migration 0026 creates

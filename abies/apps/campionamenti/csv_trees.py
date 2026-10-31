@@ -14,7 +14,7 @@ from django.db import transaction
 from apps.base import csv_io
 from apps.base.digests import mark_stale
 from apps.base.models import (
-    Parcel, Sample, SampleArea, Species, Tree, TreeSample, tree_mass_q,
+    Parcel, Sample, SampleArea, Species, Tree, TreeSample,
 )
 from apps.base.numparse import coord_float
 from apps.base.preserved_trees import latest_preserved_tree_samples

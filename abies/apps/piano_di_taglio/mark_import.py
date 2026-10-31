@@ -14,7 +14,7 @@ from django.db.models import Sum
 from apps.base.digests import mark_stale
 from apps.base.models import (
     HarvestPlanItem, HarvestPlanItemState, Parcel, Species, Tree, TreeMark,
-    next_sequence_number, tree_mass_q,
+    next_sequence_number,
 )
 from apps.base.equations import estimate_volume_and_mass
 from config import strings as S

@@ -20,6 +20,16 @@ For tabular data, the format is a JSON object with two fields:
 data. Every row's first element is `row_id`, used for updates (see below). The
 client maps columns by name, so adding a column does not break cached data.
 
+Equation associations use stable IDs internally. `hypso_params` includes hidden
+`region_id` and `species_id` columns; species rows include hidden configured
+volume coefficients and visible equation-coverage columns. Names remain display
+labels and human-readable CSV input, resolved to IDs at the import boundary.
+The Species editor saves metadata and equations atomically. Equation-import
+previews are read-only; their signed, user-bound snapshot token is confirmed in
+a write transaction with the normal nonce receipt. See
+[hypsometry](hypsometry.md#reviewed-batch-imports) for the preservation and
+concurrency contracts.
+
 The read-only audit digest is an identity exception: its `row_id` is a stable
 `<model-label>:<history-id>` string, rather than a mutable domain row's integer
 key. Its timestamp retains UTC microseconds for sorting/export; a separate

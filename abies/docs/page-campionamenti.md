@@ -288,16 +288,18 @@ number. If the preserved identity `(parcel_id, preserved_number)` already
 exists, the import reuses that `tree_id`; otherwise it creates a new preserved
 `tree`.
 
-`V_m3` is computed at import time from `D_cm`, `H_m`, and the species-specific
-Tabacchi parameters in `apps/base/tabacchi.py` (vendored from `pdg-2026`).
-The selectable catch-alls use explicit estimates from existing equations:
-`Altra conifera` uses Abete bianco (`Abete`), `Altra latifoglia` uses Faggio.
-These aliases apply to manual entry, CSV and Ipso imports, without changing
-the observation's species or substituting height-regression parameters.
+`V_m3` is computed at import time from `D_cm`, `H_m`, and the selected species'
+configured volume equation, resolved by species ID through `apps/base/equations.py`.
+The numeric Tabacchi core remains in `apps/base/tabacchi.py`. Coefficients and
+explicit proxy references are editable in Settings; renaming a species leaves
+the equation association intact. Initially, `Altra conifera` references Abete
+bianco (`Abete`) and `Altra latifoglia` references Faggio. These references apply
+to manual entry, CSV and Ipso imports without changing the observation's species
+or substituting height-regression parameters.
 
 `mass_q` is then `tree_mass_q(V_m3, species.density)` (= `V_m3 × density`, from
 the stored 4-dp `V_m3`) for fustaia rows; left NULL for coppice rows and for
-species outside the Tabacchi table. The interactive form mirrors this in JS
+species without a configured volume equation. The interactive form mirrors this in JS
 (`volume.js`) — see the V/m preview note below for the ≤1-ULP caveat.
 Mass always uses the selected species' current density, not the proxy's.
 Migration 0027 fills only missing volume/mass pairs for previously saved
@@ -348,15 +350,18 @@ retain their historical species IDs/names rather than relabeling them.
 Parcel economic management and individual-tree morphology are independent;
 the operator must select **Ceduo** explicitly when recording coppice shoots.
 
-For fustaia trees whose species has a Tabacchi volume equation (including
-the two catch-all proxies), a live V/m
+For fustaia trees whose species has a configured volume equation (including
+explicit proxies), a live V/m
 preview (`V = X.XX m³ · m = X.X q`) recomputes as D/h/specie change. V via
-the Tabacchi formula in JS (`volume.js`); m = V × density from `species.json`,
+the configured coefficients passed with species options in JS (`volume.js`);
+m = V × density from `species.json`,
 derived from the **stored** 4-dp V so it equals `round(V × density)`, matching
 the import path. The server recomputes V/m with the same Python helper used
 by CSV imports. The JS preview can differ from the persisted Python estimate
 by ≤1 ULP (≤0.0001 m³ / ≤0.001 q): JS rounds in float, Python in Decimal.
 The two are held in parity by `test/test_tabacchi.py`.
+Missing equations show an explicit unavailable-volume message, not a zero
+estimate. Equation edits and migration 0032 never recalculate existing samples.
 
 The **numero albero pulldown** lists "nuovo albero" (auto-numbered) then
 all previously recorded trees in this area with species and last

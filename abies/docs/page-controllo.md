@@ -70,6 +70,7 @@ dropping it from the config.
 | `base.Survey` | `base_survey` | `base_historicalsurvey` | `Rilevamento` | Survey metadata. |
 | `base.Tractor` | `base_tractor` | `base_historicaltractor` | `Trattore` | Tractor reference table. |
 | `base.User` | `base_user` | `base_historicaluser` | `Utente` | App users and roles. |
+| `base.VolumeEquation` | `base_volumeequation` | `base_historicalvolumeequation` | `Equazione di volume` | Species-owned coefficients or an explicit proxy reference. |
 | `ipso.IpsoUpload` | `ipso_ipsoupload` | `ipso_historicalipsoupload` | `Upload Ipso` | Staged PWA upload lifecycle. |
 | `mannesi.ProductionCredit` | `mannesi_credits` | `mannesi_historicalproductioncredit` | `Acconto squadre` | Production credits/acconti. |
 | `mannesi.WorkHour` | `mannesi_hours` | `mannesi_historicalworkhour` | `Ore squadre` | Team work hours. |

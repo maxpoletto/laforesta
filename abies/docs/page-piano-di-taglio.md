@@ -384,9 +384,10 @@ The modal displays:
    region/parcel (or fall inside its region for region-wide items).
    `H_m` may be empty only when `H_measured` is false. It is then stored as
    SQL NULL, along with `volume_m3` and `mass_q`. Otherwise those derived
-   fields are computed server-side via Tabacchi
-   (`apps/base/tabacchi.py`) from `(D_cm, H_m, Genere)` plus species
-   density. A blank `H_m` remains blank when exported.
+   fields are computed server-side via the species-ID-based helper
+   (`apps/base/equations.py`) from `(D_cm, H_m, species_id)` plus species
+   density. It uses the configured volume coefficients and Tabacchi numeric
+   core. A blank `H_m` remains blank when exported.
    `Catastrofata` is ignored at row level (the item's `damaged` flag
    governs).
 
@@ -445,12 +446,14 @@ New species choices include `Altra conifera` and `Altra latifoglia`, not legacy
 `Altro`. A mark already using Altro retains that choice when edited; neither
 the UI nor a direct POST can assign Altro to a new tree or change another
 species to Altro. Historical CSV/Ipso imports remain compatible. The new
-catch-alls use explicit Tabacchi proxies: Abete bianco (`Abete`) for
-`Altra conifera`, Faggio for `Altra latifoglia`. These are estimates from
-existing equations, not new species-specific fits. Mass uses the selected
-catch-all's current density, independently editable in Settings. Python
-calculations and the live JS preview use the same mapping. Historical `Altro`
-remains unsupported by Tabacchi.
+catch-alls initially reference Abete bianco (`Abete`) for `Altra conifera` and
+Faggio for `Altra latifoglia`. These are estimates from existing equations,
+not new species-specific fits. Coefficients and explicit proxies are editable
+in the unified Species popup in Settings. Mass uses the selected species'
+current density. Python and the live JS preview resolve the same configured
+equation by species ID, so renames never break the association. Historical
+`Altro` initially has no equation; missing volume equations show an explicit
+unavailable-volume message rather than a zero estimate.
 
 Migration 0027 fills missing volume/mass for previously saved high-forest
 observations of these two new species when D and h are positive, and refreshes
@@ -459,18 +462,24 @@ calculated values, unknown heights, coppice, legacy species IDs, measurements,
 state and dates. Repaired rows are versioned and dependent digests invalidated.
 
 **h auto-population:** `h = a × ln(D) + b` from the single active hypsometric
-parameter set, keyed by (region, species) — served by the `hypso_params`
+parameter set, keyed by (region ID, species ID) — served by the `hypso_params`
 digest, not a per-plan table (see [`hypsometry.md`](hypsometry.md)). Field
 stays editable; operator overrides set `h_measured = true`. If the active set
 has no entry for the (region, species) pair — or no set is active — h is blank
 and may be saved as unknown. The server stores SQL NULL for height, volume, and
 mass and normalizes `h_measured = false`.
+Changing to a species without a height equation clears an obsolete automatic
+height and displays a hint. Diameter edits retain a manually measured height.
 The Tabacchi proxy does not substitute another species' hypsometric parameters.
 
 Live V/m preview, same pattern as campionamenti: Tabacchi in JS (`volume.js`),
 mass derived from the stored 4-dp volume. The server does not trust the preview:
 it recomputes volume and mass through the same Python helper used by CSV
 imports.
+
+Equation edits/imports and migration 0032 leave existing marks and intervention
+totals unchanged. A future repair of old unavailable Abete rosso estimates is a
+separate one-time CLI operation, not a settings UI feature.
 
 Recording a mark always creates a new `tree` row alongside `tree_mark`.
 
@@ -640,7 +649,7 @@ string described in the calendar table above.
 
 The single active hypsometric parameter set, served by Impostazioni and
 documented in [`hypsometry.md`](hypsometry.md). The "Nuovo albero martellato"
-form builds a lookup keyed by `(Compresa, Specie)` to auto-populate `h_m` from
+form builds a lookup keyed by hidden `(region_id, species_id)` to auto-populate `h_m` from
 `D`. Tiny by construction (≤ regions × species rows), so eager loading is
 cheap.
 

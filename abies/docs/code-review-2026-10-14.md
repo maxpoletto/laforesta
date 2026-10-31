@@ -2,7 +2,7 @@
 
 Review date: 14 October 2026. Reviewed revision: `c3ddd6419c8e42802bf610b5dea4be604d4b150d`.
 
-Progress updated: 28 October 2026. **C1–C11, C13–C14, S1–S4 and R1 are
+Progress updated: 31 October 2026. **C1–C11, C13–C14, S1–S4, R1 and M1 are
 fixed in this branch.** The status table and notes below describe the completed
 work; the original source references, reproductions, and diagnosis remain a
 record of the reviewed revision, not a claim that those defects are still
@@ -519,6 +519,34 @@ CSV backups also are not complete backups of observation photo blobs. The app al
 ## Naming localization and maintainability
 
 ### M1 Scientific identity is coupled to editable localized names
+
+**Status: Fixed, 31 October 2026.** The unified
+[Species settings editor](page-impostazioni.md#species-equation-editor) exposes
+volume coefficients/proxies and regional height equations. Migration 0032
+stores volume equations against Species IDs and preserves height-row origin
+provenance. Desktop and Ipso height lookups use region/species IDs; a rename
+refreshes labels and caches without breaking either equation association.
+Readable CSV imports provide explicit mappings, a read-only preview and atomic
+confirmation with concurrency/expiry checks. Partial imports, computations and
+popup edits preserve all omitted species/region pairs and archive old height
+snapshots. Missing volume equations are explicit in tree entry. See
+[hypsometry](hypsometry.md) and [database](database.md#species-equation-identity).
+
+Regressions began failing before their fixes: rename/ID calculations, scoped
+updates and provenance, import mapping/rollback/retries, stale previews/forms,
+proxy validation, unavailable estimates, desktop controllers and mobile
+compatibility. A real 0031→0032 schema-upgrade test verifies that recorded zero
+estimates, timestamps, versions and height associations survive unchanged.
+Final verification: **1,885 Python tests passed** and all `make test-js` suites
+passed. Django system and model/migration consistency checks passed. There was
+no real-browser/device smoke test. Historical Abete rosso/other estimate repair
+is deferred to a separate one-time CLI operation; this change adds no repair UI
+and does not recompute stored tree measurements or intervention totals.
+
+The diagnosis below records the original reviewed behavior. Species IDs now
+own the equation associations; a separate name-derived equation slug was not
+needed. Name-keyed coefficient tables remain initialization/parity fixtures,
+not the runtime lookup source.
 
 Sources: [Tabacchi keys](../apps/base/tabacchi.py), lines 27–67; [JavaScript mirror](../apps/base/static/base/js/volume.js); [species editing](../apps/impostazioni/views.py), `species_save`; [species helpers](../apps/base/species.py).
 

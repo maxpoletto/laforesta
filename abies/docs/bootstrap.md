@@ -161,7 +161,13 @@ region-wide. Dynamic `Specie:<name>` and `Trattore:<name>` columns use canonical
 species and tractor names. `Q.li` must be positive; species and tractor
 percentages must each sum to 100, matching the manual Prelievi entry rules.
 
-`hypso_params.csv` stores hypsometric parameters by species and eclass.
+`hypso_params.csv` stores hypsometric parameters by compresa and species. Names
+are resolved to Region/Species foreign keys on import. Recognized reference
+species receive their initial volume coefficients when created; those defaults
+become editable species-owned settings, not runtime name lookups. For later
+equation changes use the reviewed import tools in
+[Impostazioni](page-impostazioni.md#batch-equation-updates), preserving unrelated
+equations rather than rerunning bootstrap.
 
 ## Canonical Data
 

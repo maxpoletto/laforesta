@@ -12,11 +12,11 @@ Volume equation per species:
 
 D in cm, h in m.
 
-Used by the campionamenti sampled-trees import core
-(`apps/campionamenti/csv_trees.py`).  Manual
-form entry uses the parallel JS implementation in
-`apps/base/static/base/js/volume.js`.  A parity test in
-`test/test_tabacchi.py` keeps the two in sync.
+The named table initializes new recognized species and supplies compatibility
+fixtures. Live tree calculations resolve species-owned VolumeEquation rows
+through apps.base.equations; _volume_from_b is their shared numerical core.
+Desktop forms receive those configured coefficients, and volume.js evaluates
+the same formula. test/test_tabacchi.py retains the legacy numeric parity checks.
 """
 
 from decimal import Decimal, InvalidOperation
@@ -24,8 +24,8 @@ from typing import Sequence
 from config import strings as S
 
 
-# Species name constants — must match Species.common_name in the Abies
-# DB.  Same set as pdg-2026.
+# Reference initialization names, from the original pdg-2026 coefficient table.
+# Runtime lookup uses Species IDs and never depends on these display names.
 SP_ABETE = S.SPECIES_SILVER_FIR
 SP_ACERO = 'Acero'
 SP_CASTAGNO = 'Castagno'

@@ -14,9 +14,10 @@ data-entry form, or via the Ipso mobile app during timber cruising), which in
 turn feeds the Tabacchi equations to estimate harvest volume and mass.
 
 The estimated `h` is captured at write time: later parameter changes never
-recompute existing rows. The downstream Tabacchi volume/mass has two
-implementations — JS (`volume.js`, the interactive forms) and Python
-(`tabacchi.py`, CSV import) — which agree within 1 ULP (≤0.0001 m³ / ≤0.001 q)
+recompute existing rows. The downstream configured volume/mass calculation has
+two implementations: JS (`volume.js`, interactive forms) and Python
+(`equations.py` using the numeric core in `tabacchi.py`, all server entry paths).
+They agree within 1 ULP (≤0.0001 m³ / ≤0.001 q)
 but cannot match exactly (JS float vs Python Decimal); the bound is locked by
 `test/test_tabacchi.py`.
 
@@ -39,35 +40,26 @@ But there is no reason for samples or regression parameters to be tied to a
 harvest plan. As more samples are collected, Abies should be able to recompute
 better parameters from more data, independently of any plan.
 
-## Proposal
+## Ownership and lifecycle
 
-- Decouple regression parameters from harvest plans. "Modifica piano > Importa
-  equazioni da CSV" goes away, and the plan-level "Esporta" no longer
-  includes `equazioni_ipsometro.csv`.
+Height equations are global, independent of harvest plans. At most one
+parameter snapshot is active. Superseded snapshots are archived with their
+live interval; a UI to browse the archive is deferred. Plan-level edit/export
+has no equation import/export or per-plan regression data.
 
-- At any time, at most **one** parameter set is active, in both Abies and Ipso.
+Writers and admins manage height and volume equations in the Species section
+of Impostazioni. The species summary shows height coverage by compresa and
+volume availability. Its popup edits species parameters, one volume equation
+or explicit reference, and regional height equations together. See
+[`page-impostazioni.md`](page-impostazioni.md#species-equation-editor).
 
-- Parameters live in a dedicated, plan-independent store, managed from a new
-  "Parametri ipsometrici" foldable section on Impostazioni (below "Specie"),
-  visible to writers and admins.
+A change takes effect for future calculations. It never rewrites captured
+heights, volumes, masses or intervention totals. A species rename changes its
+labels while retaining every equation association. Ipso receives current height
+parameters when it refreshes its reference bundle.
 
-- Superseded sets are **archived, not deleted**: each set records the interval
-  during which it was live, forming a historical log of "which parameters were
-  active from when to when". A UI to browse that log is deferred; the data is
-  retained from the start.
-
-- New parameters take effect immediately in Abies for future D→h mappings; they
-  never alter already-recorded measurements. They are included in Ipso's
-  bearer-protected reference bundle the next time the PWA refreshes
-  `/ipso/reference.json`.
-
-- At installation, Abies attempts to import a regression CSV into the initial
-  active set; a missing file is a warning, not a fatal error.
-
-- The implementation has two surfaces: Abies owns the schema, settings
-  section, compute/import/export flow, and mark-entry autofill; Ipso receives
-  the active parameter set through the same reference bundle it uses for
-  parcels, species, sampling context, and work packages.
+At installation, Abies attempts to import a regression CSV into the initial
+active set; a missing file is a warning, not a fatal error.
 
 ## Data model
 
@@ -112,59 +104,49 @@ leaves h blank for manual entry.
   only if it has at least `min_n` eligible rows; smaller groups produce no
   entry.
 
-## Parametri ipsometrici settings section
+## Height tools inside Species
 
-Visible to writers and admins, below "Specie".
+The species popup has one row per compresa. Enabling a row supplies `a`, `b`
+and optional N/r²; disabling it removes that pair only. A save publishes a new
+snapshot, preserves other species and regions, and retains the original source
+of unchanged rows. Metadata and all equations save atomically. Invalid values,
+proxy cycles, removal of an equation still needed by a proxy, and stale forms
+are rejected without partial writes.
 
-- A **description** above the table summarises the active set: its source
-  (computed/imported), the date it became active, the minimum-N used, and — for
-  computed sets — the list of source surveys. If the set also drives Bosco's
-  Altezze chart, the description says so. If no set is active, it says so.
+The Species toolbar offers separate height and volume CSV imports/exports.
+The reviewed import flow below updates only supplied equations. There is no
+standalone read-only height table or global delete button.
 
-- A read-only **sortable table** of the active set's parameters. Columns:
-  Region, Species, Function, a, b, n, r². Parameters are managed as a whole
-  set, so there is no per-row add/edit.
+The **Calcola equazioni di altezza** panel shows the active snapshot's source
+(computed/imported/manual/mixed), activation date, minimum N, source surveys,
+and whether those surveys drive Bosco's height plots. Its controls are:
 
-- Toolbar buttons, above-right of the table:
-  - **Esporta** — downloads the active set as `equazioni_ipsometro.csv`
-    (Italian locale). Always available; non-destructive.
-  - **Importa CSV** — uploads an `equazioni_ipsometro.csv`. After a confirmation
-    that it replaces the active parameters (the current set is archived), the
-    uploaded rows become the new active set (`source = imported`, no surveys).
-  - **Elimina** — after a confirmation, archives the active set so that no
-    parameters are active. Non-destructive: the set is retained in the log.
-
-- A **"Calcola nuovi parametri"** sub-section with:
-  - "N minimo" — integer input (the per-group minimum sample count).
-  - "Rilevamenti" — a multiselect of every structured or unstructured survey
-    with at least one measured non-coppice tree row. Each option displays that
-    eligible measured-tree count, not the survey's total tree count.
-  - "Usa questi rilevamenti per i grafici altezza/diametro" — when checked, the
-    accepted computed set also supplies the survey list for Bosco's
-    diameter/height scatter plot. (Other Bosco dendrometry use the Parametri
-    dendrometrici survey setting.) Imported CSV sets never enable this.
-  - a "Calcola" button.
+- Minimum N: the per-group minimum sample count.
+- Surveys: structured or unstructured surveys with measured non-coppice trees;
+  each option displays that eligible-row count.
+- Use these surveys for height/diameter charts: accepted computations can also
+  supply the survey list for Bosco's height scatter plot. Other dendrometry
+  uses the separate Parametri dendrometrici setting. A later partial edit retains
+  this chart setting; the original per-row sources remain independently visible.
 
 ### Compute → accept/reject flow
 
-1. The user sets "N minimo", selects one or more surveys, and clicks "Calcola".
-2. Abies shows an in-progress modal while it computes a **candidate** set in
-   memory (no database write): it gathers eligible `tree_sample` rows from the
-   chosen surveys, groups them by (region, species), and fits each group with
-   at least N rows.
-3. The candidate is shown as a table in the modal, with "Accetta" / "Rifiuta".
-4. **Accetta** persists the candidate as the new active set — recomputed
-   server-side from the same inputs, so the stored set is authoritative rather
-   than client-supplied — and archives the previously-active set. **Rifiuta**
-   discards the candidate with no database change.
+1. Select minimum N and surveys, then click Calcola.
+2. Abies computes an in-memory candidate without writing the database. Eligible
+   rows are grouped by region/species IDs and fitted as described above.
+3. Review the candidate table with coefficients, N and r². Reject discards it.
+4. Accept recomputes the candidate server-side and verifies both its values and
+   the configuration against the preview's fingerprints. Changed inputs or
+   configuration require a refreshed preview. The accepted pairs replace only
+   their own entries in a new snapshot; all omitted pairs remain intact.
 
-Because superseded sets are archived rather than deleted, replacing parameters
-(by compute, import, or clear) is non-destructive. None of these actions force a
-CSV backup first; "Esporta" remains available for an explicit export.
+Archives preserve the old snapshot on every change. Unchanged copied rows
+retain their original source and origin-set reference, including the source
+surveys when computed. Clearing the active set remains an explicit archival
+service/API operation for existing callers; it is not exposed as an ordinary
+settings action or implied by a partial import.
 
-## Data serving
-
-### Reviewed batch imports
+## Reviewed batch imports
 
 `POST /api/impostazioni/equations/import/preview/` accepts `kind=height` or
 `kind=volume` and the base64 CSV `file`. It performs no writes. The response
@@ -213,26 +195,29 @@ rewrite captured heights, volume, mass or intervention totals. A future repair
 of previously unavailable Abete rosso estimates will be a separate one-time CLI
 operation, with no production repair UI.
 
+## Data serving
+
 The active set is served as the `hypso_params` JSON digest
 (`/api/impostazioni/hypso-params/data/`, readable by any authenticated role):
 one row per active `hypso_param`, columns `row_id, Compresa, Specie, funzione,
-a, b, n, r²`. It is consumed by the settings table and by the Piano-di-taglio
-mark form's h auto-fill (keyed on region + species). The description panel's
+a, b, n, r², region_id, species_id`. The final two columns are hidden internal
+IDs. The Piano-di-taglio mark form joins by these IDs, independently of editable
+labels. Computation previews use the same row builder. The description panel's
 active-set metadata (source, date, min_n, source surveys, and whether those
 surveys drive Bosco height plots) is a small separate JSON response, not a
 cached digest.
 
 Write → invalidation: compute-accept, import, and clear each mark
-`hypso_params`, `parcel_dendrometry_points`, and `audit` stale. The point
-digest is included because accepting/clearing/importing may switch Bosco's
+`species`, `hypso_params`, `parcel_dendrometry_points`, and `audit` stale. The
+point digest is included because accepting/clearing/importing may switch Bosco's
 Altezze chart between hypsometry-source surveys and the dendrometry setting.
 `TestDigestInvalidation` in
 `test/test_hypso_views.py` locks the contract: each write path re-reads the
 served digest and asserts the change (import, for instance, asserts the
 coefficients flowed through).
 
-`replace_active_set()` and `clear_active_set()` own these dirty marks inside
-the same transaction as archiving/creating the parameter set. This applies to
+`replace_active_set()`, `merge_active_set()` and `clear_active_set()` own dirty
+marks inside the same transaction as archiving/creating the parameter set. This applies to
 direct service calls and requests without a nonce as well as UI requests.
 A failure during dirty marking rolls back the parameter change; the endpoint
 does not perform a separate post-commit invalidation.
@@ -242,10 +227,12 @@ does not perform a separate post-commit invalidation.
 - Plan edit/export do not include per-plan hypsometric equation import/export
   or per-plan `tree_height_regressions` data.
 - The "Nuovo albero martellato" form auto-populates `h = a·ln(D) + b` from the
-  single active parameter set (keyed by region + species) instead of a per-plan
-  table. The field stays editable; an override sets `h_measured = true`; a
-  missing (region, species) entry leaves h blank. A mark can be saved in that
-  state; Abies stores null height, volume, and mass while retaining the diameter
+  single active parameter set (keyed by region ID + species ID). The field stays
+  editable; an override sets `h_measured = true`; a
+  missing (region, species) entry clears an obsolete automatic height and shows
+  that automatic height is unavailable. Measured heights remain editable. A
+  missing volume equation is reported explicitly even before height is entered.
+  A mark can be saved without height; Abies stores null height, volume and mass, retaining the diameter
   for tree-count and basal-area summaries.
 
 ## Synchronization with Ipso
@@ -256,6 +243,13 @@ species, parcels, sampling context, PAI context, and work-package options. The
 protected response is served with `Cache-Control: no-store`, and the service
 worker bypasses storage for `no-store` responses so a stale active set is not
 replayed from the HTTP or PWA cache.
+
+Ipso 1.5.5 receives an additive `hypsometry_by_id` map keyed by region ID and
+species ID, alongside the legacy name-keyed `ipsometrica` map. New clients prefer
+the ID map; if that map is present, a missing pair means unavailable and does
+not fall back to a possibly misleading name match. Older cached bundles still
+work through the legacy lookup. No IndexedDB key, session or upload-schema
+migration is needed.
 
 A refreshed reference bundle completely replaces Ipso's local hypsometric
 parameters for future field entries. Existing local sessions keep their recorded
