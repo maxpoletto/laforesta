@@ -1,4 +1,4 @@
-FROM python:3.14.10-slim-trixie@sha256:fa99b65193ea9dbde3fc2367f43d3a2907571ce2a15213a86f0053e1d49d8456
+FROM python:3.14.10-slim-trixie@sha256:3cabfd7d7aaf394e6040e79fa1eec6ca1c52b74ed9188650472695d9a9326999
 
 # --- OS deps ----------------------------------------------------------------
 # sqlite3 ships as a Python stdlib C extension in python:3.14-slim.
