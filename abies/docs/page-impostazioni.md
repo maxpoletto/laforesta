@@ -6,6 +6,9 @@ Collapsible sections are collapsed by default. Sections not visible to the
 current user's role are hidden entirely. The tab is visible to every
 authenticated user because every user can configure a landing page.
 
+The plan used for projected production and the cutting calendar is selected
+directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
+
 ## Personal settings
 
 Password-auth users see `Cambio password`, with two fields: new password and

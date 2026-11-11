@@ -149,3 +149,10 @@ class TestBoscoPlanSource:
         assert 'data-role="plan-source"' in html
         assert html.index('data-role="plan-source"') < html.index('data-role="cadastral-toggle"')
         assert 'data-settings-section="future-production"' not in html
+
+    def test_print_preview_is_available_to_readers(self, reader_client):
+        html = reader_client.get('/bosco').content.decode()
+        assert '<option value="10">Calendario di taglio</option>' in html
+        assert 'data-action="print-calendar"' in html
+        assert 'id="tmpl-bosco-calendar-print"' in html
+        assert 'data-action="download-map"' in html

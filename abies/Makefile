@@ -278,6 +278,7 @@ test-js:
 	node apps/bosco/static/bosco/js/bosco-plan-source.test.mjs
 	node apps/bosco/static/bosco/js/bosco-calendar.test.mjs
 	node apps/bosco/static/bosco/js/characteristic-print.test.mjs
+	node apps/bosco/static/bosco/js/bosco-print-ui.test.mjs
 	node apps/bosco/static/bosco/js/bosco-state.test.mjs
 	node apps/bosco/static/bosco/js/bosco-satellite.test.mjs
 	node apps/bosco/static/bosco/js/bosco-production.test.mjs

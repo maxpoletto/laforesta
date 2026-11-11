@@ -587,6 +587,14 @@
   color: #666;
 }
 
+.bosco-print-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 12px 0;
+  border: 1px solid #ccc;
+}
+
 .bosco-pai-latlon-row .latlng-use-location {
   margin-top: 6px;
 }

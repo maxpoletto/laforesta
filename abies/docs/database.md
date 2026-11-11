@@ -239,8 +239,9 @@ explicitly reuses the same `tree_id`.
   - Denotes a multi-year harvest plan, comprising all or most parcels.
   - `name` is a short name used for selector widgets (e.g., "Piano di taglio
     2026-2040"), `description` is a longer text (sentence to short paragraph).
-  - `active` is true if this harvest plan is being used to determine future
-    production values (see page-bosco.md > Caratteristiche). At most
+  - `active` selects the shared source for Bosco > Caratteristiche > Prelievo
+    previsto and Calendario di taglio. The selector saves immediately in
+    either view (see page-bosco.md). At most
     one harvest plan can have this flag set to true.
 
 - harvest_plan_item: (id:int, harvest_plan_id:int, region_id:int nullable,

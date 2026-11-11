@@ -402,6 +402,15 @@ export const BOSCO_NO_PLANNED_CUTS = 'Nessun taglio previsto';
 export const BOSCO_PRINT_GEOMETRY_ERROR = 'Impossibile preparare la mappa: controlla i confini delle particelle.';
 export const BOSCO_PRINT_LABEL_ERROR = 'Impossibile disporre tutte le etichette in una pagina A4 leggibile.';
 export const BOSCO_PRINT_PARCEL_MISMATCH = 'I confini e l’elenco delle particelle non corrispondono. Controlla i dati della compresa prima di esportare.';
+export const BOSCO_PRINT_SELECT_PLAN = 'Seleziona un piano di taglio e attendi il caricamento dei dati.';
+export const BOSCO_PRINT_DOWNLOAD_ERROR = 'Impossibile generare il PDF. Riprova.';
+export const BOSCO_CALENDAR_MAP_TITLE = region => `Calendario di taglio - ${region}`;
+export const BOSCO_CALENDAR_MAP_PLAN = plan =>
+  `Piano di taglio: ${plan.name} (${plan.year_start}-${plan.year_end})`;
+export const BOSCO_CALENDAR_MAP_FOOTER = date =>
+  `Esportato il ${date} | - = Nessun taglio previsto`;
+export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>
+  `calendario_taglio_${region.replace(/[\\/:*?"<>|]/g, '_')}_${plan.year_start}-${plan.year_end}.pdf`;
 export const BOSCO_HARVEST_METRIC = 'Prelievo';
 export const BOSCO_QUINTALS_PER_HA = 'Q.li/ha';
 export const BOSCO_QUINTALS_PER_HA_VALUE = value => `${value} q/ha`;

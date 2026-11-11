@@ -5,6 +5,7 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import { wirePlanSource } from './bosco-plan-source.js';
+import { showCalendarPrint } from './bosco-print-ui.js';
 import { Q_CUTTING_CALENDAR, usesPlanSource } from './bosco-metrics.js';
 import {
   calendarColorPosition, calendarDomain, calendarYearsByParcel, calendarYearsText,
@@ -541,6 +542,16 @@ function buildRegionOptions() {
 }
 
 function wireControls() {
+  root.querySelector('[data-action="print-calendar"]').addEventListener('click', () => {
+    const region = regionById.get(currentState?.regionId);
+    if (!region || !futureData?.[FIELD_SELECTED_PLAN]) return;
+    try {
+      showCalendarPrint({ geojson: parcelsGeo, region,
+        entries: buildParcelEntries(parcelsData), data: futureData });
+    } catch (error) {
+      showError(error.message || S.BOSCO_PRINT_DOWNLOAD_ERROR);
+    }
+  });
   regionSelect?.addEventListener('change', () => {
     const params = new URLSearchParams(location.search);
     params.set('c', regionSelect.value);
@@ -718,6 +729,13 @@ function updateModePanels(mode) {
 }
 
 function updateCharacteristicControls(state) {
+  const printRow = root?.querySelector('[data-role="calendar-print-row"]');
+  if (printRow) {
+    printRow.hidden = state.q !== Q_CUTTING_CALENDAR;
+    const button = printRow.querySelector('button');
+    button.disabled = !futureData?.[FIELD_SELECTED_PLAN] || !regionById.has(state.regionId);
+    button.title = button.disabled ? S.BOSCO_PRINT_SELECT_PLAN : '';
+  }
   const planRow = root?.querySelector('[data-role="plan-source"]');
   if (planRow) planRow.hidden = !usesPlanSource(state.q);
   if (usesPlanSource(state.q)) planSource?.load();
@@ -1014,8 +1032,14 @@ function renderCuttingCalendar() {
     applyEntryStyle(entry, t == null ? NO_DATA_STYLE : continuousStyle(t), years[0],
       () => `${S.BOSCO_PLANNED_CUT_YEARS}: ${calendarYearsText(years)}`);
   }
-  renderContinuousLegendTarget(legendEl, S.BOSCO_METRIC_CUTTING_CALENDAR,
-    calendarDomain(plan), year => fmtInt(year));
+  const domain = calendarDomain(plan);
+  if (legendEl && domain && domain.min === domain.max) {
+    legendEl.replaceChildren(legendRow(continuousStyle(0).fillColor,
+      `${S.BOSCO_METRIC_CUTTING_CALENDAR}: ${fmtInt(domain.min)}`));
+  } else {
+    renderContinuousLegendTarget(legendEl, S.BOSCO_METRIC_CUTTING_CALENDAR,
+      domain, year => fmtInt(year));
+  }
   if (hasUnscheduled) {
     legendEl?.appendChild(legendRow(NO_DATA_STYLE.fillColor, S.BOSCO_NO_PLANNED_CUTS));
   }
