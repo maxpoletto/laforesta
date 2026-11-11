@@ -11,6 +11,13 @@ The row-by-row inventory is in [audit-m3-inventory.csv](audit-m3-inventory.csv).
 IDs below correspond to that file. Priorities describe implementation order;
 they are not a new claim that every duplication is a correctness defect.
 
+Follow-up proposal, 1 November 2026:
+[M3-NAMING-1](proposal-m3-naming-transition.md) specifies explicit stored-data
+conversion and a bounded compatibility period, with a
+[release/adapter/gate ledger](m3-naming-rollout.md). It supersedes this audit's
+read-old/write-old and indefinite adapter recommendation. That follow-up is
+specified only; the stored/wire changes have not been implemented.
+
 ## Findings and scope
 
 The most useful work is consolidating policy owners and moving name translation
@@ -48,11 +55,11 @@ Discovery checks:
 ### D01–D03: consolidate these first
 
 **D01 — Actual harvest-volume materialization has two owners.**
-[`_rematerialize_volume_actual()`](../apps/prelievi/views.py) and the final
-parent loop in [`csv_harvests.apply()`](../apps/prelievi/csv_harvests.py) repeat
+[`_rematerialize_volume_actual()`](../../apps/prelievi/views.py) and the final
+parent loop in [`csv_harvests.apply()`](../../apps/prelievi/csv_harvests.py) repeat
 the SUM, empty-to-zero rule, parent lookup, comparison and partial save. Both
 currently omit the parent's modification timestamp. Marked-volume maintenance
-in [`mark_import.py`](../apps/piano_di_taglio/mark_import.py) is related, but
+in [`mark_import.py`](../../apps/piano_di_taglio/mark_import.py) is related, but
 has a different null/empty rule and first-mark state transition.
 
 Create a small plan-item totals owner used by manual and CSV operations, with
@@ -68,8 +75,8 @@ universal increment in `TimestampedModel.save()` or convert User to caller-side
 increments. C14 must keep its protections and login exception.
 
 **D03 — Tree volume/mass calculation has parallel wrappers.**
-[`mark_volume_and_mass()`](../apps/piano_di_taglio/mark_import.py) and
-[`tree_volume_and_mass()`](../apps/campionamenti/csv_trees.py) both choose the
+[`mark_volume_and_mass()`](../../apps/piano_di_taglio/mark_import.py) and
+[`tree_volume_and_mass()`](../../apps/campionamenti/csv_trees.py) both choose the
 Tabacchi equation, handle unavailable values and multiply by species density.
 The latter also handles coppice and an import-time name override. The manual,
 CSV and Ipso paths already reuse these wrappers within their domains.
@@ -84,19 +91,19 @@ equation identity change, not as an extra rename-only change beforehand.
 
 | ID | Evidence and distinction | Proposed resolution |
 | --- | --- | --- |
-| D04 | [Python Tabacchi table](../apps/base/tabacchi.py) and [JS table](../apps/base/static/base/js/volume.js) duplicate coefficients/proxy mappings; previews and server calculations legitimately run in different languages | Keep both runtimes and parity tests. If adopting M1, generate coefficient data for both from one checked-in, locale-neutral source. Do not generate the numerical algorithms or require an online preview request |
+| D04 | [Python Tabacchi table](../../apps/base/tabacchi.py) and [JS table](../../apps/base/static/base/js/volume.js) duplicate coefficients/proxy mappings; previews and server calculations legitimately run in different languages | Keep both runtimes and parity tests. If adopting M1, generate coefficient data for both from one checked-in, locale-neutral source. Do not generate the numerical algorithms or require an online preview request |
 | D05 | `config/constants.py`, shared `base/js/constants.js`, and Ipso `pwa/constants.js` repeat wire literals; the mobile file explicitly requests alignment | Define a small neutral manifest of cross-runtime wire values and generate the two JS projections, or first add a parity test for the deliberately shared subset. Do not generate UI strings, Python-only settings or unrelated client constants |
 | D06 | Upload validation, CSV adapters and form parsers have different integer/boolean rules | Preserve the edge contracts: native Ipso JSON requires real JSON integers/booleans; forms accept their documented strings; CSV tolerates integral spreadsheet values. Share canonical domain validation after decoding, not one permissive parser. `numparse`, `csv_io`, `tree_validation` already supply much of this |
 | D07 | Mutation-specific `mark_stale()` lists and response invalidations repeat dependencies across manual/import paths | Give an operation family one dependency description or affected-identity result. Use it for server dirtiness and client changes inside the transaction. Keep row builders shared. A row patched into cache must not also be invalidated in the same response |
 | D08 | Python/JS hypsometry, diameter classes, basal area and volume code coexist | Retain server authority and offline/live calculations. Test shared fixtures, rounding, unavailable values and class boundaries. Share coefficient/config data where practical; do not replace working algorithms with a generic cross-language execution framework |
-| D09 | [Desktop `geo.distanceMeters()`](../apps/base/static/base/js/geo.js) uses radius `6378137.0`; [Ipso upload](../apps/ipso/static/ipso/pwa/upload.js) has its own Haversine implementation with `6371000` | Choose and document the metric used for sample-area membership before sharing it. Their ratio differs by about 0.112%, which can change a boundary decision. Add near-radius fixtures first. Reuse the existing [Ipso geometry bridge](../apps/ipso/static/ipso/pwa/geo.js); no wholesale PWA module conversion is needed |
-| D10 | [Desktop `parcelNames()`](../apps/base/static/base/js/geo.js) reads `layer`/`name`; [backend `parcel_key()`](../apps/base/parcel_geometry.py) additionally accepts `compresa`/`Compresa` and `particella`/`Particella` | Specify supported GeoJSON property aliases and test identical fixture inputs in both languages. Translate to one internal region/parcel representation at the geometry boundary. Do not silently drop currently accepted source formats |
+| D09 | [Desktop `geo.distanceMeters()`](../../apps/base/static/base/js/geo.js) uses radius `6378137.0`; [Ipso upload](../../apps/ipso/static/ipso/pwa/upload.js) has its own Haversine implementation with `6371000` | Choose and document the metric used for sample-area membership before sharing it. Their ratio differs by about 0.112%, which can change a boundary decision. Add near-radius fixtures first. Reuse the existing [Ipso geometry bridge](../../apps/ipso/static/ipso/pwa/geo.js); no wholesale PWA module conversion is needed |
+| D10 | [Desktop `parcelNames()`](../../apps/base/static/base/js/geo.js) reads `layer`/`name`; [backend `parcel_key()`](../../apps/base/parcel_geometry.py) additionally accepts `compresa`/`Compresa` and `particella`/`Particella` | Specify supported GeoJSON property aliases and test identical fixture inputs in both languages. Translate to one internal region/parcel representation at the geometry boundary. Do not silently drop currently accepted source formats |
 
 ### D11–D15: lower-cost or deliberately retained duplication
 
 **D11 — Formatting and categorical colors.**
-[`IpsoFormat`](../apps/ipso/static/ipso/pwa/format.js) and
-[`IpsoPalette`](../apps/ipso/static/ipso/pwa/palette.js) mirror desktop helpers.
+[`IpsoFormat`](../../apps/ipso/static/ipso/pwa/format.js) and
+[`IpsoPalette`](../../apps/ipso/static/ipso/pwa/palette.js) mirror desktop helpers.
 They are not exactly equivalent: mobile formatting converts numeric strings,
 while the desktop decimal formatter returns non-number inputs unchanged.
 Extract only a pure common subset or generate the palette constants; test the
@@ -105,7 +112,7 @@ controller just to obtain a color list. Existing classic-script globals and
 offline precaching are part of the deployment work.
 
 **D12 — Structured/free-survey import loops.**
-[`sample_import_rows()` and `free_survey_import_rows()`](../apps/ipso/importers.py)
+[`sample_import_rows()` and `free_survey_import_rows()`](../../apps/ipso/importers.py)
 repeat reference loading, session operator extraction and some row handling.
 Their sample identity, number allocation, area and coppice rules differ. Retain
 two explicit orchestration functions. Extract a shared validated measurement or
@@ -183,7 +190,7 @@ first refactors. Add hidden ID fields for machine joins where needed (M1).
 
 ### 3. Ipso persistence and reference compatibility
 
-The current storage is intentionally mixed. [`store.js`](../apps/ipso/static/ipso/pwa/store.js)
+The current storage is intentionally mixed. [`store.js`](../../apps/ipso/static/ipso/pwa/store.js)
 uses IndexedDB schema 9; tree rows contain `specie`, `numero`, `particella`,
 `gruppo` alongside English measurement fields and canonical Abies IDs. Session
 rows contain `data`, `compresa`, `operatore`, `catastrofata`. This is live stored
@@ -191,7 +198,7 @@ data, not merely variable spelling.
 
 The reference bundle also publishes `common`, `compresa`, `particella`, and
 `ipsometrica`, while uploads use ID-based English keys. The existing
-[`canonicalRecord()`](../apps/ipso/static/ipso/pwa/upload.js) already translates
+[`canonicalRecord()`](../../apps/ipso/static/ipso/pwa/upload.js) already translates
 much of this at upload time. It prefers captured IDs and falls back to name
 resolution for older records. Preserve that precedence: an old label snapshot
 must not override an existing ID after a reference label changes.
@@ -238,6 +245,10 @@ actual meaning, not mechanically translate words to similarly named fields.
   These are different changes with very different compatibility costs.
 
 ## Proposed adapter design
+
+Historical proposal: the strategy in this section is superseded by
+[M3-NAMING-1](proposal-m3-naming-transition.md). Keep the identity-preservation
+requirements; use the new specification for migration, versioning and removal.
 
 Start with pure adapters rather than a database migration:
 

@@ -16,8 +16,6 @@ hidden `timestamp_label` supplies the visible site-local date/time including
 seconds. Header sorting uses the precise UTC value in either direction, so
 events within one second and around daylight-saving transitions retain their
 chronological order. CSV exports preserve the UTC timestamp and microseconds.
-Migration 0030 invalidates previously generated audit files without altering
-stored history or creating new events.
 
 Stored protocol codes are rendered through their localized model-choice
 labels. In particular, Ipso upload modes, lifecycle states, and destination

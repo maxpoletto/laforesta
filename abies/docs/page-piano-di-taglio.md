@@ -455,12 +455,6 @@ equation by species ID, so renames never break the association. Historical
 `Altro` initially has no equation; missing volume equations show an explicit
 unavailable-volume message rather than a zero estimate.
 
-Migration 0027 fills missing volume/mass for previously saved high-forest
-observations of these two new species when D and h are positive, and refreshes
-the affected intervention's marked-volume total. It preserves existing
-calculated values, unknown heights, coppice, legacy species IDs, measurements,
-state and dates. Repaired rows are versioned and dependent digests invalidated.
-
 **h auto-population:** `h = a × ln(D) + b` from the single active hypsometric
 parameter set, keyed by (region ID, species ID) — served by the `hypso_params`
 digest, not a per-plan table (see [`hypsometry.md`](hypsometry.md)). Field
@@ -477,9 +471,7 @@ mass derived from the stored 4-dp volume. The server does not trust the preview:
 it recomputes volume and mass through the same Python helper used by CSV
 imports.
 
-Equation edits/imports and migration 0032 leave existing marks and intervention
-totals unchanged. A future repair of old unavailable Abete rosso estimates is a
-separate one-time CLI operation, not a settings UI feature.
+Equation edits/imports leave existing marks and intervention totals unchanged.
 
 Recording a mark always creates a new `tree` row alongside `tree_mark`.
 

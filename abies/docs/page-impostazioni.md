@@ -86,8 +86,7 @@ An equation still needed by another species cannot be removed.
 Changing one species or regional equation preserves all other species and
 regions. Old height snapshots remain archived, and unchanged rows retain their
 original provenance. Renaming a species updates labels without requiring a
-second rename in an equation table. All runtime links use IDs. Neither edits
-nor migration 0032 recompute stored tree heights, volumes or masses.
+second rename in an equation table. All runtime links use IDs. Equation edits do not recompute stored tree heights, volumes or masses.
 
 Volume proxies share coefficients only: they never borrow height regressions,
 density or Pressler defaults. A proxy follows later edits to its referenced
@@ -265,10 +264,8 @@ edits are serialized so two administrators cannot each remove the other remainin
 administrator. This policy applies to Settings; installation and authorized
 server-side recovery tools can still provision an administrator.
 
-Migration 0031 initializes existing users and historical user rows at version 1.
-Subsequent account saves advance the version, including personal password and
-landing-page changes; login-time bookkeeping alone does not invalidate forms.
-No account or audit event is deleted by the migration.
+Account saves advance the version, including personal password and landing-page
+changes; login-time bookkeeping alone does not invalidate forms.
 
 The edit form explains that changing the login method or email removes previous
 Microsoft account links and stored tokens. Email comparison is case-insensitive,

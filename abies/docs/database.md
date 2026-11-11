@@ -9,10 +9,10 @@ domain-specific meaning.
 `TimestampedModel.modified_at` advances on full and nonempty partial saves;
 `save(update_fields=[])` remains a no-op. `created_at` stays fixed. The base
 class does not increment `version`: accepted edit operations own that token,
-while derived-only parent totals keep it unchanged. Historical timestamps are
-not backfilled. Infrastructure queryset writes used only to acquire a lock do
-not create timestamps, versions or history. See the
-[M2 contract](proposal-m2-versioning.md) for model exceptions and rollout.
+while derived-only parent totals keep it unchanged. Infrastructure queryset
+writes used only to acquire a lock do not create timestamps, versions or
+history. User, SiteSettings and IpsoUpload have the separate contracts
+described in their table definitions below.
 
 Mutable domain tables are tracked by django-simple-history and surface in
 the Controllo audit log; `docs/page-controllo.md` lists which tables are
@@ -28,11 +28,9 @@ exclusive. Its equation is `V_dm³ = b0 + b1 D²h [+ b2 D]`, with D in cm and
 h in metres; divide by 1000 for m³. A proxy retains its own species identity
 and density and uses the referenced species' coefficients.
 
-Migration 0032 seeds the existing supported coefficient vectors and catch-all
-proxies, recognizing canonical Latin identities where an existing common name
-has changed. It does not add an Abete rosso equation, rewrite tree estimates,
-change species IDs or reset species versions. New recognized reference species
-receive initial defaults once; later saves do not reset edited equations.
+Recognized new reference species receive initial coefficient/proxy defaults
+once, using canonical common or Latin names at initialization. Later saves
+preserve edited equations. Runtime estimates resolve equations by species ID.
 
 Height rows retain `(param_set_id, region_id, species_id)` identity. Their
 `source` records imported/computed/manual origin, and `origin_set_id` preserves
@@ -55,8 +53,7 @@ tree heights, volumes and masses remain unchanged by reference edits.
   - The pending claim and completed response are written in the same
     transaction as the domain mutation; an empty pending response is never
     committed. Concurrent claims serialize on the unique constraint.
-  - Migration 0029 adds `request_hash` without deleting existing receipts.
-    Those legacy receipts have a blank hash and preserve their former replay
+  - Legacy receipts with a blank `request_hash` preserve their former replay
     behavior until expiry. See [data architecture](data-architecture.md) for
     the request/transaction contract.
 
@@ -72,8 +69,7 @@ tree heights, volumes and masses remain unchanged by reference edits.
     including partial saves. A `last_login`-only save or empty `update_fields`
     leaves it unchanged. Settings compares the submitted version under its
     account locks and rejects stale forms before any account mutations.
-  - Migration 0031 adds version 1 to existing users and historical user rows
-    without creating audit events. Direct bulk/queryset updates bypass `save()`;
+  - Direct bulk/queryset updates bypass `save()`;
     any account-changing bulk writer must advance the version explicitly.
 
 - site_settings: singleton runtime settings row.
@@ -320,8 +316,8 @@ explicitly reuses the same `tree_id`.
   - Opening dates and notes can be corrected in the Intervento edit form,
     guarded by the parent item's version. Corrections preserve the event ID
     and lifecycle state. Events are audited in `base_historicalharvesttransition`.
-    The history-table migration snapshots existing events so their first
-    correction has a before value; snapshots do not appear as user writes.
+    Initial history baselines supply a before value for event corrections;
+    baselines do not appear as user writes.
   - ON DELETE CASCADE from `harvest_plan_item`: transition rows are
     system-managed lifecycle history and disappear with their owning item.
 
@@ -722,16 +718,8 @@ Most of these are configurable in the Settings section.
     runtime calculations resolve IDs rather than common names.
     `Altro` (999) remains reference data for existing trees, harvests, backups,
     and offline Ipso records, but cannot be selected for a newly entered tree
-    or harvest. Classification is historical/audited; migration 0026 creates
-    the new rows and backfills recognized taxa without rewriting existing
-    species foreign keys, captured volumes, densities, or Pressler measurements.
-    Migration 0027 subsequently fills missing volume/mass pairs only for
-    high-forest observations of the two new catch-alls with positive D/h;
-    preexisting values (including zero), unknown heights, coppice and Altro
-    remain untouched. Affected marked-volume totals are rebuilt. Repaired
-    observations and changed interventions receive a version/modified-time
-    bump; intervention history gets a maintenance baseline, and dependent
-    digests are marked stale.
+    or harvest. Classification changes are audited and preserve captured
+    species identities and scientific measurements.
 
 - product: (id:int, name:string)
   - Implements an extensible enum of harvested product types: (1: "Tronchi", 2:

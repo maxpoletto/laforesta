@@ -44,7 +44,7 @@ better parameters from more data, independently of any plan.
 
 Height equations are global, independent of harvest plans. At most one
 parameter snapshot is active. Superseded snapshots are archived with their
-live interval; a UI to browse the archive is deferred. Plan-level edit/export
+live interval; archived sets have no browsing UI. Plan-level edit/export
 has no equation import/export or per-plan regression data.
 
 Writers and admins manage height and volume equations in the Species section
@@ -206,10 +206,8 @@ both supported conventions through the shared CSV codec. Volume export is
 `GET /api/impostazioni/equations/volume/export/`. Proxy rows round-trip without
 copying coefficients or changing their species identity.
 
-Historical tree repair is outside these endpoints. Equation edits/imports never
-rewrite captured heights, volume, mass or intervention totals. A future repair
-of previously unavailable Abete rosso estimates will be a separate one-time CLI
-operation, with no production repair UI.
+Equation edits/imports never rewrite captured heights, volume, mass or
+intervention totals. The settings endpoints do not provide a tree-repair UI.
 
 ## Data serving
 
@@ -260,12 +258,11 @@ protected response is served with `Cache-Control: no-store`, and the service
 worker bypasses storage for `no-store` responses so a stale active set is not
 replayed from the HTTP or PWA cache.
 
-Ipso 1.5.5 receives an additive `hypsometry_by_id` map keyed by region ID and
-species ID, alongside the legacy name-keyed `ipsometrica` map. New clients prefer
+Ipso receives a `hypsometry_by_id` map keyed by region ID and species ID,
+alongside the legacy name-keyed `ipsometrica` map. The client prefers
 the ID map; if that map is present, a missing pair means unavailable and does
 not fall back to a possibly misleading name match. Older cached bundles still
-work through the legacy lookup. No IndexedDB key, session or upload-schema
-migration is needed.
+work through the legacy lookup.
 
 A refreshed reference bundle completely replaces Ipso's local hypsometric
 parameters for future field entries. Existing local sessions keep their recorded

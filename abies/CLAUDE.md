@@ -131,7 +131,8 @@ advance it once under the write lock. Derived-only parent totals leave that
 token unchanged. `TimestampedModel` updates `modified_at` on full and nonempty
 partial saves; empty partial saves remain no-ops. Edit forms include `version`
 and the server rejects stale submissions. User, SiteSettings and Ipso staging
-have explicit separate contracts; see `docs/proposal-m2-versioning.md`.
+have separate version/timestamp contracts documented in
+[`docs/database.md`](docs/database.md).
 
 ## Database model
 
@@ -306,6 +307,10 @@ Dev deploys the working tree (uncommitted changes included) when REF is unset.
 Local dev uses `manage.py runserver` directly (no Docker).
 
 # Testing
+
+Commit messages use a standalone subject and explain the change without relying
+on an issue number or external review document. Wrap every subject and body line
+to at most 80 characters. Put issue or review references after the description.
 
 Python: `make test` runs pytest-django with coverage (`--cov-report=term-missing`).
 JS: `node tests.js` in individual app directories.

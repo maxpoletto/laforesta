@@ -71,13 +71,8 @@ when a waiting worker exists. Pressing the button sends the worker an explicit
 activation message and reloads the page once the new worker controls it, keeping
 version switches visible and operator-driven.
 
-Ipso 1.5.1 renames the mobile catalog from `strings.js` to `strings_it.js` and
-updates its loading/precache references. The version bump gives the new shell
-its own cache; existing installed clients keep their cached old shell until
-normal operator-driven activation. No IndexedDB schema or session data changes.
-
-Ipso 1.5.2 hardens recording against overlapping saves and closing-session
-races. The shared save handler acquires an in-progress guard before any await;
+Recording guards against overlapping saves and closing-session races.
+The shared save handler acquires an in-progress guard before any await;
 input events cannot re-enable Save while the operation runs. The short cooldown
 starts after the durable insert. A successful insert consumes the form before
 preferences, session refresh, map refresh and periodic backup. Those follow-ups
@@ -130,9 +125,9 @@ open sessions remain exportable and pending uploads remain retryable or
 local-only, but recording cannot resume until reference data is available. Field
 sessions and trees remain in IndexedDB throughout.
 
-### Species catch-all transition
+### Species catch-all choices
 
-Ipso 1.5.0 and Abies migration 0026 ship together. New-tree species pulldowns
+New-tree species pulldowns
 use `Altra conifera` and `Altra latifoglia` instead of Altro in every recording
 mode. The client honors `selectable=false` and also excludes Altro by name
 when using an older cached reference bundle or a legacy sticky default. It
@@ -144,21 +139,18 @@ On import, Abies estimates volume from each species' configured equation and
 mass from its own density. The new catch-alls initially reference Abete bianco
 and Faggio, respectively; these explicit references are editable in Abies
 Settings. They do not change species identity, field measurements or height
-auto-population. Historical Altro initially has no volume equation. Migration
-0027 filled missing volume/mass pairs for earlier
-high-forest observations of the two new choices with positive D/h, without
-overwriting existing estimates.
+auto-population. Historical Altro initially has no volume equation.
 
 After deployment, connected devices must fetch the refreshed references and
 activate the new shell with `Aggiorna app` (or fully close/reopen after the
 update downloads). A disconnected device cannot receive new species IDs until
 it reconnects; failed refreshes retain the last-good snapshot and warning.
 
-### Species equation identity (Ipso 1.5.5)
+### Species equation identity
 
-Abies migration 0032 stores volume equations by species ID. Height equations
-already use species and region foreign keys; both the Abies marks form and
-Ipso now use these IDs internally. Renaming a species in Settings therefore
+Volume equations use species IDs; height equations use species and region
+IDs. Both the Abies marks form and Ipso resolve these associations by ID.
+Renaming a species in Settings therefore
 preserves its configured height and volume associations.
 
 `reference.json` includes an additive `hypsometry_by_id` map:
@@ -169,16 +161,14 @@ preserves its configured height and volume associations.
 
 The outer key is region ID and the inner key is species ID. The legacy
 name-keyed `ipsometrica` map remains available for installed older clients.
-Ipso 1.5.5 prefers the ID map when present; a missing pair means no automatic
+Ipso prefers the ID map when present; a missing pair means no automatic
 height and never borrows an equation by name. Older last-good bundles without
 this map still work through the legacy lookup.
 
-Activate the new shell and refresh references to receive this behavior. A
-disconnected device keeps its last-good bundle. No IndexedDB, local session,
-CSV or upload-schema migration is required: saved sessions and pending uploads
-retain their measurements and original species IDs. Abies applies configured
-volume coefficients when importing new records; settings edits and migration
-0032 do not rewrite previously imported estimates or intervention totals.
+A disconnected device keeps its last-good bundle. Saved sessions and pending
+uploads retain their measurements and original species IDs. Abies applies
+configured volume coefficients when importing new records; equation edits
+do not rewrite stored estimates or intervention totals.
 
 ## Storico
 
@@ -455,7 +445,7 @@ Django process and resets on restart. Treat it as a modest backstop. Apache-side
 controls can still be added for stronger DoS protection, but Apache
 `mod_ratelimit` is bandwidth throttling, not request-count rate limiting.
 
-### Shared distance metric (Ipso 1.5.6)
+### Shared distance metric
 
 Desktop and mobile distance/sample-area inference use one Haversine core with
 the WGS84 mean radius **6371009 m**. The existing geometry bridge loads it;

@@ -372,10 +372,6 @@ mode-switch.
   high-forest standards and unstructured samples are excluded. `version`
   participates in optimistic locking for parcel metadata edits.
 
-  Migration 0028 marks existing parcel summaries stale so the next read
-  regenerates `Ceppaie / ha` with distinct stump counts. It does not change
-  captured tree or shoot measurements.
-
 - **`species.json`** — shared with Campionamenti and Piano di taglio.
   Used here for color-coded species swatches in the PAI mode lists
   and per-parcel charts.

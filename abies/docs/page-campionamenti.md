@@ -302,9 +302,6 @@ the stored 4-dp `V_m3`) for fustaia rows; left NULL for coppice rows and for
 species without a configured volume equation. The interactive form mirrors this in JS
 (`volume.js`) — see the V/m preview note below for the ≤1-ULP caveat.
 Mass always uses the selected species' current density, not the proxy's.
-Migration 0027 fills only missing volume/mass pairs for previously saved
-high-forest observations of the two new catch-alls with positive D/h; existing
-values, coppice and historical Altro observations are left unchanged.
 
 Flow:
 1. Writer opens the pencil modal on the target survey → "Importa alberi
@@ -361,7 +358,7 @@ by CSV imports. The JS preview can differ from the persisted Python estimate
 by ≤1 ULP (≤0.0001 m³ / ≤0.001 q): JS rounds in float, Python in Decimal.
 The two are held in parity by `test/test_tabacchi.py`.
 Missing equations show an explicit unavailable-volume message, not a zero
-estimate. Equation edits and migration 0032 never recalculate existing samples.
+estimate. Equation edits never recalculate existing samples.
 
 The **numero albero pulldown** lists "nuovo albero" (auto-numbered) then
 all previously recorded trees in this area with species and last

@@ -17,6 +17,27 @@ A move to PostgreSQL is now probable for PostGIS support. SQLite-specific
 hardening and tuning therefore have lower priority; backend-independent
 correctness, authentication, and database/media recovery requirements remain.
 
+## Review documents
+
+This directory contains the review record, historical design discussions,
+implementation evidence and deferred plans. Operational documentation under
+`docs/` describes the implemented application. Commit hashes in this archive
+identify the revisions reviewed at the time, including history before the
+commit-message cleanup.
+
+| Document | Contents |
+| --- | --- |
+| [Species settings discussion](m1-unified-species-settings-discussion.md) | Original unified editor and batch-import discussion |
+| [Species/equation identity proposal](proposal-m1-species-equations.md) | Height and volume identity analysis |
+| [Version/timestamp proposal](proposal-m2-versioning.md) | Writer inventory, completed changes and verification |
+| [Duplication/naming audit](audit-m3-duplication-and-naming.md) | Findings, dispositions and completed internal naming work |
+| [Duplication/naming inventory](audit-m3-inventory.csv) | Structured D01–D15 and N01–N17 inventory |
+| [Naming transition specification](proposal-m3-naming-transition.md) | Deferred stored/wire schema migration and cleanup design |
+| [Naming rollout ledger](m3-naming-rollout.md) | Future release, installation, adapter and cleanup evidence |
+
+The stored/wire naming transition and remaining review work are deferred in
+favor of cartography features. Existing runtime contracts remain in effect.
+
 ## Scope and evidence
 
 The review covered models and migrations, request validation and permissions, mutations and imports, audit generation, scientific calculations, JSON digests and browser caching, the desktop UI, the Ipso server and offline application, deployment and backup scripts, localization, documentation, and tests. Particular attention went to the recently changed species behavior and the distinction between tree identity, a sample, and a coppice shoot.
@@ -102,7 +123,7 @@ in R2 keep their priorities.
 including observation/photo submissions. C2 supplies the shared request-identity
 and atomic receipt contract.
 
-Sources: [nonce middleware](../apps/base/middleware.py), lines 75–103; [observation save](../apps/bosco/views.py), `observation_save_view`; [form transport](../apps/base/static/base/js/forms.js), `postFormData`.
+Sources: [nonce middleware](../../apps/base/middleware.py), lines 75–103; [observation save](../../apps/bosco/views.py), `observation_save_view`; [form transport](../../apps/base/static/base/js/forms.js), `postFormData`.
 
 The form transport attaches a nonce to multipart submissions, and the success response records it. However, the replay middleware only examines POSTs whose content type is exactly `application/json`. Observation saves use multipart forms, so they never consult that recorded receipt.
 
@@ -116,7 +137,7 @@ This defeats the retry guarantee precisely on a route where photographs and unre
 commits the mutation, dirty marks, and replay receipt together. Receipts are
 bound to user, operation, and payload; failures roll back and remain retryable.
 
-Sources: [response helpers](../apps/base/responses.py), `save_model_response` and `success_response`; [nonce persistence](../apps/base/middleware.py), `save_nonce`; [mark save](../apps/piano_di_taglio/views.py), `mark_save_view`.
+Sources: [response helpers](../../apps/base/responses.py), `save_model_response` and `success_response`; [nonce persistence](../../apps/base/middleware.py), `save_nonce`; [mark save](../../apps/piano_di_taglio/views.py), `mark_save_view`.
 
 Several views commit their domain transaction before calling `success_response`, which persists the nonce in a separate transaction. A process failure, database failure, or exception in that interval leaves a committed operation without its replay receipt. Checking a nonce in middleware also does not claim it against a second simultaneous request.
 
@@ -131,7 +152,7 @@ Do not implement this by wrapping photo decoding, network operations, or a whole
 **Status: Fixed — `8dcb225`.** Read-only validation precedes parent creation;
 sample/tree creation and conflict handling share the write transaction.
 
-Source: [sampled-tree save](../apps/campionamenti/views.py), lines 202–325 and `_find_or_create_sample` at line 1258.
+Source: [sampled-tree save](../../apps/campionamenti/views.py), lines 202–325 and `_find_or_create_sample` at line 1258.
 
 `tree_save_view` calls `_find_or_create_sample` before validating the selected species and several identity/duplicate conditions, and before entering its write transaction. That helper can create a Sample. A later validation response does not undo this write or invalidate the relevant digests.
 
@@ -144,7 +165,7 @@ An unsuccessful measurement can therefore leave a sample/date behind and affect 
 **Status: Fixed — `086729c`.** Target edits validate existing marks against the
 shared parcel/region scope rule and reject incompatible changes.
 
-Sources: [item save](../apps/piano_di_taglio/views.py), around line 475; [plan item validation](../apps/piano_di_taglio/plan_item_validation.py), line 30; [mark scope validation](../apps/piano_di_taglio/mark_import.py), `mark_parcel_matches_item`.
+Sources: [item save](../../apps/piano_di_taglio/views.py), around line 475; [plan item validation](../../apps/piano_di_taglio/plan_item_validation.py), line 30; [mark scope validation](../../apps/piano_di_taglio/mark_import.py), `mark_parcel_matches_item`.
 
 The item-edit invariant protects linked harvests, but not existing TreeMarks. New marks are checked against the item's parcel/region; changing the parent target can invalidate marks that were valid when entered.
 
@@ -161,7 +182,7 @@ survey contributes its own stump count and area. Standards-only sampled plots
 are excluded from the stump-density denominator.
 The fix includes refreshing the affected stored digest and regression coverage.
 
-Sources: [stump density](../apps/base/digests.py), `_coppice_stumps_per_ha` at line 408; [sample creation](../apps/campionamenti/views.py), `tree_save_view`; [database model documentation](database.md), Tree and TreeSample.
+Sources: [stump density](../../apps/base/digests.py), `_coppice_stumps_per_ha` at line 408; [sample creation](../../apps/campionamenti/views.py), `tree_save_view`; [database model documentation](../database.md), Tree and TreeSample.
 
 The model deliberately represents a coppice stump with one Tree and its measured shoots with multiple TreeSample rows. `_coppice_stumps_per_ha` increments its count once per TreeSample, not once per stump in a sample. The denominator counts the sample area once, so the numerator is inflated by the number of measured shoots.
 
@@ -175,7 +196,7 @@ Count distinct `(sample_id, tree_id)` pairs, retaining the documented selection 
 with ETags, and the browser cache revalidates with `If-None-Match`. Date-only
 validators cannot return a stale 304 for a digest.
 
-Sources: [digest serving](../apps/base/digests.py), lines 154–206; [conditional HTTP helper](../apps/base/http.py), `not_modified_response`.
+Sources: [digest serving](../../apps/base/digests.py), lines 154–206; [conditional HTTP helper](../../apps/base/http.py), `not_modified_response`.
 
 Digest validation uses Last-Modified dates with whole-second precision. Forcing a 200 response when the current request regenerated a digest fixes only that request. A different client can still present the old timestamp after another reader has regenerated the changed file within the same second.
 
@@ -189,7 +210,7 @@ The stale content can survive every subsequent revalidation until a later genera
 cover registered/in-flight IDs, including cold loads and evictions. Obsolete
 responses are discarded and initial loads retry against the current generation.
 
-Source: [browser cache](../apps/base/static/base/js/cache.js), `takeSnapshot`, `snapshotIsCurrent`, and `applyResponseChanges` at lines 103–176.
+Source: [browser cache](../../apps/base/static/base/js/cache.js), `takeSnapshot`, `snapshotIsCurrent`, and `applyResponseChanges` at lines 103–176.
 
 Invalidations iterate existing cache entries. A first load has no entry yet, so invalidating that data ID or its prefix does not change the fetch snapshot. An old response can then populate the cache after the write that invalidated it.
 
@@ -204,7 +225,7 @@ guard; IndexedDB writes enforce scoped number uniqueness and an open session.
 Upload/export freezing checks the actual record snapshot. A durable insert is
 acknowledged separately from fallible refresh/preferences/backup follow-ups.
 
-Sources: [mobile save handler](../apps/ipso/static/ipso/pwa/app.js), lines 1885–1968; [IndexedDB insert](../apps/ipso/static/ipso/pwa/store.js), `addTree` at line 381.
+Sources: [mobile save handler](../../apps/ipso/static/ipso/pwa/app.js), lines 1885–1968; [IndexedDB insert](../../apps/ipso/static/ipso/pwa/store.js), `addTree` at line 381.
 
 `onSave` awaits `numberExistsInSession` before disabling the button or setting its cooldown. Two invocations can both pass that asynchronous check. The store serializes its transactions and allocates different sequence numbers, but it does not enforce the domain number-uniqueness rule inside the transaction.
 
@@ -223,7 +244,7 @@ clamps negative equation results to zero in Python and JavaScript. Positive
 results retain normal rounding; unavailable estimates remain unavailable.
 Source measurements are preserved.
 
-Sources: [Tabacchi calculation](../apps/base/tabacchi.py), `_volume_from_b` at line 86; [mark volume and mass](../apps/piano_di_taglio/mark_import.py), line 190; [JavaScript calculation](../apps/base/static/base/js/volume.js).
+Sources: [Tabacchi calculation](../../apps/base/tabacchi.py), `_volume_from_b` at line 86; [mark volume and mass](../../apps/piano_di_taglio/mark_import.py), line 190; [JavaScript calculation](../../apps/base/static/base/js/volume.js).
 
 The equations are evaluated for any measurements accepted by the request parsers, with no applicability-range or positive-result policy. Positive diameter and height therefore do not guarantee a physically meaningful result.
 
@@ -243,7 +264,7 @@ rolls back writes. The existing localized 400 envelope is preserved, with UI
 tests confirming entered values survive and forms can be corrected/retried.
 CSV's intentional integral-number tolerance remains separate.
 
-Sources: [numeric parsing](../apps/base/numparse.py), lines 94–145; [sample parsers](../apps/campionamenti/views.py), `_parse_tree_body` and `_parse_shoots`; [user save](../apps/impostazioni/views.py), line 627.
+Sources: [numeric parsing](../../apps/base/numparse.py), lines 94–145; [sample parsers](../../apps/campionamenti/views.py), `_parse_tree_body` and `_parse_shoots`; [user save](../../apps/impostazioni/views.py), line 627.
 
 The shared integer parser promises to reject non-integers, but `int(value)` accepts JSON floats and booleans. Direct parser probes return 1 for both `1.9` and `True`; infinity raises an uncaught OverflowError. A large finite decimal coordinate such as `1e29` reaches quantization and raises InvalidOperation rather than producing an ordinary validation result.
 
@@ -259,7 +280,7 @@ deletes recheck versions at the write boundary with a conditional write. The
 completed fix retains SQLite-safe serialization; further SQLite-only locking
 tuning is lower priority pending the backend move.
 
-Sources: [sample deletion](../apps/campionamenti/views.py), lines 464–499; [hypsometric replacement](../apps/base/hypsometry.py), line 202; [hypsometric endpoints](../apps/impostazioni/views.py), lines 816–881.
+Sources: [sample deletion](../../apps/campionamenti/views.py), lines 464–499; [hypsometric replacement](../../apps/base/hypsometry.py), line 202; [hypsometric endpoints](../../apps/impostazioni/views.py), lines 816–881.
 
 Sample deletion calls `ts.delete()` before `mark_stale`, with no encompassing transaction. Hypsometric replacement/clear commits internally before its caller dirties the derived data. If the process fails between those steps, the database has changed while existing digest files remain marked fresh.
 
@@ -276,7 +297,7 @@ not marked fixed. Revisit before adding workers/threads or allowing overlapping
 HTTP/management-command generators. A PostgreSQL move alone does not address
 the shared digest-file publication race.
 
-Source: [digest generation](../apps/base/digests.py), `_regenerate_if_stale` at line 154 and `_write_gzip_json` at line 61.
+Source: [digest generation](../../apps/base/digests.py), `_regenerate_if_stale` at line 154 and `_write_gzip_json` at line 61.
 
 The dirty-sequence compare-and-swap protects clearing the stale flag, but happens after publishing the file. It does not serialize competing generators.
 
@@ -297,7 +318,7 @@ existing audit files to regenerate without changing history. Regressions cover
 same-minute/sub-millisecond events, cross-model/exact ties, stable IDs, DST,
 browser display/search/sorting/CSV and upgrade invalidation.
 
-Source: [audit digest](../apps/base/digests.py), `generate_audit` at line 670 and `_audit_rows` at line 697.
+Source: [audit digest](../../apps/base/digests.py), `generate_audit` at line 670 and `_audit_rows` at line 697.
 
 Audit timestamps are formatted to the minute before the combined rows are sorted by that formatted string. Within a minute, the stable sort preserves each model's original ascending history order and its placement in the model configuration list, not descending event time.
 
@@ -320,7 +341,7 @@ receipts untouched. Regressions include real overlapping SQLite requests and
 the actual JS submit/modal flow. Target-backend locking remains a PostgreSQL
 migration validation task.
 
-Sources: [User model](../apps/base/models.py), line 129; [user save](../apps/impostazioni/views.py), line 627.
+Sources: [User model](../../apps/base/models.py), line 129; [user save](../../apps/impostazioni/views.py), line 627.
 
 Unlike the application's timestamped domain models, User has no row version, and user saves do not compare one. An administrator's old form can overwrite another administrator's intervening role, email, active-state, or login-method correction. A database lock during save would not detect that the form itself was loaded earlier.
 
@@ -338,7 +359,7 @@ relink; denials return a localized message. Callback and rollback tests cover
 the policy, and the UI/docs explain relinking and Django's existing-session
 semantics. Legacy stale links are protected without a data migration.
 
-Sources: [OAuth adapter](../apps/base/auth.py), line 35; [user administration](../apps/impostazioni/views.py), `users_save` and `_sync_email_address`. The installed allauth account lookup and login flow were also inspected.
+Sources: [OAuth adapter](../../apps/base/auth.py), line 35; [user administration](../../apps/impostazioni/views.py), `users_save` and `_sync_email_address`. The installed allauth account lookup and login flow were also inspected.
 
 `pre_social_login` immediately accepts the existing-account path without rechecking the current login method or the whitelist email. Changing a user to password login updates the User and EmailAddress rows but leaves its SocialAccount link intact. Allauth resolves an incoming provider UID to that existing link before calling the adapter.
 
@@ -358,7 +379,7 @@ transmission. Staged mobile checksums remain stable for retries/import identity.
 Malformed/oversized inputs leave no domain rows or nonce receipt; desktop errors
 preserve the pending form. Regression tests use genuine images and bounded
 streams, including false size claims. Defaults and operator-facing behavior are
-documented in [Osservazioni](page-osservazioni.md#image-policy-and-upload-limits).
+documented in [Osservazioni](../page-osservazioni.md#image-policy-and-upload-limits).
 
 Follow-up — `35a1be6`: PWA 1.5.4 validates the published photo limits before finalization freezes
 the upload payload, leaving rejected sessions editable with local photos intact.
@@ -373,7 +394,7 @@ cache reuse, unchanged original bytes, and thumbnail-only browser requests have
 regression coverage. Unique temporary files also prevent concurrent publication
 collisions. The regenerable cache is separate from primary backup data.
 
-Source: [photo parsing](../apps/bosco/views.py), `_uploaded_observation_photos` at line 571. Compare [Ipso upload limits](../apps/ipso/views.py), `_upload_too_large` and `_validate_upload_payload`.
+Source: [photo parsing](../../apps/bosco/views.py), `_uploaded_observation_photos` at line 571. Compare [Ipso upload limits](../../apps/ipso/views.py), `_upload_too_large` and `_validate_upload_payload`.
 
 The desktop observation path joins every uploaded file's chunks into memory and retains the resulting byte strings, without a per-photo or combined photo-byte limit. Checking Django's normal form-body limit is not enough: it excludes uploaded file data. [Django upload-limit documentation](https://docs.djangoproject.com/en/6.0/ref/settings/#data-upload-max-memory-size).
 
@@ -398,9 +419,9 @@ would require maintaining a custom upstream schema because `SocialToken.app`
 references `SocialApp`. No database migration is needed. Regressions first
 reproduced database app selection, competing configuration, unsuitable direct
 login/callback tenants, and missing system checks; they now cover those paths
-and query-free configuration discovery. See [security](security.md#ms-365-oauth-configuration).
+and query-free configuration discovery. See [security](../security.md#ms-365-oauth-configuration).
 
-Sources: [environment configuration](../config/settings.py), around line 119; [login-button availability](../apps/base/views.py), `_microsoft_oauth_configured` at line 91; installed allauth Microsoft adapter, `_build_tenant_url`.
+Sources: [environment configuration](../../config/settings.py), around line 119; [login-button availability](../../apps/base/views.py), `_microsoft_oauth_configured` at line 91; installed allauth Microsoft adapter, `_build_tenant_url`.
 
 Environment configuration rejects broad tenant aliases such as `common`. The UI helper also hides the login button for an unsuitable database SocialApp. However, that helper is not an authorization gate on the allauth login/callback routes. The installed provider accepts a database app's lowercase `tenant` override and otherwise has a broad default.
 
@@ -434,13 +455,13 @@ and production-image checks/scanning on changes and daily. There is no manual
 weekly inspection requirement or automatic deployment. Cold scans allow a
 15-minute timeout; service failures fail the job. Repository notification/settings
 have not been changed. The owner must merge to the default branch and enable
-the features described in [dependency policy and GitHub setup](dependencies.md).
+the features described in [dependency policy and GitHub setup](../dependencies.md).
 
 Python locks/base images are fixed, while apt security packages resolve at
 build time. The recorded image ID and inventory identify each actual build;
 these checks do not establish deployed versions or bit-identical OS rebuilds.
 
-Sources: [requirements](../requirements.txt); [Docker build](../Dockerfile). Upstream notices were checked on the review date.
+Sources: [requirements](../../requirements.txt); [Docker build](../../Dockerfile). Upstream notices were checked on the review date.
 
 The inspected local Django 6.0.4 is behind later security releases, including 6.0.9 released on 6 October 2026. Some later issues involve features this app does not use; this is not proof that each advisory is exploitable here. The deployed package versions were not inspected. [Django October security release](https://www.djangoproject.com/weblog/2026/oct/06/security-releases/), [August security release](https://www.djangoproject.com/weblog/2026/aug/04/security-releases/).
 
@@ -468,9 +489,9 @@ The thumbnail cache is regenerable and excluded. Tests reproduce a real deletion
 after the database snapshot, permit writes during compression, reject missing or
 corrupt photos, and cover lock lifetime through commit hooks. The coordination
 protocol remains relevant to PostgreSQL; the database-copy implementation must
-be adapted with that migration. See [Backups](backups.md).
+be adapted with that migration. See [Backups](../backups.md).
 
-Sources: [backup creation](../bin/backup), `create_backup` at line 133; [observation deletion and photo replacement](../apps/bosco/views.py), around lines 324 and 647; [deployment sequence](../bin/deploy); [backup documentation](backups.md).
+Sources: [backup creation](../../bin/backup), `create_backup` at line 133; [observation deletion and photo replacement](../../apps/bosco/views.py), around lines 324 and 647; [deployment sequence](../../bin/deploy); [backup documentation](../backups.md).
 
 The SQLite backup API produces a consistent database snapshot. The script then archives the live inbox and observation-media directory. Observation edits/deletes remove photo files on transaction commit.
 
@@ -493,7 +514,7 @@ temporary files with atomic non-overwriting publication. Those parts are done.
 Full instance-maintenance serialization, interrupted mirroring/replacement and
 operational/off-host recovery drills remain open.
 
-Sources: [restore instructions](backups.md), Restore Sketch at line 158; [instance mirroring](../bin/mirror-instance-state), `RESTORE_SCRIPT` at line 29; [backup output naming](../bin/backup), `create_backup`.
+Sources: [restore instructions](../backups.md), Restore Sketch at line 158; [instance mirroring](../../bin/mirror-instance-state), `RESTORE_SCRIPT` at line 29; [backup output naming](../../bin/backup), `create_backup`.
 
 The backup script includes observation-media, and its restore implementation supports it. The manual Restore Sketch still describes restoring the database and inbox without restoring observation-media. Following it can produce a working database with missing photographs. Update the runbook to restore and validate all three components.
 
@@ -511,7 +532,7 @@ No durability-setting change has been made. Establish the required commit
 durability and verify the target backend's configuration during migration
 planning; reconsider SQLite tuning if it remains the production backend longer.
 
-Source: [database connection initialization](../apps/base/apps.py), line 21.
+Source: [database connection initialization](../../apps/base/apps.py), line 21.
 
 The connection uses WAL with `synchronous=NORMAL`. SQLite documents that this retains consistency in WAL mode but can lose committed transactions after power loss or an operating-system crash. An application-process crash has different, stronger durability guarantees. [SQLite synchronous documentation](https://sqlite.org/pragma.html#pragma_synchronous).
 
@@ -519,7 +540,7 @@ This is an explicit durability tradeoff, not evidence of corruption or observed 
 
 ### R4 Ipso can record more rows than its upload API accepts
 
-Sources: [configured maximum](../config/settings.py), line 54; [published upload limits](../apps/ipso/views.py), line 295; [upload validation](../apps/ipso/views.py), line 1973; [mobile session completion](../apps/ipso/static/ipso/pwa/app.js).
+Sources: [configured maximum](../../config/settings.py), line 54; [published upload limits](../../apps/ipso/views.py), line 295; [upload validation](../../apps/ipso/views.py), line 1973; [mobile session completion](../../apps/ipso/static/ipso/pwa/app.js).
 
 The server defaults to a maximum of 500 records per session upload. Reference data publishes the byte limit, not the record limit, and the app does not stop or roll over recording at that count. A legitimate long field session can therefore be completed into a frozen payload that the server rejects.
 
@@ -534,7 +555,7 @@ CSV backups also are not complete backups of observation photo blobs. The app al
 ### M1 Scientific identity is coupled to editable localized names
 
 **Status: Fixed, 31 October 2026.** The unified
-[Species settings editor](page-impostazioni.md#species-equation-editor) exposes
+[Species settings editor](../page-impostazioni.md#species-equation-editor) exposes
 volume coefficients/proxies and regional height equations. Migration 0032
 stores volume equations against Species IDs and preserves height-row origin
 provenance. Desktop and Ipso height lookups use region/species IDs; a rename
@@ -543,7 +564,7 @@ Readable CSV imports provide explicit mappings, a read-only preview and atomic
 confirmation with concurrency/expiry checks. Partial imports, computations and
 popup edits preserve all omitted species/region pairs and archive old height
 snapshots. Missing volume equations are explicit in tree entry. See
-[hypsometry](hypsometry.md) and [database](database.md#species-equation-identity).
+[hypsometry](../hypsometry.md) and [database](../database.md#species-equation-identity).
 
 Regressions began failing before their fixes: rename/ID calculations, scoped
 updates and provenance, import mapping/rollback/retries, stale previews/forms,
@@ -561,7 +582,7 @@ own the equation associations; a separate name-derived equation slug was not
 needed. Name-keyed coefficient tables remain initialization/parity fixtures,
 not the runtime lookup source.
 
-Sources: [Tabacchi keys](../apps/base/tabacchi.py), lines 27–67; [JavaScript mirror](../apps/base/static/base/js/volume.js); [species editing](../apps/impostazioni/views.py), `species_save`; [species helpers](../apps/base/species.py).
+Sources: [Tabacchi keys](../../apps/base/tabacchi.py), lines 27–67; [JavaScript mirror](../../apps/base/static/base/js/volume.js); [species editing](../../apps/impostazioni/views.py), `species_save`; [species helpers](../../apps/base/species.py).
 
 Equation lookup uses `Species.common_name`, although most ordinary species names are editable. Renaming a supported species can turn future calculations into an unknown-species result. The Python table now obtains Abete/Faggio and the two catch-all names from the active string catalog, but many other keys remain literal Italian names; the JavaScript mirror also retains literal names. This mixes three different concepts: a scientific equation identifier, a persisted reference-data name, and a translated display label.
 
@@ -589,7 +610,7 @@ required. Optional edit-helper cleanup and the separate shared-tree concurrency
 investigation remain outside this bounded implementation. Digest identity
 continues to use C6's content ETag.
 
-Sources: [timestamped model](../apps/base/models.py), `TimestampedModel`; [marked-volume materialization](../apps/piano_di_taglio/mark_import.py), `rematerialize_volume_marked`; [actual-volume materialization](../apps/prelievi/views.py), line 332.
+Sources: [timestamped model](../../apps/base/models.py), `TimestampedModel`; [marked-volume materialization](../../apps/piano_di_taglio/mark_import.py), `rematerialize_volume_marked`; [actual-volume materialization](../../apps/prelievi/views.py), line 332.
 
 Version increments are manually managed. Derived-volume updates use `save(update_fields=[...])`, changing stored data without incrementing the item version or updating its auto-now modification timestamp. Other workflows use a full save and explicitly increment the version. User and SiteSettings follow different contracts again.
 
@@ -615,6 +636,14 @@ identify legacy query fields. IndexedDB rows, reference keys, pending envelopes,
 wire values, CSV headers, routes, source GeoJSON properties and stored preference
 keys retain their compatibility contracts. Further naming adapters/migrations
 await review. No blanket serializer or CRUD framework was introduced.
+
+**Next-stage proposal, 1 November 2026:**
+[M3-NAMING-1](proposal-m3-naming-transition.md) specifies English stored/wire
+identifiers, localized user-file/display labels, atomic mobile storage upgrades,
+versioned desktop contracts and a transition/cleanup sequence. The
+[rollout ledger](m3-naming-rollout.md) preserves adapter locations, intermediate
+release obligations, recovery artifacts and evidence for removal. This follow-on
+is documentation only; it does not mark the proposed migrations as implemented.
 
 There are useful shared components already: response envelopes, row builders, CSV utilities, species selection, domain import helpers, and shared diameter-class logic. Reusing row builders between patches and full digests is particularly valuable and should be retained.
 
@@ -657,7 +686,7 @@ Prefer one authoritative cross-cutting document for each guarantee, with links f
 
 ### M6 Modal accessibility lacks basic focus management
 
-Sources: [modal implementation](../apps/base/static/base/js/modals.js); [shell markup](../apps/base/templates/base/shell_it.html), modal container.
+Sources: [modal implementation](../../apps/base/static/base/js/modals.js); [shell markup](../../apps/base/templates/base/shell_it.html), modal container.
 
 The shared modal adds a plain div and an Escape handler but does not assign dialog semantics, move focus into the dialog, contain keyboard focus, make background content inert, or restore focus to the opener. This is a source-level accessibility gap, not a completed screen-reader audit.
 
@@ -667,7 +696,7 @@ Implement these properties centrally, with an accessible label and a sensible in
 
 ### I1 Measure and bound digest generation work
 
-Sources: [digest builders](../apps/base/digests.py), `build_grid_record` at line 835 and `_hpi_turno` at line 1171.
+Sources: [digest builders](../../apps/base/digests.py), `build_grid_record` at line 835 and `_hpi_turno` at line 1171.
 
 Grid generation performs several related queries per grid: area count, region collection, survey count, and latest-area timestamp. Coppice item generation fetches ParcelPlanDetail per applicable item. Preload aggregates and relationship maps once per generator, while retaining a lightweight single-row builder for write-response patches. Add query-count tests at two collection sizes so linear N-plus-one growth is visible.
 
@@ -675,7 +704,7 @@ Measure generation duration, query count, uncompressed/compressed bytes, and pea
 
 ### I2 Keep audit cost proportional to useful work
 
-Source: [audit generation](../apps/base/digests.py), lines 670–744.
+Source: [audit generation](../../apps/base/digests.py), lines 670–744.
 
 Every dirty audit digest rebuilds the tracked history, materializes rows, sorts them, and serializes the whole result. Ordinary QuerySet iteration also retains its result cache. This will grow with the age of the installation, not just the current number of parcels or trees.
 
@@ -686,7 +715,7 @@ Start with streaming database iteration and benchmarks. If needed, use a paginat
 **Status: Performance work remains open.** C8 establishes transactional number
 uniqueness and session/snapshot guards; preserve them in any later optimization.
 
-Source: [IndexedDB store](../apps/ipso/static/ipso/pwa/store.js), `addTree`, `addObservation`, and `listTrees`; [save-time lookup](../apps/ipso/static/ipso/pwa/app.js), `numberExistsInSession`.
+Source: [IndexedDB store](../../apps/ipso/static/ipso/pwa/store.js), `addTree`, `addObservation`, and `listTrees`; [save-time lookup](../../apps/ipso/static/ipso/pwa/app.js), `numberExistsInSession`.
 
 Insertion loads all existing session records to calculate the next sequence/count, and save-time duplicate detection loads them again. Observation records can carry photo blobs. Repeated recording therefore performs increasing work and copies unnecessary data on a resource-constrained device.
 
@@ -694,7 +723,7 @@ Use persisted sequence/count metadata for current-schema sessions, with a one-ti
 
 ### I4 Load desktop page code on demand
 
-Source: [application boot](../apps/base/static/base/js/app.js).
+Source: [application boot](../../apps/base/static/base/js/app.js).
 
 Every domain page module is imported eagerly. The cost is paid even when opening a simple list or login-adjacent workflow. Profile cold transfer and parse time on the connection/device class the docs target, then load larger page/map/export modules on demand if the savings are material.
 
@@ -706,7 +735,7 @@ Coordinate this improvement with the expected PostgreSQL/PostGIS work. Evaluate
 the target spatial-query/index design before adding a separate persistent
 geometry cache or custom spatial-index layer.
 
-Source: [parcel geometry](../apps/base/parcel_geometry.py), `ParcelGeometryIndex`.
+Source: [parcel geometry](../../apps/base/parcel_geometry.py), `ParcelGeometryIndex`.
 
 The index loads GeoJSON and parcel mappings, then checks feature bounding boxes linearly for each point. For larger imports, reuse validated immutable geometry indexes keyed to the geometry generation and relevant parcel mapping, or add a spatial candidate index if profiling warrants it.
 
@@ -714,7 +743,7 @@ Retain the current exact polygon check and deterministic handling of overlapping
 
 ### I6 Expose estimate coverage and provenance
 
-Sources: [dendrometric export](../apps/base/dendrometry_export.py), line 35; [chart aggregation](../apps/base/static/base/js/dendrometry.js), around line 75; [parcel aggregation](../apps/base/digests.py), `generate_parcel_dendrometry`.
+Sources: [dendrometric export](../../apps/base/dendrometry_export.py), line 35; [chart aggregation](../../apps/base/static/base/js/dendrometry.js), around line 75; [parcel aggregation](../../apps/base/digests.py), `generate_parcel_dendrometry`.
 
 Missing volumes contribute zero to several totals, while those same trees still contribute to counts and basal area. Summing known volumes is a defensible policy, but a numeric total alone does not explain that it is partial. This is an interpretation risk, not a demand that unknown heights become mandatory.
 
@@ -829,3 +858,127 @@ Continue with recovery validation, audit ordering,
 and account-edit concurrency in small tested changes. Keep PostgreSQL/PostGIS
 planning in view and give SQLite-only tuning lower priority than these shared
 correctness and recovery requirements.
+
+## Archived implementation and migration notes
+
+The passages below were moved out of operational documentation during the
+documentation cleanup. They record implementation history and deferred work;
+the linked operational pages describe current behavior.
+
+### Notes from [ipso-abies.md](../ipso-abies.md)
+
+Ipso 1.5.1 renames the mobile catalog from `strings.js` to `strings_it.js` and
+updates its loading/precache references. The version bump gives the new shell
+its own cache; existing installed clients keep their cached old shell until
+normal operator-driven activation. No IndexedDB schema or session data changes.
+
+Ipso 1.5.2 hardens recording against overlapping saves and closing-session
+races. The shared save handler acquires an in-progress guard before any await;
+
+### Species catch-all transition
+
+Ipso 1.5.0 and Abies migration 0026 ship together. New-tree species pulldowns
+
+auto-population. Historical Altro initially has no volume equation. Migration
+0027 filled missing volume/mass pairs for earlier
+high-forest observations of the two new choices with positive D/h, without
+overwriting existing estimates.
+
+### Species equation identity (Ipso 1.5.5)
+
+Abies migration 0032 stores volume equations by species ID. Height equations
+already use species and region foreign keys; both the Abies marks form and
+Ipso now use these IDs internally. Renaming a species in Settings therefore
+
+Ipso 1.5.5 prefers the ID map when present; a missing pair means no automatic
+
+Activate the new shell and refresh references to receive this behavior. A
+disconnected device keeps its last-good bundle. No IndexedDB, local session,
+CSV or upload-schema migration is required: saved sessions and pending uploads
+retain their measurements and original species IDs. Abies applies configured
+volume coefficients when importing new records; settings edits and migration
+0032 do not rewrite previously imported estimates or intervention totals.
+
+### Shared distance metric (Ipso 1.5.6)
+
+
+### Notes from [page-campionamenti.md](../page-campionamenti.md)
+
+Migration 0027 fills only missing volume/mass pairs for previously saved
+high-forest observations of the two new catch-alls with positive D/h; existing
+values, coppice and historical Altro observations are left unchanged.
+
+Equation edits and migration 0032 never recalculate existing samples.
+
+
+### Notes from [page-piano-di-taglio.md](../page-piano-di-taglio.md)
+
+Migration 0027 fills missing volume/mass for previously saved high-forest
+observations of these two new species when D and h are positive, and refreshes
+the affected intervention's marked-volume total. It preserves existing
+calculated values, unknown heights, coppice, legacy species IDs, measurements,
+state and dates. Repaired rows are versioned and dependent digests invalidated.
+
+Equation edits/imports and migration 0032 leave existing marks and intervention
+totals unchanged. A future repair of old unavailable Abete rosso estimates is a
+separate one-time CLI operation, not a settings UI feature.
+
+
+### Notes from [page-controllo.md](../page-controllo.md)
+
+Migration 0030 invalidates previously generated audit files without altering
+stored history or creating new events.
+
+
+### Notes from [page-bosco.md](../page-bosco.md)
+
+Migration 0028 marks existing parcel summaries stale so the next read
+  regenerates `Ceppaie / ha` with distinct stump counts. It does not change
+  captured tree or shoot measurements.
+
+
+### Notes from [page-impostazioni.md](../page-impostazioni.md)
+
+Migration 0031 initializes existing users and historical user rows at version 1.
+Subsequent account saves advance the version, including personal password and
+landing-page changes; login-time bookkeeping alone does not invalidate forms.
+No account or audit event is deleted by the migration.
+
+Neither edits
+nor migration 0032 recompute stored tree heights, volumes or masses.
+
+
+### Notes from [hypsometry.md](../hypsometry.md)
+
+live interval; a UI to browse the archive is deferred.
+
+Historical tree repair is outside these endpoints. Equation edits/imports never
+rewrite captured heights, volume, mass or intervention totals. A future repair
+of previously unavailable Abete rosso estimates will be a separate one-time CLI
+operation, with no production repair UI.
+
+Ipso 1.5.5 receives an additive `hypsometry_by_id` map keyed by region ID and
+species ID, alongside the legacy name-keyed `ipsometrica` map. New clients prefer
+
+work through the legacy lookup. No IndexedDB key, session or upload-schema
+migration is needed.
+
+
+### Notes from [database.md](../database.md)
+
+- Migration 0031 adds version 1 to existing users and historical user rows
+    without creating audit events. Direct bulk/queryset updates bypass `save()`;
+
+The history-table migration snapshots existing events so their first
+    correction has a before value; snapshots do not appear as user writes.
+
+or harvest. Classification is historical/audited; migration 0026 creates
+    the new rows and backfills recognized taxa without rewriting existing
+    species foreign keys, captured volumes, densities, or Pressler measurements.
+    Migration 0027 subsequently fills missing volume/mass pairs only for
+    high-forest observations of the two new catch-alls with positive D/h;
+    preexisting values (including zero), unknown heights, coppice and Altro
+    remain untouched. Affected marked-volume totals are rebuilt. Repaired
+    observations and changed interventions receive a version/modified-time
+    bump; intervention history gets a maintenance baseline, and dependent
+    digests are marked stale.

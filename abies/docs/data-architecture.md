@@ -410,9 +410,8 @@ Later total-only writes advance only the clock and preserve metadata forms.
 Unchanged totals do not save. Marked NULL and actual empty-to-zero semantics
 remain distinct. Digest content ETags still detect total-only changes.
 
-These clocks are row-local, not recursive child-activity clocks. Pre-M2
-timestamps are not backfilled. See [M2](proposal-m2-versioning.md) for the
-complete contract, model exceptions, tests and optional follow-up work.
+These clocks are row-local, not recursive child-activity clocks.
+[Database model](database.md) documents the model-specific exceptions.
 
 Mark/harvest write dependencies live in `piano_di_taglio/dependencies.py`.
 The same operation description supplies server dirtiness and response cache
@@ -436,8 +435,8 @@ keys. `LEGACY_FIELD_REGION_NAME` / `LEGACY_FIELD_PARCEL_NAME` intentionally carr
 the query literals `compresa` / `particella`. CSV importers map readable headers
 to English private fields without changing file formats or retry fingerprints.
 
-This cleanup does not rename stored IndexedDB fields, reference bundle keys,
-pending uploads, localStorage preferences, URLs or DOM identifiers. Those
-contracts need separate adapters and compatibility review. The
-[M3 inventory](audit-m3-inventory.csv) records that review boundary; no IndexedDB
-schema or upload-schema migration is part of this work.
+Ipso stores legacy session/tree fields such as `compresa`, `particella` and
+`specie`, and its reference bundle retains the corresponding compatibility
+keys. Uploads use captured IDs and English record fields. Existing frozen
+upload envelopes retain their accepted representation for retries; see
+[Ipso storage and upload contracts](ipso-abies.md#local-indexeddb-schema).
