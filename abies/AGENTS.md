@@ -304,6 +304,9 @@ make deploy-prod REF=v0.1.0      # deploy a tagged release to abies-prod
 
 Prod releases use git tags; `make deploy-prod REF=<tag>` requires a clean tree.
 Dev deploys the working tree (uncommitted changes included) when REF is unset.
+Ref-based deploys first fetch tags from the `github` remote. Set
+`ABIES_GIT_REMOTE` to use another remote name, for example
+`ABIES_GIT_REMOTE=upstream make deploy-prod REF=<tag>`.
 Local dev uses `manage.py runserver` directly (no Docker).
 
 # Testing

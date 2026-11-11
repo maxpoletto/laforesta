@@ -19,6 +19,9 @@
 # ABIES_DOCKER_CONTEXT env var. Create the context once with:
 #
 #   docker context create vm-abies --docker host=ssh://maxp@abies.laforesta.it
+#
+# Ref-based deploys fetch tags from github; override the remote name with
+# ABIES_GIT_REMOTE.
 
 set -euo pipefail
 
@@ -73,7 +76,7 @@ esac
 
 app_dir="$source_app_dir"
 if [[ -n "$ref" ]]; then
-  git -C "$repo_root" fetch --tags origin
+  git -C "$repo_root" fetch --tags "${ABIES_GIT_REMOTE:-github}"
   deploy_version="$(git -C "$repo_root" describe --tags --always "$ref")"
   deploy_root="$(mktemp -d "${TMPDIR:-/tmp}/abies-deploy.XXXXXX")"
   git -C "$repo_root" archive "$ref" | tar -x -C "$deploy_root"
