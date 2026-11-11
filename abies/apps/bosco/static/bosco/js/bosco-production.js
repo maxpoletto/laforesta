@@ -4,18 +4,18 @@ import * as S from '../../base/js/strings.js';
 import { ROWS } from '../../base/js/constants.js';
 import { continuousTimeBuckets, monthBucket, yearBucket } from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
+import { columnSearchTerm } from '../../base/js/table.js';
 
 const TOTAL_COLOR = '#2f8f58';
 const PRELIEVI_PATH = '/prelievi';
 
 export function prelieviUrlForScope(scope = {}) {
   const params = new URLSearchParams();
-  if (Number.isInteger(scope.regionId) && scope.regionId > 0) {
-    params.set('c', String(scope.regionId));
-  }
-  if (Number.isInteger(scope.parcelId) && scope.parcelId > 0) {
-    params.set('pa', String(scope.parcelId));
-  }
+  const search = [
+    columnSearchTerm(S.COL_REGION, scope.region),
+    columnSearchTerm(S.COL_PARCEL, scope.entry?.parcel),
+  ].filter(Boolean).join(' ');
+  if (search) params.set('f', search);
   const query = params.toString();
   return query ? `${PRELIEVI_PATH}?${query}` : PRELIEVI_PATH;
 }

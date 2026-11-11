@@ -50,10 +50,24 @@ const digest = {
   ],
 };
 
-assertEqual(B.prelieviUrlForScope({ regionId: 10, parcelId: 101 }), '/prelievi?c=10&pa=101',
-            'prelieviUrlForScope: parcel scope');
-assertEqual(B.prelieviUrlForScope({ regionId: 10 }), '/prelievi?c=10',
-            'prelieviUrlForScope: region scope');
+const parcelLink = new URL(B.prelieviUrlForScope({
+  regionId: 10, region: 'Capistrano', parcelId: 101, entry: { parcel: '1' },
+}), 'http://localhost');
+assertEqual(parcelLink.searchParams.get('f'), 'compresa:Capistrano particella:1',
+            'prelieviUrlForScope: parcel scope uses the visible search filter');
+assertEqual([...parcelLink.searchParams.keys()], ['f'],
+            'prelieviUrlForScope: parcel link has no hidden ID filters');
+const regionLink = new URL(B.prelieviUrlForScope({
+  regionId: 10, region: 'Serra San Bruno',
+}), 'http://localhost');
+assertEqual(regionLink.searchParams.get('f'), 'compresa:"Serra San Bruno"',
+            'prelieviUrlForScope: region scope quotes multi-word names');
+const specialLink = new URL(B.prelieviUrlForScope({
+  region: 'Nord & Sud', entry: { parcel: '1 b' },
+}), 'http://localhost');
+assertEqual(specialLink.searchParams.get('f'),
+            'compresa:"Nord & Sud" particella:"1 b"',
+            'prelieviUrlForScope: search terms survive URL encoding');
 assertEqual(B.prelieviUrlForScope({}), '/prelievi',
             'prelieviUrlForScope: empty scope');
 

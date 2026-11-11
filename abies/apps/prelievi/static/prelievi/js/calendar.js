@@ -5,6 +5,7 @@
 import * as S from '../../base/js/strings.js';
 import { monthBucket, yearBucket } from '../../base/js/charts.js';
 import { compareNaturalLabels, compareParcelNames } from '../../base/js/natural-sort.js';
+import { columnSearchTerm } from '../../base/js/table.js';
 
 export function buildHarvestCalendar(rows, colMap, byMonth = false) {
   const dateIdx = colMap[S.COL_DATE];
@@ -45,9 +46,9 @@ export function calendarSearchText(current, { period, region, parcel }) {
   const base = displaySearchTerms(current).filter(term => !isCalendarFilterTerm(term));
   return [
     ...base,
-    columnTerm(S.COL_DATE, period),
-    columnTerm(S.COL_REGION, region),
-    columnTerm(S.COL_PARCEL, parcel),
+    columnSearchTerm(S.COL_DATE, period),
+    columnSearchTerm(S.COL_REGION, region),
+    columnSearchTerm(S.COL_PARCEL, parcel),
   ].filter(Boolean).join(' ');
 }
 
@@ -74,15 +75,6 @@ function isCalendarFilterTerm(term) {
   return clean.startsWith(`${S.COL_DATE.toLowerCase()}:`)
     || clean.startsWith(`${S.COL_REGION.toLowerCase()}:`)
     || clean.startsWith(`${S.COL_PARCEL.toLowerCase()}:`);
-}
-
-function columnTerm(column, value) {
-  return `${column.toLowerCase()}:${quoteCriterion(value)}`;
-}
-
-function quoteCriterion(value) {
-  const clean = cleanLabel(value).replaceAll('"', '');
-  return /\s/.test(clean) ? `"${clean}"` : clean;
 }
 
 function cleanLabel(value) {

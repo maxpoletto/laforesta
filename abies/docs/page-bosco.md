@@ -298,8 +298,11 @@ Cross-mode summary:
 
 ### Cross-page links out of Bosco (per-parcel overlay)
 
-- *Produzione storica* row → `/prelievi?c=<region_id>&pa=<parcel_id>`
-  pre-filtered to the harvest operation.
+- *Produzione storica* → "Apri in Prelievi" opens `/prelievi?f=...` with
+  URL-encoded column filters such as `compresa:Capistrano particella:1`.
+  A region overlay supplies only the region term; names containing spaces are
+  quoted. The filters appear in the Prelievi text box, where they can be edited
+  or cleared with "Azzera filtri".
 
 ### Query parameter details
 

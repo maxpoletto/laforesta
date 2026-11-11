@@ -652,6 +652,14 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
 // Search
 // ---------------------------------------------------------------------------
 
+/** Build a visible column filter, quoting names and values with spaces. */
+export function columnSearchTerm(column, value) {
+  const clean = String(value ?? '').trim().replaceAll('"', '');
+  if (!clean) return '';
+  const quote = text => /\s/.test(text) ? `"${text}"` : text;
+  return `${quote(column.toLowerCase())}:${quote(clean)}`;
+}
+
 /**
  * Search over a row's *displayed* text: every plain term must appear
  * somewhere, independent of order.  With `columns` (the column defs), each

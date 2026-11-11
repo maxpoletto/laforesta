@@ -38,6 +38,15 @@ the active filter set changes.
 The full dataset is served as a single compressed JSON digest. All filtering (by
 year and search box) is client-side and affects the charts, calendar, and table.
 
+Bosco's "Apri in Prelievi" link sets the normal `f` search parameter, for
+example `compresa:Capistrano particella:1`. These terms appear in the filter
+text box and can be edited or removed. Region names containing spaces are
+quoted, for example `compresa:"Serra San Bruno"`.
+
+"Azzera filtri" clears the search text, restores the full year range, and
+removes any region/parcel ID restrictions (`c`/`pa`) from both the active
+filters and the URL. Sorting, open sections, and chart preferences are retained.
+
 Qualified parcel filters (`part:1` or `particella:1`) match the entire parcel
 identifier: only `1`, excluding `1b`, `10`, `10b`, etc. Matching is
 case-insensitive and preserves distinct identifiers such as `01`. This applies
@@ -129,7 +138,8 @@ Bottom-of-form button layout.
 - Query parameters:
   - Year range: `y1=YYYY`, `y2=YYYY` (date slider bounds)
   - Optional forest scope: `c=<region_id>`, `pa=<parcel_id>`. Used by
-    Bosco links to show harvests for a region or one parcel.
+    direct links to show harvests for a region or one parcel. These restrictions
+    combine with year and search filters; "Azzera filtri" removes them too.
   - Sort column: `sc=N`
   - Sort order: `so=0/1` (ascending/descending)
   - Filter: `f=...` (URL-encoded sortable-table search string).

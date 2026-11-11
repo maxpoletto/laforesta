@@ -671,10 +671,12 @@ function buildPage(el, data, p) {
 
   disposePageActions = wireActions(el, {
     'reset-filters': () => {
+      filterRegionId = null;
+      filterParcelId = null;
       if (slider) {
         slider.setValues(years[0], years[years.length - 1]);
-        if (table) table.setExternalFilter(pageFilter());
       }
+      if (table) table.setExternalFilter(pageFilter());
       if (table) table.setSearchText('');
       syncURL();
       _updateCharts();

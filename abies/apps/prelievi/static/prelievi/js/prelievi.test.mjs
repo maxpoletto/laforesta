@@ -14,6 +14,9 @@ fs.mkdirSync(path.join(staticRoot, 'base'), { recursive: true });
 fs.cpSync(here, path.join(staticRoot, 'prelievi', 'js'), { recursive: true });
 fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
           path.join(staticRoot, 'base', 'js'), { recursive: true });
+fs.mkdirSync(path.join(staticRoot, 'bosco', 'js'), { recursive: true });
+fs.copyFileSync(path.resolve(here, '../../../../bosco/static/bosco/js/bosco-production.js'),
+                path.join(staticRoot, 'bosco', 'js', 'bosco-production.js'));
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 const constants = await import(staticModule('base/js/constants.js'));
@@ -246,6 +249,8 @@ function buildPrelieviTemplate() {
 
 const contentEl = el('main');
 const modalEl = el('div');
+const hamburgerEl = el('button');
+const mobileMenuEl = el('div');
 const links = [];
 const templates = {
   'tmpl-table-summary-label': { content: buildTableSummaryTemplate() },
@@ -264,6 +269,8 @@ globalThis.document = {
   getElementById(id) {
     if (id === 'content') return contentEl;
     if (id === 'modal-container') return modalEl;
+    if (id === 'hamburger') return hamburgerEl;
+    if (id === 'mobile-menu') return mobileMenuEl;
     return templates[id] || null;
   },
   querySelector(sel) {
@@ -325,6 +332,7 @@ function updateLocation(url) {
   browserLocation.search = parsed.search;
 }
 globalThis.window = {
+  addEventListener() {},
   location: browserLocation,
   history: globalThis.history,
   SortableTable: MockSortableTable,
@@ -482,6 +490,13 @@ globalThis.fetch = async (url) => {
 
 const cache = await import(staticModule('base/js/cache.js'));
 const prelievi = await import(staticModule('prelievi/js/prelievi.js'));
+const { prelieviUrlForScope } = await import(staticModule('bosco/js/bosco-production.js'));
+const router = await import(staticModule('base/js/router.js'));
+let routerMount;
+router.addRoute('prelievi', {
+  ...prelievi,
+  mount(params) { routerMount = prelievi.mount(params); return routerMount; },
+});
 
 function parcelOption(value, region, name = value) {
   return {
@@ -571,6 +586,52 @@ eq(prelievi.boscoUrlForHarvestRow(digest.rows[1], [ROW_ID, S.COL_DATE]), null,
 
 const currentYear = new Date().getFullYear();
 const expectedEndYear = Math.max(2022, currentYear);
+
+// Follow the actual Bosco production link into Prelievi.
+const productionLink = prelieviUrlForScope({
+  regionId: 10, region: 'A', parcelId: 101, entry: { parcel: '1' },
+});
+updateLocation(productionLink);
+const productionParams = Object.fromEntries(new URLSearchParams(location.search));
+router.init();
+await routerMount;
+eq(contentEl.querySelector('#prelievi-search').value, 'compresa:A particella:1',
+   'Bosco production link displays its region and parcel in the search box');
+eq(filteredIds(), [1], 'Bosco production link filters the harvest table');
+
+const productionSearch = contentEl.querySelector('#prelievi-search');
+productionSearch.value = '';
+for (const listener of productionSearch._listeners.input) listener();
+await new Promise(resolve => setTimeout(resolve, 500));
+eq(filteredIds(), [1, 2, 3],
+   'clearing the visible Bosco filter restores all harvests');
+check(!new URLSearchParams(location.search).has('f'),
+      'clearing the visible Bosco filter removes it from the URL');
+
+prelievi.onQueryChange(productionParams);
+contentEl.querySelector('[data-action="reset-filters"]').click();
+eq(contentEl.querySelector('#prelievi-search').value, '',
+   'reset clears the visible Bosco filter');
+eq(filteredIds(), [1, 2, 3], 'reset restores all harvests after a Bosco link');
+
+// Previously saved ID-based links must also be escapable with reset.
+const legacyParams = {
+  c: '10', pa: '102', f: 'squadra:Crew', y1: '2021', y2: '2021',
+  o: 'ai', b: 'specie',
+};
+updateLocation(`/prelievi?${new URLSearchParams(legacyParams)}`);
+prelievi.onQueryChange(legacyParams);
+eq(filteredIds(), [2], 'legacy link combines scope, year, and search filters');
+contentEl.querySelector('[data-action="reset-filters"]').click();
+eq(filteredIds(), [1, 2, 3], 'reset removes legacy region and parcel restrictions');
+eq(sliderValues(), [2020, expectedEndYear], 'reset restores the full year range');
+eq(contentEl.querySelector('#prelievi-search').value, '', 'reset clears search text');
+const resetParams = new URLSearchParams(location.search);
+eq(['c', 'pa', 'f', 'y1', 'y2'].filter(key => resetParams.has(key)), [],
+   'reset removes every filter parameter from the URL');
+eq([resetParams.get('o'), resetParams.get('b')], ['ai', 'specie'],
+   'reset preserves section and chart preferences');
+prelievi.unmount();
 
 await prelievi.mount({ y1: '2021', y2: '2021' });
 eq(sliderValues(), [2021, 2021], 'mount applies explicit year range from URL');
