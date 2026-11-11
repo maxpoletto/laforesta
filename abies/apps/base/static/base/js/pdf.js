@@ -72,6 +72,19 @@ export class PDFDocument {
     this.current.push(`${num(x)} ${num(this.height - y - h)} ${num(w)} ${num(h)} re S`);
   }
 
+  /** Open or closed vector path; coordinates use the same top-left origin as text. */
+  path(points, { close = false, width = 0.6 } = {}) {
+    if (!points.length) return;
+    const commands = points.map(([x, y], index) => (
+      `${num(x)} ${num(this.height - y)} ${index ? 'l' : 'm'}`
+    ));
+    this.current.push(`q ${num(width)} w ${commands.join(' ')}${close ? ' h' : ''} S Q`);
+  }
+
+  whiteRect(x, y, w, h) {
+    this.current.push(`q 1 g ${num(x)} ${num(this.height - y - h)} ${num(w)} ${num(h)} re f Q`);
+  }
+
   addJPEGImage({ dataBase64, width, height }) {
     const image = {
       name: `Im${this.nextImageId++}`,

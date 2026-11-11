@@ -156,3 +156,26 @@ The first hyphen separates the existing full-name prefix from the parcel label.
 `parcelIdentity()` exposes internal `{regionName, parcelName}` strings; the
 legacy `parcelNames()` result remains compatible. Leading zeros and suffixes
 are preserved. Python `parcel_key()` follows the same alias policy.
+
+## Printable parcel maps
+
+`bosco/js/characteristic-print.js` creates a standalone A4 vector layout from
+parcel geometries and text labels. It uses a north-up Mercator projection,
+fits the entire supplied area, and chooses portrait or landscape for the
+largest legible map. It does not use Leaflet, tiles, contours, or raster images.
+The layout is shared by the SVG preview and `base/js/pdf.js` PDF renderer;
+both use the PDF font metrics. The PDF retains vector paths and selectable
+text, including when included in LaTeX with `graphicx`.
+
+Labels use 9 pt parcel names and 8 pt values. Interior placement tests the
+whole label rectangle against polygon boundaries and holes, and avoids other
+labels. Narrow parcels use ordered margin callouts with leaders and marked
+interior anchors. Separate components retain all their outlines but receive
+one label per parcel. The renderer reports an error if a complete, readable
+A4 layout is impossible; it never silently drops labels or shrinks the font.
+
+`bosco-calendar-print.js` adapts the calendar snapshot to this generic layout.
+It joins parcel names to the database identities used by the snapshot, merges
+split GeoJSON features, and rejects unmatched or missing parcel geometries.
+GeoJSON feature IDs are not database parcel IDs. Other metrics can supply
+different text labels without changing the geometry or PDF renderer.
