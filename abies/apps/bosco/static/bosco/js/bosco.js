@@ -5,6 +5,10 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import { wirePlanSource } from './bosco-plan-source.js';
+import { Q_CUTTING_CALENDAR, usesPlanSource } from './bosco-metrics.js';
+import {
+  calendarColorPosition, calendarDomain, calendarYearsByParcel, calendarYearsText,
+} from './bosco-calendar.js';
 import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
   DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
@@ -12,7 +16,7 @@ import {
   FIELD_CATEGORIES, FIELD_DATE,
   FIELD_LAT, FIELD_LON, FIELD_NAME,
   FIELD_OPERATOR, FIELD_PARCEL_ID, FIELD_PHOTOS,
-  FIELD_REGION_ID, FIELD_SPECIES, FIELD_TEXT,
+  FIELD_REGION_ID, FIELD_SPECIES, FIELD_TEXT, FIELD_SELECTED_PLAN,
   HTML, MESSAGE, M2_PER_HA, ROW_ID, ROWS, STATUS, STATUS_CONFLICT,
 } from '../../base/js/constants.js';
 import { fetchJSON, postFormData } from '../../base/js/api.js';
@@ -715,8 +719,8 @@ function updateModePanels(mode) {
 
 function updateCharacteristicControls(state) {
   const planRow = root?.querySelector('[data-role="plan-source"]');
-  if (planRow) planRow.hidden = state.q !== Q_FUTURE_HARVEST;
-  if (state.q === Q_FUTURE_HARVEST) planSource?.load();
+  if (planRow) planRow.hidden = !usesPlanSource(state.q);
+  if (usesPlanSource(state.q)) planSource?.load();
   if (characteristicSelect) characteristicSelect.value = state.q;
   if (cadastralToggle) cadastralToggle.checked = state.useCadastralArea;
   const harvest = isHarvestMetric(state.q);
@@ -933,9 +937,21 @@ function refreshCharacteristicLayer() {
   }
 
   updateCharacteristicControls(currentState);
-  if (currentState.q === Q_FUTURE_HARVEST && !futureData) {
+  if (usesPlanSource(currentState.q) && !futureData) {
+    clearSatelliteRasterOverlay();
     resetParcelStyles();
     renderMessageLegend(S.LOADING);
+    return;
+  }
+  if (usesPlanSource(currentState.q) && !futureData[FIELD_SELECTED_PLAN]) {
+    clearSatelliteRasterOverlay();
+    resetParcelStyles();
+    renderMessageLegend(S.BOSCO_NO_HARVEST_PLANS);
+    return;
+  }
+  if (currentState.q === Q_CUTTING_CALENDAR) {
+    clearSatelliteRasterOverlay();
+    renderCuttingCalendar();
     return;
   }
   if (characteristicSatelliteLayer(currentState.q)) {
@@ -985,6 +1001,24 @@ function characteristicContext(metricId) {
     future: metricId === Q_FUTURE_HARVEST ? futureHarvestByParcel(futureData) : undefined,
     perHa: currentState?.harvestPerHa,
   };
+}
+
+function renderCuttingCalendar() {
+  const plan = futureData[FIELD_SELECTED_PLAN];
+  const calendar = calendarYearsByParcel(futureData);
+  let hasUnscheduled = false;
+  for (const entry of mapEntries) {
+    const years = calendar.get(entry.id) || [];
+    const t = calendarColorPosition(years[0], plan);
+    if (t == null) hasUnscheduled = true;
+    applyEntryStyle(entry, t == null ? NO_DATA_STYLE : continuousStyle(t), years[0],
+      () => `${S.BOSCO_PLANNED_CUT_YEARS}: ${calendarYearsText(years)}`);
+  }
+  renderContinuousLegendTarget(legendEl, S.BOSCO_METRIC_CUTTING_CALENDAR,
+    calendarDomain(plan), year => fmtInt(year));
+  if (hasUnscheduled) {
+    legendEl?.appendChild(legendRow(NO_DATA_STYLE.fillColor, S.BOSCO_NO_PLANNED_CUTS));
+  }
 }
 
 function renderSatelliteCharacteristic(seq) {

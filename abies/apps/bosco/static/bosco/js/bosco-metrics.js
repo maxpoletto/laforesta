@@ -10,6 +10,7 @@ export const Q_NDVI = '6';
 export const Q_NDMI = '7';
 export const Q_EVI = '8';
 export const Q_AVG_GRADE = '9';
+export const Q_CUTTING_CALENDAR = '10';
 
 export const E_NDVI = '1';
 export const E_NDMI = '2';
@@ -21,6 +22,7 @@ export const CHARACTERISTIC_METRICS = {
   [Q_TYPE]: { kind: 'type' },
   [Q_ALTITUDE]: { kind: 'continuous', unit: 'm' },
   [Q_AVG_GRADE]: { kind: 'continuous', unit: '%' },
+  [Q_CUTTING_CALENDAR]: { kind: 'calendar' },
   [Q_HISTORICAL_HARVEST]: { kind: 'continuous', unit: 'q', harvest: true },
   [Q_FUTURE_HARVEST]: { kind: 'continuous', unit: 'm³', harvest: true },
   [Q_NDVI]: { kind: 'satellite', layer: 'ndvi' },
@@ -34,4 +36,8 @@ const HARVEST_METRICS = new Set([Q_HISTORICAL_HARVEST, Q_FUTURE_HARVEST]);
 
 export function isHarvestMetric(metricId) {
   return HARVEST_METRICS.has(String(metricId));
+}
+
+export function usesPlanSource(metricId) {
+  return [Q_FUTURE_HARVEST, Q_CUTTING_CALENDAR].includes(String(metricId));
 }

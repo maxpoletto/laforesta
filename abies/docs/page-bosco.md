@@ -70,6 +70,7 @@ hosts (top to bottom):
   - Produzione
     - Prelievo storico
     - Prelievo previsto
+    - Calendario di taglio
   - Dati satellitari
     - NDVI
     - NDMI
@@ -82,7 +83,8 @@ hosts (top to bottom):
   "Valori per ettaro" (default unchecked) to display normalized per-hectare
   productivity.
 
-  For "Prelievo previsto", a "Piano di taglio" selector appears immediately
+  For "Prelievo previsto" and "Calendario di taglio", a shared "Piano di taglio"
+  selector appears immediately
   above "Aree catastali". It lists plans with their year ranges and saves on
   change. This is a shared database setting: writers/admins may change it;
   readers see the saved choice in a disabled selector. The current/default
@@ -96,6 +98,14 @@ hosts (top to bottom):
   authenticated readers) and `/api/bosco/plan-source/save/` (POST, writer+,
   JSON `harvest_plan_id` and `nonce`). Changes use the standard audit and
   cache-invalidation protocol.
+
+  "Calendario di taglio" colors parcels by their first planned harvest year.
+  The yellow–dark-green scale spans the selected plan's entire year range,
+  consistently across comprese (a single-year plan uses yellow). Tooltips list
+  all distinct harvest years in order. Ceduo and fustaia both participate,
+  including completed interventions and those without a volume estimate;
+  region-wide interventions are excluded. Unscheduled parcels use a neutral
+  fill and "Nessun taglio previsto". Calendar years are never divided by area.
 
 - **Evoluzione**
 
@@ -320,7 +330,7 @@ Cross-mode summary:
 
 #### Caratteristiche (`m=1`)
 
-- `q=1`–`8` — metric id, matching the entries in the
+- `q=1`–`10` — metric id (`10` = cutting calendar), matching the entries in the
   "caratteristica" pulldown (parcel-level metadata + satellite-derived
   metrics; same set as Boscoscopio).
 - `fc=1` — "aree catastali" checked.
