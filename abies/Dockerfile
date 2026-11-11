@@ -4,8 +4,10 @@ FROM python:3.14.10-slim-trixie@sha256:3cabfd7d7aaf394e6040e79fa1eec6ca1c52b74ed
 # sqlite3 ships as a Python stdlib C extension in python:3.14-slim.
 # rasterio's wheel needs libexpat at import time.  Terser is present so
 # production deploys can minify collected static JS inside the same container
-# that runs collectstatic.
+# that runs collectstatic. Upgrade inherited packages to pick up Debian fixes
+# published after the pinned base image was built.
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends libexpat1 terser \
  && rm -rf /var/lib/apt/lists/*
 

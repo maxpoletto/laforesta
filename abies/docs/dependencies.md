@@ -33,6 +33,17 @@ current Debian security updates when the image is built, so the inventory/image
 ID identifies the actual build; rebuilding a source revision can still change
 those OS packages. These artifacts describe the CI build, not the deployed VM.
 
+The OS dependency layer refreshes APT indexes and upgrades inherited Debian
+packages before installing Abies's additional OS dependencies. Installing
+`libexpat1` and `terser` alone does not apply fixes to unrelated base packages
+such as APT and zlib. A package-upgrade failure aborts the build.
+
+Docker can reuse this layer from its build cache. When refreshing OS packages
+without changing the base digest or Dockerfile, force a `--no-cache` build.
+The container CI job builds on a fresh runner, records the resulting package
+inventory, checks native imports and scans the resulting image. Existing
+deployed containers receive these fixes only after rebuilding and redeploying.
+
 The build validates dependencies with pip, records the runtime inventory, then
 removes pip and ensurepip (including their bundled libraries) from the final
 image. The initial image scan found advisories in pip's vendored libraries even
