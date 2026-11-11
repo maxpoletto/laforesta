@@ -44,7 +44,8 @@ from config.constants import (
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     DIGEST_OBSERVATIONS, DIGEST_PRESERVED_TREES, FIELD_CATEGORIES,
     FIELD_CATEGORY_IDS, FIELD_DIAMETER_CLASS_MODE, FIELD_FIRST_DATE, FIELD_ID,
-    FIELD_LAST_DATE, FIELD_TIMESTAMP_LABEL,
+    FIELD_LAST_DATE, FIELD_TIMESTAMP_LABEL, FIELD_SELECTED_PLAN, FIELD_CALENDAR, FIELD_YEARS,
+    FIELD_PARCEL_ID, FIELD_YEAR_START, FIELD_YEAR_END,
     FIELD_NAME, FIELD_NUMBER, FIELD_PHOTO_COUNT, FIELD_REGION_ID,
     FIELD_SAMPLE_AREA_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SPECIES_ID, FIELD_SURVEY_ID, FIELD_VOLUME_M3, FIELD_VOLUME_COEFFICIENTS, M2_PER_HA,
@@ -1485,17 +1486,29 @@ def generate_future_production() -> None:
     from apps.base.models import HarvestPlanItem
 
     plan = active_or_default_harvest_plan()
-    qs = HarvestPlanItem.objects.none()
+    items = []
     if plan is not None:
-        qs = (HarvestPlanItem.objects
-              .filter(harvest_plan=plan, parcel__isnull=False,
-                      parcel__eclass__coppice=False,
-                      volume_planned_m3__isnull=False)
-              .select_related('parcel__region', 'parcel__eclass')
-              .order_by('parcel__region__name', 'parcel__name', 'year_planned', 'id'))
-    rows = [build_future_production_record(item) for item in qs]
+        items = list(HarvestPlanItem.objects
+                     .filter(harvest_plan=plan, parcel__isnull=False)
+                     .select_related('parcel__region', 'parcel__eclass')
+                     .order_by('parcel__region__name', 'parcel__name', 'year_planned', 'id'))
+    # Preserve the volume forecast's existing high-forest/non-null definition.
+    rows = [build_future_production_record(item) for item in items
+            if not item.parcel.eclass.coppice and item.volume_planned_m3 is not None]
+    years_by_parcel = {}
+    for item in items:
+        years_by_parcel.setdefault(item.parcel_id, set()).add(item.year_planned)
+    selected = None if plan is None else {
+        FIELD_ID: plan.id, FIELD_NAME: plan.name,
+        FIELD_YEAR_START: plan.year_start, FIELD_YEAR_END: plan.year_end,
+    }
     _write_gzip_json(
-        {'columns': FUTURE_PRODUCTION_COLUMNS, 'rows': rows},
+        {'columns': FUTURE_PRODUCTION_COLUMNS, 'rows': rows,
+         FIELD_SELECTED_PLAN: selected,
+         FIELD_CALENDAR: [
+             {FIELD_PARCEL_ID: parcel_id, FIELD_YEARS: sorted(years)}
+             for parcel_id, years in sorted(years_by_parcel.items())
+         ]},
         _dest(DIGEST_FUTURE_PRODUCTION),
     )
     logger.info('%s.json.gz: %s rows', DIGEST_FUTURE_PRODUCTION, len(rows))

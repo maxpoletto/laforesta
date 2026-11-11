@@ -382,3 +382,7 @@ def parse_bool(value) -> bool | None:
     if token in _FALSY:
         return False
     return None
+
+FIELD_SELECTED_PLAN = 'selected_plan'
+FIELD_CALENDAR = 'calendar'
+FIELD_YEARS = 'years'

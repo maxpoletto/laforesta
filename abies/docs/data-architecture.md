@@ -146,6 +146,11 @@ but a reload would serve the browser's stale copy without ever revalidating
 lets the conditional GET answer 304 for unchanged digests, so it costs no
 bandwidth.
 
+The Bosco `future_production` digest also carries `selected_plan` metadata and
+per-parcel `calendar` years alongside its existing forecast table. These are
+one cached snapshot and share the same dirty marks; no separately persisted
+calendar totals or database schema are needed. See [Bosco](page-bosco.md).
+
 ## Caching
 
 Data is cached client-side in memory, keyed by `data_id` (one per

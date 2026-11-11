@@ -469,10 +469,18 @@ mode-switch.
   `Compresa`, `Particella`, `Rilevamento`, `Specie`, `D (cm)`, `h (m)`.
   `row_id` = `tree_sample.id`.  Read-only.
 
-- **`future_production.json`** — per-year production for high forest (fustaia)
-  parcels based on the currently selected harvest plan. Invalidated on harvest
-  plan edits (in Piani di Taglio) or when the selected harvest plan is changed
-  in Bosco.
+- **`future_production.json`** — one cached selected-plan snapshot. Its
+  `columns`/`rows` retain the per-year volume forecast for fustaia parcels with
+  a non-null planned volume. The additional `selected_plan` object contains
+  `id`, `name`, `year_start`, and `year_end` (or is null when no plan exists).
+  `calendar` contains `{parcel_id, years}` entries with sorted, distinct planned
+  years for every parcel-scoped item in that plan, including ceduo, missing
+  volume estimates, and completed interventions. Region-wide items are excluded.
+  An empty plan still supplies its identity and empty data arrays.
+
+  The existing plan/item/parcel invalidations rebuild the entire snapshot;
+  changing the saved source invalidates and reloads it as well. Both map views
+  therefore use the same plan identity and data generation.
 
 - **`prelievi.json`** — shared with Prelievi (already documented). Drives the
   per-parcel page's *Produzione storica* stacked bar chart, as in
