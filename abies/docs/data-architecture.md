@@ -150,6 +150,8 @@ The Bosco `future_production` digest also carries `selected_plan` metadata and
 per-parcel `calendar` years alongside its existing forecast table. These are
 one cached snapshot and share the same dirty marks; no separately persisted
 calendar totals or database schema are needed. See [Bosco](page-bosco.md).
+Migration `0033_refresh_calendar_digest` marks existing snapshots stale on
+upgrade, including untracked empty files, so the next read uses the new shape.
 
 ## Caching
 
