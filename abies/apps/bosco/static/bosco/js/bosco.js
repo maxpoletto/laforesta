@@ -4,6 +4,7 @@
 
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
+import { wirePlanSource } from './bosco-plan-source.js';
 import {
   COLUMNS, COL_REGION_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
   DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY,
@@ -246,6 +247,7 @@ let observationSummary = null;
 let detailSections = {};
 let parcelsData = null;
 let futureData = null;
+let planSource = null;
 let speciesNames = [];
 let prelieviData = null;
 let dendrometryData = null;
@@ -341,6 +343,9 @@ function mountPage(el, params) {
   el.classList.add('bosco-content');
   el.replaceChildren(cloneTemplate('tmpl-bosco-page'));
   root = el.querySelector('.bosco-page');
+  planSource = wirePlanSource(el.querySelector('[data-role="plan-source"]'), {
+    canEdit: canModify(), onRefresh: () => cache.load(FUTURE_ID),
+  });
   mapHost = el.querySelector('[data-target="map"]');
   regionSelect = el.querySelector('[data-role="region-select"]');
   modeGroup = el.querySelector('[data-role="mode-group"]');
@@ -407,6 +412,8 @@ function mountPage(el, params) {
 }
 
 function destroyPage() {
+  planSource?.destroy();
+  planSource = null;
   destroyMap();
   const el = document.getElementById('content');
   el.classList.remove('bosco-content');
@@ -460,6 +467,7 @@ function onParcelsUpdate(data) {
 
 function onFutureUpdate(data) {
   futureData = data;
+  if (data) planSource?.load(true);
   refreshCharacteristicLayer();
 }
 
@@ -706,6 +714,9 @@ function updateModePanels(mode) {
 }
 
 function updateCharacteristicControls(state) {
+  const planRow = root?.querySelector('[data-role="plan-source"]');
+  if (planRow) planRow.hidden = state.q !== Q_FUTURE_HARVEST;
+  if (state.q === Q_FUTURE_HARVEST) planSource?.load();
   if (characteristicSelect) characteristicSelect.value = state.q;
   if (cadastralToggle) cadastralToggle.checked = state.useCadastralArea;
   const harvest = isHarvestMetric(state.q);
@@ -922,6 +933,11 @@ function refreshCharacteristicLayer() {
   }
 
   updateCharacteristicControls(currentState);
+  if (currentState.q === Q_FUTURE_HARVEST && !futureData) {
+    resetParcelStyles();
+    renderMessageLegend(S.LOADING);
+    return;
+  }
   if (characteristicSatelliteLayer(currentState.q)) {
     renderSatelliteCharacteristic(seq);
     return;

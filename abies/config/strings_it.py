@@ -272,7 +272,7 @@ LANDING_PAGE_SAVED = 'Pagina iniziale aggiornata.'
 
 HYPSO_SAVED = 'Parametri ipsometrici aggiornati.'
 HYPSO_CLEARED = 'Parametri ipsometrici eliminati.'
-FUTURE_PRODUCTION_SAVED = 'Produzione futura aggiornata.'
+BOSCO_PLAN_SOURCE_SAVED = 'Piano di taglio aggiornato.'
 DENDROMETRY_SAVED = 'Parametri dendrometrici aggiornati.'
 ERR_FUTURE_PLAN_REQUIRED = 'Selezionare un piano.'
 ERR_DENDROMETRY_SURVEYS_REQUIRED = 'Seleziona almeno un rilevamento.'

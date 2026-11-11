@@ -50,6 +50,11 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
               <option value="8">EVI</option>
             </optgroup>
           </select>
+          <div data-role="plan-source" hidden>
+            <label for="bosco-plan-source-select">Piano di taglio</label>
+            <select id="bosco-plan-source-select" data-role="plan-source-select" disabled></select>
+            <p class="bosco-hint" data-role="plan-source-message" aria-live="polite"></p>
+          </div>
           <label class="bosco-check"><input type="checkbox" data-role="cadastral-toggle"> Aree catastali</label>
           <label class="bosco-check" data-role="per-ha-row">
             <input type="checkbox" data-role="per-ha-toggle"> {{ S.LABEL_VALUES_PER_HA }}

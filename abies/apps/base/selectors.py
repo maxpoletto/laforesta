@@ -6,7 +6,7 @@ from apps.base.models import HarvestPlan, HypsoParamSet, HypsoParamSource, Surve
 
 
 def active_or_default_harvest_plan():
-    """Harvest plan used by Bosco future production settings and digests.
+    """Harvest plan used by Bosco source controls and digests.
 
     An explicitly active plan wins.  Otherwise use the plan whose range
     includes the current year and has the greatest end year.

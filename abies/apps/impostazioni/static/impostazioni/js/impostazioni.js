@@ -5,7 +5,7 @@
  *   - Password change (all password-login users)
  *   - Landing page (all users; site default admins only)
  *   - Tractors, Species (writers and admins)
- *   - Future production and Dendrometric data (writers and admins)
+ *   - Dendrometric data (writers and admins)
  *   - Hypsometric parameters (writers and admins)
  *   - Observation categories and app users (admins only)
  *
@@ -32,12 +32,12 @@ import * as S from '../../base/js/strings.js';
 import {
   FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COUNTS,
   FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
-  FIELD_DIAMETER_CLASS_MODE, FIELD_HARVEST_PLAN_ID, FIELD_ID,
+  FIELD_DIAMETER_CLASS_MODE, FIELD_ID,
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE,
-  FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_PLANS,
+  FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS, LOGIN_METHOD_PASSWORD,
-  FIELD_YEAR_END, FIELD_YEAR_START, IPSO_REF_OBSERVATION_CATEGORIES,
+  IPSO_REF_OBSERVATION_CATEGORIES,
   DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN, ROLE_WRITER,
   FIELD_VOLUME_COEFFICIENTS,
 } from '../../base/js/constants.js';
@@ -135,7 +135,6 @@ const SECTION_CONFIGS = {
     minRole: ROLE_ADMIN,
     wire: root => wireEntitySection(root, ENTITY_SECTIONS.observationCategories),
   },
-  'future-production': { minRole: ROLE_WRITER, wire: wireFutureProductionSection },
   dendrometry: { minRole: ROLE_WRITER, wire: wireDendrometrySection },
   'diameter-classes': { minRole: ROLE_WRITER, wire: wireDiameterClassesSection },
   users: {
@@ -436,75 +435,10 @@ async function openForm(cfg, state, rowId) {
 // Bosco source settings (writer+)
 // ---------------------------------------------------------------------------
 
-const FUTURE_PRODUCTION = {
-  data: `${API}future-production/data/`,
-  save: `${API}future-production/save/`,
-};
-
 const DENDROMETRY = {
   data: `${API}dendrometry/data/`,
   save: `${API}dendrometry/save/`,
 };
-
-function wireFutureProductionSection(root) {
-  const body = root.querySelector('.collapsible-body');
-  const form = body.querySelector('[data-role="future-production-form"]');
-  const select = body.querySelector('[data-role="future-plan"]');
-  const msg = body.querySelector('[data-role="future-production-msg"]');
-  let loaded = false;
-
-  wireCollapsibleToggle(
-    root.querySelector('.collapsible-header'), body,
-    () => {
-      if (loaded) return;
-      loaded = true;
-      loadFutureProduction(select, form);
-    },
-  );
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    msg.textContent = '';
-    const planId = parseInt(select.value, 10);
-    const data = await postOrError(postJSON(FUTURE_PRODUCTION.save, {
-      [FIELD_HARVEST_PLAN_ID]: planId,
-      [FIELD_NONCE]: crypto.randomUUID(),
-    }));
-    if (data) msg.textContent = data[MESSAGE] || form.dataset.successLabel;
-  });
-}
-
-async function loadFutureProduction(select, form) {
-  setFormEnabled(form, false);
-  setSelectPlaceholder(select, 'loadingLabel');
-
-  let data;
-  try {
-    const resp = await fetch(FUTURE_PRODUCTION.data);
-    if (!resp.ok) throw new Error(`${resp.status}`);
-    data = await resp.json();
-  } catch {
-    select.replaceChildren();
-    showError(S.ERROR_NETWORK);
-    return;
-  }
-
-  const plans = data[FIELD_PLANS] || [];
-  select.replaceChildren();
-  if (!plans.length) {
-    setSelectPlaceholder(select, 'emptyLabel');
-    return;
-  }
-  for (const plan of plans) {
-    const opt = selectOption(
-      plan[FIELD_ID],
-      `${plan[FIELD_NAME]} (${plan[FIELD_YEAR_START]}-${plan[FIELD_YEAR_END]})`,
-    );
-    opt.selected = plan[FIELD_ID] === data[FIELD_ACTIVE_ID] || plan[FIELD_ACTIVE] === true;
-    select.appendChild(opt);
-  }
-  setFormEnabled(form, true);
-}
 
 function wireDendrometrySection(root) {
   const body = root.querySelector('.collapsible-body');

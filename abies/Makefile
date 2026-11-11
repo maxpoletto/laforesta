@@ -275,6 +275,7 @@ test-js:
 	node apps/base/static/base/js/router.test.mjs
 	node apps/base/static/base/js/page-sync.test.mjs
 	node --check apps/bosco/static/bosco/js/bosco.js
+	node apps/bosco/static/bosco/js/bosco-plan-source.test.mjs
 	node apps/bosco/static/bosco/js/bosco-state.test.mjs
 	node apps/bosco/static/bosco/js/bosco-satellite.test.mjs
 	node apps/bosco/static/bosco/js/bosco-production.test.mjs

@@ -46,10 +46,6 @@ urlpatterns = [
 
 
     # Bosco source settings (writer+)
-    path('future-production/data/', views.future_production_data,
-         name='impostazioni-future-production-data'),
-    path('future-production/save/', views.future_production_save,
-         name='impostazioni-future-production-save'),
     path('dendrometry/data/', views.dendrometry_data,
          name='impostazioni-dendrometry-data'),
     path('dendrometry/save/', views.dendrometry_save,

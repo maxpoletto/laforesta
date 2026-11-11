@@ -171,18 +171,6 @@ Of the three catch-alls, only Altra conifera and Altra latifoglia are offered
 for new entries; historical exceptions matter only if legacy records exist.
 Settings continues to show all three independently of selectability.
 
-## Future production (Produzione futura)
-
-Visible to writers. Determines the data set used to compute per-parcel forecast
-production ("prelievo previsto") in the Bosco page (see `page-bosco.md`).
-
-It consists of a pulldown of available harvest plans. Exactly one can be
-selected at a time. It defaults to the plan whose (start year, end year) overlap
-the current year and whose end year is greatest. Robust in the event that no
-harvest plan exists.
-
-Changing this setting invalidates the `future_production.json` digest.
-
 ## Dendrometric data (Parametri dendrometrici)
 
 Visible to writers. Determines the data set used to compute dendrometric

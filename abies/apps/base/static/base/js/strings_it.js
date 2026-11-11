@@ -394,6 +394,8 @@ export const BOSCO_METRIC_ALTITUDE = 'Altitudine';
 export const BOSCO_METRIC_AVG_GRADE = 'Pendenza media';
 export const BOSCO_METRIC_HISTORICAL_HARVEST = 'Prelievo storico';
 export const BOSCO_METRIC_FUTURE_HARVEST = 'Prelievo previsto';
+export const BOSCO_PLAN_SOURCE_ERROR = 'Impossibile aggiornare il piano di taglio. Riprova.';
+export const BOSCO_NO_HARVEST_PLANS = 'Nessun piano di taglio disponibile.';
 export const BOSCO_HARVEST_METRIC = 'Prelievo';
 export const BOSCO_QUINTALS_PER_HA = 'Q.li/ha';
 export const BOSCO_QUINTALS_PER_HA_VALUE = value => `${value} q/ha`;

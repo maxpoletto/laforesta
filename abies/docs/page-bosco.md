@@ -82,8 +82,20 @@ hosts (top to bottom):
   "Valori per ettaro" (default unchecked) to display normalized per-hectare
   productivity.
 
-  The choice of harvest plan used in the "prelievo previsto" is configured on
-  the settings page, see page-impostazioni.md.
+  For "Prelievo previsto", a "Piano di taglio" selector appears immediately
+  above "Aree catastali". It lists plans with their year ranges and saves on
+  change. This is a shared database setting: writers/admins may change it;
+  readers see the saved choice in a disabled selector. The current/default
+  selection is preserved when opening Bosco. A failed save restores the
+  saved choice and shows an inline error. No plans produces a disabled empty
+  control with an explanatory message.
+
+  A changed selection invalidates and reloads the forecast digest immediately.
+  Selecting an already saved plan does not advance its version/history or
+  invalidate the digest. The source API is `/api/bosco/plan-source/data/` (GET,
+  authenticated readers) and `/api/bosco/plan-source/save/` (POST, writer+,
+  JSON `harvest_plan_id` and `nonce`). Changes use the standard audit and
+  cache-invalidation protocol.
 
 - **Evoluzione**
 
@@ -460,7 +472,7 @@ mode-switch.
 - **`future_production.json`** — per-year production for high forest (fustaia)
   parcels based on the currently selected harvest plan. Invalidated on harvest
   plan edits (in Piani di Taglio) or when the selected harvest plan is changed
-  in Impostazioni.
+  in Bosco.
 
 - **`prelievi.json`** — shared with Prelievi (already documented). Drives the
   per-parcel page's *Produzione storica* stacked bar chart, as in

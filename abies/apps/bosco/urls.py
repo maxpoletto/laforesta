@@ -2,9 +2,11 @@
 
 from django.urls import path
 
-from apps.bosco import views
+from apps.bosco import plan_source, views
 
 urlpatterns = [
+    path('plan-source/data/', plan_source.data_view, name='bosco-plan-source-data'),
+    path('plan-source/save/', plan_source.save_view, name='bosco-plan-source-save'),
     path('parcels/data/', views.parcels_data, name='bosco-parcels-data'),
     path('parcels/metadata/form/<int:parcel_id>/',
          views.parcel_metadata_form_view,

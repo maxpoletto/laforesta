@@ -18,7 +18,7 @@ from apps.base.idempotency import begin_nonce_write
 from apps.base.landing import clean_landing_page, user_landing_page
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.digests import (
-    HYPSO_PARAM_COLUMNS, SPECIES_COLUMNS, build_harvest_plan_record,
+    HYPSO_PARAM_COLUMNS, SPECIES_COLUMNS,
     build_species_record, build_survey_record,
     hypso_param_row, mark_stale, mark_stale_prefixes, serve_digest,
 )
@@ -28,10 +28,10 @@ from apps.base.responses import (
     validation_error,
 )
 from apps.base.selectors import (
-    active_or_default_harvest_plan, active_or_default_survey_ids,
+    active_or_default_survey_ids,
 )
 from apps.base.models import (
-    HarvestPlan, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
+    HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
     LoginMethod, ObservationCategory, Role, SiteSettings, Species, SpeciesType, Survey,
     Tractor, TreeSample, User,
 )
@@ -40,24 +40,23 @@ from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
     DIAMETER_CLASS_MODES,
-    DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
+    DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
     DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME,
     FIELD_COUNTS,
     FIELD_DATA_IDS, FIELD_DIAMETER_CLASS_MODE,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
-    FIELD_HARVEST_PLAN_ID, FIELD_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
+    FIELD_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_DEFAULT_LANDING_PAGE,
     FIELD_LATIN_NAME, FIELD_LANDING_PAGE, FIELD_LOGIN_METHOD,
     FIELD_MANUFACTURER, FIELD_MIN_N,
-    FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PARCELS, FIELD_PLANS,
+    FIELD_MINOR, FIELD_MODEL, FIELD_NAME, FIELD_PARCELS,
     FIELD_PRESSLER_DEFAULT, FIELD_REGIONS,
     FIELD_CURRENT_PASSWORD, FIELD_SORT_ORDER, PRESSLER_DEFAULT,
     FIELD_PASSWORD1, FIELD_PASSWORD2, FIELD_ROLE,
     FIELD_PREFIXES, FIELD_SOURCE, FIELD_SPECIES, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
-    FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR, FIELD_YEAR_END,
-    FIELD_YEAR_START,
+    FIELD_USE_FOR_HEIGHT_PLOTS, FIELD_USERNAME, FIELD_YEAR,
     HTML, IPSO_REF_OBSERVATION_CATEGORIES, MESSAGE, ROWS, ROW_ID, VERSION,
     is_truthy,
 )
@@ -337,66 +336,6 @@ def observation_categories_save(request):
 # ---------------------------------------------------------------------------
 # Bosco source settings (writer+)
 # ---------------------------------------------------------------------------
-
-
-@login_required
-@require_writer
-def future_production_data(request):
-    default = active_or_default_harvest_plan()
-    return JsonResponse({
-        FIELD_ACTIVE_ID: default.id if default else None,
-        FIELD_PLANS: [
-            {
-                FIELD_ID: p.id,
-                FIELD_NAME: p.name,
-                FIELD_YEAR_START: p.year_start,
-                FIELD_YEAR_END: p.year_end,
-                FIELD_ACTIVE: bool(default and p.id == default.id),
-            }
-            for p in HarvestPlan.objects.order_by('-year_start', 'name')
-        ],
-    })
-
-
-@login_required
-@require_writer
-@require_POST
-def future_production_save(request):
-    body, error = parse_json_body(request)
-    if error:
-        return error
-    plan_id = body.get(FIELD_HARVEST_PLAN_ID)
-    try:
-        plan_id = int(plan_id)
-    except (TypeError, ValueError):
-        return _error(S.ERR_FUTURE_PLAN_REQUIRED)
-    if not HarvestPlan.objects.filter(id=plan_id).exists():
-        return _error(S.ERR_PLAN_NOT_FOUND)
-
-    changed = []
-    begin_nonce_write(request)
-    with transaction.atomic():
-        active_qs = HarvestPlan.objects.select_for_update().filter(active=True)
-        for plan in active_qs.exclude(id=plan_id):
-            plan.active = False
-            plan.version += 1
-            plan.save()
-            changed.append(plan)
-        selected = HarvestPlan.objects.select_for_update().get(id=plan_id)
-        if not selected.active:
-            selected.active = True
-            selected.version += 1
-            selected.save()
-            changed.append(selected)
-        mark_stale(DIGEST_FUTURE_PRODUCTION, 'harvest_plans', 'audit')
-    return success_response(
-        request, body,
-        patches=[
-            row_patch('harvest_plans', plan.id, build_harvest_plan_record(plan))
-            for plan in changed
-        ],
-        extra={MESSAGE: S.FUTURE_PRODUCTION_SAVED},
-    )
 
 
 @login_required
