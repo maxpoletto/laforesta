@@ -39,11 +39,9 @@ image. The initial image scan found advisories in pip's vendored libraries even
 though the app package audit was clean. Installers are build tools; changes to
 production packages require a rebuilt image. `bin/check-runtime` verifies that
 the final inventory matches installed packages and that native libraries import.
-Development/CI installation tooling is kept current separately; the Python lock
-audit does not inspect libraries bundled inside tools such as pip.
-At this refresh, latest stable pip 26.2.2 still vendors the older libraries
-reported by the image scan. They are absent from the runtime image; monitor
-pip's upstream vendoring refresh for the development/build environment. The
+The development lock includes pip because the audit tool's `pip-api`
+dependency requires it. This does not add pip to the production image. The
+Python lock audit does not inspect libraries bundled inside tools such as pip;
 scan findings alone do not establish exploitability of each vendored subset.
 
 The initial tested refresh uses Python 3.14.10, Django 6.0.9, allauth 65.21.0,
@@ -83,6 +81,15 @@ To reconcile inputs or regenerate locks without requesting newer versions:
 ```sh
 make lock-dependencies PYTHON=.venv/bin/python
 ```
+
+Regenerate **both** locks after dependency updates, including Dependabot PRs.
+uv strips extras labels from the generated requirements while still resolving
+and locking their dependencies: `django-allauth[socialaccount]` in the input
+can therefore appear as `django-allauth` in the output alongside its social
+authentication dependencies. Dependabot may write extras labels or dependency
+comments differently; its output must be reconciled with the pinned uv tool.
+The CI check compares the complete generated files, including this formatting.
+A second generation without input changes must leave both files unchanged.
 
 The upgrade target updates the production lock first and then constrains the
 test lock to it. Review both diffs, release notes and audit results. Use a fresh
@@ -134,6 +141,12 @@ critical** vulnerabilities; unfixable and lower-severity image findings are
 outside that gate. Python audit findings fail the package audit; npm's gate is
 high/critical. Scan/service failures must be investigated rather than dismissed
 as a clean audit. Scanners report known advisories, not a proof of safety.
+
+The image vulnerability table is printed in the workflow log even when the
+scan fails and is saved as `abies-image-vulnerabilities.txt` in the
+`abies-production-image` artifact. Use that table's package, installed/fixed
+versions and advisory ID to diagnose failures. Scanner warnings and a newer
+Trivy version notice do not identify the vulnerability that triggered the gate.
 
 If a Python PR leaves inputs, the two locks or generator formatting inconsistent,
 reconcile the `.in` files and run `make lock-dependencies` before reviewing the

@@ -372,7 +372,7 @@ django==6.0.9 \
     #   django-allauth
     #   django-axes
     #   django-simple-history
-django-allauth[socialaccount]==65.21.0 \
+django-allauth==65.21.0 \
     --hash=sha256:0f55a8bf7c4f7d66df45064eb004f53c6bb50d17381df3b281ae4759e62ab1b5 \
     --hash=sha256:26ab74262fbe1aa4bb5a3494d0af220b1606d040c0e31f1af6c9dc0bf7447f61
     # via -r requirements.in
@@ -629,7 +629,7 @@ pycparser==3.12 \
     --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e \
     --hash=sha256:f03387877eab82ce01bbdfd0ba7252ee55a90b1c708d5129e2ce915475cf1db6
     # via cffi
-pyjwt[crypto]==2.15.1 \
+pyjwt==2.15.1 \
     --hash=sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193 \
     --hash=sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8
     # via django-allauth

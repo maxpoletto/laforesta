@@ -115,6 +115,12 @@ jobs:
           exit-code: '1'
           format: table
           output: ${{ runner.temp }}/abies-image-vulnerabilities.txt
+      - name: Show image vulnerability report
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/abies-image-vulnerabilities.txt" ]; then
+            cat "$RUNNER_TEMP/abies-image-vulnerabilities.txt"
+          fi
       - name: Save image inventory and scan results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
