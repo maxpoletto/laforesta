@@ -40,4 +40,14 @@ assert.equal(P.printAvailability('10', { hasRegion: true }).disabled, true,
 assert.equal(P.printAvailability('6', { hasRegion: true }).visible, false,
   'satellite fields are a separate group');
 assert.throws(() => P.buildMetricPrint({ ...options, metricId: '6' }));
-console.log('Metric printing: age values, units, missing data, zero and availability passed.');
+const forestType = P.buildMetricPrint({ ...options, metricId: '2' });
+assert.equal(forestType.title, 'Governo - Forest');
+assert.equal(forestType.filename, 'governo_Forest.pdf');
+assert.deepEqual(forestType.items.map(item => item.lines), [['Fustaia'], ['Ceduo'], ['Fustaia']]);
+assert.deepEqual(forestType.items.map(item => item.name), ['1 (F)', '2b (C)', '10 (F)']);
+const unknownType = P.buildMetricPrint({ ...options, metricId: '2',
+  entries: entries.map(entry => ({ ...entry, type: null })) });
+assert.ok(unknownType.items.every(item => item.lines[0] === '-'));
+assert.equal(P.printAvailability('2', { hasRegion: true }).disabled, false,
+  'forest type printing does not require a harvest plan');
+console.log('Metric printing: age, forest type, missing data, zero and availability passed.');

@@ -1,12 +1,14 @@
 /** Metric-specific print content; layout and preview/download remain shared. */
 import { FIELD_SELECTED_PLAN } from '../../base/js/constants.js';
 import * as S from '../../base/js/strings.js';
-import { Q_AGE, Q_CUTTING_CALENDAR, usesPlanSource } from './bosco-metrics.js';
+import { Q_AGE, Q_TYPE, Q_CUTTING_CALENDAR, usesPlanSource } from './bosco-metrics.js';
 import { formatMetricValue, metricLabel, metricValue } from './bosco-characteristics.js';
 import { calendarPlanSubtitle, calendarPrintItems } from './bosco-calendar-print.js';
 import { parcelPrintItems } from './bosco-parcel-print.js';
 
-const PRINT_FIELDS = new Map([[Q_AGE, S.BOSCO_PRINT_AGE_FILE]]);
+const PRINT_FIELDS = new Map([
+  [Q_AGE, S.BOSCO_PRINT_AGE_FILE], [Q_TYPE, S.BOSCO_PRINT_TYPE_FILE],
+]);
 
 export function printAvailability(metricId, { hasRegion = false, data } = {}) {
   const visible = metricId === Q_CUTTING_CALENDAR || PRINT_FIELDS.has(metricId);

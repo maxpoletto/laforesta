@@ -417,6 +417,7 @@ export const BOSCO_PRINT_METRIC_TITLE = (metric, region) => `${metric} - ${regio
 export const BOSCO_PRINT_DIALOG_TITLE = metric => `Mappa stampabile - ${metric}`;
 export const BOSCO_PRINT_METRIC_LEGEND = '(C) = Ceduo, (F) = Fustaia, (-) = Dato non disponibile.';
 export const BOSCO_PRINT_AGE_FILE = 'eta_media';
+export const BOSCO_PRINT_TYPE_FILE = 'governo';
 export const BOSCO_PRINT_METRIC_FILENAME = (field, region) =>
   `${field}_${region.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
 export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>
