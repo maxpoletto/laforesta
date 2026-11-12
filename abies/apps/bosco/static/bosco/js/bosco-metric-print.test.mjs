@@ -50,4 +50,10 @@ const unknownType = P.buildMetricPrint({ ...options, metricId: '2',
 assert.ok(unknownType.items.every(item => item.lines[0] === '-'));
 assert.equal(P.printAvailability('2', { hasRegion: true }).disabled, false,
   'forest type printing does not require a harvest plan');
-console.log('Metric printing: age, forest type, missing data, zero and availability passed.');
+const altitude = P.buildMetricPrint({ ...options, metricId: '3',
+  entries: entries.map((entry, i) => ({ ...entry, altitudeMean: [971.5, null, 0][i] })) });
+assert.equal(altitude.title, 'Altitudine media - Forest');
+assert.equal(altitude.filename, 'altitudine_media_Forest.pdf');
+assert.deepEqual(altitude.items.map(item => item.lines), [['972 m'], ['-'], ['0 m']]);
+assert.equal(P.printAvailability('3', { hasRegion: true }).disabled, false);
+console.log('Metric printing: age, forest type, altitude, missing data and availability passed.');

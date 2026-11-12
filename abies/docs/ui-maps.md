@@ -296,10 +296,12 @@ The complete layout has no global optimality guarantee and may fail to find a
 feasible arrangement even when one exists.
 
 `bosco-metric-print.js` prepares the content and availability of printable
-metrics. It supports average age, forest type and the cutting calendar.
+metrics. It supports average age, forest type, average altitude and the cutting
+calendar. Altitude is the mean of both altitude bounds, in whole meters; a
+missing bound produces a missing value.
 Values use the same calculation and localized formatting as map tooltips, via
 `bosco-characteristics.js`; missing values become `-` and zero remains a value.
-Age and forest type maps need no selected harvest plan. Forest type labels
+Age, forest type and altitude maps need no selected harvest plan. Forest type labels
 use the parcel digest's localized display value. `bosco-print-ui.js` freezes the
 content in one layout for preview and download, using a shared modal template.
 

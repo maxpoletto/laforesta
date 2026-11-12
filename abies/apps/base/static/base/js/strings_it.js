@@ -390,7 +390,7 @@ export const BOSCO_OBSERVATION_PDF_ERROR = 'Impossibile generare il PDF.';
 export const BOSCO_METRIC_AGE = 'Età media';
 export const BOSCO_METRIC_TYPE = 'Governo';
 export const COL_GOVERNANCE = 'Governo';
-export const BOSCO_METRIC_ALTITUDE = 'Altitudine';
+export const BOSCO_METRIC_ALTITUDE = 'Altitudine media';
 export const BOSCO_METRIC_AVG_GRADE = 'Pendenza media';
 export const BOSCO_METRIC_HISTORICAL_HARVEST = 'Prelievo storico';
 export const BOSCO_METRIC_FUTURE_HARVEST = 'Prelievo previsto';
@@ -418,6 +418,7 @@ export const BOSCO_PRINT_DIALOG_TITLE = metric => `Mappa stampabile - ${metric}`
 export const BOSCO_PRINT_METRIC_LEGEND = '(C) = Ceduo, (F) = Fustaia, (-) = Dato non disponibile.';
 export const BOSCO_PRINT_AGE_FILE = 'eta_media';
 export const BOSCO_PRINT_TYPE_FILE = 'governo';
+export const BOSCO_PRINT_ALTITUDE_FILE = 'altitudine_media';
 export const BOSCO_PRINT_METRIC_FILENAME = (field, region) =>
   `${field}_${region.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
 export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>
