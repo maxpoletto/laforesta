@@ -108,6 +108,13 @@ Tree coordinates and measurements are never included in `reference.json`.
 `terreni.geojson` contains parcel geometry for GPS-driven orientation and parcel
 selection in the mobile app.
 
+Ipso and Abies use the same vendored GeographicLib WGS84 ellipsoid for distances
+and parcel areas (`a = 6378137 m`, `f = 1 / 298.257223563`). The numerical
+library and `base/js/geodesy.js` are precached for offline use. Proximity and
+legacy sample-radius inference use ellipsoidal distances, preserving explicitly
+recorded area IDs; no stored sessions or coordinates are rewritten. See
+[map coordinate and measurement conventions](ui-maps.md#coordinates-rendering-and-measurements).
+
 On boot, Ipso opens IndexedDB before making either protected-data request. It
 restores the last-good reference and parcel-feature snapshots and lists locally
 resumable sessions immediately. Completed, exported, or abandoned local sessions

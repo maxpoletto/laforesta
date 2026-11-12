@@ -239,6 +239,8 @@ test: test-js
 
 # Pure-JS tests for shared client-side modules.
 test-js:
+	node apps/base/static/base/js/geodesy.test.mjs
+	node apps/base/static/base/js/metric-geometry.test.mjs
 	node apps/ipso/static/ipso/pwa/ipso.test.mjs
 	node apps/base/static/base/js/equations.test.mjs
 	node apps/controllo/static/controllo/js/columns.test.mjs

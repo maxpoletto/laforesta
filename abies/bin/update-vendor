@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 ASSETS = {
+    'geographiclib-geodesic/geographiclib-geodesic.min.js': 'geographiclib/geographiclib-geodesic.min.js',
+    'geographiclib-geodesic/LICENSE.txt': 'geographiclib/LICENSE.txt',
     'leaflet/dist/leaflet.js': 'leaflet/leaflet.js',
     'leaflet/dist/leaflet.css': 'leaflet/leaflet.css',
     'leaflet/dist/images': 'leaflet/images',

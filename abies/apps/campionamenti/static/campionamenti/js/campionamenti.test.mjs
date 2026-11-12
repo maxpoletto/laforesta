@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Regression tests for the Campionamenti page async selection state.
 // Run with: node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs
 
@@ -80,6 +81,7 @@ export function navigate(url, replace = false) {
   else history.pushState(null, '', path);
 }
 `);
+copyGeodesicVendor(staticRoot);
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 

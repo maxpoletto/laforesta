@@ -1,25 +1,10 @@
-/**
- * Geometry helpers — vendored from `bosco/pac/app.js`.
- *
- * Used by the Campionamenti grid planner ("Genera automaticamente")
- * to generate a regular lattice of points inside polygon parcels.
- * Kept in `apps/base/` because future Bosco map work will reuse
- * point-in-polygon and area math.
- */
+/** Shared parcel geometry and WGS84 measurements for Abies and offline Ipso. */
 
 import * as S from './strings.js';
-import './distance.js';
+import '../../vendor/geographiclib/geographiclib-geodesic.min.js';
+import './geodesy.js';
 
-const DEG_TO_RAD = Math.PI / 180;
-const EARTH_RADIUS = 6378137.0; // WGS84 semi-major axis in metres
-
-export function metersToDegLat(m) { return m / 111132.92; }
-
-export function metersToDegLng(m, lat) {
-  return m / (111132.92 * Math.cos(lat * DEG_TO_RAD));
-}
-
-export const distanceMeters = globalThis.AbiesDistance.distanceMeters;
+export const { distanceMeters, destination, localProjection } = globalThis.AbiesGeodesy;
 
 /**
  * Ray-casting point-in-ring test for a single GeoJSON linear ring
@@ -70,19 +55,11 @@ export function pointInPolygon(lng, lat, geometry) {
 }
 
 /**
- * Geodesic area of a polygon ring expressed as [{lat, lng}, …], in m².
- * Same algorithm as Leaflet.draw's L.GeometryUtil.geodesicArea.
+ * WGS84 ellipsoidal area of a polygon ring expressed as [{lat, lng}, …], in m².
+ * Edges follow shortest ellipsoidal geodesics; winding does not change area.
  */
 export function geodesicArea(latlngs) {
-  const n = latlngs.length;
-  let area = 0;
-  for (let i = 0; i < n; i++) {
-    const p1 = latlngs[i];
-    const p2 = latlngs[(i + 1) % n];
-    area += (p2.lng - p1.lng) * DEG_TO_RAD *
-            (2 + Math.sin(p1.lat * DEG_TO_RAD) + Math.sin(p2.lat * DEG_TO_RAD));
-  }
-  return Math.abs(area * EARTH_RADIUS * EARTH_RADIUS / 2);
+  return globalThis.AbiesGeodesy.polygonAreaMeters2(latlngs);
 }
 
 /** Convert a GeoJSON coordinate ring [[lng, lat], …] to [{lat, lng}, …]. */
@@ -165,21 +142,20 @@ export function buildBboxIndex(features) {
 
 /**
  * Minimum distance, in meters, from (lng, lat) to the boundary of the
- * given Polygon/MultiPolygon feature (exterior rings + any holes). Uses an
- * equirectangular projection anchored at the query point — accurate to
- * well under 1 m at the few-km scale of a parcel.
+ * given Polygon/MultiPolygon feature, including holes. Uses an ellipsoidal
+ * azimuthal-equidistant plane centred at the query point. Segment projection
+ * is a local approximation, tested within 1 cm of exact geodesic-segment
+ * minima over 5 km forestry extents; this is not a global segment solver.
  */
 export function distanceToBoundaryMeters(lng, lat, feature) {
-  const mLat = 111132.92;
-  const mLng = mLat * Math.cos(lat * DEG_TO_RAD);
+  const plane = localProjection(lat, lng);
   let best = Infinity;
   for (const rings of geometryPolygons(feature.geometry)) {
     for (const ring of rings) {
+      const projected = ring.map(([lon, latitude]) => plane.project(latitude, lon));
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const ax = (ring[j][0] - lng) * mLng;
-        const ay = (ring[j][1] - lat) * mLat;
-        const bx = (ring[i][0] - lng) * mLng;
-        const by = (ring[i][1] - lat) * mLat;
+        const { x: ax, y: ay } = projected[j];
+        const { x: bx, y: by } = projected[i];
         const dx = bx - ax;
         const dy = by - ay;
         const len2 = dx * dx + dy * dy;
@@ -246,21 +222,34 @@ export function findContainingParcel(lng, lat, features) {
   return null;
 }
 
-/**
- * Generate a regular grid of interior points across `features`.
- * @returns {Array<{lat, lng, compresa, particella}>} where
- *   `compresa` = feature.properties.layer, `particella` =
- *   short name after the first `-` in feature.properties.name
- *   (the convention used by `bosco/data/terreni.geojson`).
- */
-export function generateGrid(features, spacingLng, spacingLat) {
+/** Project parcel extents once for all target-spacing trials. */
+function gridContext(features) {
   const bb = boundingBox(features);
+  const plane = localProjection((bb.minLat + bb.maxLat) / 2, (bb.minLng + bb.maxLng) / 2);
+  const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const feature of features) {
+    forEachGeometryCoordinate(feature.geometry, ([lng, lat]) => {
+      const { x, y } = plane.project(lat, lng);
+      bounds.minX = Math.min(bounds.minX, x); bounds.maxX = Math.max(bounds.maxX, x);
+      bounds.minY = Math.min(bounds.minY, y); bounds.maxY = Math.max(bounds.maxY, y);
+    });
+  }
+  return { plane, bounds,
+    features: features.map(feature => ({ ...feature, bbox: featureBbox(feature) })) };
+}
+
+function generateGridInPlane(context, spacingMeters) {
+  if (!Number.isFinite(spacingMeters) || spacingMeters <= 0) {
+    throw new RangeError('Grid spacing must be a positive finite number');
+  }
+  const { plane, bounds, features } = context;
   const points = [];
-  for (let lat = bb.minLat; lat <= bb.maxLat; lat += spacingLat) {
-    for (let lng = bb.minLng; lng <= bb.maxLng; lng += spacingLng) {
-      const f = findContainingParcel(lng, lat, features);
-      if (f) {
-        const { regionName, parcelName } = parcelIdentity(f);
+  for (let y = bounds.minY + spacingMeters / 2; y < bounds.maxY; y += spacingMeters) {
+    for (let x = bounds.minX + spacingMeters / 2; x < bounds.maxX; x += spacingMeters) {
+      const { lat, lng } = plane.unproject(x, y);
+      const feature = findContainingParcel(lng, lat, features);
+      if (feature) {
+        const { regionName, parcelName } = parcelIdentity(feature);
         // Preserve the existing grid endpoint shape at this boundary.
         points.push({ lat, lng, compresa: regionName, particella: parcelName });
       }
@@ -270,9 +259,21 @@ export function generateGrid(features, spacingLng, spacingLat) {
 }
 
 /**
+ * Generate a cell-centred lattice in a local WGS84 metre plane, then clip
+ * point centres against the supplied parcels. The plane's axes are true
+ * north/east at the region centre; stored grids are never regenerated here.
+ * @returns {Array<{lat, lng, compresa, particella}>} where
+ *   `compresa` = feature.properties.layer, `particella` =
+ *   short name after the first `-` in feature.properties.name.
+ */
+export function generateGrid(features, spacingMeters) {
+  return features.length ? generateGridInPlane(gridContext(features), spacingMeters) : [];
+}
+
+/**
  * Binary-search the lattice spacing (in meters) until the resulting
  * point count is within `tolerance` of `targetN`, returning the
- * best-fit point set.  Mirrors `bosco/pac/app.js:202-221`.
+ * best-fit point set. All trials reuse one ellipsoidal local plane.
  *
  * @param {Array} features — array of GeoJSON Polygon/MultiPolygon features.
  * @param {number} targetN — desired point count.
@@ -280,19 +281,17 @@ export function generateGrid(features, spacingLng, spacingLat) {
  *   hiMeters defaults to sqrt(totalAreaM2) — a coarse upper bound.
  */
 export function planGridForTarget(features, targetN, opts = {}) {
+  if (!features.length || !Number.isFinite(targetN) || targetN <= 0) return [];
   const { maxIter = 40, tolerance = 0.05 } = opts;
   const totalAreaM2 = features.reduce((s, f) => s + featureArea(f), 0);
-  const bb = boundingBox(features);
-  const midLat = (bb.minLat + bb.maxLat) / 2;
+  const context = gridContext(features);
   let lo = 1;
   let hi = opts.hiMeters || Math.sqrt(totalAreaM2);
   let bestPoints = [];
 
   for (let i = 0; i < maxIter; i++) {
     const mid = (lo + hi) / 2;
-    const sLat = metersToDegLat(mid);
-    const sLng = metersToDegLng(mid, midLat);
-    const pts = generateGrid(features, sLng, sLat);
+    const pts = generateGridInPlane(context, mid);
     if (Math.abs(pts.length - targetN) < Math.abs(bestPoints.length - targetN)) {
       bestPoints = pts;
     }

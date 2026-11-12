@@ -95,12 +95,12 @@ assertEqual(geo.findContainingParcel(3.5, 3.5, [multiParcel]) === multiParcel, t
             'findContainingParcel: hits MultiPolygon component with bbox prefilter');
 
 // 1° × 1° square at lat 45. Centroid (0.5, 45.5): nearest edges are
-// left/right walls at 0.5° × 111 km/° × cos(lat). Expected ≈ 38.94 km.
+// left/right meridian walls. The ellipsoidal reference is about 39.079 km.
 const square45 = {
   geometry: { type: 'Polygon',
               coordinates: [[[0,45],[1,45],[1,46],[0,46],[0,45]]] },
 };
-const expectedCentroidDist = 0.5 * 111132.92 * Math.cos(45.5 * Math.PI / 180);
+const expectedCentroidDist = 39078.77951732548; // Independent WGS84 segment minimum.
 assertClose(geo.distanceToBoundaryMeters(0.5, 45.5, square45),
             expectedCentroidDist, 1,
             'distanceToBoundaryMeters: 1° square at lat 45, centroid');
@@ -133,7 +133,7 @@ assertEqual(geo.parcelNames(unitSquare), { compresa: 'X', particella: '1' },
 // generateGrid emits Leaflet-convention points {lat, lng, compresa,
 // particella} — NOT `lon`.  Consumers that persist to the `lon` schema
 // (the campionamenti grid-planner) must translate lng→lon at the boundary.
-const gridPts = geo.generateGrid([unitSquare], 0.5, 0.5);
+const gridPts = geo.generateGrid([unitSquare], 50000);
 assertEqual(gridPts.length > 0, true,
             'generateGrid: yields at least one interior point');
 const gp = gridPts[0];

@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,6 +13,7 @@ fs.mkdirSync(path.join(tmpRoot, 'base'), { recursive: true });
 fs.cpSync(here, path.join(tmpRoot, 'impostazioni/js'), { recursive: true });
 fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
           path.join(tmpRoot, 'base/js'), { recursive: true });
+copyGeodesicVendor(tmpRoot);
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const { speciesTypeColumns } = await import(pathToFileURL(path.join(tmpRoot, 'impostazioni/js/species-types.js')));
 const S = await import(pathToFileURL(path.join(tmpRoot, 'base/js/strings.js')));

@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,6 +11,7 @@ for (const app of ['base', 'bosco']) {
   fs.cpSync(path.resolve(here, `../../../../${app}/static/${app}/js`),
     path.join(tmp, app, 'js'), { recursive: true });
 }
+copyGeodesicVendor(tmp);
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
 const { showCalendarPrint } = await import(pathToFileURL(path.join(tmp, 'bosco/js/bosco-print-ui.js')));
 class Element {

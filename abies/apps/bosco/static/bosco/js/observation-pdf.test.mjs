@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Tests for Bosco observation PDF helpers.
 // Run with: node apps/bosco/static/bosco/js/observation-pdf.test.mjs.
 
@@ -14,6 +15,7 @@ fs.mkdirSync(path.join(staticRoot, 'base'), { recursive: true });
 fs.cpSync(here, path.join(staticRoot, 'bosco', 'js'), { recursive: true });
 fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
           path.join(staticRoot, 'base', 'js'), { recursive: true });
+copyGeodesicVendor(staticRoot);
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 

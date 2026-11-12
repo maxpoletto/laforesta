@@ -8,6 +8,8 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ASSETS = {
+    'geographiclib-geodesic/geographiclib-geodesic.min.js': 'geographiclib/geographiclib-geodesic.min.js',
+    'geographiclib-geodesic/LICENSE.txt': 'geographiclib/LICENSE.txt',
     'leaflet/dist/leaflet.js': 'leaflet/leaflet.js',
     'leaflet/dist/leaflet.css': 'leaflet/leaflet.css',
     'leaflet/dist/images/marker-icon.png': 'leaflet/images/marker-icon.png',

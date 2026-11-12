@@ -1,4 +1,4 @@
-"""Distance uses one explicit mean-radius metric on desktop and mobile."""
+"""Desktop and mobile share WGS84 ellipsoidal distances and sample inference."""
 import json
 import math
 import shutil
@@ -7,8 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from apps.base.geodesy import distance_m
 
-def test_shared_mean_radius_distance_and_sample_boundary():
+
+def test_shared_ellipsoidal_distance_and_sample_boundary():
     if shutil.which('node') is None:
         pytest.skip('node required')
     root = Path(__file__).resolve().parents[1]
@@ -16,7 +18,7 @@ def test_shared_mean_radius_distance_and_sample_boundary():
       import * as geo from {json.dumps((root / 'apps/base/static/base/js/geo.js').as_uri())};
       import {{createRequire}} from 'node:module';
       const upload = createRequire(import.meta.url)({json.dumps(str(root / 'apps/ipso/static/ipso/pwa/upload.js'))});
-      const radius = 6371009;
+      const radius = 6378137; // Exact WGS84 equatorial metric for this fixture.
       const offsets = [11.999, 12, 12.001].map(m => m / radius * 180 / Math.PI);
       process.stdout.write(JSON.stringify({{
         desktop: geo.distanceMeters(0, 0, 0, 1),
@@ -30,11 +32,16 @@ def test_shared_mean_radius_distance_and_sample_boundary():
     result = subprocess.run(['node', '--input-type=module', '-e', script],
         check=True, text=True, capture_output=True, timeout=10)
     data = json.loads(result.stdout)
-    expected = 6371009 * math.pi / 180
+    expected = 6378137 * math.pi / 180
     assert data['desktop'] == pytest.approx(expected, abs=1e-8)
     assert data['mobile'] == pytest.approx(expected, abs=1e-8)
     assert data['desktopBoundary'] == pytest.approx([11.999, 12, 12.001], abs=1e-10)
     assert data['mobileBoundary'] == pytest.approx(data['desktopBoundary'], abs=1e-10)
-    assert data['antipode'] == pytest.approx(6371009 * math.pi)
-    # The existing Leaflet-compatible polygon area convention is independent.
-    assert data['area'] == pytest.approx(6378137 ** 2 * math.pi / 180 * math.sin(math.pi / 180))
+    assert data['antipode'] == pytest.approx(20003931.458625447, abs=1e-6)
+    assert data['area'] == pytest.approx(12308778361.469452, abs=.01)
+
+
+def test_server_matches_shared_reference_vectors():
+    references = json.loads((Path(__file__).parent / 'fixtures/wgs84-geodesy.json').read_text())
+    for case in references['distances']:
+        assert distance_m(*case['points']) == pytest.approx(case['metres'], abs=1e-6)

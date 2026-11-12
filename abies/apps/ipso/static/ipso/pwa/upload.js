@@ -6,7 +6,7 @@
 'use strict';
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined') {
-  require('../../../../base/static/base/js/distance.js');
+  require('../../../../base/static/base/js/geodesy.js');
 }
 
 if (typeof module !== 'undefined' && typeof require !== 'undefined' &&
@@ -364,7 +364,7 @@ function sampleAreaForTree(reference, sess, tree, parcelId) {
 }
 
 // The existing geometry bridge loads this core before recording/upload starts.
-const distanceMeters = (...args) => globalThis.AbiesDistance.distanceMeters(...args);
+const distanceMeters = (...args) => globalThis.AbiesGeodesy.distanceMeters(...args);
 
 function speciesIdForName(reference, name) {
   const row = (reference[IPSO_REF_SPECIES] || []).find((s) => s.common === name);

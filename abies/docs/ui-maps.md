@@ -141,14 +141,94 @@ All map control labels are `strings.js` constants (`MAP_ZOOM_IN`,
 `format.js` (e.g. `formatDistance` → `fmtDecimal*`), never `.toFixed()`, so
 distances localize with the active locale's decimal separator.
 
-## Distance metric
+## Coordinates, rendering and measurements
 
-`geo.distanceMeters()` and Ipso upload inference delegate to the shared
-`base/js/distance.js` numerical core: a sphere with WGS84 mean radius
-6371009 m. The Ipso geometry bridge and offline precache include that core.
-Inside/on/outside sample radii and nearest-area selection have shared metric
-coverage; stored area IDs are preserved. Polygon geodesic area retains its
-existing 6378137 m Leaflet-compatible convention.
+Source GeoJSON coordinates are WGS84 longitude/latitude, in that order.
+Leaflet APIs use latitude/longitude. `build_geo` preserves the supplied geometry;
+it enriches properties without transforming the source datum. A source from a
+different CRS must be correctly transformed to WGS84 before import.
+
+Bosco and the other interactive maps use Leaflet's EPSG:3857 Web/Pseudo-Mercator
+projection, matching their basemaps. Its spherical projection radius is the
+WGS84 semi-major axis, 6378137 m. Printable maps use the same formulas, with Y
+reversed for page coordinates; the radius cancels during page fitting. This
+display projection does not change the geographic coordinates of boundaries,
+trees, observations or GPS fixes. Absolute alignment depends on the source
+datum, boundary survey, imagery and GPS accuracy. The approximately 28% scale
+enlargement around Calabria affects projected lengths, not coordinate placement.
+See [PROJ's Web Mercator definition](https://proj.org/en/stable/operations/projections/webmerc.html).
+
+All application point-to-point distances, the map ruler, and parcel polygon
+areas use the **WGS84 ellipsoid**, through GeographicLib's Karney algorithms:
+semi-major axis `a = 6378137 m`, flattening `f = 1 / 298.257223563`.
+`base/js/geodesy.js` is the shared core for Abies ES modules and Ipso classic
+scripts; it obtains the constants from GeographicLib's WGS84 instance. The
+locked GeographicLib browser asset and its license are vendored locally and
+the numerical asset/core are included in Ipso's offline precache.
+There is no application Haversine fallback or separately tuned mobile radius.
+The Web Mercator rendering radius remains part of the display CRS definition.
+
+`geo.distanceMeters()` returns the shortest ellipsoidal surface distance.
+Polygon areas follow geodesic edges, ignore ring winding, subtract holes,
+and sum MultiPolygon components. They are horizontal reference-ellipsoid
+measurements, not terrain slope lengths/areas. Cadastral areas and stored
+forestry sample areas (`pi * radius²`) retain their independent meanings.
+Sample-radius inference and nearest-area selection use the same metric on
+desktop and mobile; explicitly recorded sample-area IDs are preserved.
+See [GeographicLib's algorithms and API](https://geographiclib.sourceforge.io/JavaScript/doc/).
+
+Coordinate entry/display retain five decimal places. Around Calabria, the
+rounding steps are about 1.11 m north/south and 0.87 m east/west; rounding
+error is at most half a step on each axis. Stored/imported coordinates and
+parcel vertices retain their supplied precision. Measurement calculations use
+those numbers directly, without first rounding them for display.
+
+Regression fixtures in `test/fixtures/wgs84-geodesy.json` come from the
+independent GeographicLib Python implementation. Tests cover equatorial and
+Calabrian distances, coincidence, antipodes, polar and date-line cases, ring
+winding, holes, MultiPolygons, classic-script/module parity, the map ruler,
+and sample-radius inclusion/exclusion. Vendor checks ensure the served library
+matches the lock; Ipso precache checks cover offline availability.
+The fixture generator `test/fixtures/generate_wgs84.py` records direct/inverse
+and area references and independently minimizes geodesic segment distances;
+it can be rerun with the locked Python dependencies.
+
+### Local metric planes and sampling grids
+
+`localProjection(lat, lng)` builds an ellipsoidal azimuthal-equidistant plane
+around a chosen origin. A GeographicLib inverse calculation supplies each
+point's distance and azimuth from the origin; these become east/north metre
+coordinates. The inverse mapping uses GeographicLib's direct calculation.
+Both directions use the same WGS84 ellipsoid as point distances and areas.
+This is a computation plane; the map display continues to use Web Mercator.
+
+`distanceToBoundaryMeters()` centres this plane at the query location and
+finds the closest point on projected polygon segments, including hole and
+MultiPolygon boundaries. Approximating a curved geodesic segment by a straight
+segment in this local plane is tested within 1 cm of independently minimized
+ellipsoidal segment distances over 5 km forestry extents. It is not a global
+nearest-geodesic-segment solver.
+
+Automatic sampling-grid construction places a cell-centred square lattice in
+a plane centred on the selected parcels, then converts its points back to
+WGS84 and clips their centres to the parcel geometry. Axes follow true
+north/east at the origin. This replaces constant metres-per-degree offsets;
+it requires no UTM-zone choice. The target-count search reuses one projection
+and projected extent for all spacing trials. Tests verify 500 m neighbour
+spacing within 1 mm across a 5 km square, point containment, parcel labels,
+projection round trips, and the target-count contract. Existing stored grids
+and recorded area assignments are unchanged; new grids use the new geometry.
+
+### Satellite raster sizing
+
+Server calculations use GeographicLib Python's `Geodesic.WGS84` through
+`apps.base.geodesy`, with the same ellipsoid as the browser. New satellite
+grids derive their nominal 10 m dimensions from ellipsoidal distances along
+the bounding-box midlines. The rasters remain in WGS84 geographic coordinates.
+Existing downloaded rasters retain their actual pixel grid during subsequent
+downloads and precomputation; changing the sizing formula does not resample
+or invalidate their pixels. Precomputation verifies every date/band has the
+same dimensions, CRS and transform before publishing a new mask or manifest.
 
 Geometry labels accept region properties in precedence order `layer`,
 `compresa`, `Compresa`, and parcel properties `name`, `particella`, `Particella`.

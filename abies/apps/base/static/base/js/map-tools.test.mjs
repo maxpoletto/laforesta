@@ -6,7 +6,7 @@
  * Italian locale — these assertions therefore also prove the distance is
  * formatted locale-aware (comma decimal), NOT via `.toFixed()` (dot).
  */
-import { formatDistance } from './map-tools.js';
+import { attachMeasure, formatDistance } from './map-tools.js';
 
 let pass = 0;
 const failures = [];
@@ -22,6 +22,31 @@ eq(formatDistance(12.3), '12,3 m', 'metres: 1 decimal, comma separator');
 eq(formatDistance(999), '999,0 m', 'just below 1 km stays in metres');
 eq(formatDistance(1000), '1,00 km', '1000 m → "1,00 km" (km threshold, 2 decimals)');
 eq(formatDistance(1234.5), '1,23 km', 'kilometres: 2 decimals, comma separator');
+
+let controlClick, mapClick;
+const measuredLabels = [];
+const node = { classList: { toggle() {} } };
+const layer = { addTo() { return this; } };
+globalThis.L = {
+  Control: { extend: definition => class { onAdd() { return definition.onAdd(); } } },
+  DomUtil: { create: () => node },
+  DomEvent: { disableClickPropagation() {}, stopPropagation() {}, preventDefault() {},
+    on(_node, _event, handler) { controlClick = handler; } },
+  layerGroup: () => layer, circleMarker: () => layer, polyline: () => layer,
+  divIcon: options => options,
+  marker(_point, options) { measuredLabels.push(options.icon.html); return layer; },
+};
+const map = {
+  addControl(control) { control.onAdd(); },
+  on(_event, handler) { mapClick = handler; },
+  getContainer: () => ({ style: {} }),
+  distance() { throw new Error('Ruler must use the shared WGS84 core'); },
+};
+attachMeasure(map);
+controlClick({});
+mapClick({ latlng: { lat: 0, lng: 0 } });
+mapClick({ latlng: { lat: 0, lng: 1 } });
+eq(measuredLabels[0].includes('111,32 km'), true, 'ruler measures the WGS84 equatorial degree');
 
 if (failures.length) {
   for (const f of failures) console.error(`FAIL ${f}`);

@@ -13,6 +13,7 @@
 import * as S from './strings.js';
 import { fmtDecimal1, fmtDecimal2, fmtInt } from './format.js';
 import { refreshSemanticMarkers, semanticMarkerStyle } from './map-palette.js';
+import { distanceMeters } from './geo.js';
 
 const $ = id => document.getElementById(id);
 
@@ -102,7 +103,8 @@ export function attachMeasure(leaflet) {
       L.polyline(points, MEASURE_LINE_STYLE).addTo(layer);
       let total = 0;
       for (let i = 1; i < points.length; i++) {
-        total += leaflet.distance(points[i - 1], points[i]);
+        const previous = points[i - 1], current = points[i];
+        total += distanceMeters(previous.lat, previous.lng, current.lat, current.lng);
       }
       L.marker(latlng, {
         icon: L.divIcon({

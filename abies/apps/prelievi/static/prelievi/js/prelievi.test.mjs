@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Regression tests for Prelievi URL-state restoration.
 // Run with: node apps/prelievi/static/prelievi/js/prelievi.test.mjs
 
@@ -17,6 +18,7 @@ fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
 fs.mkdirSync(path.join(staticRoot, 'bosco', 'js'), { recursive: true });
 fs.copyFileSync(path.resolve(here, '../../../../bosco/static/bosco/js/bosco-production.js'),
                 path.join(staticRoot, 'bosco', 'js', 'bosco-production.js'));
+copyGeodesicVendor(staticRoot);
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 const constants = await import(staticModule('base/js/constants.js'));

@@ -101,10 +101,15 @@ paths:
 - *Crea vuota* — creates an empty grid with a name and optional
   description, ready for manual area additions via the map or CSV import
   (via the pencil modal).
-- *Genera automaticamente* — runs the grid generator (similar to `bosco/pac`)
+- *Genera automaticamente* — runs the grid generator
   across user-selected regions, writes `sample_grid` plus `sample_area` rows in
   one transaction. Generated areas are numbered per compresa, restarting at 1
   in each (matching manually-added areas — see §"The new-area form").
+  New locations form a cell-centred lattice in a local WGS84 metre plane,
+  aligned north/east at the selected parcels' centre and clipped to their
+  geometry. Spacing and area estimates use the shared ellipsoidal calculations
+  described in [map architecture](ui-maps.md#local-metric-planes-and-sampling-grids).
+  This does not move or regenerate previously saved grids.
 
 This deliberately does *not* offer CSV import at creation time: identity
 (the grid exists with a name) is decoupled from content (sample areas).

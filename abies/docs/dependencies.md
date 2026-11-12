@@ -58,7 +58,11 @@ scan findings alone do not establish exploitability of each vendored subset.
 The initial tested refresh uses Python 3.14.10, Django 6.0.9, allauth 65.21.0,
 Gunicorn 26.2.0, Pillow 13.0.0, pillow-heif 1.8.1, numpy 2.5.4, rasterio 1.5.2
 and requests 2.34.2. Browser sources are Leaflet 1.9.4, Chart.js 4.6.1 and
-sortable-table 1.5.0. Consult the locks for the complete package inventory.
+sortable-table 1.5.0. GeographicLib Geodesic 2.2.0 supplies WGS84 ellipsoidal
+distance/area calculations shared by Abies and offline Ipso. Its browser asset
+and MIT license are copied by `bin/update-vendor` from the npm lock. The Python
+GeographicLib 2.1 package supplies the same WGS84 model for server calculations.
+Consult the locks for the complete package inventory.
 
 ## Initial installation
 

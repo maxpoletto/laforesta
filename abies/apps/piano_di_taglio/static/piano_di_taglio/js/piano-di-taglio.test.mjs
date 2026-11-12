@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Regression tests for Piano di taglio async item-view state.
 // Run with: node apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.test.mjs
 
@@ -14,6 +15,7 @@ fs.mkdirSync(path.join(staticRoot, 'base'), { recursive: true });
 fs.cpSync(here, path.join(staticRoot, 'piano_di_taglio', 'js'), { recursive: true });
 fs.cpSync(path.resolve(here, '../../../../base/static/base/js'),
           path.join(staticRoot, 'base', 'js'), { recursive: true });
+copyGeodesicVendor(staticRoot);
 process.on('exit', () => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 const staticModule = rel => pathToFileURL(path.join(staticRoot, rel)).href;
 

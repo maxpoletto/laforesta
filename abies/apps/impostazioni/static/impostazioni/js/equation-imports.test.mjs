@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Controller integration: HTTP is real postJSON; table/modal primitives are
 // substitutes, whose rendering/submission contracts have their own tests.
 import assert from 'node:assert/strict';
@@ -8,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'abies-equation-import-ui-'));
+copyGeodesicVendor(root);
 process.on('exit', () => fs.rmSync(root, { recursive: true, force: true }));
 fs.cpSync(path.join(here, '../../../../base/static/base/js'), path.join(root, 'base/js'), { recursive: true });
 fs.mkdirSync(path.join(root, 'impostazioni/js'), { recursive: true });

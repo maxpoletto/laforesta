@@ -1,3 +1,4 @@
+import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -81,6 +82,7 @@ globalThis.FormData = class {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'abies-settings-form-'));
+copyGeodesicVendor(root);
 process.on('exit', () => fs.rmSync(root, { recursive: true, force: true }));
 fs.mkdirSync(path.join(root, 'impostazioni/js'), { recursive: true });
 fs.cpSync(path.join(here, '../../../../base/static/base/js'), path.join(root, 'base/js'), { recursive: true });

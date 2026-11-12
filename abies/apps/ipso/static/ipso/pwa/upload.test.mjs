@@ -101,11 +101,11 @@ const martellatePayload = upload.buildUploadPayload(
   'csv',
 );
 
-// Legacy coordinate-based area inference uses the shared 6371009 m sphere.
+// Legacy coordinate-based area inference uses WGS84 ellipsoidal distances.
 {
   const refs = reference();
   refs.sampling.sample_areas = [{ ...refs.sampling.sample_areas[0], lat: 0, lon: 0, r_m: 12 }];
-  const degrees = metres => metres / 6371009 * 180 / Math.PI;
+  const degrees = metres => metres / 6378137 * 180 / Math.PI; // Equator fixture.
   for (const [metres, expected] of [[11.999, 123], [12, 123], [12.001, null]]) {
     const payload = upload.buildUploadPayload(sess(upload.UPLOAD_MODE_SAMPLES),
       [tree({ sample_area_id: null, lat: 0, lon: degrees(metres) })], refs, 'csv');
