@@ -296,11 +296,12 @@ The complete layout has no global optimality guarantee and may fail to find a
 feasible arrangement even when one exists.
 
 `bosco-metric-print.js` prepares the content and availability of printable
-metrics. It supports average age, forest type, average altitude, average slope,
-historical harvests and the cutting calendar. Altitude is the mean of both
-altitude bounds, in whole meters; a missing bound produces a missing value.
-Slope uses the stored parcel
-percentage, rounded to a whole percent.
+metrics. It supports all fields in Caratteristiche and Produzione: average age,
+forest type, average altitude, average slope, historical harvests, forecast
+harvests and the cutting calendar. Satellite fields have no print action.
+Altitude is the mean of both altitude bounds, in whole meters; a missing bound
+produces a missing value. Slope uses the stored parcel percentage, rounded to
+a whole percent.
 Values use the same calculation and localized formatting as map tooltips, via
 `bosco-characteristics.js`; missing values become `-` and zero remains a value.
 Age, forest type, altitude, slope and historical harvest maps need no selected
@@ -315,6 +316,13 @@ carry `displayAreaHa` from the geometric/cadastral choice, so printouts share th
 interactive map's denominator and fallback rules. Per-hectare legends name that
 area source, and filenames include `_per_ettaro`. Missing/zero area yields `-`;
 no recorded harvests yields zero.
+
+Forecast maps use `futureHarvestByParcel()` through the same metric context as
+the interactive map. Volumes use two decimal places (`m³` or `m³/ha`) and share
+the historical map's area-source note and normalization. Both calendar and
+forecast printing require a loaded selected plan. The forecast subtitle uses
+the calendar's plan name and forest-type year ranges across all comprese, and
+its filename includes the plan's full year range. Empty estimates yield zero.
 
 `bosco-parcel-print.js` joins parcel names to database identities, merges split
 GeoJSON features, and rejects unmatched or missing parcel geometries.

@@ -108,11 +108,10 @@ hosts (top to bottom):
   region-wide interventions are excluded. Unscheduled parcels use a neutral
   fill and "Nessun taglio previsto". Calendar years are never divided by area.
 
-  **Mappa stampabile…** is available for **Età media**, **Governo**,
-  **Altitudine media**, **Pendenza media**, **Prelievo storico** and the cutting
-  calendar, to all roles.
-  Age labels use whole years (`a`); missing
-  ages use `-`, and a recorded zero is shown as `0 a`. Governo labels show
+  **Mappa stampabile…** is available for every field in the **Caratteristiche**
+  and **Produzione** groups, to all roles. Satellite fields have no print action.
+  Age labels use whole years (`a`); missing ages use `-`, and a recorded zero
+  is shown as `0 a`. Governo labels show
   the localized forest type (`Ceduo` or `Fustaia`), or `-` if unavailable.
   Average altitude uses the mean of the parcel's minimum and maximum altitude,
   rounded to whole meters (`m`), or `-` if either bound is missing.
@@ -127,15 +126,23 @@ hosts (top to bottom):
   zero area produces `-` in per-hectare mode. The button stays disabled until
   the historical harvest digest has loaded.
 
-  It opens an A4 preview covering the entire selected compresa, independently
+  Forecast labels use the selected plan's estimated volume per parcel in cubic
+  meters, with two decimal places (`m³`, or `m³/ha` for **Valori per ettaro**).
+  The area choice and missing-area rules match historical harvest printouts.
+  A parcel with no estimated volume shows zero. The subtitle identifies the
+  plan and its forest-type year ranges as on the calendar, and the filename
+  includes the plan's year range. Forecast printing requires a loaded plan
+  snapshot.
+
+  The action opens an A4 preview of the entire selected compresa, independently
   of map pan/zoom. **Scarica PDF** downloads that same snapshot. Orientation
   is selected automatically for the largest legible map. The white page has
   black parcel boundaries and labels containing parcel name with a forest-type
   marker (`2a (C)` for ceduo, `1 (F)` for fustaia), followed by the selected
   value. It contains no basemap, contours, or parcel fill colors. Calendar
-  labels show all planned years (`-` for unscheduled parcels). Its subtitle
-  uses the plan's own name without an added
-  "Piano di taglio:" prefix, followed by separate year ranges, for example
+  labels show all planned years (`-` for unscheduled parcels). Plan subtitles
+  use the plan's own name without an added "Piano di taglio:" prefix, followed
+  by separate year ranges, for example
   `(fustaia 2027-2040, ceduo 2027-2050)`. Ranges use scheduled parcel
   interventions across the entire selected plan; a type with no interventions
   is omitted, and a single-year range is shown once.
@@ -150,9 +157,8 @@ hosts (top to bottom):
   combined into one parcel label. Missing/unmatched geometries and layouts
   that cannot fit legibly produce an explanatory error, rather than omitting
   parcels. Preview and download retain their data snapshot even if a
-  background refresh arrives. The calendar button is disabled while no plan
-  snapshot is available; age, forest type, altitude, slope and historical
-  harvest maps need no harvest plan.
+  background refresh arrives. Calendar and forecast buttons are disabled while
+  no plan snapshot is available; the other fields need no harvest plan.
 
   PDFs contain vector lines and selectable text, and can be included directly
   in LaTeX via `graphicx`, for example

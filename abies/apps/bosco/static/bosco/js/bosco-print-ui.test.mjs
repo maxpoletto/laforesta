@@ -123,4 +123,21 @@ const historicalPDF = await blob.text();
 assert.ok(historicalPDF.includes('(12,80 q/ha)'), 'download freezes the totals and area used by the preview');
 assert.ok(historicalPDF.includes('aree catastali'));
 cancel.listeners.click();
+preview.replaceChildren();
+const future = new Map([[1, 25.6]]);
+const forecastData = { selected_plan: { id: 8, name: 'Selected plan', year_start: 2027, year_end: 2050 },
+  calendar: [{ parcel_id: 1, years: [2027, 2040] }] };
+showMetricPrint({ metricId: '5', geojson: { features: [{ geometry,
+  properties: { layer: 'Forest', name: 'Forest-1' } }] },
+region: { id: 1, name: 'Forest' }, entries: [{ ...harvestEntry, displayAreaHa: 2 }],
+context: { future, perHa: true }, data: forecastData });
+assert.ok(preview.children[0].children.some(element => element.textContent === '12,80 m³/ha'));
+future.set(1, 0);
+forecastData.selected_plan.name = 'Changed plan';
+download.listeners.click();
+assert.equal(downloaded, 'prelievo_previsto_Forest_2027-2050_per_ettaro.pdf');
+const forecastPDF = await blob.text();
+assert.ok(forecastPDF.includes('Selected plan') && !forecastPDF.includes('Changed plan'));
+assert.ok(forecastPDF.includes('aree geometriche'));
+cancel.listeners.click();
 console.log('Print UI: metric previews, snapshots, reader access, download retry and close passed.');

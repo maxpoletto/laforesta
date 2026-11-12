@@ -421,10 +421,11 @@ export const BOSCO_PRINT_TYPE_FILE = 'governo';
 export const BOSCO_PRINT_ALTITUDE_FILE = 'altitudine_media';
 export const BOSCO_PRINT_SLOPE_FILE = 'pendenza_media';
 export const BOSCO_PRINT_HISTORY_FILE = 'prelievo_storico';
+export const BOSCO_PRINT_FORECAST_FILE = 'prelievo_previsto';
 export const BOSCO_PRINT_PER_HA_NOTE = cadastral =>
   `Valori per ettaro calcolati sulle aree ${cadastral ? 'catastali' : 'geometriche'}.`;
-export const BOSCO_PRINT_METRIC_FILENAME = (field, region, { perHa = false } = {}) =>
-  `${field}_${region.replace(/[\\/:*?"<>|]/g, '_')}${perHa ? '_per_ettaro' : ''}.pdf`;
+export const BOSCO_PRINT_METRIC_FILENAME = (field, region, { perHa = false, plan } = {}) =>
+  `${field}_${region.replace(/[\\/:*?"<>|]/g, '_')}${plan ? `_${plan.year_start}-${plan.year_end}` : ''}${perHa ? '_per_ettaro' : ''}.pdf`;
 export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>
   `calendario_taglio_${region.replace(/[\\/:*?"<>|]/g, '_')}_${plan.year_start}-${plan.year_end}.pdf`;
 export const BOSCO_HARVEST_METRIC = 'Prelievo';

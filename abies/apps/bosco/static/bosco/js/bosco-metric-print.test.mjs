@@ -85,4 +85,35 @@ assert.equal(P.printAvailability('4', { hasRegion: true }).disabled, true,
   'do not offer zero-valued printouts while historical data is still loading');
 assert.equal(P.printAvailability('4', { hasRegion: true, harvestsLoaded: true }).disabled, false);
 assert.throws(() => P.buildMetricPrint({ ...historicalOptions, context: {} }), /Caricamento prelievi/);
-console.log('Metric printing: characteristics, historical totals, area choices and availability passed.');
+const planData = { selected_plan: { id: 7, name: 'Piano di taglio 2027', year_start: 2027, year_end: 2050 },
+  calendar: [{ parcel_id: 1, years: [2027, 2040] }, { parcel_id: 2, years: [2027, 2045] },
+    { parcel_id: 4, years: [2050] }] };
+const future = new Map([[1, 25.6], [2, 10]]);
+const futureOptions = { ...options, entries: harvestEntries, metricId: '5', data: planData,
+  planEntries: [...harvestEntries, { id: 4, region: 'Elsewhere', parcel: '1', coppice: true }],
+  context: { future } };
+const forecast = P.buildMetricPrint(futureOptions);
+assert.equal(forecast.title, 'Prelievo previsto - Forest');
+assert.equal(forecast.subtitle, 'Piano di taglio 2027 (fustaia 2027-2040, ceduo 2027-2050)',
+  'plan ranges include interventions in other comprese');
+assert.equal(forecast.filename, 'prelievo_previsto_Forest_2027-2050.pdf');
+assert.deepEqual(forecast.items.map(item => item.lines), [['25,60 m³'], ['10,00 m³'], ['0,00 m³']]);
+const perHaForecastOptions = { ...futureOptions, context: { future, perHa: true } };
+const geometricForecast = P.buildMetricPrint(perHaForecastOptions);
+assert.deepEqual(geometricForecast.items.map(item => item.lines), [['12,80 m³/ha'], ['-'], ['0,00 m³/ha']]);
+assert.equal(geometricForecast.filename, 'prelievo_previsto_Forest_2027-2050_per_ettaro.pdf');
+assert.ok(geometricForecast.legend.includes('aree geometriche'));
+const cadastralForecast = P.buildMetricPrint({ ...perHaForecastOptions, useCadastralArea: true,
+  entries: harvestEntries.map(entry => ({ ...entry, displayAreaHa: entry.cadastralAreaHa })) });
+assert.equal(cadastralForecast.items[0].lines[0], '6,40 m³/ha');
+assert.ok(cadastralForecast.legend.includes('aree catastali'));
+const emptyForecast = P.buildMetricPrint({ ...futureOptions,
+  data: { selected_plan: planData.selected_plan, calendar: [] }, context: { future: new Map() } });
+assert.ok(emptyForecast.items.every(item => item.lines[0] === '0,00 m³'));
+assert.equal(emptyForecast.subtitle, 'Piano di taglio 2027');
+assert.equal(P.printAvailability('5', { hasRegion: true }).disabled, true);
+assert.equal(P.printAvailability('5', { hasRegion: true, data: planData }).disabled, false);
+assert.throws(() => P.buildMetricPrint({ ...futureOptions, data: null }), /Seleziona un piano/);
+assert.throws(() => P.buildMetricPrint({ ...futureOptions, context: {} }), /Seleziona un piano/);
+assert.equal(future.get(1), 25.6);
+console.log('Metric printing: all characteristics and production fields, units and area choices passed.');
