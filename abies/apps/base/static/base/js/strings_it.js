@@ -419,6 +419,7 @@ export const BOSCO_PRINT_METRIC_LEGEND = '(C) = Ceduo, (F) = Fustaia, (-) = Dato
 export const BOSCO_PRINT_AGE_FILE = 'eta_media';
 export const BOSCO_PRINT_TYPE_FILE = 'governo';
 export const BOSCO_PRINT_ALTITUDE_FILE = 'altitudine_media';
+export const BOSCO_PRINT_SLOPE_FILE = 'pendenza_media';
 export const BOSCO_PRINT_METRIC_FILENAME = (field, region) =>
   `${field}_${region.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
 export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>

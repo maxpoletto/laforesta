@@ -109,12 +109,14 @@ hosts (top to bottom):
   fill and "Nessun taglio previsto". Calendar years are never divided by area.
 
   **Mappa stampabile…** is available for **Età media**, **Governo**,
-  **Altitudine media** and the cutting calendar, to all roles.
+  **Altitudine media**, **Pendenza media** and the cutting calendar, to all roles.
   Age labels use whole years (`a`); missing
   ages use `-`, and a recorded zero is shown as `0 a`. Governo labels show
   the localized forest type (`Ceduo` or `Fustaia`), or `-` if unavailable.
   Average altitude uses the mean of the parcel's minimum and maximum altitude,
   rounded to whole meters (`m`), or `-` if either bound is missing.
+  Average slope uses the stored parcel slope rounded to a whole percentage
+  (`%`); zero is valid, while a missing measurement is shown as `-`.
   It opens an A4 preview covering the entire selected compresa, independently
   of map pan/zoom. **Scarica PDF** downloads that same snapshot. Orientation
   is selected automatically for the largest legible map. The white page has
@@ -139,7 +141,8 @@ hosts (top to bottom):
   that cannot fit legibly produce an explanatory error, rather than omitting
   parcels. Preview and download retain their data snapshot even if a
   background refresh arrives. The calendar button is disabled while no plan
-  snapshot is available; age, forest type and altitude need no harvest plan.
+  snapshot is available; age, forest type, altitude and slope need no harvest
+  plan.
 
   PDFs contain vector lines and selectable text, and can be included directly
   in LaTeX via `graphicx`, for example

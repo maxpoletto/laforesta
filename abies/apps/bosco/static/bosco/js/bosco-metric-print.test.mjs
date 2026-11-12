@@ -56,4 +56,10 @@ assert.equal(altitude.title, 'Altitudine media - Forest');
 assert.equal(altitude.filename, 'altitudine_media_Forest.pdf');
 assert.deepEqual(altitude.items.map(item => item.lines), [['972 m'], ['-'], ['0 m']]);
 assert.equal(P.printAvailability('3', { hasRegion: true }).disabled, false);
-console.log('Metric printing: age, forest type, altitude, missing data and availability passed.');
+const slope = P.buildMetricPrint({ ...options, metricId: '9',
+  entries: entries.map((entry, i) => ({ ...entry, gradePct: [34.6, null, 0][i] })) });
+assert.equal(slope.title, 'Pendenza media - Forest');
+assert.equal(slope.filename, 'pendenza_media_Forest.pdf');
+assert.deepEqual(slope.items.map(item => item.lines), [['35 %'], ['-'], ['0 %']]);
+assert.equal(P.printAvailability('9', { hasRegion: true }).disabled, false);
+console.log('Metric printing: characteristic values, units, missing data and availability passed.');
