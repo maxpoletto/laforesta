@@ -111,8 +111,8 @@ selection in the mobile app.
 Ipso and Abies use the same vendored GeographicLib WGS84 ellipsoid for distances
 and parcel areas (`a = 6378137 m`, `f = 1 / 298.257223563`). The numerical
 library and `base/js/geodesy.js` are precached for offline use. Proximity and
-legacy sample-radius inference use ellipsoidal distances, preserving explicitly
-recorded area IDs; no stored sessions or coordinates are rewritten. See
+sample-radius inference use ellipsoidal distances. Explicit area IDs take
+precedence over coordinate inference. See
 [map coordinate and measurement conventions](ui-maps.md#coordinates-rendering-and-measurements).
 
 On boot, Ipso opens IndexedDB before making either protected-data request. It
@@ -213,8 +213,8 @@ records without coordinates; those records cannot produce map dots.
 The history map reuses the standard Ipso orientation map, including parcel
 geometry, basemap chooser, `Indietro`, `Centra`, live GPS position, and heading
 arrow. It initially fits the selected tree coordinates. Historical trees use
-standard green dots; tapping one opens species, diameter in centimetres, and
-height in metres. `Centra` retains its normal meaning and returns to the current
+standard green dots; tapping one opens species, diameter in centimeters, and
+height in meters. `Centra` retains its normal meaning and returns to the current
 GPS position when a fix is available.
 
 History detail responses use `Cache-Control: no-store`, so the service worker
@@ -270,7 +270,7 @@ The upload body contains:
 
 Every tree save in `martellate`, `samples`, and `free_survey` requires a fresh
 device GPS fix. Ipso stores and uploads that fix's latitude, longitude, and
-browser-reported `acc_m`, rounded to whole metres. The Abies accuracy fields
+browser-reported `acc_m`, rounded to whole meters. The Abies accuracy fields
 remain nullable so historical and non-Ipso imports without accuracy continue
 to load.
 
@@ -451,13 +451,3 @@ Because `_UPLOAD_ATTEMPTS` is in-process memory, the app-level limit is per
 Django process and resets on restart. Treat it as a modest backstop. Apache-side
 controls can still be added for stronger DoS protection, but Apache
 `mod_ratelimit` is bandwidth throttling, not request-count rate limiting.
-
-### Shared distance metric
-
-Desktop and mobile distance/sample-area inference use one Haversine core with
-the WGS84 mean radius **6371009 m**. The existing geometry bridge loads it;
-the service worker precaches its shared module. Legacy coordinate inference
-keeps the inclusive sample-radius boundary and nearest-centre rule. Captured
-sample-area IDs and prepared uploads remain authoritative. Polygon area keeps
-its existing Leaflet-compatible convention. Activate the updated shell before
-expecting disconnected devices to use the new distance metric.

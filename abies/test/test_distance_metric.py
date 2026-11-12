@@ -44,4 +44,4 @@ def test_shared_ellipsoidal_distance_and_sample_boundary():
 def test_server_matches_shared_reference_vectors():
     references = json.loads((Path(__file__).parent / 'fixtures/wgs84-geodesy.json').read_text())
     for case in references['distances']:
-        assert distance_m(*case['points']) == pytest.approx(case['metres'], abs=1e-6)
+        assert distance_m(*case['points']) == pytest.approx(case['meters'], abs=1e-6)

@@ -288,7 +288,7 @@ The modal displays:
        Data; Particella; Numero; Specie; D (cm); h (m); h misurata;
        V (m³); m (q); Lat; Lon; Acc. (m); Operatore
 
-   GPS accuracy is stored as integer metres. In the HTML table, an unavailable
+   GPS accuracy is stored as integer meters. In the HTML table, an unavailable
    height, volume, mass, or GPS accuracy is shown as `-`; zero retains its
    numeric meaning and is never used as a missing-value sentinel. CSV exports
    leave nullable
@@ -313,7 +313,7 @@ The modal displays:
    the table and dendrometric calculations but do not produce map points.
 
    Below the map, **Riassunto dendrometrico** contains three stacked bar charts
-   by five-centimetre diameter class, stacked by species: Numero alberi,
+   by five-centimeter diameter class, stacked by species: Numero alberi,
    Volume, and Area basimetrica. The charts reuse Bosco's shared Chart.js data
    builder, responsive side-by-side panel layout, and full-species color
    universe, so a
@@ -341,7 +341,7 @@ The modal displays:
    totale, and the two stacked basal-area lines (Area totale and Diametro
    medio with σ); these totals follow the active filter too.
 
-   The title row carries a standard grey **Esporta** button at the far right. It downloads
+   The title row carries a standard gray **Esporta** button at the far right. It downloads
    `riassunto_dendrometrico_<item-id>.zip`, containing:
 
    - `numero_alberi.csv`
@@ -357,7 +357,7 @@ The modal displays:
    file archive.
 
    Each CSV is a matrix with species on rows and a continuous sequence of
-   five-centimetre diameter classes on columns; missing combinations are zero.
+   five-centimeter diameter classes on columns; missing combinations are zero.
    Species whose entire row is zero for that metric are omitted. It uses the
    active locale's CSV delimiter and decimal separator. The endpoint reads the
    current diameter-class setting directly, so exported matrix columns use the

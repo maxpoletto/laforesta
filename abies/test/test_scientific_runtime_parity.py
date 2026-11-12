@@ -39,6 +39,6 @@ def test_diameter_area_and_offline_height_contracts():
     for case, (diameter_class, area) in zip(classes, actual['classes']):
         assert diameter_class == diameter_class_cm(case['d'], case['mode'])
         assert math.isclose(area, basal_area_m2(case['d']), rel_tol=1e-14)
-    # Ipso intentionally captures whole-metre automatic heights, including its
+    # Ipso intentionally captures whole-meter automatic heights, including its
     # half-up rounding; desktop's editable preview has its separate precision.
     assert actual['heights'] == [20, 19, None, None, None, None]

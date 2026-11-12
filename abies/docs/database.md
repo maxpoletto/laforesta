@@ -25,7 +25,7 @@ audited and the contract that keeps that coverage complete.
 It stores `b0`, `b1`, optional `b2` (Decimal(18,10)), and a free-text source,
 or an explicit `proxy_species_id`. The two representations are mutually
 exclusive. Its equation is `V_dm³ = b0 + b1 D²h [+ b2 D]`, with D in cm and
-h in metres; divide by 1000 for m³. A proxy retains its own species identity
+h in meters; divide by 1000 for m³. A proxy retains its own species identity
 and density and uses the referenced species' coefficients.
 
 Recognized new reference species receive initial coefficient/proxy defaults
@@ -76,7 +76,7 @@ tree heights, volumes and masses remain unchanged by reference edits.
   - `default_landing_page` is the blank-or-same-site app URL used when a user
     has no personal landing page.
   - `diameter_class_mode` is `centered`, `shifted_up`, or `shifted_down` and
-    defines how integer centimetre diameters map into five-centimetre classes
+    defines how integer centimeter diameters map into five-centimeter classes
     across Bosco, Martellate, Rilevamenti, and their dendrometry CSV matrices.
   - The singleton is history-tracked. Both setting fields appear in Controllo;
     writes through Impostazioni attach the authenticated writer/admin as the

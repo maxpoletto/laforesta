@@ -228,7 +228,7 @@ async function loadPageData() {
   samplesData = sm;
   speciesNames = speciesNamesFromDigest(species);
   // Sort largest-first so small polygons render — and bind tooltip —
-  // on top of their containing larger neighbours.  Mirrors
+  // on top of their containing larger neighbors.  Mirrors
   // `bosco/b/app.js`'s use of the same helper.
   parcelsGeo = sortFeaturesByArea(geojson);
 }
@@ -1899,7 +1899,7 @@ function wireTreePick(form) {
     // Existing tree: propagate its number, lock the rest UNLESS we're
     // editing (the edit path keeps Tree fields editable).  When the
     // existing tree has NULL lat/lon (option carries empty string),
-    // leave the inputs alone so the template's area-centre default
+    // leave the inputs alone so the template's area-center default
     // survives.
     num.value = opt.dataset.number || '';
     if (species && opt.dataset.speciesId) species.value = opt.dataset.speciesId;

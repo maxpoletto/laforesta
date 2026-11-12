@@ -1034,7 +1034,7 @@ async function finish() {
   eq(markAccColumn.formatter(null), '-',
      'mark null accuracy is displayed as a dash');
   eq(markAccColumn.formatter(4), '4',
-     'mark accuracy is displayed as integer metres');
+     'mark accuracy is displayed as integer meters');
   await finish();
 
   const regionItem = deferItem(13);

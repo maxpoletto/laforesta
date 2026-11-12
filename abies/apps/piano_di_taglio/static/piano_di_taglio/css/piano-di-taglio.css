@@ -91,7 +91,7 @@
 }
 
 /* Allow two-word column headers (Anno effettivo, Volume previsto, …) to
-   wrap at the space and centre them, instead of forcing single-line via
+   wrap at the space and center them, instead of forcing single-line via
    the vendor default. */
 .pdt-table-host .sortable-table-header,
 .pdt-item-card .subsection-host .sortable-table-header {

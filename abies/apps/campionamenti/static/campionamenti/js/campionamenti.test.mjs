@@ -569,7 +569,7 @@ eq(treeTable.columns.indexOf(treeAccColumn), treeLonIndex + 1,
 eq(treeAccColumn.formatter(null), '-',
    'sampled-tree null accuracy is displayed as a dash');
 eq(treeAccColumn.formatter(4), '4',
-   'sampled-tree accuracy is displayed as integer metres');
+   'sampled-tree accuracy is displayed as integer meters');
 
 eq(globalThis.__treeDetailInstances.length, 1,
    'free survey mounts one shared tree-detail component below the table');

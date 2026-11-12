@@ -73,7 +73,7 @@ The popup has three groups:
    minor and active flags. Existing protected catch-all identity rules remain.
 2. Volume: no equation, own coefficients, or another species' equation by a
    stable reference. Own coefficients are `b0`, `b1`, optional `b2`; the displayed
-   formula documents D in cm, h in metres and volume in dm³ before conversion
+   formula documents D in cm, h in meters and volume in dm³ before conversion
    to m³. Source text is editable. Every configured equation is inspectable
    through its owning species, including explicit catch-all proxies.
 3. Height: one enabled/disabled row per compresa, with `a`, `b`, optional N/r²,
@@ -202,7 +202,7 @@ source surveys. A successful save evicts those full client caches.
 ## Diameter classes (Classi diametriche)
 
 Visible to writers and admins, below Parametri dendrometrici. The
-radio control selects one site-wide five-centimetre class convention used by
+radio control selects one site-wide five-centimeter class convention used by
 every diameter-class chart and export:
 
 - `centered`: class 20 contains integer diameters 18–22 cm;

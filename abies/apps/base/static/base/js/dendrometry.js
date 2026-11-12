@@ -2,7 +2,7 @@
  * Shared dendrometry aggregation, legend, and chart builders.
  *
  * Bosco supplies already-aggregated rows; tree-detail consumers supply
- * individual trees. Both use the same five-centimetre diameter classes,
+ * individual trees. Both use the same five-centimeter diameter classes,
  * species palette, sparse-series filling, and metric matrix.
  */
 
@@ -94,7 +94,7 @@ export function aggregateTreeDendrometry(
 // generic name: nothing in the aggregation is specific to marked trees.
 export const aggregateMarkedTreeDendrometry = aggregateTreeDendrometry;
 
-/** Build species rows × continuous five-centimetre diameter-class columns. */
+/** Build species rows × continuous five-centimeter diameter-class columns. */
 export function dendrometryMetricMatrix(rows, metric) {
   const { labels, species } = dendrometryChartAxes(rows);
   const values = dendrometryMetricValues(rows, metric);

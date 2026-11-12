@@ -150,8 +150,11 @@ different CRS must be correctly transformed to WGS84 before import.
 
 Bosco and the other interactive maps use Leaflet's EPSG:3857 Web/Pseudo-Mercator
 projection, matching their basemaps. Its spherical projection radius is the
-WGS84 semi-major axis, 6378137 m. Printable maps use the same formulas, with Y
-reversed for page coordinates; the radius cancels during page fitting. This
+WGS84 semi-major axis, 6378137 m, as prescribed by EPSG:3857. This makes the
+east/west projection scale exact at the WGS84 equator. A mean Earth radius
+would define different projected coordinates, rather than improve EPSG:3857.
+Printable maps use the same formulas, with Y reversed for page coordinates;
+the radius cancels during page fitting. This
 display projection does not change the geographic coordinates of boundaries,
 trees, observations or GPS fixes. Absolute alignment depends on the source
 datum, boundary survey, imagery and GPS accuracy. The approximately 28% scale
@@ -166,15 +169,21 @@ scripts; it obtains the constants from GeographicLib's WGS84 instance. The
 locked GeographicLib browser asset and its license are vendored locally and
 the numerical asset/core are included in Ipso's offline precache.
 There is no application Haversine fallback or separately tuned mobile radius.
-The Web Mercator rendering radius remains part of the display CRS definition.
+The Web Mercator rendering radius is part of the display CRS definition.
 
 `geo.distanceMeters()` returns the shortest ellipsoidal surface distance.
 Polygon areas follow geodesic edges, ignore ring winding, subtract holes,
 and sum MultiPolygon components. They are horizontal reference-ellipsoid
 measurements, not terrain slope lengths/areas. Cadastral areas and stored
 forestry sample areas (`pi * radius²`) retain their independent meanings.
+`sortFeaturesByArea()` calculates each feature's `_areaM2` from its geometry
+when loading parcel data, replacing any supplied cached area value. Bosco
+sums component areas per parcel for geometric-area displays and per-hectare
+values. The database's separately supplied parcel area is the cadastral-area
+source, rather than a cache of this geometric calculation.
 Sample-radius inference and nearest-area selection use the same metric on
-desktop and mobile; explicitly recorded sample-area IDs are preserved.
+desktop and mobile. An explicit sample-area ID takes precedence over coordinate
+inference.
 See [GeographicLib's algorithms and API](https://geographiclib.sourceforge.io/JavaScript/doc/).
 
 Coordinate entry/display retain five decimal places. Around Calabria, the
@@ -197,38 +206,38 @@ it can be rerun with the locked Python dependencies.
 
 `localProjection(lat, lng)` builds an ellipsoidal azimuthal-equidistant plane
 around a chosen origin. A GeographicLib inverse calculation supplies each
-point's distance and azimuth from the origin; these become east/north metre
+point's distance and azimuth from the origin; these become east/north meter
 coordinates. The inverse mapping uses GeographicLib's direct calculation.
 Both directions use the same WGS84 ellipsoid as point distances and areas.
-This is a computation plane; the map display continues to use Web Mercator.
+This is a computation plane; the map display uses Web Mercator.
 
-`distanceToBoundaryMeters()` centres this plane at the query location and
+`distanceToBoundaryMeters()` centers this plane at the query location and
 finds the closest point on projected polygon segments, including hole and
 MultiPolygon boundaries. Approximating a curved geodesic segment by a straight
 segment in this local plane is tested within 1 cm of independently minimized
 ellipsoidal segment distances over 5 km forestry extents. It is not a global
 nearest-geodesic-segment solver.
 
-Automatic sampling-grid construction places a cell-centred square lattice in
-a plane centred on the selected parcels, then converts its points back to
-WGS84 and clips their centres to the parcel geometry. Axes follow true
-north/east at the origin. This replaces constant metres-per-degree offsets;
-it requires no UTM-zone choice. The target-count search reuses one projection
-and projected extent for all spacing trials. Tests verify 500 m neighbour
+Automatic sampling-grid construction places a cell-centered square lattice in
+a plane centered on the selected parcels, then converts its points back to
+WGS84 and clips their centers to the parcel geometry. Axes follow true
+north/east at the origin. Grid spacing is expressed in meters and requires no
+UTM-zone choice. The target-count search reuses one projection
+and projected extent for all spacing trials. Tests verify 500 m neighbor
 spacing within 1 mm across a 5 km square, point containment, parcel labels,
-projection round trips, and the target-count contract. Existing stored grids
-and recorded area assignments are unchanged; new grids use the new geometry.
+projection round trips, and the target-count contract.
 
 ### Satellite raster sizing
 
 Server calculations use GeographicLib Python's `Geodesic.WGS84` through
-`apps.base.geodesy`, with the same ellipsoid as the browser. New satellite
+`apps.base.geodesy`, with the same ellipsoid as the browser. Satellite
 grids derive their nominal 10 m dimensions from ellipsoidal distances along
 the bounding-box midlines. The rasters remain in WGS84 geographic coordinates.
-Existing downloaded rasters retain their actual pixel grid during subsequent
-downloads and precomputation; changing the sizing formula does not resample
-or invalidate their pixels. Precomputation verifies every date/band has the
-same dimensions, CRS and transform before publishing a new mask or manifest.
+Every date and band must use this canonical pixel grid. Downloads validate
+retained dates against it, and precomputation verifies dimensions, CRS and
+transform before publishing a mask or manifest. Rebuild into a fresh output
+directory when changing source geometry or raster-grid calculations; see the
+[satellite build commands](../README.md#local-development).
 
 Geometry labels accept region properties in precedence order `layer`,
 `compresa`, `Compresa`, and parcel properties `name`, `particella`, `Particella`.

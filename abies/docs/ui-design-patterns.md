@@ -16,7 +16,7 @@ Page margins are moderate (40 px) on desktop and small on mobile.
 
 Text inputs have very slightly rounded corners (2-4 px radius).
 
-Buttons have rounded corners (4-8px radius) and lighten on hover. Colour
+Buttons have rounded corners (4-8px radius) and lighten on hover. Color
 encodes intent, not decoration — see "Buttons" below.
 
 Horizontal rules outline the page header as well as collapsible elements (each
@@ -25,21 +25,21 @@ page's collapsibles are documented in its `docs/page-*.md`). They are thin
 
 ## Buttons
 
-A button's colour is set by what it does, via an intent class on the base
-`.btn`. All colours live in `common.css`; never choose one at the call site.
+A button's color is set by what it does, via an intent class on the base
+`.btn`. All colors live in `common.css`; never choose one at the call site.
 
 - **Green — affirmative:** `.btn-create` (`+ Nuovo X`, `+ Aggiungi`),
   `.btn-save` (Salva / Crea / Conferma — any form commit), `.btn-import`
   (Importa CSV).
-- **Grey — neutral:** the bare `.btn` (Annulla, dismiss, and auxiliary actions
+- **Gray — neutral:** the bare `.btn` (Annulla, dismiss, and auxiliary actions
   such as "Usa GPS" or "Pianifica") and the named `.btn-export` (Esporta) —
-  same grey, but named so it can never drift to a commit colour.
+  same gray, but named so it can never drift to a commit color.
 - **Red — destructive:** `.btn-delete` (deletes a record or cascades).
 
 Many objects (survey grids, surveys, harvest plans, the hypsometric parameter
 set) can be both created and exported. The standard pairing is two side-by-side
 buttons on the far right of the work space — `[Esporta]` (`.btn-export`,
-grey) then `[+ Nuovo X]` (`.btn-create`, green); right-align a toolbar's buttons
+gray) then `[+ Nuovo X]` (`.btn-create`, green); right-align a toolbar's buttons
 with the `.ms-auto` utility.
 
 ## Tabular data
@@ -69,7 +69,7 @@ rows by matching all whitespace-separated terms against the
 concatenation of all fields. Sort order is preserved.
 
 Tables fill the viewport height with their own scrollbar. 1px
-medium-grey borders; light grey column headers.
+medium-gray borders; light gray column headers.
 
 Additionally, for users with role "writer" or "admin", tables may (depending on
 their semantics — see the relevant page doc (`docs/page-*.md`)) allow
@@ -181,7 +181,7 @@ tabs never reflows the modal.
 
 Every input/edit form renders inside a `<div class="form-card">`
 wrapper. The shared rule in `apps/base/static/base/css/common.css`
-sets `max-width: 720px; margin: 0 auto;`, giving the form a centred
+sets `max-width: 720px; margin: 0 auto;`, giving the form a centered
 column with ample side margins on wide screens. Use this wrapper
 for any new form template. Do not introduce alternative widths.
 
@@ -218,7 +218,7 @@ buttons or their layout.
 current state (e.g., "Elimina" on an area that already has Samples),
 disable the button with `[disabled]` and set a `title` attribute that
 explains why — never gate the action via a follow-up confirm modal
-that simply refuses. `.btn:disabled` in common.css greys the button
+that simply refuses. `.btn:disabled` in common.css grays the button
 and disables hover-darkening.
 
 ### Form row layout
@@ -257,7 +257,7 @@ carries the field on submit.
 For read-only header strips (Compresa / Particella / Area di saggio
 at the top of tree and mark forms), use `.form-readonly-flat` — an
 inline row of `<label>: value` pairs without a card background.
-`.form-readonly-block` (grid layout, grey card) is used only by the
+`.form-readonly-block` (grid layout, gray card) is used only by the
 area popover on the campionamenti map.
 
 ### Deletion-after-export

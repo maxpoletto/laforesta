@@ -8,11 +8,11 @@
   --green-light: #d6e8d4;
   --red:         #c52727;
   --yellow:      #d6a02a;
-  --grey-1:      #222;
-  --grey-2:      #555;
-  --grey-3:      #888;
-  --grey-4:      #ddd;
-  --grey-5:      #f4f4f4;
+  --gray-1:      #222;
+  --gray-2:      #555;
+  --gray-3:      #888;
+  --gray-4:      #ddd;
+  --gray-5:      #f4f4f4;
   --bg:          #ffffff;
 }
 
@@ -22,7 +22,7 @@ html, body {
   margin: 0;
   padding: 0;
   background: var(--bg);
-  color: var(--grey-1);
+  color: var(--gray-1);
   font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   font-size: 18px;
   line-height: 1.3;
@@ -90,8 +90,8 @@ h1 { font-size: 22px; margin: 6px 0 8px 0; }
 }
 
 .btn-secondary:disabled {
-  background: var(--grey-5);
-  color: var(--grey-3);
+  background: var(--gray-5);
+  color: var(--gray-3);
   cursor: not-allowed;
 }
 
@@ -117,7 +117,7 @@ h1 { font-size: 22px; margin: 6px 0 8px 0; }
 }
 .history-empty {
   margin: auto 0;
-  color: var(--grey-2);
+  color: var(--gray-2);
   text-align: center;
 }
 
@@ -126,7 +126,7 @@ h1 { font-size: 22px; margin: 6px 0 8px 0; }
 /* ----------------------------------------------------------------------- */
 
 .field { display: flex; flex-direction: column; gap: 4px; }
-.lbl { font-size: 13px; color: var(--grey-2); }
+.lbl { font-size: 13px; color: var(--gray-2); }
 
 /* Checkbox row: big touch target, label flush left of the box. */
 .check {
@@ -147,7 +147,7 @@ h1 { font-size: 22px; margin: 6px 0 8px 0; }
 }
 .check-lbl {
   font-size: 17px;
-  color: var(--grey-1);
+  color: var(--gray-1);
 }
 
 input[type="text"], input[type="date"], select {
@@ -155,10 +155,10 @@ input[type="text"], input[type="date"], select {
   height: 48px;
   padding: 0 12px;
   font-size: 20px;
-  border: 1px solid var(--grey-4);
+  border: 1px solid var(--gray-4);
   border-radius: 4px;
   background: white;
-  color: var(--grey-1);
+  color: var(--gray-1);
   -webkit-appearance: none;
   appearance: none;
 }
@@ -179,7 +179,7 @@ textarea {
   width: 100%;
   padding: 10px 12px;
   font: inherit;
-  border: 1px solid var(--grey-4);
+  border: 1px solid var(--gray-4);
   border-radius: 4px;
   resize: vertical;
 }
@@ -230,9 +230,9 @@ textarea {
 .photo-row {
   padding: 6px 10px;
   border-radius: 4px;
-  background: var(--grey-5);
+  background: var(--gray-5);
   font-size: 14px;
-  color: var(--grey-2);
+  color: var(--gray-2);
 }
 
 /* D and h side by side; Numero / Gruppo row uses the same rhythm. */
@@ -246,7 +246,7 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 .dh-row select.dh-select {
-  /* Match input styling and centre the single-letter value. */
+  /* Match input styling and center the single-letter value. */
   padding: 0 12px;
   text-align-last: center;
 }
@@ -271,8 +271,8 @@ select.error:focus {
 
 .hint {
   font-size: 13px;
-  color: var(--grey-2);
-  background: var(--grey-5);
+  color: var(--gray-2);
+  background: var(--gray-5);
   padding: 6px 10px;
   border-radius: 4px;
 }
@@ -300,18 +300,18 @@ button {
   color: white;
 }
 .btn-primary:disabled {
-  background: var(--grey-4);
-  color: var(--grey-3);
+  background: var(--gray-4);
+  color: var(--gray-3);
   cursor: not-allowed;
 }
 .btn-primary:not(:disabled):active { background: var(--green-dark); }
 
 .btn-secondary {
   background: white;
-  color: var(--grey-2);
-  border: 1px solid var(--grey-4);
+  color: var(--gray-2);
+  border: 1px solid var(--gray-4);
 }
-.btn-secondary:active { background: var(--grey-5); }
+.btn-secondary:active { background: var(--gray-5); }
 
 .btn-danger {
   background: var(--red);
@@ -349,8 +349,8 @@ button {
 }
 
 .ipso-pai-control.off .ipso-pai-toggle {
-  color: var(--grey-3);
-  background: var(--grey-5);
+  color: var(--gray-3);
+  background: var(--gray-5);
 }
 
 /* ----------------------------------------------------------------------- */
@@ -385,8 +385,8 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--grey-2);
-  border-bottom: 1px solid var(--grey-4);
+  color: var(--gray-2);
+  border-bottom: 1px solid var(--gray-4);
   padding-bottom: 6px;
 }
 .rec-where {
@@ -435,12 +435,12 @@ button {
   height: 60px;
   font-size: 26px;
   background: white;
-  border: 1px solid var(--grey-4);
-  color: var(--grey-1);
+  border: 1px solid var(--gray-4);
+  color: var(--gray-1);
 }
-.np-key:active { background: var(--grey-5); }
-.np-key.np-back  { background: var(--grey-5); }
-.np-key.np-clear { background: var(--grey-5); color: var(--grey-2); font-size: 22px; }
+.np-key:active { background: var(--gray-5); }
+.np-key.np-back  { background: var(--gray-5); }
+.np-key.np-clear { background: var(--gray-5); color: var(--gray-2); font-size: 22px; }
 
 
 /* ----------------------------------------------------------------------- */
@@ -474,7 +474,7 @@ button {
 
 .map-sub {
   font-size: 12px;
-  color: var(--grey-2);
+  color: var(--gray-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -491,7 +491,7 @@ button {
 .map-canvas {
   flex: 1;
   min-height: 320px;
-  border: 1px solid var(--grey-4);
+  border: 1px solid var(--gray-4);
   border-radius: 4px;
   background: #eef1ea;
 }
@@ -589,14 +589,14 @@ button {
   overflow-y: auto;
 }
 .resume-item {
-  border: 1px solid var(--grey-4);
+  border: 1px solid var(--gray-4);
   border-radius: 4px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.resume-meta { font-size: 13px; color: var(--grey-2); }
+.resume-meta { font-size: 13px; color: var(--gray-2); }
 .resume-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .resume-actions button { flex: 1; font-size: 14px; padding: 8px 6px; }
 .resume-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
@@ -612,14 +612,14 @@ button {
 .data-section-h {
   margin: 0;
   font-size: 14px;
-  color: var(--grey-2);
+  color: var(--gray-2);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .data-table-wrap {
-  border: 1px solid var(--grey-4);
+  border: 1px solid var(--gray-4);
   border-radius: 4px;
   overflow: hidden;
   background: white;
@@ -640,12 +640,12 @@ button {
 .data-table td {
   padding: 6px 8px;
   text-align: left;
-  border-bottom: 1px solid var(--grey-4);
+  border-bottom: 1px solid var(--gray-4);
   white-space: nowrap;
 }
 .data-table th {
-  background: var(--grey-5);
-  color: var(--grey-2);
+  background: var(--gray-5);
+  color: var(--gray-2);
   font-weight: 600;
   font-size: 13px;
   position: sticky;
@@ -656,7 +656,7 @@ button {
 .data-table tr:last-child td { border-bottom: 0; }
 .data-table .empty {
   text-align: center;
-  color: var(--grey-3);
+  color: var(--gray-3);
   font-style: italic;
   padding: 16px;
 }
@@ -711,11 +711,11 @@ button {
 .observation-card-meta {
   display: flex;
   gap: 6px;
-  color: var(--grey-2);
+  color: var(--gray-2);
   font-size: 13px;
 }
 .observation-card-key {
-  color: var(--grey-3);
+  color: var(--gray-3);
   flex: 0 0 auto;
 }
 .tree-delete-btn {
@@ -727,10 +727,10 @@ button {
   justify-content: center;
   background: white;
   color: var(--red);
-  border: 1px solid var(--grey-4);
+  border: 1px solid var(--gray-4);
 }
 .tree-delete-btn:active {
-  background: var(--grey-5);
+  background: var(--gray-5);
 }
 .tree-delete-btn svg {
   width: 22px;
@@ -748,7 +748,7 @@ button {
 
 .footer {
   font-size: 11px;
-  color: var(--grey-3);
+  color: var(--gray-3);
   text-align: center;
   padding: 6px;
   display: flex;
@@ -814,7 +814,7 @@ button {
 
 .upload-detail {
   font-size: 14px;
-  color: var(--grey-2);
+  color: var(--gray-2);
   text-align: center;
   margin: 0;
   max-width: 30em;

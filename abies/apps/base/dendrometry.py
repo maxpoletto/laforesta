@@ -20,7 +20,7 @@ _DIAMETER_CLASS_OFFSETS = {
 
 
 def diameter_class_cm(d_cm: int, mode: str = DIAMETER_CLASS_CENTERED) -> int:
-    """Return the five-centimetre class for an integer diameter.
+    """Return the five-centimeter class for an integer diameter.
 
     The mode controls where the named class lies within its five integer
     diameters: centered maps 18..22 to 20, shifted up maps 20..24 to 20,
@@ -38,6 +38,6 @@ def current_diameter_class_mode() -> str:
 
 
 def basal_area_m2(d_cm: int) -> float:
-    """Basal area in square metres for a diameter in centimetres."""
+    """Basal area in square meters for a diameter in centimeters."""
     radius_m = float(d_cm) / 200.0
     return math.pi * radius_m * radius_m

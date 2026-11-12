@@ -76,7 +76,7 @@ assertEqual(rows.map(row => row.color),
 
 const matrix = dendrometryMetricMatrix(rows, 'treeCount');
 assertEqual(matrix.diameterClasses, [20, 25, 30],
-            'matrix fills intermediate five-centimetre classes');
+            'matrix fills intermediate five-centimeter classes');
 assertEqual(matrix.species.map(row => row.values), [[2, 0, 0], [0, 0, 1]],
             'matrix has species rows and class columns');
 

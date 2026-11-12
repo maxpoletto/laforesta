@@ -61,7 +61,7 @@ Map interactions:
   terse to avoid noise during navigation.
 - **Click** on an existing sample area: opens a popover with the full per-area
   fields (parcel, numero, lat, lng, quota, raggio, note). Writers also see
-  "Modifica" and "Elimina" buttons (Elimina is greyed out if sample area has
+  "Modifica" and "Elimina" buttons (Elimina is grayed out if sample area has
   samples).
 - **Click** on empty map space (writers only): prompts "Inserire una
   nuova area qui?". On confirm, opens the new-area form (below) with
@@ -105,11 +105,10 @@ paths:
   across user-selected regions, writes `sample_grid` plus `sample_area` rows in
   one transaction. Generated areas are numbered per compresa, restarting at 1
   in each (matching manually-added areas — see §"The new-area form").
-  New locations form a cell-centred lattice in a local WGS84 metre plane,
-  aligned north/east at the selected parcels' centre and clipped to their
+  Generated locations form a cell-centered lattice in a local WGS84 meter plane,
+  aligned north/east at the selected parcels' center and clipped to their
   geometry. Spacing and area estimates use the shared ellipsoidal calculations
   described in [map architecture](ui-maps.md#local-metric-planes-and-sampling-grids).
-  This does not move or regenerate previously saved grids.
 
 This deliberately does *not* offer CSV import at creation time: identity
 (the grid exists with a name) is decoupled from content (sample areas).
@@ -130,7 +129,7 @@ A two-tab modal acting on the currently-selected grid:
 
 #### Empty state
 
-If no grids exist yet, the pulldown is disabled and the section shows a centred
+If no grids exist yet, the pulldown is disabled and the section shows a centered
 prompt: "Nessuna griglia. Premi 'Nuova griglia' per crearne una." with the same
 Nuova-griglia button.
 
@@ -213,10 +212,10 @@ also used by Martellate:
   layout, species legend and totals for number of trees, volume and basal area.
 
 The component consumes the rows retained by the table's filter, so table, map,
-charts, legend and totals remain synchronized. Its grey **Esporta** button
+charts, legend and totals remain synchronized. Its gray **Esporta** button
 downloads `riassunto_dendrometrico_rilevamento_<survey-id>.zip` containing
 `numero_alberi.csv`, `volume_m3.csv`, and `area_basimetrica_m2.csv`. Each CSV
-has species on rows and five-centimetre diameter classes on columns. Chart and
+has species on rows and five-centimeter diameter classes on columns. Chart and
 ZIP boundaries follow the site-wide **Classi diametriche** setting; the export
 endpoint reads it directly. Species whose entire row is zero for that metric
 are omitted. With an active text filter, the client submits the displayed

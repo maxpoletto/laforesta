@@ -72,7 +72,7 @@ def main():
         'source': 'GeographicLib Python 2.1, Geodesic.WGS84; a=6378137, f=1/298.257223563.',
         'generator': 'test/fixtures/generate_wgs84.py',
         'reference_url': 'https://geographiclib.sourceforge.io/JavaScript/doc/',
-        'distances': [{'points': p, 'metres': GEOD.Inverse(*p)['s12']} for p in pairs],
+        'distances': [{'points': p, 'meters': GEOD.Inverse(*p)['s12']} for p in pairs],
         'areas': [{'ring': ring, 'area': area(ring)} for ring in rings],
         'polygons': [
             {'geometry': {'type': 'Polygon', 'coordinates': [rings[1], hole]},
@@ -86,7 +86,7 @@ def main():
     starts += [(89.9, 179.9, 45, 5000), (-38, -179.9, -90, 5000)]
     for lat, lon, az, s in starts:
         point = GEOD.Direct(lat, lon, az, s)
-        data['destinations'].append({'start': [lat, lon], 'azimuth': az, 'metres': s,
+        data['destinations'].append({'start': [lat, lon], 'azimuth': az, 'meters': s,
                                      'point': [point['lat2'], point['lon2']]})
     for origin, rotation in [((38.5, 16.3), 0), ((38.5, 16.3), 30),
                              ((70, 16.3), 30), ((-38.5, 16.3), 30)]:
@@ -96,7 +96,7 @@ def main():
         for x, y in [(0, 0), (2800, 0), (0, 2800), (3000, 3000), (0, .01)]:
             query = local_point(origin, x, y)
             data['boundaries'].append({'polygon': index, 'query': query,
-                                      'metres': boundary_distance(query, geometry)})
+                                      'meters': boundary_distance(query, geometry)})
     origin = (38.5, 16.3)
     for geometry in [
         {'type': 'Polygon', 'coordinates': [square(origin, 2500), square(origin, 500)]},
@@ -108,7 +108,7 @@ def main():
         for x, y in [(0, 0), (1000, 1000)]:
             query = local_point(origin, x, y)
             data['boundaries'].append({'polygon': index, 'query': query,
-                                      'metres': boundary_distance(query, geometry)})
+                                      'meters': boundary_distance(query, geometry)})
     Path(__file__).with_name('wgs84-geodesy.json').write_text(json.dumps(data, indent=2) + '\n')
 
 

@@ -315,10 +315,10 @@ body {
 
 /* --- Buttons -------------------------------------------------------------- */
 
-/* The base button IS the neutral grey: cancel, dismiss, and auxiliary
+/* The base button IS the neutral gray: cancel, dismiss, and auxiliary
  * actions (Usa GPS, recompute, clear) use a bare `.btn`.  Affirmative and
- * destructive actions add an intent modifier below — the colour is decided
- * here, once, by what the button DOES; never pick a colour by hand. */
+ * destructive actions add an intent modifier below — the color is decided
+ * here, once, by what the button DOES; never pick a color by hand. */
 .btn {
   display: inline-block;
   padding: 0.5rem 1.2rem;
@@ -345,8 +345,8 @@ body {
 .btn-save:not(:disabled):hover,
 .btn-import:not(:disabled):hover { background: var(--color-bosco-green-hover); }
 
-/* Export — neutral grey like the base, but named so it can never drift
- * back to an affirmative colour. */
+/* Export — neutral gray like the base, but named so it can never drift
+ * back to an affirmative color. */
 .btn-export { background: var(--color-neutral-action); color: #333; }
 .btn-export:not(:disabled):hover { background: var(--color-neutral-action-hover); }
 
@@ -357,8 +357,8 @@ body {
 }
 .btn-delete:not(:disabled):hover { background: var(--color-danger-hover); }
 
-/* Disabled (e.g., "Elimina" on an area that has Samples): greyed +
- * not-allowed; the :not(:disabled):hover rules above leave the colour
+/* Disabled (e.g., "Elimina" on an area that has Samples): grayed +
+ * not-allowed; the :not(:disabled):hover rules above leave the color
  * unchanged on hover. */
 .btn:disabled,
 .btn[disabled] {
@@ -497,7 +497,7 @@ input:focus, select:focus, textarea:focus {
 .form-card h2 { margin-bottom: 12px; }
 
 /* Read-only header inside an edit form — Compresa / Particella / Area
- * pairs displayed as plain text without the grey card the legacy
+ * pairs displayed as plain text without the gray card the legacy
  * `.form-readonly-block` provides.  Items render inline; each label
  * is muted and the value follows in normal weight. */
 .form-readonly-flat {
@@ -953,7 +953,7 @@ input:focus, select:focus, textarea:focus {
    .mc-active; a pastel-yellow fill makes "tool is on" obvious against the white
    resting button.  Scoped to .mc-control-button so it never touches the basemap
    switcher's own .mc-active.  The :hover/:focus variants are required: Leaflet
-   greys both states (`.leaflet-bar a:hover,:focus`) at a higher specificity, and
+   grays both states (`.leaflet-bar a:hover,:focus`) at a higher specificity, and
    a just-clicked button keeps :focus until the next click elsewhere — without
    the :focus override the fill wouldn't show until you clicked off the button. */
 .mc-control-button.mc-active,

@@ -17,7 +17,7 @@ import { distanceMeters } from './geo.js';
 
 const $ = id => document.getElementById(id);
 
-const KM_THRESHOLD_M = 1000;          // switch from metres to kilometres here
+const KM_THRESHOLD_M = 1000;          // switch from meters to kilometers here
 const SIDEBAR_RESIZE_MS = 300;        // wait out the sidebar CSS transition
 
 const MEASURE_ICON = '📏';
@@ -35,7 +35,7 @@ const LOCATION_MARKER_STYLE = {
   radius: 8, fillColor: LOCATION_COLOR, color: '#fff', weight: 2,
   opacity: 1, fillOpacity: 1,
 };
-// Accuracy circle; `radius` (in metres) is filled in per fix.
+// Accuracy circle; `radius` (in meters) is filled in per fix.
 const LOCATION_CIRCLE_STYLE = {
   color: LOCATION_COLOR, fillColor: LOCATION_COLOR, fillOpacity: 0.15, weight: 2,
 };

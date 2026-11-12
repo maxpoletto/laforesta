@@ -260,7 +260,7 @@ following the standard Abies idiom:
      charts is per hectare, otherwise for the whole parcel/region. (Default checked.)
 
    - Quantity charts: Three stacked-bar charts (stacked by species), for three
-     parameters, all with x-axis = a five-centimetre diameter class. Class
+     parameters, all with x-axis = a five-centimeter diameter class. Class
      boundaries follow the site-wide **Classi diametriche** setting documented
      in `page-impostazioni.md` (centered, shifted up, or shifted down).
      - Tree count ("Numero alberi"), y-axis = number of trees
@@ -534,8 +534,7 @@ mode-switch.
   means in `timeseries.json` when `fa=1`. Raster-mode overlays and
   tooltips are rendered in the browser from the same prefetched raw raster
   values.
-  New raster dimensions use WGS84 ellipsoidal ground distances for the nominal
-  10 m resolution. Existing downloads retain their actual pixel grid for later
-  dates and precomputation. Every band's dimensions, CRS and transform are
+  Raster dimensions use WGS84 ellipsoidal ground distances for the nominal
+  10 m resolution. Every band's dimensions, CRS and transform are
   checked before replacing derived masks/manifests, preventing shifted or
   incompatible rasters from being combined.

@@ -10,8 +10,8 @@
     return geod.Inverse(lat1, lon1, lat2, lon2).s12;
   }
 
-  function destination(lat, lng, azimuth, metres) {
-    const point = geod.Direct(lat, lng, azimuth, metres);
+  function destination(lat, lng, azimuth, meters) {
+    const point = geod.Direct(lat, lng, azimuth, meters);
     return { lat: point.lat2, lng: point.lon2 };
   }
 
@@ -22,7 +22,7 @@
     return Math.abs(polygon.Compute(false, true).area);
   }
 
-  /** Ellipsoidal azimuthal-equidistant plane, in metres, around a local origin. */
+  /** Ellipsoidal azimuthal-equidistant plane, in meters, around a local origin. */
   function localProjection(lat, lng) {
     return {
       project(pointLat, pointLng) {

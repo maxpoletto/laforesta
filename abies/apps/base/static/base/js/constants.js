@@ -265,7 +265,7 @@ export const DIAMETER_CLASS_CENTERED = 'centered';
 export const DIAMETER_CLASS_SHIFTED_UP = 'shifted_up';
 export const DIAMETER_CLASS_SHIFTED_DOWN = 'shifted_down';
 export const DEFAULT_RADIUS_M = 12;  // sample-area radius (m) when none is supplied
-export const M2_PER_HA = 10000;  // square metres per hectare
+export const M2_PER_HA = 10000;  // square meters per hectare
 export const PARCEL_WHOLE_REGION_MARK = 'X';  // region-wide plan/harvest parcel sentinel
 
 export const FIELD_SELECTED_PLAN = 'selected_plan';

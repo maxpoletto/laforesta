@@ -17,11 +17,11 @@ const eq = (actual, expected, msg) => {
 
 console.log('map-tools.js');
 
-eq(formatDistance(0), '0,0 m', 'zero metres → "0,0 m"');
-eq(formatDistance(12.3), '12,3 m', 'metres: 1 decimal, comma separator');
-eq(formatDistance(999), '999,0 m', 'just below 1 km stays in metres');
+eq(formatDistance(0), '0,0 m', 'zero meters → "0,0 m"');
+eq(formatDistance(12.3), '12,3 m', 'meters: 1 decimal, comma separator');
+eq(formatDistance(999), '999,0 m', 'just below 1 km stays in meters');
 eq(formatDistance(1000), '1,00 km', '1000 m → "1,00 km" (km threshold, 2 decimals)');
-eq(formatDistance(1234.5), '1,23 km', 'kilometres: 2 decimals, comma separator');
+eq(formatDistance(1234.5), '1,23 km', 'kilometers: 2 decimals, comma separator');
 
 let controlClick, mapClick;
 const measuredLabels = [];

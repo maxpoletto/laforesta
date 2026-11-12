@@ -12,9 +12,9 @@ vm.runInContext(fs.readFileSync(new URL('../../vendor/geographiclib/geographicli
 vm.runInContext(fs.readFileSync(new URL('./geodesy.js', import.meta.url), 'utf8'), browser);
 assert.equal(browser.AbiesGeodesy.WGS84.a, 6378137);
 assert.equal(browser.AbiesGeodesy.WGS84.f, 1 / 298.257223563);
-for (const { points, metres } of reference.distances) {
-  assert.ok(Math.abs(geo.distanceMeters(...points) - metres) < 1e-6,
-    `WGS84 inverse distance ${points}: expected ${metres}, got ${geo.distanceMeters(...points)}`);
+for (const { points, meters } of reference.distances) {
+  assert.ok(Math.abs(geo.distanceMeters(...points) - meters) < 1e-6,
+    `WGS84 inverse distance ${points}: expected ${meters}, got ${geo.distanceMeters(...points)}`);
   assert.equal(upload.distanceMeters(...points), geo.distanceMeters(...points), 'Ipso and Abies use the same numerical core');
   assert.equal(browser.AbiesGeodesy.distanceMeters(...points), geo.distanceMeters(...points), 'offline classic-script loading matches ES modules');
 }
@@ -29,6 +29,10 @@ assert.equal(geo.geodesicArea([{ lat: 38.5, lng: 16.3 }]), 0);
 for (const { geometry, area } of reference.polygons) {
   assert.ok(Math.abs(geo.geoJSONFeatureArea({ geometry }) - area) < .01,
     'holes and multipart polygons match independent area references');
+  const feature = { geometry, properties: { _areaM2: 123 } };
+  geo.sortFeaturesByArea({ features: [feature] });
+  assert.ok(Math.abs(feature.properties._areaM2 - area) < .01,
+    'parcel loading recomputes stale cached areas from geometry');
 }
 const sw = fs.readFileSync(new URL('../../../../ipso/static/ipso/pwa/sw.js', import.meta.url), 'utf8');
 assert.ok(sw.includes("'/static/base/js/geodesy.js'"));

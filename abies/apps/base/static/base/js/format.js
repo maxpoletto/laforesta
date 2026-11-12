@@ -69,7 +69,7 @@ export function fmtInt(v) {
   return v == null || v === '' ? '' : String(v);
 }
 
-/** Format nullable GPS accuracy as whole metres for position displays. */
+/** Format nullable GPS accuracy as whole meters for position displays. */
 export function fmtAccuracyM(v) {
   return v == null || v === '' ? '-' : fmtInt(v);
 }

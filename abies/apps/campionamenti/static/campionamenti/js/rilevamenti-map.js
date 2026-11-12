@@ -1,6 +1,6 @@
 /**
  * Section 2 (Rilevamenti) map — parcel borders + sample-area markers for the
- * active survey, coloured visited / unvisited from samples.json.
+ * active survey, colored visited / unvisited from samples.json.
  *
  * A thin specialization of ParcelMap: it supplies the visited/unvisited marker
  * styling and clears the active area on a click off any marker.  All the map

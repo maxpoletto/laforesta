@@ -5,5 +5,5 @@ _WGS84 = Geodesic.WGS84
 
 
 def distance_m(lat1, lon1, lat2, lon2):
-    """Shortest horizontal ellipsoidal surface distance, in metres."""
+    """Shortest horizontal ellipsoidal surface distance, in meters."""
     return _WGS84.Inverse(lat1, lon1, lat2, lon2)['s12']

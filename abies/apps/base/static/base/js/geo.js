@@ -143,7 +143,7 @@ export function buildBboxIndex(features) {
 /**
  * Minimum distance, in meters, from (lng, lat) to the boundary of the
  * given Polygon/MultiPolygon feature, including holes. Uses an ellipsoidal
- * azimuthal-equidistant plane centred at the query point. Segment projection
+ * azimuthal-equidistant plane centered at the query point. Segment projection
  * is a local approximation, tested within 1 cm of exact geodesic-segment
  * minima over 5 km forestry extents; this is not a global segment solver.
  */
@@ -259,9 +259,9 @@ function generateGridInPlane(context, spacingMeters) {
 }
 
 /**
- * Generate a cell-centred lattice in a local WGS84 metre plane, then clip
- * point centres against the supplied parcels. The plane's axes are true
- * north/east at the region centre; stored grids are never regenerated here.
+ * Generate a cell-centered lattice in a local WGS84 meter plane, then clip
+ * point centers against the supplied parcels. The plane's axes are true
+ * north/east at the region center.
  * @returns {Array<{lat, lng, compresa, particella}>} where
  *   `compresa` = feature.properties.layer, `particella` =
  *   short name after the first `-` in feature.properties.name.

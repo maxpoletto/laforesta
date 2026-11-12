@@ -28,7 +28,7 @@ eq(localISODate(winterMorning), '2026-01-10',
 
 eq(fmtAccuracyM(null), '-', 'fmtAccuracyM renders null as a dash');
 eq(fmtAccuracyM(''), '-', 'fmtAccuracyM renders blank as a dash');
-eq(fmtAccuracyM(7), '7', 'fmtAccuracyM renders integer metres');
+eq(fmtAccuracyM(7), '7', 'fmtAccuracyM renders integer meters');
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

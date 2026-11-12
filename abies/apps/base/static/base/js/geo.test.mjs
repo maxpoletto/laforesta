@@ -41,7 +41,7 @@ const unitSquare = {
 };
 
 assertEqual(geo.pointInPolygon(0.5, 0.5, unitSquare.geometry), true,
-            'pointInPolygon: centre inside');
+            'pointInPolygon: center inside');
 assertEqual(geo.pointInPolygon(2, 2, unitSquare.geometry), false,
             'pointInPolygon: clearly outside');
 assertEqual(geo.pointInPolygon(-0.1, 0.5, unitSquare.geometry), false,
@@ -152,7 +152,7 @@ assertEqual(geo.ringToLatLngs([[0, 1], [2, 3]]),
             [{ lat: 1, lng: 0 }, { lat: 3, lng: 2 }],
             'ringToLatLngs: [lng,lat] → {lat,lng}');
 
-// 1° × 1° square centred on the equator. A degree of latitude is ~111 km, so
+// 1° × 1° square centered on the equator. A degree of latitude is ~111 km, so
 // the area is ~111 km × 111 km ≈ 1.23e10 m². The loose tolerance is deliberate:
 // it still catches a degrees-vs-radians (~3283×) or wrong-radius bug, while the
 // hole/sort tests below pin down the compositional logic exactly.
