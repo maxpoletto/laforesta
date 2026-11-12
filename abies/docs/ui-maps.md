@@ -171,8 +171,38 @@ Labels use 9 pt parcel names and 8 pt values. Interior placement tests the
 whole label rectangle against polygon boundaries and holes, and avoids other
 labels. Narrow parcels use ordered margin callouts with leaders and marked
 interior anchors. Separate components retain all their outlines but receive
-one label per parcel. The renderer reports an error if a complete, readable
-A4 layout is impossible; it never silently drops labels or shrinks the font.
+one label per parcel. The renderer reports an error when its placement strategy
+cannot produce a complete, readable A4 layout; it never silently drops labels
+or shrinks the font.
+
+The layout uses a custom deterministic greedy heuristic, combining standard
+geometry and label-placement techniques:
+
+1. **Find promising interior positions.** Sample a 16×16 grid within each
+   polygon component's bounding box, plus points nudged inward from boundary
+   edge midpoints to cover narrow polygons. Keep interior candidates and rank
+   them by their distance from the nearest boundary, including holes.
+2. **Fit the actual label rectangle.** Try up to 80 candidates per parcel.
+   Require the whole rectangle to stay inside the parcel, avoid holes and
+   boundary crossings, and leave a gap from already placed labels.
+3. **Give constrained parcels first choice.** Process parcels with less
+   maximum sampled interior clearance first, preserving their limited options.
+4. **Place remaining labels in the margins.** Prefer the side nearest the
+   interior anchor, switching sides if needed for capacity. Sort each column
+   by anchor height, then pack labels with forward and backward passes to
+   maintain separation and keep them within the page. Connect them to their
+   interior anchors with leaders.
+5. **Compare page orientations.** Attempt both portrait and landscape, keeping
+   the successful layout with the largest map scale.
+
+The closest reference for the interior-point step is
+[Mapbox's polylabel](https://github.com/mapbox/polylabel), which finds a polygon's
+*pole of inaccessibility*: the interior point furthest from its boundary.
+Polylabel uses adaptive subdivision and guarantees an optimum within a supplied
+precision. Abies uses fixed sampling and retains multiple candidates for
+rectangle fitting and collision avoidance; it does not depend on polylabel.
+The complete layout has no global optimality guarantee and may fail to find a
+feasible arrangement even when one exists.
 
 `bosco-calendar-print.js` adapts the calendar snapshot to this generic layout.
 It joins parcel names to the database identities used by the snapshot, merges
