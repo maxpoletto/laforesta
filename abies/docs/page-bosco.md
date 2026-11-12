@@ -108,30 +108,34 @@ hosts (top to bottom):
   region-wide interventions are excluded. Unscheduled parcels use a neutral
   fill and "Nessun taglio previsto". Calendar years are never divided by area.
 
-  **Mappa stampabile…** is available for the cutting calendar, to all roles.
+  **Mappa stampabile…** is available for **Età media** and the cutting
+  calendar, to all roles. Age labels use whole years (`a`); missing ages use
+  `-`, and a recorded zero is shown as `0 a`.
   It opens an A4 preview covering the entire selected compresa, independently
   of map pan/zoom. **Scarica PDF** downloads that same snapshot. Orientation
   is selected automatically for the largest legible map. The white page has
   black parcel boundaries and labels containing parcel name with a forest-type
-  marker (`2a (C)` for ceduo, `1 (F)` for fustaia), followed by all planned
-  years (`-` for unscheduled parcels). It contains no basemap, contours, or
-  parcel fill colors. The subtitle uses the plan's own name without an added
+  marker (`2a (C)` for ceduo, `1 (F)` for fustaia), followed by the selected
+  value. It contains no basemap, contours, or parcel fill colors. Calendar
+  labels show all planned years (`-` for unscheduled parcels). Its subtitle
+  uses the plan's own name without an added
   "Piano di taglio:" prefix, followed by separate year ranges, for example
   `(fustaia 2027-2040, ceduo 2027-2050)`. Ranges use scheduled parcel
   interventions across the entire selected plan; a type with no interventions
   is omitted, and a single-year range is shown once.
 
   An 8 pt legend under the heading reads
-  `(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.`
+  `(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.` for the calendar;
+  other metrics use `(-) = Dato non disponibile.`
   The footer contains only the export date.
 
-  Parcel names are 9 pt and years 8 pt. Labels fit inside parcel boundaries
+  Parcel names are 9 pt and values 8 pt. Labels fit inside parcel boundaries
   when possible; narrow parcels use margin callouts. Split geometries are
   combined into one parcel label. Missing/unmatched geometries and layouts
   that cannot fit legibly produce an explanatory error, rather than omitting
-  parcels. Preview and download retain their plan/years snapshot even if a
-  background refresh arrives. The button is disabled while no plan snapshot
-  is available. Other characteristics currently have no printable-map action.
+  parcels. Preview and download retain their data snapshot even if a
+  background refresh arrives. The calendar button is disabled while no plan
+  snapshot is available; age printing does not require a harvest plan.
 
   PDFs contain vector lines and selectable text, and can be included directly
   in LaTeX via `graphicx`, for example

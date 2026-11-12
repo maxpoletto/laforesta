@@ -69,6 +69,12 @@ export function fmtInt(v) {
   return v == null || v === '' ? '' : String(v);
 }
 
+export function fmtRoundedInt(value) {
+  if (value == null || value === '') return '';
+  const n = Number(value);
+  return Number.isFinite(n) ? fmtInt(Math.round(n)) : fmtInt(value);
+}
+
 /** Format nullable GPS accuracy as whole meters for position displays. */
 export function fmtAccuracyM(v) {
   return v == null || v === '' ? '-' : fmtInt(v);

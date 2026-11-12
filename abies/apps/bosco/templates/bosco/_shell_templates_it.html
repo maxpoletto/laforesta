@@ -64,8 +64,8 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             <input type="checkbox" data-role="characteristic-parcel-average-toggle"> Media per particella
           </label>
           <div class="bosco-legend" data-target="legend"></div>
-          <div data-role="calendar-print-row" hidden>
-            <button type="button" class="btn btn-export" data-action="print-calendar" disabled>Mappa stampabile…</button>
+          <div data-role="map-print-row" hidden>
+            <button type="button" class="btn btn-export" data-action="print-map" disabled>Mappa stampabile…</button>
             <p class="bosco-hint">PDF A4 dell’intera compresa selezionata.</p>
           </div>
         </section>
@@ -240,11 +240,11 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
   </div>
 </template>
 
-<template id="tmpl-bosco-calendar-print">
-  <div class="bosco-calendar-print">
-    <h2>Mappa stampabile — Calendario di taglio</h2>
+<template id="tmpl-bosco-map-print">
+  <div class="bosco-map-print">
+    <h2 data-field="print-title">Mappa stampabile</h2>
     <p>Intera compresa, formato A4. Le etichette riportano la particella, il
-      governo e tutti gli anni di taglio previsti.</p>
+      governo e i dati selezionati.</p>
     <div data-target="print-preview"></div>
     <p class="form-error" data-target="print-error" role="alert"></p>
     <div class="form-actions">

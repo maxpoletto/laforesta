@@ -5,7 +5,8 @@
 import * as cache from '../../base/js/cache.js';
 import * as S from '../../base/js/strings.js';
 import { wirePlanSource } from './bosco-plan-source.js';
-import { showCalendarPrint } from './bosco-print-ui.js';
+import { showMetricPrint } from './bosco-print-ui.js';
+import { printAvailability } from './bosco-metric-print.js';
 import { Q_CUTTING_CALENDAR, usesPlanSource } from './bosco-metrics.js';
 import {
   calendarColorPosition, calendarDomain, calendarYearsByParcel, calendarYearsText,
@@ -26,7 +27,7 @@ import {
   renderLineChart, renderScatterChart, renderStackedBar, speciesNamesFromDigest,
 } from '../../base/js/charts.js';
 import {
-  fmtArea, fmtCoord, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtVolume, parseDecimal,
+  fmtArea, fmtCoord, fmtDecimal1, fmtDecimal2, fmtInt, fmtMass, fmtRoundedInt, fmtVolume, parseDecimal,
 } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelIdentity } from '../../base/js/geo.js';
@@ -52,7 +53,6 @@ import {
   writeMapView, writeOptionalIdList, writeSectionTokens,
 } from './bosco-state.js';
 import {
-  CHARACTERISTIC_METRICS,
   CHARACTERISTIC_METRIC_IDS,
   Q_FUTURE_HARVEST,
   Q_HISTORICAL_HARVEST,
@@ -60,9 +60,11 @@ import {
   buildParcelEntries,
   continuousDomain,
   futureHarvestByParcel,
+  formatMetricValue,
   historicalHarvestByParcel,
   isHarvestMetric,
   metricValue,
+  metricLabel,
   normalized,
   parcelKey,
   perHaArea,
@@ -541,13 +543,18 @@ function buildRegionOptions() {
   }
 }
 
+function currentPrintAvailability(state) {
+  return printAvailability(state.q, { hasRegion: regionById.has(state.regionId), data: futureData });
+}
+
 function wireControls() {
-  root.querySelector('[data-action="print-calendar"]').addEventListener('click', () => {
+  root.querySelector('[data-action="print-map"]').addEventListener('click', () => {
+    if (!currentState || currentPrintAvailability(currentState).disabled) return;
     const region = regionById.get(currentState?.regionId);
-    if (!region || !futureData?.[FIELD_SELECTED_PLAN]) return;
     try {
-      showCalendarPrint({ geojson: parcelsGeo, region,
-        entries: buildParcelEntries(parcelsData), data: futureData });
+      showMetricPrint({ geojson: parcelsGeo, region, metricId: currentState.q,
+        entries: mapEntries, planEntries: buildParcelEntries(parcelsData), data: futureData,
+        context: characteristicContext(currentState.q), useCadastralArea: currentState.useCadastralArea });
     } catch (error) {
       showError(error.message || S.BOSCO_PRINT_DOWNLOAD_ERROR);
     }
@@ -729,12 +736,13 @@ function updateModePanels(mode) {
 }
 
 function updateCharacteristicControls(state) {
-  const printRow = root?.querySelector('[data-role="calendar-print-row"]');
+  const printRow = root?.querySelector('[data-role="map-print-row"]');
   if (printRow) {
-    printRow.hidden = state.q !== Q_CUTTING_CALENDAR;
+    const availability = currentPrintAvailability(state);
+    printRow.hidden = !availability.visible;
     const button = printRow.querySelector('button');
-    button.disabled = !futureData?.[FIELD_SELECTED_PLAN] || !regionById.has(state.regionId);
-    button.title = button.disabled ? S.BOSCO_PRINT_SELECT_PLAN : '';
+    button.disabled = availability.disabled;
+    button.title = availability.reason;
   }
   const planRow = root?.querySelector('[data-role="plan-source"]');
   if (planRow) planRow.hidden = !usesPlanSource(state.q);
@@ -1567,49 +1575,13 @@ function entryForFeature(feature) {
 }
 
 function metricDisplay(metricId, value) {
-  if (value == null || value === '') return S.BOSCO_NO_DATA;
-  if (metricId === Q_TYPE) return value;
-  if (characteristicSatelliteLayer(metricId)) return fmtDecimal2(value);
-  const perHa = currentState?.harvestPerHa && isHarvestMetric(metricId);
-  if (metricId === Q_HISTORICAL_HARVEST) {
-    return perHa ? S.BOSCO_QUINTALS_PER_HA_VALUE(fmtDecimal2(value)) : fmtMass(value);
-  }
-  if (metricId === Q_FUTURE_HARVEST) {
-    return perHa ? S.BOSCO_VOLUME_PER_HA_VALUE(fmtDecimal2(value)) : fmtVolume(value);
-  }
-  const unit = CHARACTERISTIC_METRICS[metricId]?.unit;
-  const display = wholeNumberMetric(metricId) ? fmtRoundedInt(value) : fmtDecimal1(value);
-  return unit ? `${display} ${unit}` : display;
-}
-
-function wholeNumberMetric(metricId) {
-  return [Q_AGE, Q_ALTITUDE, Q_AVG_GRADE].includes(String(metricId));
-}
-
-function fmtRoundedInt(value) {
-  if (value == null || value === '') return '';
-  const n = Number(value);
-  return Number.isFinite(n) ? fmtInt(Math.round(n)) : fmtInt(value);
+  return formatMetricValue(metricId, value, { perHa: currentState?.harvestPerHa });
 }
 
 function metricTooltipDisplay(metricId, value) {
-  const label = characteristicTooltipLabel(metricId);
+  const label = metricLabel(metricId);
   const text = metricDisplay(metricId, value);
   return label ? `${label}: ${text}` : text;
-}
-
-function characteristicTooltipLabel(metricId) {
-  return {
-    [Q_TYPE]: S.BOSCO_METRIC_TYPE,
-    [Q_HISTORICAL_HARVEST]: S.BOSCO_METRIC_HISTORICAL_HARVEST,
-    [Q_FUTURE_HARVEST]: S.BOSCO_METRIC_FUTURE_HARVEST,
-    [Q_AGE]: S.BOSCO_METRIC_AGE,
-    [Q_ALTITUDE]: S.BOSCO_METRIC_ALTITUDE,
-    [Q_AVG_GRADE]: S.BOSCO_METRIC_AVG_GRADE,
-    [Q_NDVI]: 'NDVI',
-    [Q_NDMI]: 'NDMI',
-    [Q_EVI]: 'EVI',
-  }[String(metricId)] || '';
 }
 
 function standTypeKey(entry) {

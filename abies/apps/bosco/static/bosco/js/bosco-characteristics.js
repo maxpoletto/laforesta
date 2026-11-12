@@ -4,6 +4,7 @@ import {
   COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, ROWS, ROW_ID,
 } from '../../base/js/constants.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
+import { fmtDecimal1, fmtDecimal2, fmtMass, fmtRoundedInt, fmtVolume } from '../../base/js/format.js';
 import {
   CHARACTERISTIC_METRICS,
   CHARACTERISTIC_METRIC_IDS,
@@ -114,6 +115,32 @@ export function metricValue(entry, metricId, { historical = new Map(), future = 
     return value / area;
   }
   return value;
+}
+
+/** Shared map-tooltip and printed-map formatting, including units and precision. */
+export function formatMetricValue(metricId, value, { perHa = false } = {}) {
+  if (value == null || value === '') return S.BOSCO_NO_DATA;
+  if (metricId === Q_TYPE) return value;
+  if (CHARACTERISTIC_METRICS[metricId]?.kind === 'satellite') return fmtDecimal2(value);
+  if (metricId === Q_HISTORICAL_HARVEST) {
+    return perHa ? S.BOSCO_QUINTALS_PER_HA_VALUE(fmtDecimal2(value)) : fmtMass(value);
+  }
+  if (metricId === Q_FUTURE_HARVEST) {
+    return perHa ? S.BOSCO_VOLUME_PER_HA_VALUE(fmtDecimal2(value)) : fmtVolume(value);
+  }
+  const unit = CHARACTERISTIC_METRICS[metricId]?.unit;
+  const display = [Q_AGE, Q_ALTITUDE, Q_AVG_GRADE].includes(String(metricId))
+    ? fmtRoundedInt(value) : fmtDecimal1(value);
+  return unit ? `${display} ${unit}` : display;
+}
+
+export function metricLabel(metricId) {
+  return {
+    [Q_AGE]: S.BOSCO_METRIC_AGE, [Q_TYPE]: S.BOSCO_METRIC_TYPE,
+    [Q_ALTITUDE]: S.BOSCO_METRIC_ALTITUDE, [Q_AVG_GRADE]: S.BOSCO_METRIC_AVG_GRADE,
+    [Q_HISTORICAL_HARVEST]: S.BOSCO_METRIC_HISTORICAL_HARVEST,
+    [Q_FUTURE_HARVEST]: S.BOSCO_METRIC_FUTURE_HARVEST,
+  }[String(metricId)] || CHARACTERISTIC_METRICS[metricId]?.layer?.toUpperCase() || '';
 }
 
 /** Hectare denominator for a parcel entry's per-hectare metrics. */

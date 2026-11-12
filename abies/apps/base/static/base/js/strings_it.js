@@ -387,7 +387,7 @@ export const BOSCO_OBSERVATION_PHOTO_MAP = 'Posizioni foto';
 export const BOSCO_OBSERVATION_PDF = 'Genera PDF';
 export const BOSCO_OBSERVATION_REPORT_TITLE = category => `Rapporto ${category}`;
 export const BOSCO_OBSERVATION_PDF_ERROR = 'Impossibile generare il PDF.';
-export const BOSCO_METRIC_AGE = 'Età';
+export const BOSCO_METRIC_AGE = 'Età media';
 export const BOSCO_METRIC_TYPE = 'Governo';
 export const COL_GOVERNANCE = 'Governo';
 export const BOSCO_METRIC_ALTITUDE = 'Altitudine';
@@ -409,9 +409,16 @@ export const BOSCO_CALENDAR_MAP_PLAN = (plan, ranges) =>
   `${plan.name}${ranges ? ` (${ranges})` : ''}`;
 export const BOSCO_CALENDAR_HIGH_FOREST_YEARS = years => `fustaia ${years}`;
 export const BOSCO_CALENDAR_COPPICE_YEARS = years => `ceduo ${years}`;
-export const BOSCO_CALENDAR_PARCEL_NAME = (parcel, coppice) => `${parcel} (${coppice ? 'C' : 'F'})`;
+export const BOSCO_PRINT_PARCEL_NAME = (parcel, coppice) => `${parcel} (${coppice ? 'C' : 'F'})`;
 export const BOSCO_CALENDAR_MAP_LEGEND = '(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.';
-export const BOSCO_CALENDAR_MAP_FOOTER = date => `Esportato il ${date}`;
+export const BOSCO_PRINT_MAP_FOOTER = date => `Esportato il ${date}`;
+export const BOSCO_PRINT_UNSUPPORTED = 'La caratteristica selezionata non supporta la stampa.';
+export const BOSCO_PRINT_METRIC_TITLE = (metric, region) => `${metric} - ${region}`;
+export const BOSCO_PRINT_DIALOG_TITLE = metric => `Mappa stampabile - ${metric}`;
+export const BOSCO_PRINT_METRIC_LEGEND = '(C) = Ceduo, (F) = Fustaia, (-) = Dato non disponibile.';
+export const BOSCO_PRINT_AGE_FILE = 'eta_media';
+export const BOSCO_PRINT_METRIC_FILENAME = (field, region) =>
+  `${field}_${region.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
 export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>
   `calendario_taglio_${region.replace(/[\\/:*?"<>|]/g, '_')}_${plan.year_start}-${plan.year_end}.pdf`;
 export const BOSCO_HARVEST_METRIC = 'Prelievo';

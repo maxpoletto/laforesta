@@ -13,7 +13,7 @@ for (const app of ['base', 'bosco']) {
 }
 copyGeodesicVendor(tmp);
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
-const { showCalendarPrint } = await import(pathToFileURL(path.join(tmp, 'bosco/js/bosco-print-ui.js')));
+const { showMetricPrint } = await import(pathToFileURL(path.join(tmp, 'bosco/js/bosco-print-ui.js')));
 class Element {
   constructor() { this.children = []; this.listeners = {}; this.attrs = {}; this.textContent = ''; }
   setAttribute(key, value) { this.attrs[key] = value; }
@@ -24,12 +24,13 @@ class Element {
   classList = { add() {}, remove() {} };
 }
 const container = new Element(), preview = new Element(), download = new Element();
-const cancel = new Element(), error = new Element();
+const cancel = new Element(), error = new Element(), title = new Element();
 const fragment = new Element();
 fragment.querySelector = selector => ({
   '[data-target="print-preview"]': preview,
   '[data-action="download-map"]': download,
   '[data-target="print-error"]': error,
+  '[data-field="print-title"]': title,
 })[selector];
 fragment.querySelectorAll = () => [cancel];
 let downloaded, blob;
@@ -51,7 +52,7 @@ const geometry = { type: 'Polygon', coordinates: [[[16, 38], [16.01, 38],
   [16.01, 38.01], [16, 38.01], [16, 38]]] };
 const data = { selected_plan: { id: 1, name: 'Piano di taglio Plan A', year_start: 2027, year_end: 2050 },
   calendar: [{ parcel_id: 1, years: [2027, 2040] }, { parcel_id: 2, years: [2027, 2050] }] };
-showCalendarPrint({ geojson: { features: [{ geometry,
+showMetricPrint({ metricId: '10', geojson: { features: [{ geometry,
   properties: { layer: 'Forest', name: 'Forest-1' } }] },
 region: { id: 1, name: 'Forest' }, entries: [
   { id: 1, region: 'Forest', parcel: '1', coppice: false },
@@ -92,4 +93,17 @@ download.listeners.click();
 assert.equal(error.textContent, '', 'a download can be retried without reopening the preview');
 cancel.listeners.click();
 assert.equal(container.children.length, 0);
+preview.replaceChildren();
+blob = undefined;
+showMetricPrint({ metricId: '1', geojson: { features: [{ geometry,
+  properties: { layer: 'Forest', name: 'Forest-1' } }] },
+region: { id: 1, name: 'Forest' }, entries: [
+  { id: 1, region: 'Forest', parcel: '1', coppice: false, aveAge: 37 },
+], date: new Date(2026, 10, 11) });
+assert.equal(title.textContent, 'Mappa stampabile - Età media');
+assert.ok(preview.children[0].children.some(element => element.textContent === '37 a'));
+download.listeners.click();
+assert.equal(downloaded, 'eta_media_Forest.pdf');
+assert.ok((await blob.text()).includes('(37 a)'));
+cancel.listeners.click();
 console.log('Calendar print UI: preview, reader access, snapshot download and close passed.');

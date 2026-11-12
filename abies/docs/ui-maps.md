@@ -295,13 +295,20 @@ rectangle fitting and collision avoidance; it does not depend on polylabel.
 The complete layout has no global optimality guarantee and may fail to find a
 feasible arrangement even when one exists.
 
-`bosco-calendar-print.js` adapts the calendar snapshot to this generic layout.
-It joins parcel names to the database identities used by the snapshot, merges
-split GeoJSON features, and rejects unmatched or missing parcel geometries.
+`bosco-metric-print.js` prepares the content and availability of printable
+metrics. It supports average age and the cutting calendar. Age values use the
+same calculation and localized formatting as interactive map tooltips, via
+`bosco-characteristics.js`; missing values become `-` and zero remains a value.
+The age map needs no selected harvest plan. `bosco-print-ui.js` freezes the
+content in one layout for preview and download, using a shared modal template.
+
+`bosco-parcel-print.js` joins parcel names to database identities, merges split
+GeoJSON features, and rejects unmatched or missing parcel geometries.
 Labels append the localized forest-type marker from the parcel's `coppice`
-flag. Heading ranges group calendar years by that flag across all parcels in
+flag. `bosco-calendar-print.js` supplies calendar labels and heading ranges.
+Heading ranges group calendar years by that flag across all parcels in
 the selected plan, independently of the printed compresa. Parcel ordering uses
 the unadorned parcel name. The legend explains forest types and unscheduled
-parcels below the heading; the footer contains the export date.
-GeoJSON feature IDs are not database parcel IDs. Other metrics can supply
-different text labels without changing the geometry or PDF renderer.
+parcels below the heading; age maps explain missing data instead. The footer
+contains the export date. GeoJSON feature IDs are not database parcel IDs.
+Metric adapters supply text without changing the geometry or PDF renderer.
