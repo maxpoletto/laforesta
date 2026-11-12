@@ -151,6 +151,7 @@ function layoutFor(items, landscape, header) {
   let headerY = 30;
   for (const [value, size, bold, spacing] of [
     [header.title, 14, true, 18], [header.subtitle, 10, false, 13],
+    [header.legend, 8, false, 11],
   ]) {
     for (const text of wrap(value, width - 2 * MARGIN, { size, bold })) {
       headerLines.push({ text, size, bold, y: headerY });
@@ -220,7 +221,7 @@ function layoutFor(items, landscape, header) {
   return { width, height, landscape, scale, parcels, labels, headerLines, ...header };
 }
 
-export function buildPrintMapLayout({ items, title = '', subtitle = '', footer = '' }) {
+export function buildPrintMapLayout({ items, title = '', subtitle = '', legend = '', footer = '' }) {
   if (!items.length || items.some(item => !polygons(item.geometry).length
       || coordinates(item.geometry).some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y)
         || Math.abs(x) > 180 || Math.abs(y) >= 85))) {
@@ -229,7 +230,7 @@ export function buildPrintMapLayout({ items, title = '', subtitle = '', footer =
   const layouts = [];
   let lastError;
   for (const landscape of [false, true]) {
-    try { layouts.push(layoutFor(items, landscape, { title, subtitle, footer })); }
+    try { layouts.push(layoutFor(items, landscape, { title, subtitle, legend, footer })); }
     catch (error) { lastError = error; }
   }
   if (!layouts.length) throw lastError;

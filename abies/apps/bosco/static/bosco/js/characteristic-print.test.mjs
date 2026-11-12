@@ -67,10 +67,13 @@ const features = items.map((item, index) => ({ type: 'Feature', geometry: item.g
   properties: { layer: 'Forest', name: `Forest-${item.name}`, id: 900 + index } }));
 features.push({ ...features[0], geometry: polygon(16.03, 38, .001, .001) });
 features.push({ ...features[0], properties: { layer: 'Elsewhere', name: 'Elsewhere-1' } });
-const entries = items.map((item, index) => ({ id: index + 1, region: 'Forest', parcel: item.name }));
+const entries = items.map((item, index) => ({ id: index + 1, region: 'Forest', parcel: item.name,
+  coppice: index === 1 }));
 const calendar = { selected_plan: { id: 1, name: 'Plan', year_start: 2026, year_end: 2040 },
   calendar: [{ parcel_id: 1, years: [2030, 2026] }, { parcel_id: 2, years: [2031] }] };
 const printItems = C.calendarPrintItems({ features }, 'Forest', entries, calendar);
+assert.deepEqual(printItems.map(item => item.name), ['1 (F)', '2b (C)', '3 (F)'],
+  'each parcel label identifies the forest type, including unscheduled parcels');
 assert.equal(printItems.length, 3, 'merge split GeoJSON features, exclude other regions');
 assert.equal(printItems[0].geometry.coordinates.length, 2, 'retain both pieces of split parcel');
 assert.deepEqual(printItems[0].lines, ['2026, 2030'], 'join by DB identity, not GeoJSON feature ID');
@@ -80,6 +83,20 @@ assert.throws(() => C.calendarPrintItems({ features }, 'Forest', entries.slice(1
 assert.throws(() => C.calendarPrintItems({ features: features.filter(f => f.properties.name !== 'Forest-2b') },
   'Forest', entries, calendar));
 assert.throws(() => C.calendarPrintItems({ features }, 'Forest', entries, null));
+assert.equal(C.calendarPlanSubtitle(entries, calendar), 'Plan (fustaia 2026-2030, ceduo 2031)');
+const allEntries = [...entries, { id: 4, region: 'Elsewhere', parcel: '8', coppice: true }];
+const allCalendar = { ...calendar, selected_plan: { ...calendar.selected_plan, year_end: 2050 },
+  calendar: [...calendar.calendar, { parcel_id: 4, years: [2050] }] };
+assert.equal(C.calendarPlanSubtitle(allEntries, allCalendar),
+  'Plan (fustaia 2026-2030, ceduo 2031-2050)', 'heading ranges span all comprese in the plan');
+assert.equal(C.calendarPlanSubtitle(entries, { ...calendar,
+  calendar: [calendar.calendar[0]] }), 'Plan (fustaia 2026-2030)', 'omit forest types without planned cuts');
+assert.equal(C.calendarPlanSubtitle(entries, { ...calendar,
+  calendar: [calendar.calendar[1]] }), 'Plan (ceduo 2031)');
+assert.equal(C.calendarPlanSubtitle(entries, { ...calendar, calendar: [] }), 'Plan');
+assert.throws(() => C.calendarPlanSubtitle(entries.slice(1), calendar));
+assert.throws(() => C.calendarPrintItems({ features }, 'Forest',
+  entries.map(entry => ({ ...entry, coppice: null })), calendar));
 const longHeader = M.buildPrintMapLayout({ items, title: 'Compresa '.repeat(12),
   subtitle: 'Piano di taglio '.repeat(15), footer: 'Data: 2026-11-11' });
 assert.ok(longHeader.headerLines.length > 2, 'long names wrap instead of running off the A4 page');

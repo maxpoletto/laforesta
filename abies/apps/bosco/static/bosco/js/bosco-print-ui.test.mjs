@@ -49,20 +49,37 @@ URL.createObjectURL = value => { blob = value; return 'blob:test'; };
 URL.revokeObjectURL = () => {};
 const geometry = { type: 'Polygon', coordinates: [[[16, 38], [16.01, 38],
   [16.01, 38.01], [16, 38.01], [16, 38]]] };
-const data = { selected_plan: { id: 1, name: 'Plan A', year_start: 2026, year_end: 2040 },
-  calendar: [{ parcel_id: 1, years: [2028, 2030] }] };
+const data = { selected_plan: { id: 1, name: 'Piano di taglio Plan A', year_start: 2027, year_end: 2050 },
+  calendar: [{ parcel_id: 1, years: [2027, 2040] }, { parcel_id: 2, years: [2027, 2050] }] };
 showCalendarPrint({ geojson: { features: [{ geometry,
   properties: { layer: 'Forest', name: 'Forest-1' } }] },
-region: { id: 1, name: 'Forest' }, entries: [{ id: 1, region: 'Forest', parcel: '1' }],
+region: { id: 1, name: 'Forest' }, entries: [
+  { id: 1, region: 'Forest', parcel: '1', coppice: false },
+  { id: 2, region: 'Elsewhere', parcel: '2a', coppice: true },
+],
 data, date: new Date(2026, 10, 11) });
 assert.equal(preview.children.length, 1, 'open a preview before downloading');
 assert.equal(blob, undefined, 'opening preview does not download automatically');
+const heading = 'Piano di taglio Plan A (fustaia 2027-2040, ceduo 2027-2050)';
+const legend = '(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.';
+const previewText = preview.children[0].children.filter(element => element.textContent);
+assert.ok(previewText.some(element => element.textContent === heading));
+const legendElement = previewText.find(element => element.textContent === legend);
+assert.equal(legendElement?.attrs['font-size'], 8, 'legend is small text under the heading');
+assert.ok(legendElement.attrs.y > previewText.find(element => element.textContent === heading).attrs.y);
+assert.ok(previewText.some(element => element.textContent === '1 (F)'));
+assert.ok(previewText.some(element => element.textContent === 'Esportato il 2026-11-11'));
 data.selected_plan.name = 'Plan B';
 data.calendar[0].years = [2040];
 download.listeners.click();
-assert.match(downloaded, /Forest.*2026.*2040.*\.pdf$/);
+assert.match(downloaded, /Forest.*2027.*2050.*\.pdf$/);
 const pdf = await blob.text();
-assert.ok(pdf.includes('Plan A') && pdf.includes('2028, 2030'), 'download uses the preview snapshot');
+assert.ok(pdf.includes('Plan A') && pdf.includes('2027, 2040'), 'download uses the preview snapshot');
+assert.ok(pdf.includes('fustaia 2027-2040, ceduo 2027-2050'));
+assert.ok(pdf.includes('1 \\(F\\)'));
+assert.ok(pdf.includes('\\(C\\) = Ceduo, \\(F\\) = Fustaia'));
+assert.ok(pdf.includes('(Esportato il 2026-11-11)'));
+assert.ok(!pdf.includes('Piano di taglio:') && !pdf.includes(' | '));
 assert.ok(!pdf.includes('Plan B'));
 assert.ok(!pdf.includes('/Subtype /Image'));
 assert.equal(error.textContent, '');

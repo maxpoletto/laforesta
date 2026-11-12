@@ -253,7 +253,9 @@ parcel geometries and text labels. It uses a north-up Mercator projection,
 fits the entire supplied area, and chooses portrait or landscape for the
 largest legible map. It does not use Leaflet, tiles, contours, or raster images.
 The layout is shared by the SVG preview and `base/js/pdf.js` PDF renderer;
-both use the PDF font metrics. The PDF retains vector paths and selectable
+both use the PDF font metrics. An optional 8 pt legend is placed after the
+subtitle and participates in header wrapping and map-space calculations.
+The PDF retains vector paths and selectable
 text, including when included in LaTeX with `graphicx`.
 
 Labels use 9 pt parcel names and 8 pt values. Interior placement tests the
@@ -296,5 +298,10 @@ feasible arrangement even when one exists.
 `bosco-calendar-print.js` adapts the calendar snapshot to this generic layout.
 It joins parcel names to the database identities used by the snapshot, merges
 split GeoJSON features, and rejects unmatched or missing parcel geometries.
+Labels append the localized forest-type marker from the parcel's `coppice`
+flag. Heading ranges group calendar years by that flag across all parcels in
+the selected plan, independently of the printed compresa. Parcel ordering uses
+the unadorned parcel name. The legend explains forest types and unscheduled
+parcels below the heading; the footer contains the export date.
 GeoJSON feature IDs are not database parcel IDs. Other metrics can supply
 different text labels without changing the geometry or PDF renderer.

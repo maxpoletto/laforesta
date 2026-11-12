@@ -112,10 +112,18 @@ hosts (top to bottom):
   It opens an A4 preview covering the entire selected compresa, independently
   of map pan/zoom. **Scarica PDF** downloads that same snapshot. Orientation
   is selected automatically for the largest legible map. The white page has
-  black parcel boundaries and labels containing only parcel name and all
-  planned years (`-` for unscheduled parcels). It contains no basemap, contours,
-  or parcel fill colors. Title/subtitle identify compresa, plan, and year range;
-  the footer gives the export date and explains the dash.
+  black parcel boundaries and labels containing parcel name with a forest-type
+  marker (`2a (C)` for ceduo, `1 (F)` for fustaia), followed by all planned
+  years (`-` for unscheduled parcels). It contains no basemap, contours, or
+  parcel fill colors. The subtitle uses the plan's own name without an added
+  "Piano di taglio:" prefix, followed by separate year ranges, for example
+  `(fustaia 2027-2040, ceduo 2027-2050)`. Ranges use scheduled parcel
+  interventions across the entire selected plan; a type with no interventions
+  is omitted, and a single-year range is shown once.
+
+  An 8 pt legend under the heading reads
+  `(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.`
+  The footer contains only the export date.
 
   Parcel names are 9 pt and years 8 pt. Labels fit inside parcel boundaries
   when possible; narrow parcels use margin callouts. Split geometries are

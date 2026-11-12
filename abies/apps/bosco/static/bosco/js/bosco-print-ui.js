@@ -4,7 +4,7 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { show, dismiss } from '../../base/js/modals.js';
 import { wireCancelButtons } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
-import { calendarPrintItems } from './bosco-calendar-print.js';
+import { calendarPlanSubtitle, calendarPrintItems } from './bosco-calendar-print.js';
 import {
   buildPrintMapLayout, buildPrintMapPreview, downloadPrintMap,
 } from './characteristic-print.js';
@@ -14,7 +14,8 @@ export function showCalendarPrint({ geojson, region, entries, data, date = new D
   const items = calendarPrintItems(geojson, region.name, entries, data);
   const layout = buildPrintMapLayout({
     items, title: S.BOSCO_CALENDAR_MAP_TITLE(region.name),
-    subtitle: S.BOSCO_CALENDAR_MAP_PLAN(plan),
+    subtitle: calendarPlanSubtitle(entries, data),
+    legend: S.BOSCO_CALENDAR_MAP_LEGEND,
     footer: S.BOSCO_CALENDAR_MAP_FOOTER(localISODate(date)),
   });
   // The preview and download retain this snapshot even if the source is refreshed.

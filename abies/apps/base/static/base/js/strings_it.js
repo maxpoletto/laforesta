@@ -405,10 +405,13 @@ export const BOSCO_PRINT_PARCEL_MISMATCH = 'I confini e l’elenco delle partice
 export const BOSCO_PRINT_SELECT_PLAN = 'Seleziona un piano di taglio e attendi il caricamento dei dati.';
 export const BOSCO_PRINT_DOWNLOAD_ERROR = 'Impossibile generare il PDF. Riprova.';
 export const BOSCO_CALENDAR_MAP_TITLE = region => `Calendario di taglio - ${region}`;
-export const BOSCO_CALENDAR_MAP_PLAN = plan =>
-  `Piano di taglio: ${plan.name} (${plan.year_start}-${plan.year_end})`;
-export const BOSCO_CALENDAR_MAP_FOOTER = date =>
-  `Esportato il ${date} | - = Nessun taglio previsto`;
+export const BOSCO_CALENDAR_MAP_PLAN = (plan, ranges) =>
+  `${plan.name}${ranges ? ` (${ranges})` : ''}`;
+export const BOSCO_CALENDAR_HIGH_FOREST_YEARS = years => `fustaia ${years}`;
+export const BOSCO_CALENDAR_COPPICE_YEARS = years => `ceduo ${years}`;
+export const BOSCO_CALENDAR_PARCEL_NAME = (parcel, coppice) => `${parcel} (${coppice ? 'C' : 'F'})`;
+export const BOSCO_CALENDAR_MAP_LEGEND = '(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.';
+export const BOSCO_CALENDAR_MAP_FOOTER = date => `Esportato il ${date}`;
 export const BOSCO_CALENDAR_PDF_FILENAME = (region, plan) =>
   `calendario_taglio_${region.replace(/[\\/:*?"<>|]/g, '_')}_${plan.year_start}-${plan.year_end}.pdf`;
 export const BOSCO_HARVEST_METRIC = 'Prelievo';
