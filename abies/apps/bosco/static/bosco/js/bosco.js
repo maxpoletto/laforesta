@@ -544,7 +544,8 @@ function buildRegionOptions() {
 }
 
 function currentPrintAvailability(state) {
-  return printAvailability(state.q, { hasRegion: regionById.has(state.regionId), data: futureData });
+  return printAvailability(state.q, { hasRegion: regionById.has(state.regionId),
+    data: futureData, harvestsLoaded: Boolean(prelieviData) });
 }
 
 function wireControls() {

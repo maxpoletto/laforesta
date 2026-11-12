@@ -109,7 +109,8 @@ hosts (top to bottom):
   fill and "Nessun taglio previsto". Calendar years are never divided by area.
 
   **Mappa stampabile…** is available for **Età media**, **Governo**,
-  **Altitudine media**, **Pendenza media** and the cutting calendar, to all roles.
+  **Altitudine media**, **Pendenza media**, **Prelievo storico** and the cutting
+  calendar, to all roles.
   Age labels use whole years (`a`); missing
   ages use `-`, and a recorded zero is shown as `0 a`. Governo labels show
   the localized forest type (`Ceduo` or `Fustaia`), or `-` if unavailable.
@@ -117,6 +118,15 @@ hosts (top to bottom):
   rounded to whole meters (`m`), or `-` if either bound is missing.
   Average slope uses the stored parcel slope rounded to a whole percentage
   (`%`); zero is valid, while a missing measurement is shown as `-`.
+
+  Historical harvest labels sum all recorded harvests per parcel and use whole
+  quintals (`q`). The **Valori per ettaro** choice is honored: normalized labels
+  use two decimal places (`q/ha`) and the same area selected by **Aree catastali**
+  on the map. The heading legend identifies that area source, and the filename
+  adds `_per_ettaro`. A parcel with no harvest records shows zero; a missing or
+  zero area produces `-` in per-hectare mode. The button stays disabled until
+  the historical harvest digest has loaded.
+
   It opens an A4 preview covering the entire selected compresa, independently
   of map pan/zoom. **Scarica PDF** downloads that same snapshot. Orientation
   is selected automatically for the largest legible map. The white page has
@@ -141,8 +151,8 @@ hosts (top to bottom):
   that cannot fit legibly produce an explanatory error, rather than omitting
   parcels. Preview and download retain their data snapshot even if a
   background refresh arrives. The calendar button is disabled while no plan
-  snapshot is available; age, forest type, altitude and slope need no harvest
-  plan.
+  snapshot is available; age, forest type, altitude, slope and historical
+  harvest maps need no harvest plan.
 
   PDFs contain vector lines and selectable text, and can be included directly
   in LaTeX via `graphicx`, for example

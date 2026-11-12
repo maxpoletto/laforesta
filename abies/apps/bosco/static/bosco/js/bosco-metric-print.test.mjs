@@ -62,4 +62,27 @@ assert.equal(slope.title, 'Pendenza media - Forest');
 assert.equal(slope.filename, 'pendenza_media_Forest.pdf');
 assert.deepEqual(slope.items.map(item => item.lines), [['35 %'], ['-'], ['0 %']]);
 assert.equal(P.printAvailability('9', { hasRegion: true }).disabled, false);
-console.log('Metric printing: characteristic values, units, missing data and availability passed.');
+const harvestEntries = entries.map((entry, i) => ({ ...entry, key: `Forest-${entry.parcel}`,
+  displayAreaHa: [2, null, 1][i], areaHa: [5, null, 1][i], cadastralAreaHa: [4, null, 1][i] }));
+const historical = new Map([['Forest-1', 25.6], ['Forest-2b', 10]]);
+const historicalOptions = { ...options, entries: harvestEntries, metricId: '4', context: { historical } };
+const history = P.buildMetricPrint(historicalOptions);
+assert.equal(history.title, 'Prelievo storico - Forest');
+assert.equal(history.filename, 'prelievo_storico_Forest.pdf');
+assert.deepEqual(history.items.map(item => item.lines), [['26 q'], ['10 q'], ['0 q']]);
+assert.ok(!history.legend.includes('per ettaro'));
+const historicalPerHa = { ...historicalOptions, context: { historical, perHa: true } };
+const geometricHistory = P.buildMetricPrint(historicalPerHa);
+assert.deepEqual(geometricHistory.items.map(item => item.lines), [['12,80 q/ha'], ['-'], ['0,00 q/ha']]);
+assert.equal(geometricHistory.filename, 'prelievo_storico_Forest_per_ettaro.pdf');
+assert.ok(geometricHistory.legend.includes('per ettaro') && geometricHistory.legend.includes('aree geometriche'));
+const cadastralHistory = P.buildMetricPrint({ ...historicalPerHa, useCadastralArea: true,
+  entries: harvestEntries.map(entry => ({ ...entry, displayAreaHa: entry.cadastralAreaHa })) });
+assert.equal(cadastralHistory.items[0].lines[0], '6,40 q/ha');
+assert.ok(cadastralHistory.legend.includes('aree catastali'));
+assert.equal(historical.get('Forest-1'), 25.6, 'normalization does not mutate totals');
+assert.equal(P.printAvailability('4', { hasRegion: true }).disabled, true,
+  'do not offer zero-valued printouts while historical data is still loading');
+assert.equal(P.printAvailability('4', { hasRegion: true, harvestsLoaded: true }).disabled, false);
+assert.throws(() => P.buildMetricPrint({ ...historicalOptions, context: {} }), /Caricamento prelievi/);
+console.log('Metric printing: characteristics, historical totals, area choices and availability passed.');

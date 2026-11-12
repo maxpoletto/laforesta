@@ -106,4 +106,21 @@ download.listeners.click();
 assert.equal(downloaded, 'eta_media_Forest.pdf');
 assert.ok((await blob.text()).includes('(37 a)'));
 cancel.listeners.click();
-console.log('Calendar print UI: preview, reader access, snapshot download and close passed.');
+preview.replaceChildren();
+const historical = new Map([['Forest-1', 25.6]]);
+const harvestEntry = { id: 1, region: 'Forest', parcel: '1', key: 'Forest-1',
+  coppice: false, displayAreaHa: 2 };
+showMetricPrint({ metricId: '4', geojson: { features: [{ geometry,
+  properties: { layer: 'Forest', name: 'Forest-1' } }] },
+region: { id: 1, name: 'Forest' }, entries: [harvestEntry],
+context: { historical, perHa: true }, useCadastralArea: true });
+assert.ok(preview.children[0].children.some(element => element.textContent === '12,80 q/ha'));
+historical.set('Forest-1', 100);
+harvestEntry.displayAreaHa = 10;
+download.listeners.click();
+assert.equal(downloaded, 'prelievo_storico_Forest_per_ettaro.pdf');
+const historicalPDF = await blob.text();
+assert.ok(historicalPDF.includes('(12,80 q/ha)'), 'download freezes the totals and area used by the preview');
+assert.ok(historicalPDF.includes('aree catastali'));
+cancel.listeners.click();
+console.log('Print UI: metric previews, snapshots, reader access, download retry and close passed.');
