@@ -109,6 +109,23 @@ This writes dates, downloaded rasters, `manifest.json`, `parcel-mask.tif`, and
 `make satellite-dates`, `make satellite-fetch`, and
 `make satellite-precompute`.
 
+To regenerate the complete dataset, build into an empty output directory:
+
+```sh
+make satellite SATELLITE_DIR=data/satellite-build
+```
+
+The build downloads the selected dates and regenerates masks, manifests and
+time series. Each region uses a single WGS84 raster grid derived from its
+geometry and nominal resolution; precomputation rejects incompatible rasters.
+After validating the build, publish it with the desired instance's sync target:
+
+```sh
+make sync-satellite-dev SATELLITE_DIR=data/satellite-build
+```
+
+Use a fresh output directory when the geometry or raster-grid definition changes.
+
 To make the process completely non-interactive (e.g., during edit-debug cycles),
 set these in `compose/.env.local`:
 ```sh

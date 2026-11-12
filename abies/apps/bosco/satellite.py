@@ -100,20 +100,18 @@ def pixel_dims(bbox: list[float]) -> tuple[int, int]:
     return width, height
 
 
-def existing_raster_dims(output_dir: Path, dates: list[str], bbox: list[float]):
-    """Validate a region's existing pixel grid before publishing derived data."""
-    dimensions = None
+def validate_raster_grid(output_dir: Path, dates: list[str], bbox: list[float], dimensions):
+    """Require every date and band to use the canonical region pixel grid."""
+    expected_transform = from_bounds(*bbox, *dimensions)
     for date in dates:
         for filename in EXPECTED_TIFFS:
             path = output_dir / date / filename
             with rasterio.open(path) as src:
-                if dimensions is None:
-                    dimensions = (src.width, src.height)
-                expected_transform = from_bounds(*bbox, *dimensions)
                 if (src.crs != WGS84 or (src.width, src.height) != dimensions
                         or not src.transform.almost_equals(expected_transform, precision=1e-12)):
-                    raise SatelliteError(f'inconsistent raster grid: {path}')
-    return dimensions
+                    raise SatelliteError(
+                        f'inconsistent raster grid: {path}; rebuild all dates in a fresh output directory',
+                    )
 
 
 def parse_months(value: str) -> set[int]:
@@ -398,7 +396,9 @@ def fetch_region(
         return 0, skipped
 
     bbox = bbox_from_geojson(geojson_path, region)
-    width, height = existing_raster_dims(output_dir, discover_dates(output_dir), bbox) or pixel_dims(bbox)
+    width, height = pixel_dims(bbox)
+    retained_dates = sorted(set(discover_dates(output_dir)) - set(missing_dates))
+    validate_raster_grid(output_dir, retained_dates, bbox, (width, height))
     token = get_access_token()
     fetched = 0
     for date in missing_dates:
@@ -486,9 +486,8 @@ def precompute_region(geojson_path: Path, output_dir: Path, region: str) -> int:
         raise SatelliteError(f'no complete date directories found in {output_dir}')
 
     bbox = bbox_from_geojson(geojson_path, region)
-    # Older downloads may use a slightly different nominal-resolution grid.
-    # Keep their actual grid, including for new dates, rather than resizing data.
-    width, height = existing_raster_dims(output_dir, dates, bbox)
+    width, height = pixel_dims(bbox)
+    validate_raster_grid(output_dir, dates, bbox, (width, height))
     manifest = {
         'dates': dates,
         'bands': [b.lower() for b in BANDS],
