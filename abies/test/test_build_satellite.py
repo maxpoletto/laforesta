@@ -34,9 +34,9 @@ def _read_lines(path):
     return path.read_text(encoding='utf-8').splitlines()
 
 
-def _write_complete_date(region_dir, geojson, region, date, value=128):
+def _write_complete_date(region_dir, geojson, region, date, value=128, dimensions=None):
     bbox = satellite.bbox_from_geojson(geojson, region)
-    width, height = satellite.pixel_dims(bbox)
+    width, height = dimensions or satellite.pixel_dims(bbox)
     arr = np.full((height, width), value, dtype=np.uint8)
     for band in [b.lower() for b in satellite.BANDS]:
         satellite.save_geotiff(region_dir / date / f'{band}.tif', arr, bbox, width, height)

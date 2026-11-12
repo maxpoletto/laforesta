@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import math
 import os
 import re
 from datetime import datetime
@@ -15,6 +14,8 @@ import rasterio
 import requests
 from rasterio.features import rasterize
 from rasterio.transform import from_bounds
+
+from apps.base.geodesy import distance_m
 
 
 CATALOG_URL = 'https://catalogue.dataspace.copernicus.eu/odata/v1/Products'
@@ -87,14 +88,32 @@ def bbox_from_geojson(path: Path, region: str | None = None) -> list[float]:
 
 
 def pixel_dims(bbox: list[float]) -> tuple[int, int]:
-    """Compute (width, height) in pixels for a WGS84 bbox at RESOLUTION_M."""
+    """Size a new raster from WGS84 ellipsoidal distances at bbox midlines."""
     west, south, east, north = bbox
-    mid_lat_rad = math.radians((south + north) / 2)
-    width = round((east - west) * 111320 * math.cos(mid_lat_rad) / RESOLUTION_M)
-    height = round((north - south) * 111320 / RESOLUTION_M)
+    if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+        raise SatelliteError(f'invalid raster bounds {bbox}')
+    mid_lat, mid_lon = (south + north) / 2, (west + east) / 2
+    width = round(distance_m(mid_lat, west, mid_lat, east) / RESOLUTION_M)
+    height = round(distance_m(south, mid_lon, north, mid_lon) / RESOLUTION_M)
     if width <= 0 or height <= 0:
         raise SatelliteError(f'invalid raster dimensions {width}x{height}')
     return width, height
+
+
+def existing_raster_dims(output_dir: Path, dates: list[str], bbox: list[float]):
+    """Validate a region's existing pixel grid before publishing derived data."""
+    dimensions = None
+    for date in dates:
+        for filename in EXPECTED_TIFFS:
+            path = output_dir / date / filename
+            with rasterio.open(path) as src:
+                if dimensions is None:
+                    dimensions = (src.width, src.height)
+                expected_transform = from_bounds(*bbox, *dimensions)
+                if (src.crs != WGS84 or (src.width, src.height) != dimensions
+                        or not src.transform.almost_equals(expected_transform, precision=1e-12)):
+                    raise SatelliteError(f'inconsistent raster grid: {path}')
+    return dimensions
 
 
 def parse_months(value: str) -> set[int]:
@@ -379,7 +398,7 @@ def fetch_region(
         return 0, skipped
 
     bbox = bbox_from_geojson(geojson_path, region)
-    width, height = pixel_dims(bbox)
+    width, height = existing_raster_dims(output_dir, discover_dates(output_dir), bbox) or pixel_dims(bbox)
     token = get_access_token()
     fetched = 0
     for date in missing_dates:
@@ -467,7 +486,9 @@ def precompute_region(geojson_path: Path, output_dir: Path, region: str) -> int:
         raise SatelliteError(f'no complete date directories found in {output_dir}')
 
     bbox = bbox_from_geojson(geojson_path, region)
-    width, height = pixel_dims(bbox)
+    # Older downloads may use a slightly different nominal-resolution grid.
+    # Keep their actual grid, including for new dates, rather than resizing data.
+    width, height = existing_raster_dims(output_dir, dates, bbox)
     manifest = {
         'dates': dates,
         'bands': [b.lower() for b in BANDS],
