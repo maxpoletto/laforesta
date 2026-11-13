@@ -334,15 +334,26 @@ The modal displays:
    contributes nothing to the volume chart or total. Basal area is summed from
    each tree's actual diameter, `π × (D/200)²`.
 
-   When the item's current marked trees span more than one distinct parcel,
-   the summary shows a **Particelle:** pulldown. Its default is **Tutte**,
-   followed by the marked parcels in natural order (for example `2`, `2a`,
-   `10`). Tutte combines all of the item's marked parcels. Selecting one
-   parcel scopes the three charts, species legend, and summary totals to its
-   trees. The table and map continue to follow Filtra. The parcel list comes
-   from the complete marking and remains available when Filtra narrows the
-   visible rows; the summary then uses the intersection of both selections.
-   Single-parcel and empty markings have no visible parcel selector.
+   **Selecting parcels for the summary.** When the intervention has marked
+   trees in more than one parcel, the summary shows a **Particelle:** pulldown.
+   It defaults to **Tutte**, followed by the parcels in natural order (for
+   example `2`, `2a`, `10`). Choosing a parcel restricts the three charts,
+   species legend and summary totals to that parcel. It does not change the
+   table or map: those continue to show the trees that match **Filtra**.
+
+   The pulldown lists every parcel with marks in this intervention, even if
+   the current table filter hides all of a parcel's trees. For example, if
+   there are marks in parcels `2` and `10`, filtering the table to Faggio
+   leaves both parcel choices available. Selecting `2` then summarizes only
+   Faggio trees in parcel `2`; selecting **Tutte** summarizes Faggio across
+   both parcels. If the chosen parcel has no trees matching Filtra, the
+   summary shows its empty state.
+
+   Adding, editing or deleting marks updates this parcel list. The user's
+   chosen parcel stays selected as long as it still has marks and there are
+   at least two parcels to choose from. If its last mark is removed, the
+   selection returns to **Tutte**. With fewer than two marked parcels, the
+   pulldown is hidden and the summary uses all trees matching Filtra.
 
    As in Bosco detail, one species color legend is displayed above the charts.
    It is informational rather than a second set of checkbox filters: the marks
@@ -378,9 +389,56 @@ The modal displays:
    retained rows. Without a filter it leaves row IDs unspecified and the
    server exports all marks; the endpoint also accepts GET for integrations.
 
-   Each row has pencil / trash icons. Editing or deleting an individual
-   row does not automatically regress state: deleting the last `tree_mark`
-   does NOT revert state to `planned`.
+   **Editing and deleting marks.** Each row has pencil and trash icons for
+   editing or deleting that mark. Clicking the trash icon in the table header
+   enters multi-row deletion mode: checkboxes replace the row action icons,
+   and clicking a row selects or deselects it. Selections can span several
+   table pages. A single confirmation lists all selected marks before sending
+   the deletion request.
+
+   The server verifies that every selected mark belongs to this intervention
+   and that none has changed since it was selected. It refuses deletion in a
+   closed worksite. If any check fails, none of the selected marks is deleted.
+   Removing a mark does not delete the underlying physical tree when another
+   mark or sample measurement still refers to it. Deletion also leaves the
+   intervention's lifecycle state unchanged: deleting the last mark does not
+   move a `marked` intervention back to `planned`.
+
+   **Updating the display after changes.** Adding or editing a mark, deleting
+   one or several marks, and receiving refreshed data update the existing
+   table, map and dendrometric summary. This also applies to edits and deletions
+   from a tree's map popup. These changes do not rebuild the entire modal.
+   The table keeps its sort order, search text and current page, provided that
+   page still exists after the change. Sections stay open or closed as the
+   user left them, and the map keeps its current position and zoom.
+
+   The metadata pane and the volume/mass totals above the table are updated
+   too. Those totals always describe all marks in the intervention; the charts
+   and their summary totals describe the trees selected by Filtra and
+   Particelle. After a deletion, the server response contains both the removed
+   mark IDs and the updated intervention record, so the browser can update the
+   display without another request for either dataset.
+
+   While the modal is open, the page's regular background refresh also checks
+   this intervention's marked-tree dataset, `mark_trees_<id>`. The view listens
+   for changes to the browser's cached copy and applies them to the existing
+   table, map and summary. Closing the modal or opening another intervention
+   removes that listener, so later updates cannot affect a view the user has
+   left. If an edit or deletion fails because another user changed the
+   record, the server response supplies its current values. The browser puts
+   those values in both its cache and the visible table, so the user can
+   review them before trying again.
+
+   CSV imports return instructions to reload the affected datasets rather
+   than all changed rows. The browser therefore fetches the updated marked-tree
+   and intervention datasets, then updates the same table, map and summary.
+   Opening a different intervention, editing the intervention itself, or
+   opening, closing or reopening its worksite rebuilds the entire modal.
+
+   Deleting the intervention's last mark removes the map and shows the empty
+   dendrometric summary. Adding a first mark creates the map again without
+   replacing the table. Filtering out all marks also shows an empty summary,
+   but keeps the map so the user can restore its points by clearing Filtra.
 
    Clicking `[+ Nuova martellata]` opens an "Importa CSV martellate"
    modal (analogous to "Nuovo Rilevamento" → "Importa da CSV" on the
@@ -442,35 +500,6 @@ effettivo`, `Compresa`, `Particella`, `Superficie totale (ha)`, `Stato`,
   (planned → open → harvesting → closed), with the same admin-only
   `closed → open` reopen exception. Region-wide damaged/sick items can
   still receive marks from coppice parcels via Ipso import.
-
-The marked-tree table supports the same header-trash selection mode. Row
-clicks select trees while the pencil/trash icons are replaced by checkboxes.
-One confirmation reviews all selected marks, including selections spanning
-pages. The server confines the selection to the displayed intervention,
-checks every version and refuses deletion in a closed worksite. After an
-accepted deletion the marked total, table, map and dendrometric summary
-refresh together; the intervention's lifecycle state does not regress.
-Physical trees still used by other marks or sample measurements are retained.
-
-The marking table and its `TreeDetail` remain mounted during ordinary row
-changes. Single-row deletion (including the map popover), multi-row deletion,
-manual edits and cache refreshes update them in place, preserving the table's
-sort, search and still-valid page, open sections, and the current map view.
-Delete responses already contain row removals and the updated intervention;
-they need no follow-up intervention or marking GET. The metadata pane and the
-full marking's volume/mass totals update separately from the filtered charts.
-
-The active `mark_trees_<id>` digest participates in background refresh and has a
-scoped cache binding disposed when leaving that intervention. Conflicts update
-the displayed record as well as the cache. CSV imports reload their invalidated
-marking/intervention digests into the same components. Navigation, intervention edits and worksite transitions use the full
-detail-rendering path.
-
-Parcel summary choices follow the full marking's distinct parcels, while graph
-and map values follow the table filter. An available selected parcel survives
-source updates; a removed parcel resets to `Tutte`. Fewer than two parcels hide
-the selector. Deleting the final mark shows the empty summary and removes its
-map; a subsequent first mark creates the map without replacing the table.
 
 ### New marked tree modal
 
