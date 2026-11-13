@@ -520,6 +520,13 @@ invalidations before page-specific callbacks refresh the displayed data. Rows
 are never removed from the browser's cache before the server accepts the
 operation. After a successful response, the table exits selection mode.
 
+The intervention's marking view consumes these cache notifications through
+`bindTableData()`, updating the existing table and its dependent displays. A
+normal delete therefore performs only its POST: the accepted response is enough
+to update the parent metadata, marking totals, map and charts. A bulk import can
+invalidate complete digests; its controller reloads those digests without
+replacing the surrounding detail view.
+
 ### Rejected selections
 
 A rejected request deletes no rows and creates no successful nonce receipt.

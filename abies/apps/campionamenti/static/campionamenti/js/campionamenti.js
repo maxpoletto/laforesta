@@ -55,7 +55,7 @@ import {
   parseDecimal,
 } from '../../base/js/format.js';
 import {
-  applyTableState, createPage, navigateWithParams, readTableState, tableParamKeys,
+  applyTableState, bindTableData, createPage, navigateWithParams, readTableState, tableParamKeys,
   tableSort, writeTableState,
 } from '../../base/js/page-sync.js';
 
@@ -586,11 +586,10 @@ async function activateSurvey(surveyId) {
   ]);
 
   if (unsubCache) unsubCache();
-  unsubCache = cache.onUpdate(dataId, () => {
-    if (table) table.setData(cache.get(dataId));
+  unsubCache = bindTableData({ dataId, table, onUpdate: () => {
     updateTreesHeaderSummary();
     updateTreeDetail();
-  });
+  } });
 }
 
 function renderRilevamentiSummary(surveyId) {
@@ -772,6 +771,7 @@ function mountTreeDetail(data) {
 }
 
 function destroyTable() {
+  if (unsubCache) { unsubCache(); unsubCache = null; }
   if (table) { table.destroy(); table = null; }
   if (treeDetail) { treeDetail.destroy(); treeDetail = null; }
   sections.t.detailHost?.replaceChildren();

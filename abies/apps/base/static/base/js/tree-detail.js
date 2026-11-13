@@ -1,5 +1,5 @@
 /**
- * Shared tree-detail visualisation: point map plus dendrometric summary.
+ * Shared tree-detail visualization: point map plus dendrometric summary.
  *
  * Pages retain ownership of their TableWrapper and pass its filtered rows to
  * setRows(). This component owns only presentation and delegates row actions
@@ -40,6 +40,7 @@ export class TreeDetail {
     this.onTreeClick = onTreeClick;
     this.onExport = onExport;
     this.emptyMessage = emptyMessage;
+    this.parcelSummary = parcelSummary;
     this.rows = [];
     this.map = null;
     this.mapHost = null;
@@ -54,9 +55,27 @@ export class TreeDetail {
     this.root = fragment.querySelector('.tree-dendrometry-summary');
     this.exportButton = fragment.querySelector('[data-action="export-dendrometry"]');
     this.exportButton?.addEventListener('click', () => this._export());
-    if (parcelSummary) this._mountParcelSelector(digest?.rows || []);
+    if (parcelSummary) {
+      this.root.querySelector('[data-target="dendrometry-parcel-select"]')
+        ?.addEventListener('change', event => {
+          this.selectedParcel = event.target.value;
+          this._renderSummary();
+        });
+    }
     container.appendChild(fragment);
-    this.setRows(digest?.rows || []);
+    this.setData(digest);
+  }
+
+  /** Update source membership/metadata separately from the table's filtered rows. */
+  setData(digest, { rows = digest?.rows || [], geojson = this.geojson } = {}) {
+    this.columns = digest?.columns || [];
+    this.diameterClassMode = digest?.[FIELD_DIAMETER_CLASS_MODE];
+    this.parcelColumn = this.columns.indexOf(S.COL_PARCEL);
+    this.geojson = geojson;
+    if (this.parcelSummary) this._syncParcelSelector(digest?.rows || []);
+    if (!digest?.rows?.length) this._destroyMap();
+    else if (!this.map && geojson && typeof L !== 'undefined') this._mountMap();
+    this.setRows(rows);
   }
 
   setRows(rows) {
@@ -79,11 +98,15 @@ export class TreeDetail {
     this.map?.wrapper?.syncBasemap(name);
   }
 
-  destroy() {
+  _destroyMap() {
     this.map?.destroy();
     this.map = null;
     this.mapHost?.remove();
     this.mapHost = null;
+  }
+
+  destroy() {
+    this._destroyMap();
     this._destroyCharts();
     this.root?.remove();
     this.root = null;
@@ -92,7 +115,8 @@ export class TreeDetail {
   _mountMap() {
     this.mapHost = document.createElement('div');
     this.mapHost.className = 'tree-detail-map-host';
-    this.container.appendChild(this.mapHost);
+    if (this.root) this.root.before(this.mapHost);
+    else this.container.appendChild(this.mapHost);
     this.map = new TreePointsMap({
       container: this.mapHost,
       className: 'tree-detail-map',
@@ -102,28 +126,25 @@ export class TreeDetail {
     });
   }
 
-  _mountParcelSelector(rows) {
-    if (this.parcelColumn < 0) return;
-    const parcels = [...new Set(rows
+  _syncParcelSelector(rows) {
+    const parcels = this.parcelColumn < 0 ? [] : [...new Set(rows
       .map(row => row[this.parcelColumn])
       .filter(name => name != null && name !== '')
       .map(String))].sort(compareParcelNames);
-    if (parcels.length < 2) return;
     const control = this.root?.querySelector('[data-target="dendrometry-parcels"]');
     const select = control?.querySelector('select');
     if (!select) return;
+    // Keep the localized "all parcels" option supplied by the template.
+    select.replaceChildren(select.children[0]);
     for (const parcel of parcels) {
       const option = document.createElement('option');
       option.value = parcel;
       option.textContent = parcel;
       select.appendChild(option);
     }
-    select.value = '';
-    control.hidden = false;
-    select.addEventListener('change', () => {
-      this.selectedParcel = select.value;
-      this._renderSummary();
-    });
+    if (parcels.length < 2 || !parcels.includes(this.selectedParcel)) this.selectedParcel = '';
+    select.value = this.selectedParcel;
+    control.hidden = parcels.length < 2;
   }
 
   _renderSummary() {

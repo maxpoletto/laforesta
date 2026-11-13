@@ -452,6 +452,26 @@ accepted deletion the marked total, table, map and dendrometric summary
 refresh together; the intervention's lifecycle state does not regress.
 Physical trees still used by other marks or sample measurements are retained.
 
+The marking table and its `TreeDetail` remain mounted during ordinary row
+changes. Single-row deletion (including the map popover), multi-row deletion,
+manual edits and cache refreshes update them in place, preserving the table's
+sort, search and still-valid page, open sections, and the current map view.
+Delete responses already contain row removals and the updated intervention;
+they need no follow-up intervention or marking GET. The metadata pane and the
+full marking's volume/mass totals update separately from the filtered charts.
+
+The active `mark_trees_<id>` digest participates in background refresh and has a
+scoped cache binding disposed when leaving that intervention. Conflicts update
+the displayed record as well as the cache. CSV imports reload their invalidated
+marking/intervention digests into the same components. Navigation, intervention edits and worksite transitions use the full
+detail-rendering path.
+
+Parcel summary choices follow the full marking's distinct parcels, while graph
+and map values follow the table filter. An available selected parcel survives
+source updates; a removed parcel resets to `Tutte`. Fewer than two parcels hide
+the selector. Deleting the final mark shows the empty summary and removes its
+map; a subsequent first mark creates the map without replacing the table.
+
 ### New marked tree modal
 
 Title: Nuovo albero martellato. Similar to "nuovo albero campione"

@@ -129,6 +129,28 @@ the same tooltip with
 keeps the view, but switching grid/survey resets to `fitBounds`. See
 `campionamenti.js` for the pattern.
 
+## Tree-detail source updates and filters
+
+`base/js/tree-detail.js` composes `TreePointsMap` with the shared dendrometry
+charts. Pages own their `TableWrapper` and pass its filtered rows to
+`TreeDetail.setRows(rows)` when a table filter changes. Filtering does not
+change the parcel choices derived from the complete source marking.
+
+When records or digest metadata change, use
+`setData(digest, {rows, geojson})`. The full digest updates column metadata,
+diameter-class mode and the naturally ordered parcel choices; `rows` supplies
+the current table-filter result. A still-available parcel selection is retained.
+A removed selection resets to all parcels, and fewer than two source parcels
+hide the control. The selection listener is installed once per component.
+
+These updates reuse the existing map and chart instances. Updating markers
+does not refit the map, so its zoom, center and basemap remain intact. An empty
+source removes the map and clears the summary; adding a first source row can
+mount a map in its existing position above the summary. Geometry can arrive
+asynchronously, and page controllers check that the owning view is still active
+before applying it. Controllers dispose their table bindings and tree-detail
+components together when changing context.
+
 ## Geometry and i18n
 
 Pure geometry/label helpers live in `base/js/geo.js` with **no** Leaflet

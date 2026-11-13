@@ -86,6 +86,13 @@ class MockElement {
     this.children.push(child);
     return child;
   }
+  before(child) {
+    const parent = this.parentNode;
+    if (!parent) return;
+    child.remove();
+    child.parentNode = parent;
+    parent.children.splice(parent.children.indexOf(this), 0, child);
+  }
   append(...children) { for (const child of children) this.appendChild(child); }
   replaceChildren(...children) {
     this.children = [];
@@ -108,9 +115,10 @@ class MockElement {
     return true;
   }
   click() {
-    const event = { target: this, preventDefault() {} };
+    const event = { target: this, stopped: false, preventDefault() {},
+      stopPropagation() { this.stopped = true; } };
     let node = this;
-    while (node) {
+    while (node && !event.stopped) {
       for (const fn of node._listeners?.click || []) fn(event);
       node = node.parentNode;
     }
@@ -352,6 +360,12 @@ const templates = {
   'tmpl-tree-dendrometry-summary': { content: buildDendrometrySummaryTemplate() },
   'tmpl-pdt-mark-popover': { content: buildMarkPopoverTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
+  'tmpl-delete-selected-modal': { content: el('fragment', {}, [
+    el('p', { dataset: { field: 'message' } }),
+    el('ul', { dataset: { target: 'records' } }),
+    el('button', { dataset: { action: 'cancel' } }),
+    el('button', { dataset: { action: 'confirm' } }),
+  ]) },
   'tmpl-cascade-delete-modal': { content: buildCascadeTemplate() },
 };
 
@@ -422,10 +436,22 @@ class MockSortableTable {
     this.destroyed = false;
     appendMockControls(opts);
     const wrapper = el('div', { className: 'sortable-table-wrapper' });
-    wrapper.appendChild(el('table', { className: 'sortable-table' }));
+    const table = el('table', { className: 'sortable-table' });
+    const head = el('thead', { className: 'sortable-table-head' });
+    for (const column of opts.columns.filter(value => !value.hidden)) {
+      head.appendChild(el('th', {
+        className: `sortable-table-header ${column.className || ''}`,
+        dataset: { column: column.key },
+      }));
+    }
+    table.appendChild(head);
+    wrapper.appendChild(table);
     opts.container.appendChild(wrapper);
+    this.currentPage = 1;
     tableInstances.push(this);
   }
+  get totalPages() { return Math.max(1, Math.ceil(this.data.length / 25)); }
+  updateTable() {}
   setData(rows) { this._allData = rows; this.data = rows; }
   filter(fn) { this.data = this._allData.filter(fn); }
   clearFilter() { this.data = this._allData; }
@@ -520,6 +546,7 @@ const fetchUrls = [];
 const deletionChecks = new Map();
 let exportedDendrometryRowIds = null;
 let dendrometryExportCalls = 0;
+let markDeleteResponse = null;
 function deferItem(id) { const d = deferred(); itemLoads.set(`/api/piano-di-taglio/item/data/${id}/`, d); return d; }
 function deferMarks(id) { const d = deferred(); markLoads.set(`/api/piano-di-taglio/mark-trees/${id}/`, d); return d; }
 function deferPrelievi() { const d = deferred(); prelieviLoads.push(d); return d; }
@@ -720,16 +747,19 @@ globalThis.fetch = async (url, options = {}) => {
     }
   }
   if (url === '/api/piano-di-taglio/mark/delete/' && options.method === 'POST') {
+    if (markDeleteResponse) return response(markDeleteResponse.data, 'v2', markDeleteResponse.status);
     const body = JSON.parse(options.body || '{}');
-    const rowId = Number(body[ROW_ID]);
-    const itemId = Math.floor((rowId - 1) / 100);
-    markDataOverrides.set(
-      `/api/piano-di-taglio/mark-trees/${itemId}/`,
-      { ...markDigest(itemId), rows: [] },
-    );
-    return response({
-      deletes: [{ data_id: `mark_trees_${itemId}`, row_id: rowId }],
-    });
+    const ids = body.rows ? body.rows.map(row => Number(row.row_id)) : [Number(body[ROW_ID])];
+    const itemId = Number(body.harvest_plan_item_id || Math.floor((ids[0] - 1) / 100));
+    const dataId = `mark_trees_${itemId}`;
+    const source = cache.get(dataId) || markDigest(itemId);
+    const retained = source.rows.filter(row => !ids.includes(row[0]));
+    markDataOverrides.set(`/api/piano-di-taglio/mark-trees/${itemId}/`, { ...source, rows: retained });
+    const parent = [...cache.get('harvest_plan_items').rows.find(row => row[0] === itemId)];
+    parent[itemColumns.indexOf(S.COL_VOLUME_MARKED)] = retained.length
+      ? retained.reduce((total, row) => total + (row[source.columns.indexOf(S.COL_V_M3)] || 0), 0) : null;
+    return response({ deletes: ids.map(row_id => ({ data_id: dataId, row_id })),
+      patches: [{ data_id: 'harvest_plan_items', row_id: itemId, record: parent }] });
   }
   if (String(url).startsWith('/api/piano-di-taglio/mark/dendrometry/export/') &&
       options.method === 'POST') {
@@ -811,6 +841,7 @@ async function finish() {
   exportedDendrometryRowIds = null;
   dendrometryExportCalls = 0;
   markDataOverrides.clear();
+  markDeleteResponse = null;
   deletionChecks.clear();
   delete globalThis.L;
   leafletMaps = [];
@@ -1252,6 +1283,11 @@ async function finish() {
   marks.resolve(markDigest(11));
   await flushSeveral();
 
+  const existingTable = tableInstances.at(-1);
+  const existingCard = contentEl.querySelector('.pdt-item-card');
+  const existingMap = leafletMaps.at(-1);
+  existingTable.sort(S.COL_NUMBER, 'number', false);
+  const requestsBeforePatch = fetchUrls.length;
   const updated = markDigest(11, {
     [S.COL_D_CM]: 45,
     [S.COL_H_M]: 22.5,
@@ -1262,17 +1298,20 @@ async function finish() {
   cache.applyResponseChanges({
     patches: [{ data_id: 'mark_trees_11', row_id: 1101, record: updated.rows[0] }],
   });
-  pdt.onQueryChange({});
-  await flushSeveral();
-  pdt.onQueryChange({ i: '11' });
   await flushSeveral();
 
+  check(tableInstances.at(-1) === existingTable, 'live mark edits keep the table instance');
+  check(contentEl.querySelector('.pdt-item-card') === existingCard, 'live mark edits keep the detail card');
+  check(leafletMaps.at(-1) === existingMap, 'live mark edits retain the map');
+  eq(existingTable.currentSort, { column: S.COL_NUMBER, ascending: false },
+     'live mark edits preserve the sort order');
+  eq(fetchUrls.length, requestsBeforePatch, 'live mark patches need no follow-up GET');
   const latestTable = tableInstances.at(-1);
   const dCol = updated.columns.indexOf(S.COL_D_CM);
   eq(latestTable.data.map(row => row[dCol]), [45],
-     'mark table reflects the edited digest row after re-render');
+     'mark table reflects the edited digest row without re-rendering the detail page');
   eq(latestTreeMarkers().map(marker => marker.latlng), [[38.25, 16.35]],
-     'mark map reflects the edited coordinates after re-render');
+     'mark map reflects the edited coordinates without re-rendering the detail page');
   await finish();
 }
 
@@ -1455,6 +1494,10 @@ async function finish() {
   marks.resolve(markDigest(11));
   await flushSeveral();
 
+  const existingTable = tableInstances.at(-1);
+  const existingCard = contentEl.querySelector('.pdt-item-card');
+  existingTable.sort(S.COL_NUMBER, 'number', false);
+  const readsBeforeDelete = fetchUrls.filter(url => /\/item\/data\/|\/mark-trees\//.test(url)).length;
   const tableEl = contentEl.querySelector('.table-scroll');
   const row = el('tr', { className: 'sortable-table-row' });
   row.dataset.index = '0';
@@ -1465,6 +1508,12 @@ async function finish() {
   modalEl.querySelector('[data-action="confirm"]').click();
   await flushSeveral(6);
 
+  check(tableInstances.at(-1) === existingTable, 'single deletion keeps the table instance');
+  check(contentEl.querySelector('.pdt-item-card') === existingCard, 'single deletion keeps the detail card');
+  eq(existingTable.currentSort, { column: S.COL_NUMBER, ascending: false },
+     'single deletion preserves marking sort order');
+  eq(fetchUrls.filter(url => /\/item\/data\/|\/mark-trees\//.test(url)).length,
+     readsBeforeDelete, 'single deletion performs no follow-up item/mark GET');
   eq(tableInstances.at(-1).data, [], 'table delete refreshes the mark table to empty');
   check(!contentEl.querySelector('.tree-detail-map-host'),
         'table delete removes the mark map when no geolocated rows remain');
@@ -1517,6 +1566,113 @@ async function finish() {
   await flushAsyncWork();
   check(!activeTable.destroyed, 'stale prelievi load does not destroy active prelievi table');
   eq(tableInstances.at(-1).data.map(row => row[0]), [2201], 'stale prelievi load does not replace active prelievi table');
+  await finish();
+}
+
+// Multi-row deletion retains the active view and all table state.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  installLeafletMock();
+  const item = deferItem(11), marks = deferMarks(11);
+  const digest = markDigest(11);
+  const seed = digest.rows[0];
+  digest.rows = Array.from({ length: 32 }, (_, index) => {
+    const row = [...seed]; row[0] = 1101 + index;
+    row[digest.columns.indexOf(S.COL_NUMBER)] = index + 1;
+    return row;
+  });
+  await mountItem(11); item.resolve(itemPayload(11)); await flushAsyncWork();
+  marks.resolve(digest); await flushSeveral();
+  const card = contentEl.querySelector('.pdt-item-card');
+  const table = tableInstances.at(-1), map = leafletMaps.at(-1);
+  table.sort(S.COL_NUMBER, 'number', false);
+  const search = contentEl.querySelector('.table-search');
+  search.value = 'Abete'; search.dispatchEvent({ type: 'input' });
+  await new Promise(resolve => setTimeout(resolve, 550));
+  table.currentPage = 2;
+  const reads = fetchUrls.length;
+  const tableEl = contentEl.querySelector('.table-scroll');
+  tableEl.querySelector('.table-delete-toggle').click();
+  for (const index of [0, 27]) {
+    const row = el('tr', { className: 'sortable-table-row', dataset: { index: String(index) } });
+    tableEl.appendChild(row); row.click();
+  }
+  contentEl.querySelector('.table-delete-selected').click();
+  modalEl.querySelector('[data-action="confirm"]').click();
+  await flushSeveral(6);
+  check(contentEl.querySelector('.pdt-item-card') === card, 'multi-row deletion preserves the card');
+  check(tableInstances.at(-1) === table && !table.destroyed, 'multi-row deletion retains its table');
+  check(leafletMaps.at(-1) === map, 'multi-row deletion retains its map');
+  eq(table.data.length, 30, 'multi-row deletion removes precisely its selection');
+  eq(table.currentSort, { column: S.COL_NUMBER, ascending: false }, 'multi-row deletion preserves sorting');
+  eq(table.currentPage, 2, 'multi-row deletion retains a still-valid page');
+  eq(search.value, 'Abete', 'multi-row deletion preserves search text');
+  eq(fetchUrls.length, reads + 1, 'multi-row deletion only needs its POST');
+  const metadata = contentEl.querySelector('[data-target="metadata"]');
+  const markedIndex = metadata.children.findIndex(child => child.textContent === S.COL_VOLUME_MARKED);
+  eq(metadata.children[markedIndex + 1].textContent, '36,00 m³', 'parent marked total updates in place');
+  check(contentEl.querySelector('.subsection-totals').textContent.includes('36,00 m³'),
+    'the full marking total updates separately from filtered rows');
+  await finish(); document.body.dataset.role = previousRole;
+}
+
+// A conflict updates the table as well as the cache, without rebuilding the page.
+{
+  const previousRole = document.body.dataset.role;
+  document.body.dataset.role = 'writer';
+  const item = deferItem(11), marks = deferMarks(11);
+  await mountItem(11); item.resolve(itemPayload(11)); await flushAsyncWork();
+  marks.resolve(markDigest(11)); await flushSeveral();
+  const table = tableInstances.at(-1), card = contentEl.querySelector('.pdt-item-card');
+  const updated = markDigest(11, { [S.COL_D_CM]: 42 }); updated.rows[0][1] = 2;
+  markDeleteResponse = { status: 400, data: { status: 'conflict', message: 'Aggiornato altrove',
+    patches: [{ data_id: 'mark_trees_11', row_id: 1101, record: updated.rows[0] }] } };
+  const tableEl = contentEl.querySelector('.table-scroll');
+  tableEl.querySelector('.table-delete-toggle').click();
+  const row = el('tr', { className: 'sortable-table-row', dataset: { index: '0' } });
+  tableEl.appendChild(row); row.click();
+  contentEl.querySelector('.table-delete-selected').click();
+  modalEl.querySelector('[data-action="confirm"]').click(); await flushSeveral(6);
+  check(tableInstances.at(-1) === table && contentEl.querySelector('.pdt-item-card') === card,
+    'a version conflict retains the existing detail view');
+  eq(table.data[0][1], 2, 'the visible table receives the conflict version');
+  eq(table.data[0][updated.columns.indexOf(S.COL_D_CM)], 42, 'the visible table receives the conflict fields');
+  check(contentEl.querySelector('.table-delete-selected').disabled,
+    'the stale multi-row selection is cleared after a conflict');
+  await finish(); document.body.dataset.role = previousRole;
+}
+
+// Source membership, distinct from filtering, refreshes parcel options and empty maps.
+{
+  installLeafletMock();
+  const item = deferItem(13), marks = deferMarks(13);
+  const digest = markDigest(13);
+  const parcel = digest.columns.indexOf(S.COL_PARCEL);
+  const base = digest.rows[0];
+  digest.rows = ['10', '2', '2a'].map((name, index) => {
+    const row = [...base]; row[0] = 1301 + index; row[parcel] = name; return row;
+  });
+  await mountItem(13); item.resolve(itemPayload(13)); await flushAsyncWork();
+  marks.resolve(digest); await flushSeveral();
+  const table = tableInstances.at(-1);
+  const control = contentEl.querySelector('[data-target="dendrometry-parcels"]');
+  const select = control.querySelector('select');
+  select.value = '2'; select.dispatchEvent({ type: 'change' });
+  cache.applyResponseChanges({ deletes: [{ data_id: 'mark_trees_13', row_id: 1303 }] });
+  eq(select.value, '2', 'a source update preserves an available parcel choice');
+  eq(select.children.map(option => option.textContent), ['Tutte', '2', '10'], 'deleted parcels leave the source selector');
+  cache.applyResponseChanges({ deletes: [{ data_id: 'mark_trees_13', row_id: 1302 }] });
+  eq(select.value, '', 'a removed parcel choice resets to Tutte');
+  check(control.hidden, 'a single remaining parcel hides the selector');
+  cache.applyResponseChanges({ deletes: [{ data_id: 'mark_trees_13', row_id: 1301 }] });
+  check(!contentEl.querySelector('.tree-detail-map-host'), 'the final mark removes its empty map');
+  const added = [...base]; added[0] = 1304;
+  cache.applyResponseChanges({ patches: [{ data_id: 'mark_trees_13', row_id: 1304, record: added }] });
+  await flushSeveral();
+  check(Boolean(contentEl.querySelector('.tree-detail-map-host')), 'a first mark remounts the map');
+  check(tableInstances.at(-1) === table, 'empty-to-populated updates preserve the table');
+  eq(latestTreeMarkers().length, 1, 'the first restored mark is visible on the map');
   await finish();
 }
 

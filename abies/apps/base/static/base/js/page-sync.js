@@ -47,6 +47,16 @@ export function navigateWithParams(path, params, replace = true) {
   const qs = params.toString();
   router.navigate(path + (qs ? '?' + qs : ''), replace);
 }
+/** Bind a live digest to an existing table; the caller owns scope and disposal. */
+export function bindTableData({ dataId, table, onUpdate }) {
+  return cache.onUpdate(dataId, () => {
+    const digest = cache.get(dataId);
+    if (!digest) return; // Bulk invalidation is followed by the caller's reload.
+    table.setData(digest);
+    onUpdate?.(digest, table.getFilteredRows());
+  });
+}
+
 export function createPage({
   cssUrl = null, dataIds = [], visibleIds = dataIds, load = null,
   mount, unmount = null, onQueryChange = null, onUpdate = [],

@@ -53,7 +53,7 @@ import {
 } from '../../base/js/format.js';
 import { buildPrelieviColumnDefs } from '../../base/js/prelievi-columns.js';
 import {
-  applyTableState, createPage, navigateWithParams, readTableState, tableParamKeys,
+  applyTableState, bindTableData, createPage, navigateWithParams, readTableState, tableParamKeys,
   tableSort, writeTableState,
 } from '../../base/js/page-sync.js';
 
@@ -92,6 +92,7 @@ const MARK_DENDROMETRY_EXPORT_URL = '/api/piano-di-taglio/mark/dendrometry/expor
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
 const TERRENI_ID = 'terreni';
+const PAGE_DATA_IDS = [PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID, SPECIES_ID];
 
 const PAGE_PATH = '/piano-di-taglio';
 const DEFAULT_SECTION_SORT = { column: S.COL_YEAR_PLANNED, ascending: true };
@@ -120,8 +121,8 @@ let activeItemId = null;
 let itemRenderSeq = 0;
 let prelieviData = null;
 let itemPrelieviTable = null;
-let itemMarkTreesTable = null;
-let itemTreeDetail = null;
+let itemMarkView = null;
+let itemViewContext = null;
 let disposeEscape = null;
 let disposeItemKeyboard = null;
 let disposePageActions = null;
@@ -168,7 +169,7 @@ const page = createPage({
   mount: mountPage,
   unmount: destroyPage,
   onQueryChange: applyParams,
-  visibleIds: [PLANS_ID, ITEMS_ID, HYPSO_PARAMS_ID, SPECIES_ID],
+  visibleIds: PAGE_DATA_IDS,
   onUpdate: [[PLANS_ID, onPlansUpdate], [ITEMS_ID, onItemsUpdate]],
 });
 
@@ -223,6 +224,10 @@ function onItemsUpdate() {
   for (const k of SECTION_KEYS) {
     if (sections[k].table) sections[k].table.setData(itemsData);
     updateEmptyState(sections[k]);
+  }
+  if (itemViewContext) {
+    const row = itemsData?.rows.find(record => record[0] === activeItemId);
+    if (row) renderItemMetadata(row);
   }
 }
 
@@ -1077,6 +1082,7 @@ function closeItemView(push = false) {
   destroyItemTables();
   itemRenderSeq += 1;
   activeItemId = null;
+  cache.setVisible(PAGE_DATA_IDS);
   if (push) syncURL(true);
   const el = document.getElementById('content');
   if (el) {
@@ -1092,24 +1098,18 @@ function destroyItemPrelieviTable() {
   }
 }
 
-function destroyItemMarkTreesTable() {
-  if (itemMarkTreesTable) {
-    itemMarkTreesTable.destroy();
-    itemMarkTreesTable = null;
-  }
-}
-
-function destroyItemTreeDetail() {
-  if (itemTreeDetail) {
-    itemTreeDetail.destroy();
-    itemTreeDetail = null;
-  }
+function destroyItemMarkView() {
+  const view = itemMarkView;
+  itemMarkView = null;
+  view?.dispose?.();
+  view?.table?.destroy();
+  view?.detail?.destroy();
 }
 
 function destroyItemTables() {
   destroyItemPrelieviTable();
-  destroyItemMarkTreesTable();
-  destroyItemTreeDetail();
+  destroyItemMarkView();
+  itemViewContext = null;
 }
 
 async function ensureParcelsGeo() {
@@ -1242,8 +1242,36 @@ async function renderItemView(itemId) {
     'close-item': () => closeItemView(true),
   });
 
-  // Metadata pane.
-  const meta = frag.querySelector('[data-target="metadata"]');
+  itemViewContext = { itemId, card, transitions };
+  renderItemMetadata(record);
+  const state = record[c.indexOf(S.COL_STATE)];
+  const isCoppice = recordIsCoppice(record, c);
+
+  // Append the card to the DOM first so subsection appends land in the doc.
+  el.appendChild(frag);
+  const subsections = el.querySelector('[data-target="subsections"]');
+
+  // Martellata sub-section (fustaia items only — coppice skips marking).
+  if (!isCoppice) {
+    appendItemMarkTreesSection(subsections, itemId, state);
+  }
+
+  // Prelievi sub-section (visible once cantiere is open or later).
+  const stateIdx = [S.STATE_OPEN, S.STATE_HARVESTING, S.STATE_CLOSED];
+  if (stateIdx.includes(state)) {
+    appendItemPrelieviSection(subsections, itemId);
+  }
+}
+
+/** Refresh only the metadata pane; tables and maps keep their identity/state. */
+function renderItemMetadata(record) {
+  const context = itemViewContext;
+  if (!context || !itemViewIsActive(context.itemId)) return;
+  const { itemId, card, transitions } = context;
+  const c = itemsData?.columns;
+  if (!c) return;
+  const meta = card.querySelector('[data-target="metadata"]');
+  meta.replaceChildren();
   const planName = lookupPlanName(record[c.indexOf(S.COL_HARVEST_PLAN)]);
   const regionName = record[c.indexOf(S.COL_REGION)];
   const parcel = record[c.indexOf(S.COL_PARCEL)];
@@ -1285,8 +1313,9 @@ async function renderItemView(itemId) {
   }
 
   // Normal transitions are available to writers; only admins can reopen.
-  const btnRow = frag.querySelector('[data-target="transitions"]');
+  const btnRow = card.querySelector('[data-target="transitions"]');
   if (btnRow) {
+    btnRow.replaceChildren();
     let hasTransition = false;
     if (state === S.STATE_PLANNED || state === S.STATE_MARKED) {
       const btn = document.createElement('button');
@@ -1318,20 +1347,6 @@ async function renderItemView(itemId) {
     btnRow.hidden = !hasTransition;
   }
 
-  // Append the card to the DOM first so subsection appends land in the doc.
-  el.appendChild(frag);
-  const subsections = el.querySelector('[data-target="subsections"]');
-
-  // Martellata sub-section (fustaia items only — coppice skips marking).
-  if (!isCoppice) {
-    appendItemMarkTreesSection(subsections, itemId, state);
-  }
-
-  // Prelievi sub-section (visible once cantiere is open or later).
-  const stateIdx = [S.STATE_OPEN, S.STATE_HARVESTING, S.STATE_CLOSED];
-  if (stateIdx.includes(state)) {
-    appendItemPrelieviSection(subsections, itemId);
-  }
 }
 
 function addMetaRow(dl, label, value) {
@@ -1442,147 +1457,117 @@ function markTreesDataId(itemId) {
   return `mark_trees_${itemId}`;
 }
 
+function markViewIsCurrent(view) {
+  return itemMarkView === view && itemViewIsActive(view.itemId)
+    && document.getElementById('content')?.contains?.(view.body) !== false;
+}
+
 async function appendItemMarkTreesSection(card, itemId, state) {
   const body = appendSubsection(card, S.SECTION_MARK);
-
   const isClosed = state === S.STATE_CLOSED;
-
-  // Closed-cantiere banner.
   if (isClosed) {
     const banner = document.createElement('div');
     banner.className = 'subsection-banner';
     banner.textContent = S.MARK_CLOSED_BANNER;
     body.appendChild(banner);
   }
-
-  const showMarkActions = canModify() && !isClosed;
-
-  // Lazy-fetch per-item mark trees.
+  destroyItemMarkView();
+  const view = { itemId, body, digest: null, table: null, detail: null, dispose: null,
+    loadingGeometry: null };
+  itemMarkView = view;
   const dataId = markTreesDataId(itemId);
   cache.register(dataId, `${MARK_TREES_URL}${itemId}/`);
-
+  cache.setVisible([...PAGE_DATA_IDS, dataId]);
   let data;
   try { data = await cache.load(dataId); }
   catch {
-    if (itemViewIsActive(itemId)) {
-      const err = document.createElement('div');
-      err.className = 'subsection-error';
-      err.textContent = S.ERROR_NETWORK;
-      body.appendChild(err);
+    if (markViewIsCurrent(view)) {
+      const error = document.createElement('div');
+      error.className = 'subsection-error';
+      error.textContent = S.ERROR_NETWORK;
+      body.appendChild(error);
     }
     return;
   }
-  if (!itemViewIsActive(itemId) || !data?.rows) return;
-
-  // Volume + mass totals.
-  const c = data.columns;
-  const showParcel = itemIsRegionWide(itemId);
-  const volCol = c.indexOf(S.COL_V_M3);
-  const massCol = c.indexOf(S.COL_MASS_Q);
-  const volTotal = data.rows.reduce((s, r) => s + (typeof r[volCol] === 'number' ? r[volCol] : 0), 0);
-  const massTotal = data.rows.reduce((s, r) => s + (typeof r[massCol] === 'number' ? r[massCol] : 0), 0);
-  const hasNullVolume = data.rows.some(r => r[volCol] == null);
-  const totals = document.createElement('div');
-  totals.className = 'subsection-totals';
-  totals.textContent =
-    `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(volTotal)}  ·  ${S.LABEL_MASS_TOTAL}: ${fmtMass(massTotal)}`;
-  body.appendChild(totals);
-  if (hasNullVolume) {
-    const note = document.createElement('div');
-    note.className = 'subsection-note';
-    note.textContent = S.MARK_NULL_VOLUME_NOTE;
-    body.appendChild(note);
-  }
-
-  if (!data.rows.length && !showMarkActions) return;
-
+  if (!markViewIsCurrent(view) || !data?.rows) return;
+  view.digest = data;
+  view.totals = document.createElement('div');
+  view.totals.className = 'subsection-totals';
+  body.appendChild(view.totals);
+  view.note = document.createElement('div');
+  view.note.className = 'subsection-note';
+  body.appendChild(view.note);
   const host = document.createElement('div');
   host.className = 'subsection-host';
   body.appendChild(host);
-
-  destroyItemMarkTreesTable();
   const showActions = canModify() && !isClosed;
-  itemMarkTreesTable = new TableWrapper({
-    container: host,
-    digest: data,
-    columnDefs: buildMarkTreeColumnDefs(c, showParcel),
+  const showParcel = itemIsRegionWide(itemId);
+  view.table = new TableWrapper({
+    container: host, digest: data,
+    columnDefs: buildMarkTreeColumnDefs(data.columns, showParcel),
     canModify: showActions,
     actions: showActions ? {
-      onEdit: (rowId, row) =>
-        showEditMarkForm(itemId, markTreeRowId(row, c) ?? rowId),
-      onDelete: (rowId, row) =>
-        deleteMarkRow(itemId, markTreeRowId(row, c) ?? rowId),
+      onEdit: rowId => showEditMarkForm(itemId, rowId),
+      onDelete: rowId => deleteMarkRow(itemId, rowId),
       onDeleteSelected: rows => confirmDeleteSelection({
-        dataId, rows, columns: c, url: MARK_DELETE_URL,
+        dataId, rows, columns: view.digest.columns, url: MARK_DELETE_URL,
         body: { [FIELD_HARVEST_PLAN_ITEM_ID]: itemId },
         descriptionColumns: [S.COL_NUMBER, S.COL_TREE_NUM, S.COL_SPECIES, S.COL_PARCEL, S.COL_DATE],
-        onSuccess: () => {
-          if (itemViewIsActive(itemId)) renderItemView(itemId);
-        },
       }),
     } : {},
-    toolbar: {
-      search: data.rows.length > 0,
-      export: null,
-      actions: showMarkActions ? [
-        {
-          label: S.NEW_MARK_LABEL,
-          className: 'btn btn-create',
-          onClick: () => showNewMarkForm(itemId),
-        },
-        {
-          label: S.IMPORT_MARKS_LABEL,
-          className: 'btn btn-import',
-          onClick: () => showImportMarksForm(itemId),
-        },
-      ] : [],
-    },
+    toolbar: { export: null, actions: showActions ? [
+      { label: S.NEW_MARK_LABEL, className: 'btn btn-create', onClick: () => showNewMarkForm(itemId) },
+      { label: S.IMPORT_MARKS_LABEL, className: 'btn btn-import', onClick: () => showImportMarksForm(itemId) },
+    ] : [] },
     sort: { column: S.COL_DATE, ascending: false },
     csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
-    labels: S.TABLE_LABELS,
-    csvFormat: S.TABLE_CSV_FORMAT,
+    labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
     onSearch: () => updateItemMarkTreeDependents(itemId),
   });
-  await appendItemTreeDetail(body, itemId, data, showActions, showParcel);
-  if (!itemViewIsActive(itemId) ||
-      document.getElementById('content')?.contains?.(body) === false) return;
-  updateItemMarkTreeDependents(itemId);
+  view.detail = new TreeDetail({
+    container: body, digest: data, speciesNames, parcelSummary: true,
+    onTreeClick: tree => {
+      if (markViewIsCurrent(view)) {
+        showMarkTreePopover(itemId, tree.row, view.digest.columns, showActions, showParcel);
+      }
+    },
+    onExport: rows => downloadMarkDendrometry(itemId, view.digest, rows),
+  });
+  view.dispose = bindTableData({ dataId, table: view.table,
+    onUpdate: (source, rows) => refreshItemMarks(view, source, rows) });
+  refreshItemMarks(view, data, view.table.getFilteredRows());
 }
 
-async function appendItemTreeDetail(
-  body, itemId, data, showActions, showParcel,
-) {
-  destroyItemTreeDetail();
-  let geojson = null;
-  if (data?.rows?.length && typeof L !== 'undefined') {
-    try { geojson = await ensureParcelsGeo(); }
-    catch { /* The charts remain useful if the map cannot load. */ }
+function refreshItemMarks(view, data, rows) {
+  if (!markViewIsCurrent(view)) return;
+  view.digest = data;
+  const volCol = data.columns.indexOf(S.COL_V_M3);
+  const massCol = data.columns.indexOf(S.COL_MASS_Q);
+  const total = col => data.rows.reduce((sum, row) =>
+    sum + (typeof row[col] === 'number' ? row[col] : 0), 0);
+  view.totals.textContent = `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(total(volCol))}`
+    + `  ·  ${S.LABEL_MASS_TOTAL}: ${fmtMass(total(massCol))}`;
+  const hasNullVolume = data.rows.some(row => row[volCol] == null);
+  view.note.textContent = hasNullVolume ? S.MARK_NULL_VOLUME_NOTE : '';
+  view.note.hidden = !hasNullVolume;
+  view.detail.setData(data, { rows });
+  if (data.rows.length && !view.detail.geojson && !view.loadingGeometry && typeof L !== 'undefined') {
+    view.loadingGeometry = ensureParcelsGeo().then(geojson => {
+      if (markViewIsCurrent(view)) {
+        view.detail.setData(view.digest, { rows: view.table.getFilteredRows(), geojson });
+      }
+    }).catch(() => { /* Charts remain usable when geometry is unavailable. */ })
+      .finally(() => { view.loadingGeometry = null; });
   }
-  if (!itemViewIsActive(itemId) ||
-      document.getElementById('content')?.contains?.(body) === false) return;
-
-  itemTreeDetail = new TreeDetail({
-    container: body,
-    digest: data,
-    geojson,
-    speciesNames,
-    parcelSummary: true,
-    onTreeClick: (tree) => {
-      showMarkTreePopover(
-        itemId, tree.row, data.columns, showActions, showParcel,
-      );
-    },
-    onExport: rows => downloadMarkDendrometry(itemId, data, rows),
-  });
 }
 
 function markTreeSearchTerms() {
-  return searchTerms(itemMarkTreesTable?.getSearchText() || '');
+  return searchTerms(itemMarkView?.table?.getSearchText() || '');
 }
 
 function updateItemMarkTreeDependents(itemId) {
   if (!itemViewIsActive(itemId)) return;
-  itemTreeDetail?.setRows(itemMarkTreesTable?.getFilteredRows() || []);
+  itemMarkView?.detail?.setRows(itemMarkView.table?.getFilteredRows() || []);
 }
 
 async function downloadMarkDendrometry(itemId, data, rows) {
@@ -1758,8 +1743,6 @@ async function wireMarkForm(form, itemId) {
       dismissModal();
       if (isSaveAndAdd) {
         showNewMarkForm(itemId);
-      } else {
-        renderItemView(itemId);
       }
     },
     async onConflict(data) {
@@ -1829,7 +1812,11 @@ async function showImportMarksForm(itemId) {
           : { error: data?.[MESSAGE] };
       },
     });
-    if (result?.ok) renderItemView(itemId);
+    if (result?.ok && itemViewIsActive(itemId)) {
+      try {
+        await Promise.all([cache.load(markTreesDataId(itemId)), cache.load(ITEMS_ID)]);
+      } catch { if (itemViewIsActive(itemId)) showError(S.ERROR_NETWORK); }
+    }
   });
 
   showModal(frag);
@@ -1840,10 +1827,6 @@ function deleteMarkRow(itemId, rowId) {
     markTreesDataId(itemId), rowId, MARK_DELETE_URL,
     {
       confirmMessage: null,
-      onSuccess: (data) => {
-        applyWriteResponse(data);
-        renderItemView(itemId);
-      },
     },
   ));
 }

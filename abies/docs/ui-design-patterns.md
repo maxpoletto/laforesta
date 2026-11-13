@@ -80,6 +80,20 @@ modification:
 - Tables that allow row editing have a "pencil" icon on the right of each row.
 - Tables that allow row deletion also have a "garbage can" icon on the right.
 
+### Updating displayed tables
+
+Keep a table instance mounted while its data context remains the same. Use
+`TableWrapper.setData()` to refresh rows while retaining sort, search and a
+still-valid pagination page. Recreate the view when navigating to another
+context or changing its structure, rather than after ordinary row edits.
+
+`page-sync.js` provides `bindTableData({dataId, table, onUpdate})` for dynamic
+contexts such as a marking or survey. It updates the existing table from cache
+notifications, then passes the full digest and filtered rows to dependent-view
+updates. Its returned disposer belongs to the table/page lifecycle. A digest
+invalidation waits for the controller's reload; it is not displayed as an empty
+table. Successful writes, conflicts and background reads use this same path.
+
 ### Multi-row deletion
 
 Harvest records, harvest-plan interventions, marked trees and sampled trees
