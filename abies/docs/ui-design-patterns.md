@@ -145,6 +145,42 @@ It returns a promise resolving to true only after successful deletion.
 versioned-delete request handling in `forms.js`. Plan/survey deletion retains
 its separate export safeguards.
 
+### Browser layout verification
+
+The self-checking fixture in [`test/js/table-layout.html`](../test/js/table-layout.html)
+loads the real SortableTable library, Roboto fonts, common styles and the chosen
+page's stylesheet. It builds representative marking, harvest-plan, sampled-tree
+and harvest table contexts from local example data. It makes no API calls or
+application writes and requires no database or production dependencies.
+
+Serve the Abies directory with a plain local HTTP server:
+
+```sh
+python3 -m http.server 8765 --bind 127.0.0.1
+```
+
+Open `http://127.0.0.1:8765/test/js/table-layout.html`. The links choose the page
+context (`view=marks`, `plan`, `samples` or `harvests`). Add `role=reader` for a
+read-only table or `empty=1` for an empty writer table. Run each context at a
+1600 CSS-pixel desktop width and a 390 CSS-pixel phone width, using the browser's
+responsive viewport controls when needed.
+
+After fonts load and the browser paints, the fixture toggles selection and
+checks action-column alignment, equal trash/cancel dimensions, stable header
+and data-row heights, accumulated row positions and table width. At wide
+widths (1400 CSS pixels or more), it also checks the table's top position,
+action-button alignment, nonoverlapping controls and centered Prelievi
+pagination. Phone layouts may wrap toolbar controls; their row-height checks
+compare positions within the table so legitimate toolbar wrapping is separate
+from unintended data-row growth. Cancel must restore the original position.
+
+The page reports PASS or the measured failures, with a tolerance of 0.25 CSS
+pixels. `window.layoutFixtureResult` exposes the same structured result for
+browser automation without prescribing a browser driver. `check=geometry`
+limits the fixture to action/header/row geometry while investigating toolbar
+layout separately. Node tests cover state and update behavior; their DOM mocks
+do not calculate these CSS measurements.
+
 ## Graphs and charts
 
 All graphs and charts are implemented in Chart.js.

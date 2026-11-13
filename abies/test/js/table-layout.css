@@ -1,0 +1,8 @@
+body.table-layout-fixture { padding: 20px; }
+.table-layout-fixture h1 { margin-bottom: 8px; }
+.table-layout-fixture nav { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.table-layout-fixture #fixture { min-width: 0; }
+.table-layout-fixture #results { white-space: pre-wrap; margin-top: 12px; }
+.table-layout-fixture .pass { color: #006400; }
+.table-layout-fixture .fail { color: #c00; }
+.table-layout-fixture .fixture-filter { margin-bottom: 8px; }

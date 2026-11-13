@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Table controls layout checks</title>
+  <link rel="stylesheet" href="../../apps/base/static/vendor/fonts/roboto/roboto.css">
+  <link rel="stylesheet" href="../../apps/base/static/vendor/sortable-table/sortable-table.css">
+  <link rel="stylesheet" href="../../apps/base/static/base/css/common.css">
+  <link rel="stylesheet" href="table-layout.css">
+</head>
+<body class="table-layout-fixture">
+  <h1>Table controls layout checks</h1>
+  <p>Uses the real table library, fonts and page CSS. No application requests or writes.</p>
+  <nav>
+    <a href="?view=marks">Martellate</a>
+    <a href="?view=plan">Piano di taglio</a>
+    <a href="?view=samples">Alberi campionati</a>
+    <a href="?view=harvests">Prelievi</a>
+  </nav>
+  <main id="fixture"></main>
+  <pre id="results" role="status">Running…</pre>
+  <script src="../../apps/base/static/vendor/sortable-table/sortable-table.js"></script>
+  <script type="module" src="table-layout.mjs"></script>
+</body>
+</html>

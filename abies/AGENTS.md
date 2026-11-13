@@ -317,7 +317,11 @@ to at most 80 characters. Put issue or review references after the description.
 
 Python: `make test` runs pytest-django with coverage (`--cov-report=term-missing`).
 JS: `node tests.js` in individual app directories.
-No browser-based E2E; UI verified by manual smoke testing.
+No browser-based E2E; UI verified by manual smoke testing. The self-checking
+`test/js/table-layout.html` fixture verifies table geometry in a real browser
+with actual page CSS and fonts. Serve the Abies directory using Python's HTTP
+server; see `docs/ui-design-patterns.md` > Browser layout verification for the
+viewport/context matrix and automation result contract.
 
 # Development environment
 
