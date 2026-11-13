@@ -568,13 +568,17 @@ export class TableWrapper {
     for (const child of [count, button, notice]) bar.appendChild(child);
     this._deleteBar = bar;
     this._deleteNotice = notice;
-    if (this.inlineToolbar) {
-      if (!this._toolbarEndEl) {
-        this._toolbarEndEl = document.createElement('div');
-        this._toolbarEndEl.className = 'table-toolbar-actions';
-      }
-      this._toolbarEndEl.appendChild(bar);
-    } else this._el.appendChild(bar);
+    if (!this._toolbarStartEl) {
+      this._toolbarStartEl = document.createElement('div');
+      this._toolbarStartEl.className = 'table-toolbar-spacer';
+      this._toolbarStartEl.setAttribute('aria-hidden', 'true');
+    }
+    if (!this._toolbarEndEl) {
+      this._toolbarEndEl = document.createElement('div');
+      this._toolbarEndEl.className = 'table-toolbar-actions';
+    }
+    this._toolbarEndEl.classList.add('table-toolbar-selection-actions');
+    this._toolbarEndEl.appendChild(bar);
   }
 
   _buildDeleteHeader() {

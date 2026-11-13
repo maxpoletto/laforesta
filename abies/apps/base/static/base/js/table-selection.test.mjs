@@ -144,4 +144,20 @@ await protectedHost.querySelectorAll('.sortable-table-row')[1].dispatch();
 assert.equal(protectedHost.querySelector('.table-delete-selected').disabled, true,
   'Rows excluded from deletion cannot be selected through row clicks');
 protectedTable.destroy();
+// External search/export controls still use the table's existing action row.
+const externalHost = new Element();
+const externalTable = new TableWrapper({
+  container: externalHost, digest, inlineToolbar: false, canModify: true,
+  actions: { onDelete() {}, onAdd() {}, onDeleteSelected: async () => false },
+});
+const selectionControls = externalHost.querySelector('.table-delete-bar');
+assert.ok(selectionControls.closest('.sortable-table-controls'),
+  'External filters do not create a separate selection row above the table');
+assert.ok(externalHost.querySelector('.sortable-table-controls-start'),
+  'A balanced empty start slot keeps pagination centered');
+assert.equal(externalHost.querySelector('.table-search'), null,
+  'External search is not duplicated inside the table');
+assert.equal(externalHost.querySelector('.btn-export'), null,
+  'External export is not duplicated inside the table');
+externalTable.destroy();
 console.log('Table selection integration tests passed');

@@ -85,7 +85,10 @@ The trash can in the action-column header enters selection mode. Check rows
 individually across pages, then use `Elimina selezionati (N)` to review and
 confirm the deletion. The header cancel icon exits selection mode. Search and
 year/parcel filter changes clear selection; sorting and pagination preserve it.
-Row editing and parcel navigation are suspended while selecting.
+Row editing and parcel navigation are suspended while selecting. Selection
+controls occupy the existing table pagination/action row; they do not insert a
+new block above the table. The page-wide search, year slider and export/import
+controls remain in their filter bar.
 
 The server checks every selected harvest's version, deletes the entire batch
 atomically and returns updated intervention totals. The table totals and any

@@ -744,6 +744,8 @@ input:focus, select:focus, textarea:focus {
 /* ========================================================================== */
 
 .table-page {
+  --table-toolbar-button-line-height: 1.4;
+  --table-toolbar-button-height: calc(0.9rem * var(--table-toolbar-button-line-height) + 1rem);
   display: flex;
   flex-direction: column;
 }
@@ -769,6 +771,27 @@ input:focus, select:focus, textarea:focus {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* Selection uses the same control row even when search/export are external. */
+.table-page .sortable-table-controls-combined { flex-wrap: wrap; }
+.table-page .sortable-table-controls .btn {
+  line-height: var(--table-toolbar-button-line-height);
+}
+.table-toolbar-selection-actions {
+  min-height: var(--table-toolbar-button-height);
+  min-width: max-content;
+  flex-wrap: nowrap;
+}
+.table-delete-count { white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .table-toolbar-selection-actions {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .table-toolbar-search .table-search { min-width: 0; flex: 1; }
 }
 
 .table-search-label {

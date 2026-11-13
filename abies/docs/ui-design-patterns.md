@@ -100,8 +100,11 @@ following a parcel link. The header button becomes a cancel icon named
 command. The table controls show `N selezionati` and a red
 `Elimina selezionati (N)` button, disabled until at least one row is selected.
 When there is room on one line, these controls align with Esporta/Aggiungi
-without changing the toolbar height. Tables with an external filter bar show
-these controls just above the table.
+without changing the toolbar height. The wrapper always places them in its
+existing pagination/action row, including when search/export live in an
+external page filter bar. Balanced start/end slots keep pagination centered
+when space permits; the action slot reserves a normal button's height even
+before selection mode starts. At narrow widths the shared row can wrap.
 
 Selection follows record IDs through sorting and pagination, and can span
 pages. Typing into search, changing an external filter, or refreshing a selected
