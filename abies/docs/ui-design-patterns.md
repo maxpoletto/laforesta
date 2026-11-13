@@ -89,8 +89,11 @@ and accessible name are `Seleziona elementi da eliminare`; entering this mode
 does not delete anything.
 
 In selection mode the row action icons are replaced by individual checkboxes.
-Checkboxes and row action icons occupy equally sized, vertically aligned slots,
-so toggling selection mode preserves row heights.
+Header buttons, row action icons and checkboxes share fixed control geometry
+and equal action-cell horizontal padding at desktop and mobile widths.
+Switching between trash, cancel and checkbox controls preserves header and row
+heights. Page-specific header wrapping/centering applies only to data columns;
+the shared table styles own action-column alignment.
 Clicking a row toggles its checkbox rather than opening its edit/detail view or
 following a parcel link. The header button becomes a cancel icon named
 `Annulla selezione`. There is no select-all checkbox or current-page selection

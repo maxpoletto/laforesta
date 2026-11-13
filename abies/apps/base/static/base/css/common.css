@@ -854,7 +854,12 @@ input:focus, select:focus, textarea:focus {
 
 /* Keep the header control, row trash icons and checkboxes in the last slot. */
 .sortable-table .sortable-table-header.col-actions,
-.sortable-table .col-actions { text-align: right; white-space: nowrap; }
+.sortable-table .col-actions {
+  text-align: right;
+  white-space: nowrap;
+  padding-inline: 8px;
+}
+/* Header buttons and row controls share geometry, including on mobile. */
 .col-actions .action-icon,
 .table-delete-choice {
   display: inline-flex;
@@ -862,13 +867,9 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   box-sizing: border-box;
   width: 28px;
-}
-/* Match the icons' line box plus their 2px top/bottom padding. */
-.sortable-table-cell.col-actions .action-icon,
-.table-delete-choice {
+  height: calc(1.4rem + 4px);
   font-size: 1rem;
   line-height: 1.4;
-  height: calc(1.4em + 4px);
   vertical-align: middle;
 }
 .table-delete-checkbox { width: 18px; height: 18px; margin: 0; cursor: pointer; }
