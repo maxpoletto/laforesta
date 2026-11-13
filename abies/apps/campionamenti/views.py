@@ -22,6 +22,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.deletion import parse_delete_rows, lock_delete_rows
 from apps.base.validation import json_fields_valid, json_object_list
 from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
@@ -71,8 +72,8 @@ from config.constants import (
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SHOOT, FIELD_SHOOTS,
     FIELD_SORT_ORDER, FIELD_SPECIES, FIELD_SPECIES_ID, FIELD_STANDARD,
     FIELD_SURVEY_ID, FIELD_TREE_PICK, FIELD_TREE_PICK_EXISTING_ID,
-    FIELD_VOLUME_M3, FIELD_WARNINGS_CONFIRMED, HTML, ROW_ID,
-    SAMPLE_GRID_UNSTRUCTURED, STATUS, STATUS_NOT_FOUND, VERSION, is_truthy,
+    FIELD_VOLUME_M3, FIELD_WARNINGS_CONFIRMED, DATA_ID, HTML, ROW_ID,
+    ROWS, SAMPLE_GRID_UNSTRUCTURED, STATUS, STATUS_NOT_FOUND, VERSION, is_truthy,
 )
 
 
@@ -484,70 +485,57 @@ def tree_save_view(request):
 @login_required
 @require_writer
 @require_POST
-def tree_delete_view(request, ts_id: int):
-    """Delete a single TreeSample row.  The underlying Tree row is
-    *not* deleted — only the measurement, per spec §"Editing /
-    deletion" ("Deleting a single tree_sample row leaves both the
-    sample and the underlying tree row intact").
-    """
+def tree_delete_view(request, ts_id: int | None = None):
+    """Delete explicit measurements, preserving physical trees and samples."""
     body, error = parse_json_body(request)
     if error:
         return error
-    ts = TreeSample.objects.select_related(
-        'sample__survey',
-    ).filter(id=ts_id).first()
-    if ts is None:
-        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if ts.version != submitted_version(body):
-        return conflict_response(
-            data_id=f'sampled_trees_{ts.sample.survey_id}',
-            row_id=ts.id,
-            record=build_tree_sample_record(ts),
-        )
-    sample = ts.sample
-    survey = sample.survey
-    survey_id = survey.id
-    preserved_keys = (
-        {(ts.parcel_id, ts.preserved_number)}
-        if ts.preserved_number is not None else set()
-    )
-    preserved_before = _preserved_cache_state(preserved_keys, set())
+    rows, error = parse_delete_rows(body, row_id=ts_id)
+    if error:
+        return error
+    queryset = TreeSample.objects.select_related('sample__survey')
+    if ROWS in body:
+        scope = int_or_none(body.get(FIELD_SURVEY_ID))
+        if not scope:
+            return validation_error([S.ERR_DELETE_SCOPE_INVALID])
+        queryset = queryset.filter(sample__survey_id=scope)
     begin_nonce_write(request)
     with transaction.atomic():
-        error = check_delete_version(
-            ts, body, data_id=f'sampled_trees_{survey_id}',
+        objects, error = lock_delete_rows(
+            queryset, rows, data_id=lambda ts: f'sampled_trees_{ts.sample.survey_id}',
             record_fn=build_tree_sample_record,
         )
         if error:
             return error
-        ts.delete()
-        # Counts and preserved-tree summaries change with the measurement.
+        samples = {ts.sample_id: ts.sample for ts in objects}
+        surveys = {sample.survey_id: sample.survey for sample in samples.values()}
+        preserved_keys = {(ts.parcel_id, ts.preserved_number) for ts in objects
+                          if ts.preserved_number is not None}
+        preserved_before = _preserved_cache_state(preserved_keys, set())
+        deletes = [row_delete(f'sampled_trees_{ts.sample.survey_id}', ts.pk) for ts in objects]
+        for ts in objects:
+            ts.delete()
         mark_stale(
-            f'sampled_trees_{survey_id}', 'samples', 'surveys',
+            *[f'sampled_trees_{pk}' for pk in surveys], 'samples', 'surveys',
             DIGEST_PARCELS, *BOSCO_TREE_DIGESTS, 'audit',
         )
-    sample.refresh_from_db()
-    sample_record = build_sample_record(sample)
-    survey_record = build_survey_record(survey)
-    preserved_after = _preserved_cache_state(preserved_keys, set())
-    preserved_patches, preserved_deletes = _preserved_cache_changes(
-        preserved_before, preserved_after,
-    )
-    return success_response(
-        request, body,
-        data_id=f'sampled_trees_{survey_id}',
-        row_id=ts_id,
-        patches=[
-            row_patch('samples', sample_record[0], sample_record),
-            row_patch('surveys', survey_record[0], survey_record),
-            *preserved_patches,
-        ],
-        deletes=[
-            row_delete(f'sampled_trees_{survey_id}', ts_id),
-            *preserved_deletes,
-        ],
-        invalidates={FIELD_DATA_IDS: [DIGEST_PARCELS]},
-    )
+        patches = []
+        for sample in samples.values():
+            sample.refresh_from_db()
+            patches.append(row_patch('samples', sample.pk, build_sample_record(sample)))
+        patches.extend(row_patch('surveys', survey.pk, build_survey_record(survey))
+                       for survey in surveys.values())
+        preserved_after = _preserved_cache_state(preserved_keys, set())
+        preserved_patches, preserved_deletes = _preserved_cache_changes(
+            preserved_before, preserved_after,
+        )
+        return success_response(
+            request, body, data_id=deletes[0][DATA_ID],
+            row_id=ts_id if ROWS not in body else None,
+            patches=[*patches, *preserved_patches],
+            deletes=[*deletes, *preserved_deletes],
+            invalidates={FIELD_DATA_IDS: [DIGEST_PARCELS]},
+        )
 
 
 def _next_area_numbers(grid) -> dict[int, int]:

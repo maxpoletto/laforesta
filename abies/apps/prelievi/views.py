@@ -21,6 +21,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base import csv_io
 from apps.base.auth import require_writer
+from apps.base.deletion import parse_delete_rows, lock_delete_rows
 from apps.base.idempotency import begin_nonce_write
 from apps.base.digests import (
     aggregate_sp_pcts,
@@ -57,7 +58,7 @@ from config.constants import (
     FIELD_PRODUCT_ID, FIELD_RECORD1, FIELD_RECORD2, FIELD_REGION_ID,
     FIELD_SORT_ORDER, FIELD_SPECIES_ID, FIELD_SPECIES_PCT_PREFIX,
     FIELD_TRACTOR_PCT_PREFIX, FIELD_VOLUME_M3, FIELD_ROW_IDS, HTML, MESSAGE,
-    RECORD, ROW_ID, STATUS,
+    RECORD, ROW_ID, ROWS, STATUS,
     VERSION,
 )
 
@@ -211,57 +212,41 @@ def save_view(request):
 @require_writer
 @require_POST
 def delete_view(request):
-    """Delete a harvest (with version check)."""
+    """Delete explicit, versioned harvest rows in one transaction."""
     body, error = parse_json_body(request)
     if error:
         return error
-    row_id = int_or_none(body.get(ROW_ID))
-    if row_id is None:
-        return validation_error([S.ERR_ROW_ID_INVALID])
-    version = submitted_version(body)
-
-    try:
-        op = Harvest.objects.select_related(
-            'parcel__region', 'crew', 'product', 'harvest_plan_item',
-        ).get(id=row_id)
-    except Harvest.DoesNotExist:
-        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
-
-    if op.version != version:
-        return conflict_response(
-            data_id='prelievi', row_id=row_id, record=build_harvest_record(op),
-        )
-
-    had_item_id = op.harvest_plan_item_id
+    rows, error = parse_delete_rows(body)
+    if error:
+        return error
     begin_nonce_write(request)
     with transaction.atomic():
-        lock_plan_items([had_item_id])
-        error = check_delete_version(
-            op, body, data_id='prelievi', record_fn=build_harvest_record,
+        queryset = Harvest.objects.select_related(
+            'parcel__region', 'crew', 'product', 'harvest_plan_item',
+        )
+        item_ids = set(queryset.filter(pk__in=rows).values_list('harvest_plan_item_id', flat=True))
+        lock_plan_items(item_ids)
+        objects, error = lock_delete_rows(
+            queryset, rows, data_id='prelievi', record_fn=build_harvest_record,
         )
         if error:
             return error
-        op.delete()
-        if had_item_id is not None:
-            _rematerialize_volume_actual(had_item_id)
-        dependencies = harvest_dependencies([had_item_id])
+        for op in objects:
+            op.delete()
+        for item_id in sorted(pk for pk in item_ids if pk is not None):
+            _rematerialize_volume_actual(item_id)
+        dependencies = harvest_dependencies(item_ids)
         mark_stale(*dependencies.data_ids)
-
-    patches = []
-    if had_item_id is not None:
-        item_fresh = (HarvestPlanItem.objects
-                      .select_related('parcel__region', 'parcel__eclass',
-                                      'region', 'harvest_plan')
-                      .get(id=had_item_id))
-        item_record = build_harvest_plan_item_record(item_fresh)
-        patches.append(row_patch(
-            'harvest_plan_items', item_fresh.id, item_record,
-        ))
-    return success_response(
-        request, body, data_id='prelievi', row_id=row_id,
-        patches=patches, deletes=[row_delete('prelievi', row_id)],
-        invalidates=dependencies.invalidates('prelievi', 'harvest_plan_items'),
-    )
+        patches = [row_patch('harvest_plan_items', item.pk, build_harvest_plan_item_record(item))
+                   for item in HarvestPlanItem.objects.select_related(
+                       'parcel__region', 'parcel__eclass', 'region', 'harvest_plan',
+                   ).filter(pk__in=[pk for pk in item_ids if pk is not None]).order_by('pk')]
+        return success_response(
+            request, body, data_id='prelievi',
+            row_id=next(iter(rows)) if ROWS not in body else None,
+            patches=patches, deletes=[row_delete('prelievi', pk) for pk in rows],
+            invalidates=dependencies.invalidates('prelievi', 'harvest_plan_items'),
+        )
 
 
 # ---------------------------------------------------------------------------

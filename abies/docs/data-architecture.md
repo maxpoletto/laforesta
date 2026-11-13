@@ -427,6 +427,158 @@ invalidation list; other dependents, including future production and audit,
 are evicted. CSV and staged-upload controllers apply the response envelope
 before reloading their own data, so a loaded SPA and a cold reader converge.
 
+## Multi-row deletion
+
+Multi-row deletion removes an explicit list of records in one operation. It is
+available for harvest records, harvest-plan interventions, marked trees and
+sampled-tree measurements. The operation is all-or-nothing: if even one selected
+record cannot be deleted, the server leaves the entire selection in place.
+The [UI design patterns](ui-design-patterns.md#multi-row-deletion) describe how
+users enter selection mode and confirm the records they want to remove.
+
+### Request and confirmation
+
+The browser collects the selected records' IDs and cached edit versions before
+opening the confirmation dialog. These values form a snapshot of what the user
+is reviewing. A background refresh while the dialog is open cannot substitute
+a newer version into the request and silently authorize deletion of an edited
+record.
+
+One POST contains the complete selection. For example, deleting two marks from
+intervention 17 sends a body like this:
+
+```json
+{
+  "harvest_plan_item_id": 17,
+  "rows": [
+    {"row_id": 101, "version": 2},
+    {"row_id": 103, "version": 1}
+  ],
+  "nonce": "6d231da7-8905-405e-96c2-baa13ee267c7"
+}
+```
+
+`rows` must be a nonempty list with no duplicate IDs. Every entry names one
+record; there is no request that implicitly means "all matching records" or
+"the current page." Each entry carries that record's own version, rather than
+one shared version for the whole selection. A missing version is treated as
+stale and never disables the concurrency check.
+
+The endpoint also limits which records can belong to the operation:
+
+| Endpoint | Records allowed in the selection |
+|---|---|
+| `/api/prelievi/delete/` | The explicitly named harvest records; no extra scope field is required |
+| `/api/piano-di-taglio/item/delete/` | Interventions belonging to the supplied `harvest_plan_id` |
+| `/api/piano-di-taglio/mark/delete/` | Marks belonging to the supplied `harvest_plan_item_id` |
+| `/api/campionamenti/tree/delete/` | Measurements belonging to the supplied `survey_id` |
+
+The last three scope fields are required for multi-row requests. They prevent
+a stale or incorrectly assembled selection from deleting records belonging to
+another plan, intervention or survey. Writer/admin permissions and CSRF checks
+apply just as they do to single-row deletion.
+
+### Validation and the database transaction
+
+The server validates the request shape, locks the affected records and checks
+**every** submitted version before deleting any record. Locks are taken in ID
+order. Harvests and marks lock their parent interventions before their child
+rows, using the same order as the corresponding save operations.
+
+The domain's usual deletion rules still apply. In particular, an intervention
+cannot be deleted while it has marks or harvests, and marks cannot be deleted
+from a closed worksite. Passing the version check does not override those rules.
+
+Deletion, dependent-row cleanup, aggregate updates, audit history for tracked
+models, digest dirty marks and the successful nonce receipt belong to one
+transaction. An exception rolls all of them back. Requests without a nonce
+also retain an atomic deletion transaction, including response construction.
+Audit history follows each model's policy: sampled-tree measurements remain
+untracked, as documented in [Database model](database.md).
+
+### Successful deletion
+
+On success the server returns HTTP 200 with a `deletes` entry for each removed
+digest row. For the example above, the response identifies marks 101 and 103 in
+`mark_trees_17` as removed. It also returns the final intervention row as a
+`patches` entry in `harvest_plan_items`, including its updated marked volume.
+
+Parent and related data are updated according to the operation:
+
+- Harvest and mark deletion recompute each affected intervention's total once,
+  after all selected child rows have been removed.
+- Sampled-tree deletion keeps the physical trees and sample visits. Its response
+  includes the resulting sample/survey summaries and any preserved-tree record
+  that must be removed or replaced by an earlier measurement.
+- Mark deletion removes a physical tree only when no other marks or sampled
+  measurements still refer to it. Intervention deletion also removes its owned
+  worksite-transition history, once its protected records are gone.
+
+The browser applies the complete response with `cache.applyResponseChanges()`.
+It removes the named rows, applies related-row patches and processes any digest
+invalidations before page-specific callbacks refresh the displayed data. Rows
+are never removed from the browser's cache before the server accepts the
+operation. After a successful response, the table exits selection mode.
+
+### Rejected selections
+
+A rejected request deletes no rows and creates no successful nonce receipt.
+The error tells the browser why the whole selection was refused:
+
+- **Malformed request (400, validation error):** an empty selection, duplicate
+  ID, non-object row, invalid field type or missing scope field is rejected
+  before deletion. The browser displays the message and retains the rows.
+- **Missing or out-of-scope record (404):** every selected ID must still exist
+  within the stated plan, intervention or survey. One missing/mismatched ID
+  rejects the entire list, including otherwise valid rows.
+- **Edited record (400, conflict):** one of the versions no longer matches.
+  The response carries that record's current digest row. The browser updates
+  its cache; when the table receives the refreshed rows, it clears the stale
+  selection so the user reviews the records again before deleting.
+- **Protected record (400, validation error):** a domain rule blocks deletion.
+  For interventions with marks/harvests, the error identifies the blocking
+  interventions by name/year/scope and ID. The user can adjust the selection
+  or deal with those dependencies first. Other selected records remain intact.
+- **Reused nonce for a different request (409, conflict):** the nonce belongs
+  to another completed operation or payload. It cannot authorize this deletion.
+
+Validation/protection errors leave selection available for adjustment. A
+changed version clears selection when the table consumes the refreshed rows.
+Neither case applies a partial deletion response.
+
+### Interrupted requests and retries
+
+A database exception, including a failure partway through deletion or while
+constructing the success response, rolls back the whole operation. The nonce
+is not consumed, so retrying that same request remains possible.
+
+A network failure is different: the server might have committed successfully
+before the connection was lost. The browser leaves its cached rows visible
+when it has no successful response. Replaying the exact request with the same
+nonce returns the stored success response, without deleting again or adding
+more audit events.
+
+The current UI generates a fresh nonce for each submission. Manually reopening
+the confirmation therefore makes a new request rather than replaying the lost
+one. If the first deletion committed, a second attempt can report missing rows;
+refreshing the data reveals the committed result. Nonce identity, replay and
+expiry follow the shared [retry protocol](#retry-receipts-and-write-transactions).
+
+### Shared implementation
+
+`apps.base.deletion.parse_delete_rows()` normalizes single-row and multi-row
+requests. `lock_delete_rows()` checks the complete selection at the write
+boundary; its caller supplies the model, scope, digest ID and row builder.
+SQLite uses a no-op update to acquire its write lock, while PostgreSQL uses
+row locks. These checks do not advance edit versions or create audit edits.
+
+The domain views own dependency protections, parent totals and the response's
+cache changes. Single-row endpoints use these same deletion paths, so the
+multi-row UI cannot bypass safeguards enforced for an individual record.
+On the client, `table-delete.js` owns the shared confirmation and `forms.js`
+owns the versioned request/response handling. The table and domain page retain
+responsibility for their selection state and displayed-data refresh.
+
 ## Internal naming and compatibility boundaries
 
 Application Python uses English snake_case names; private JavaScript view data,

@@ -10,7 +10,7 @@ import { postJSON } from './api.js';
 import * as cache from './cache.js';
 import { show as showModal, dismiss as dismissModal, showError } from './modals.js';
 import * as S from './strings.js';
-import { FIELD_NONCE, HTML, MESSAGE, RECORD, ROW_ID, STATUS, STATUS_CONFLICT, VERSION } from './constants.js';
+import { FIELD_NONCE, HTML, MESSAGE, RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT, VERSION } from './constants.js';
 
 /**
  * Fetch a form fragment from the server and display it in #content.
@@ -172,23 +172,39 @@ export async function deleteRowWithVersion(
   if (!row) return false;
   const vcol = digest.columns.indexOf(VERSION);
   const version = vcol >= 0 ? row[vcol] : 0;
+  return postVersionedDelete(dataId, url, {
+    [ROW_ID]: String(rowId), [VERSION]: String(version),
+    [FIELD_NONCE]: crypto.randomUUID(),
+  }, {
+    onSuccess: async data => {
+      cache.removeRow(dataId, rowId);
+      await onSuccess?.(data);
+    }, onConflict,
+  });
+}
 
+/** Delete a reviewed snapshot of explicit row IDs and their cached versions. */
+export async function deleteRowsWithVersions(
+  dataId, rows, url, { body = {}, onSuccess, onConflict } = {},
+) {
+  if (!rows.length) return false;
+  return postVersionedDelete(dataId, url, {
+    ...body, [ROWS]: rows, [FIELD_NONCE]: crypto.randomUUID(),
+  }, { onSuccess, onConflict });
+}
+
+async function postVersionedDelete(dataId, url, body, { onSuccess, onConflict }) {
   let data, status;
   try {
-    ({ data, status } = await postJSON(url, {
-      [ROW_ID]: String(rowId),
-      [VERSION]: String(version),
-      [FIELD_NONCE]: crypto.randomUUID(),
-    }));
+    ({ data, status } = await postJSON(url, body));
   } catch {
     showError(S.ERROR_NETWORK);
     return false;
   }
 
   if (status === 200) {
-    cache.applyResponseChanges(data);
-    cache.removeRow(dataId, rowId);
-    await onSuccess?.(data);
+    const touched = cache.applyResponseChanges(data);
+    await onSuccess?.(data, touched);
     return true;
   }
 
@@ -197,7 +213,7 @@ export async function deleteRowWithVersion(
     if (!touched.size && data[RECORD]) {
       cache.updateRow(dataId, data[ROW_ID], data[RECORD]);
     }
-    await onConflict?.(data);
+    await onConflict?.(data, touched);
   }
   showError(data?.[MESSAGE] || S.ERROR_GENERIC);
   return false;

@@ -11,6 +11,10 @@ export const DISMISS = 'Chiudi';
 export const SAVE = 'Salva';
 export const DELETE_CONFIRM = 'I dati cancellati non potranno essere recuperati. Confermi?';
 export const CANCEL = 'Annulla';
+export const DELETE_SELECTED_CONFIRM = count =>
+  `Eliminare definitivamente queste ${count} righe? I dati cancellati non potranno essere recuperati.`;
+export const DELETE_SELECTED_ROW = (id, description) =>
+  description ? `${description} (ID ${id})` : `ID ${id}`;
 export const CONFIRM = 'Conferma';
 
 // Tables
@@ -36,6 +40,12 @@ export const TABLE_LABELS = {
   empty: NO_RESULTS,
   actionEdit: ACTION_EDIT,
   actionDelete: ACTION_DELETE,
+  selectForDelete: 'Seleziona elementi da eliminare',
+  cancelSelection: 'Annulla selezione',
+  selectRow: 'Seleziona riga {id}',
+  selectedCount: '{count} selezionati',
+  deleteSelected: 'Elimina selezionati ({count})',
+  selectionCleared: 'Selezione azzerata: i filtri o i dati sono cambiati.',
   boolYes: 'Sì',
   boolNo: 'No',
   pageInfo: 'Pagina {current} di {total}',

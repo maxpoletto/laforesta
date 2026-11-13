@@ -154,9 +154,9 @@ runs a live server dependency check before any confirmation is shown. The
 server blocks deletion while `tree_mark` or `harvest` rows remain; their
 protected foreign keys ensure that user-entered records cannot be lost
 accidentally.
-The user must delete those dependencies one at a time first, exporting them if
-they want to keep a record. `harvest_transition` rows are implicit lifecycle
-history, have no separate user-facing delete action, and cascade automatically
+The user must delete those dependencies first, individually or through the
+mark/harvest table selection controls, exporting them if they want a record.
+`harvest_transition` rows are implicit lifecycle history, have no separate user-facing delete action, and cascade automatically
 with the item. Item state alone does not block deletion because it remains
 advanced after its substantive dependencies have been removed.
 
@@ -165,6 +165,16 @@ up, so the per-item confirmation does **not** include the forced-CSV-download
 step that the plan-level delete has. The modal just shows the warning and
 `[Annulla] [Elimina]`. Per-row Esporta remains available from the view/edit
 header while dependent records still exist.
+
+The fustaia and coppice action-column headers also offer multi-row deletion.
+The header trash can enters checkbox selection mode; `Elimina selezionati (N)`
+opens one confirmation listing the selected interventions. Selection can span
+pages within the displayed section/plan. Changing the plan or search clears
+selection. A single protected or stale intervention blocks the entire batch;
+no selected intervention is removed. A protected-dependency error lists the
+interventions that still have marks or harvests, including their IDs. Lifecycle
+transitions cascade with each accepted deletion. The plan itself keeps its separate export/delete flow.
+See [Multi-row deletion](ui-design-patterns.md#multi-row-deletion).
 
 #### "Add-harvest-plan-item" modal
 
@@ -432,6 +442,15 @@ effettivo`, `Compresa`, `Particella`, `Superficie totale (ha)`, `Stato`,
   (planned → open → harvesting → closed), with the same admin-only
   `closed → open` reopen exception. Region-wide damaged/sick items can
   still receive marks from coppice parcels via Ipso import.
+
+The marked-tree table supports the same header-trash selection mode. Row
+clicks select trees while the pencil/trash icons are replaced by checkboxes.
+One confirmation reviews all selected marks, including selections spanning
+pages. The server confines the selection to the displayed intervention,
+checks every version and refuses deletion in a closed worksite. After an
+accepted deletion the marked total, table, map and dendrometric summary
+refresh together; the intervention's lifecycle state does not regress.
+Physical trees still used by other marks or sample measurements are retained.
 
 ### New marked tree modal
 

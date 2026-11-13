@@ -610,6 +610,11 @@ eq(filteredIds(), [1, 2, 3],
 check(!new URLSearchParams(location.search).has('f'),
       'clearing the visible Bosco filter removes it from the URL');
 
+const filterBeforeSort = tableInstances.at(-1).lastFilter;
+prelievi.onQueryChange({ sc: S.COL_DATE, so: '0' });
+check(tableInstances.at(-1).lastFilter === filterBeforeSort,
+      'a URL sort change preserves the external filter and batch selection');
+
 prelievi.onQueryChange(productionParams);
 contentEl.querySelector('[data-action="reset-filters"]').click();
 eq(contentEl.querySelector('#prelievi-search').value, '',

@@ -79,6 +79,20 @@ filter result, not just the visible pagination page. Values use the same decimal
 precision as their columns but omit unit suffixes, since the units are already
 in the headers. VDP is an identifier and is not summed.
 
+### Multi-row deletion
+
+The trash can in the action-column header enters selection mode. Check rows
+individually across pages, then use `Elimina selezionati (N)` to review and
+confirm the deletion. The header cancel icon exits selection mode. Search and
+year/parcel filter changes clear selection; sorting and pagination preserve it.
+Row editing and parcel navigation are suspended while selecting.
+
+The server checks every selected harvest's version, deletes the entire batch
+atomically and returns updated intervention totals. The table totals and any
+open charts/calendar refresh from the accepted response. See
+[Multi-row deletion](ui-design-patterns.md#multi-row-deletion) for the
+shared controls and confirmation rules.
+
 ### Add/edit form
 
 The add/edit form is laid out as a compact grid (three fields per row):

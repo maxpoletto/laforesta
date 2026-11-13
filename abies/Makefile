@@ -276,6 +276,8 @@ test-js:
 	node apps/base/static/base/js/cache.test.mjs
 	node apps/base/static/base/js/router.test.mjs
 	node apps/base/static/base/js/page-sync.test.mjs
+	node apps/base/static/base/js/table-selection.test.mjs
+	node apps/base/static/base/js/table-delete.test.mjs
 	node --check apps/bosco/static/bosco/js/bosco.js
 	node apps/bosco/static/bosco/js/bosco-plan-source.test.mjs
 	node apps/bosco/static/bosco/js/bosco-calendar.test.mjs

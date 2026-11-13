@@ -24,6 +24,8 @@ urlpatterns = [
     path('tree/form/<int:ts_id>/', views.tree_form_view,
          name='campionamenti-tree-form-edit'),
     path('tree/save/', views.tree_save_view, name='campionamenti-tree-save'),
+    path('tree/delete/', views.tree_delete_view,
+         name='campionamenti-trees-delete'),
     path('tree/delete/<int:ts_id>/', views.tree_delete_view,
          name='campionamenti-tree-delete'),
     # Sample area CRUD (Section 1).

@@ -23,6 +23,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.base.auth import require_writer
+from apps.base.deletion import parse_delete_rows, lock_delete_rows
 from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
 from apps.base import csv_io
@@ -116,7 +117,7 @@ from config.constants import (
     HTML,
     MESSAGE,
     RECORD,
-    ROW_ID,
+    ROW_ID, ROWS,
     STATUS,
     STATUS_NOT_FOUND,
     TRANSITION_RECORDS,
@@ -185,9 +186,16 @@ def plan_save_view(request):
 
 def _items_have_deletion_dependencies(items) -> bool:
     """Whether plan items still own user-entered marks or harvests."""
-    return (
-        TreeMark.objects.filter(harvest_plan_item__in=items).exists()
-        or Harvest.objects.filter(harvest_plan_item__in=items).exists()
+    return bool(_item_deletion_blockers(items))
+
+
+def _item_deletion_blockers(items) -> set[int]:
+    """Intervention IDs with protected records, for actionable batch errors."""
+    field = FIELD_HARVEST_PLAN_ITEM_ID
+    return set(TreeMark.objects.filter(harvest_plan_item__in=items)
+               .values_list(field, flat=True).distinct()) | set(
+        Harvest.objects.filter(harvest_plan_item__in=items)
+        .values_list(field, flat=True).distinct()
     )
 
 
@@ -603,54 +611,55 @@ def _validation_error_messages(exc: ValidationError) -> list[str]:
 @login_required
 @require_writer
 @require_POST
-def item_delete_view(request, item_id: int):
-    """Delete an item after its marks and harvests have been removed.
-
-    State alone is not a blocker. Worksite transitions are owned lifecycle
-    history and cascade automatically; marks and harvests remain protected
-    user data that must be removed explicitly.
-    """
+def item_delete_view(request, item_id: int | None = None):
+    """Delete interventions only after all their marks and harvests are gone."""
     body, error = parse_json_body(request)
     if error:
         return error
-    check_only = is_truthy(body.get(FIELD_CHECK_ONLY))
-    item = HarvestPlanItem.objects.filter(id=item_id).first()
-    if item is None:
-        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if not check_only and item.version != submitted_version(body):
-        item = (HarvestPlanItem.objects
-                .select_related('parcel__region', 'parcel__eclass',
-                                'region', 'harvest_plan')
-                .get(id=item.id))
-        return conflict_response(
-            data_id='harvest_plan_items', row_id=item.id,
-            record=build_harvest_plan_item_record(item),
-        )
-    if _items_have_deletion_dependencies(
-        HarvestPlanItem.objects.filter(id=item.id),
-    ):
-        return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
-    if check_only:
-        return JsonResponse({})
-
-    begin_nonce_write(request)
-    with transaction.atomic():
-        error = check_delete_version(
-            item, body, data_id='harvest_plan_items', record_fn=build_harvest_plan_item_record,
-        )
-        if error:
-            return error
-        try:
-            item.delete()
-        except ProtectedError:
-            return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
-        mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
-
-    return success_response(
-        request, body,
-        data_id='harvest_plan_items', row_id=item_id,
-        deletes=[row_delete('harvest_plan_items', item_id)],
+    rows, error = parse_delete_rows(body, row_id=item_id)
+    if error:
+        return error
+    queryset = HarvestPlanItem.objects.select_related(
+        'parcel__region', 'parcel__eclass', 'region', 'harvest_plan',
     )
+    if ROWS in body:
+        plan_id = int_or_none(body.get(FIELD_HARVEST_PLAN_ID))
+        if not plan_id or is_truthy(body.get(FIELD_CHECK_ONLY)):
+            return validation_error([S.ERR_DELETE_SCOPE_INVALID])
+        queryset = queryset.filter(harvest_plan_id=plan_id)
+    if is_truthy(body.get(FIELD_CHECK_ONLY)):
+        if not queryset.filter(pk=item_id).exists():
+            return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
+        if _items_have_deletion_dependencies(queryset.filter(pk=item_id)):
+            return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
+        return JsonResponse({})
+    begin_nonce_write(request)
+    try:
+        with transaction.atomic():
+            objects, error = lock_delete_rows(
+                queryset, rows, data_id='harvest_plan_items',
+                record_fn=build_harvest_plan_item_record,
+            )
+            if error:
+                return error
+            blockers = _item_deletion_blockers(queryset.filter(pk__in=rows))
+            if blockers:
+                messages = [S.ERR_PLAN_ITEM_HAS_DEPS]
+                if ROWS in body:
+                    messages.extend(S.ERR_DELETE_PROTECTED_ROW.format(
+                        identity=str(item), row_id=item.pk,
+                    ) for item in objects if item.pk in blockers)
+                return validation_error(messages)
+            for item in objects:
+                item.delete()
+            mark_stale('harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
+            return success_response(
+                request, body, data_id='harvest_plan_items',
+                row_id=item_id if ROWS not in body else None,
+                deletes=[row_delete('harvest_plan_items', pk) for pk in rows],
+            )
+    except ProtectedError:
+        return validation_error([S.ERR_PLAN_ITEM_HAS_DEPS])
 
 
 # ---------------------------------------------------------------------------
@@ -1139,71 +1148,53 @@ def mark_save_view(request):
 @require_writer
 @require_POST
 def mark_delete_view(request):
-    """Delete a single TreeMark (and its orphaned Tree).
-
-    The state does not regress automatically: count can return to zero but
-    state does not revert to ``planned``.
-    """
+    """Delete selected marks; retain the intervention's lifecycle state."""
     body, error = parse_json_body(request)
     if error:
         return error
-    row_id = int_or_none(body.get(ROW_ID))
-    if row_id is None:
-        return validation_error([S.ERR_ROW_ID_INVALID])
-    version = submitted_version(body)
-
-    tm = (TreeMark.objects
-          .select_related('tree', 'harvest_plan_item')
-          .filter(id=row_id).first())
-    if tm is None:
-        return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-    if tm.version != version:
-        fresh_tm = (TreeMark.objects
-                    .select_related('tree__species', 'parcel')
-                    .get(id=tm.id))
-        return conflict_response(
-            data_id=f'mark_trees_{tm.harvest_plan_item_id}',
-            row_id=fresh_tm.id,
-            record=build_tree_mark_record(fresh_tm),
-        )
-
-    item = tm.harvest_plan_item
-    if item.state == HarvestPlanItemState.CLOSED:
-        return validation_error([S.ERR_MARK_ITEM_CLOSED])
-
-    tree = tm.tree
-    item_id = item.id
+    rows, error = parse_delete_rows(body)
+    if error:
+        return error
+    queryset = TreeMark.objects.select_related('tree__species', 'parcel', 'harvest_plan_item')
+    if ROWS in body:
+        scope = int_or_none(body.get(FIELD_HARVEST_PLAN_ITEM_ID))
+        if not scope:
+            return validation_error([S.ERR_DELETE_SCOPE_INVALID])
+        queryset = queryset.filter(harvest_plan_item_id=scope)
     begin_nonce_write(request)
     with transaction.atomic():
-        item = lock_plan_items([item_id]).get(item_id)
-        if item is None:
-            return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
-        error = check_delete_version(
-            tm, body, data_id=f'mark_trees_{item_id}', record_fn=build_tree_mark_record,
+        item_ids = set(queryset.filter(pk__in=rows).values_list('harvest_plan_item_id', flat=True))
+        items = lock_plan_items(item_ids)
+        objects, error = lock_delete_rows(
+            queryset, rows, data_id=lambda tm: f'mark_trees_{tm.harvest_plan_item_id}',
+            record_fn=build_tree_mark_record,
         )
         if error:
             return error
-        if item.state == HarvestPlanItemState.CLOSED:
+        if any(item.state == HarvestPlanItemState.CLOSED for item in items.values()):
             return validation_error([S.ERR_MARK_ITEM_CLOSED])
-        tm.delete()
-        if not TreeMark.objects.filter(tree=tree).exists():
-            tree.delete()
-        _rematerialize_volume_marked(item_id)
-        dependencies = marked_tree_dependencies([item_id])
+        tree_ids = {tm.tree_id for tm in objects}
+        deletes = [row_delete(f'mark_trees_{tm.harvest_plan_item_id}', tm.pk) for tm in objects]
+        for tm in objects:
+            tm.delete()
+        # Trees reused by measurements or other marks remain live.
+        Tree.objects.filter(pk__in=tree_ids, treemark__isnull=True,
+                            treesample__isnull=True).delete()
+        for item_id in sorted(item_ids):
+            _rematerialize_volume_marked(item_id)
+        dependencies = marked_tree_dependencies(item_ids)
         mark_stale(*dependencies.data_ids)
-
-    item_fresh = (HarvestPlanItem.objects
-                  .select_related('parcel__region', 'parcel__eclass',
-                                  'region', 'harvest_plan')
-                  .get(id=item_id))
-    item_record = build_harvest_plan_item_record(item_fresh)
-    return success_response(
-        request, body,
-        data_id=f'mark_trees_{item_id}', row_id=row_id,
-        invalidates=dependencies.invalidates(f'mark_trees_{item_id}', 'harvest_plan_items'),
-        patches=[row_patch('harvest_plan_items', item_record[0], item_record)],
-        deletes=[row_delete(f'mark_trees_{item_id}', row_id)],
-    )
+        patches = [row_patch('harvest_plan_items', item.pk, build_harvest_plan_item_record(item))
+                   for item in HarvestPlanItem.objects.select_related(
+                       'parcel__region', 'parcel__eclass', 'region', 'harvest_plan',
+                   ).filter(pk__in=item_ids).order_by('pk')]
+        data_id = deletes[0][DATA_ID]
+        return success_response(
+            request, body, data_id=data_id,
+            row_id=next(iter(rows)) if ROWS not in body else None,
+            invalidates=dependencies.invalidates(data_id, 'harvest_plan_items'),
+            patches=patches, deletes=deletes,
+        )
 
 
 # ---------------------------------------------------------------------------

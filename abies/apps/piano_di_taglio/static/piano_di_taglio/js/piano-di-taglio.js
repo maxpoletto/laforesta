@@ -8,6 +8,7 @@
  * URL params: see docs/page-piano-di-taglio.md.
  */
 
+import { confirmDeleteSelection } from '../../base/js/table-delete.js';
 import * as cache from '../../base/js/cache.js';
 import {
   searchTerms, tableCellForColumn, TableWrapper,
@@ -399,6 +400,11 @@ function buildTable(s) {
       onAdd: () => showAddItemModal(s),
       onEdit: (rowId) => navigateToItem(rowId),
       onDelete: (rowId) => confirmDeleteItem(rowId),
+      onDeleteSelected: rows => confirmDeleteSelection({
+        dataId: ITEMS_ID, rows, columns: itemsData.columns, url: ITEM_DELETE_URL,
+        body: { [FIELD_HARVEST_PLAN_ID]: activePlanId },
+        descriptionColumns: [S.COL_YEAR_PLANNED, S.COL_REGION, S.COL_PARCEL],
+      }),
     } : {},
     toolbar: {
       export: {
@@ -1506,6 +1512,14 @@ async function appendItemMarkTreesSection(card, itemId, state) {
         showEditMarkForm(itemId, markTreeRowId(row, c) ?? rowId),
       onDelete: (rowId, row) =>
         deleteMarkRow(itemId, markTreeRowId(row, c) ?? rowId),
+      onDeleteSelected: rows => confirmDeleteSelection({
+        dataId, rows, columns: c, url: MARK_DELETE_URL,
+        body: { [FIELD_HARVEST_PLAN_ITEM_ID]: itemId },
+        descriptionColumns: [S.COL_NUMBER, S.COL_TREE_NUM, S.COL_SPECIES, S.COL_PARCEL, S.COL_DATE],
+        onSuccess: () => {
+          if (itemViewIsActive(itemId)) renderItemView(itemId);
+        },
+      }),
     } : {},
     toolbar: {
       search: data.rows.length > 0,

@@ -37,6 +37,8 @@ urlpatterns = [
          name='piano-di-taglio-item-form-edit'),
     path('item/save/', views.item_save_view,
          name='piano-di-taglio-item-save'),
+    path('item/delete/', views.item_delete_view,
+         name='piano-di-taglio-items-delete'),
     path('item/delete/<int:item_id>/', views.item_delete_view,
          name='piano-di-taglio-item-delete'),
 

@@ -80,6 +80,51 @@ modification:
 - Tables that allow row editing have a "pencil" icon on the right of each row.
 - Tables that allow row deletion also have a "garbage can" icon on the right.
 
+### Multi-row deletion
+
+Harvest records, harvest-plan interventions, marked trees and sampled trees
+support deleting an explicit selection. A neutral trash-can **button in the
+header**, aligned with the row trash icons, enters selection mode. Its tooltip
+and accessible name are `Seleziona elementi da eliminare`; entering this mode
+does not delete anything.
+
+In selection mode the row action icons are replaced by individual checkboxes.
+Checkboxes and row action icons occupy equally sized, vertically aligned slots,
+so toggling selection mode preserves row heights.
+Clicking a row toggles its checkbox rather than opening its edit/detail view or
+following a parcel link. The header button becomes a cancel icon named
+`Annulla selezione`. There is no select-all checkbox or current-page selection
+command. The table controls show `N selezionati` and a red
+`Elimina selezionati (N)` button, disabled until at least one row is selected.
+When there is room on one line, these controls align with Esporta/Aggiungi
+without changing the toolbar height. Tables with an external filter bar show
+these controls just above the table.
+
+Selection follows record IDs through sorting and pagination, and can span
+pages. Typing into search, changing an external filter, or refreshing a selected
+record whose version changed or which was removed clears the selection and
+shows an inline notice. An unchanged refresh preserves selection. Selection is
+local to the table instance and is discarded when that table is destroyed.
+
+The delete button opens one confirmation listing the selected records, their
+identifying fields and IDs. The reviewed versions are captured before the
+confirmation opens. Canceling keeps the selection; successful deletion exits
+selection mode. Row checkboxes, the header toggle and the delete button are
+unavailable while confirmation/submission is pending. A server rejection keeps
+all rows and permits adjusting the selection. When the table receives an
+updated record whose version changed, it clears the stale selection.
+
+Callers that reapply external filters during URL synchronization pass a stable
+configuration key to `setExternalFilter(predicate, key)`. Reapplying the same
+configuration preserves selection, including when only sorting changes.
+Changing a digest's column schema also clears selection.
+
+`TableWrapper.actions.onDeleteSelected(rows)` opts a table into this behavior.
+It returns a promise resolving to true only after successful deletion.
+`table-delete.js` provides the localized confirmation and uses the shared
+versioned-delete request handling in `forms.js`. Plan/survey deletion retains
+its separate export safeguards.
+
 ## Graphs and charts
 
 All graphs and charts are implemented in Chart.js.

@@ -8,7 +8,7 @@
  * English.  Callers inject a `labels` and/or `csvFormat` option to localize.
  */
 
-import { ROW_ID } from './constants.js';
+import { ROW_ID, VERSION } from './constants.js';
 import { csvEscape } from './csv-export.js';
 import { compareNaturalLabels } from './natural-sort.js';
 
@@ -52,6 +52,12 @@ const DEFAULT_LABELS = {
   actionEdit: 'Edit',
   actionEditIcon: '\u270E',
   actionDelete: 'Delete',
+  selectForDelete: 'Select items to delete',
+  cancelSelection: 'Cancel selection',
+  selectRow: 'Select row {id}',
+  selectedCount: '{count} selected',
+  deleteSelected: 'Delete selected ({count})',
+  selectionCleared: 'Selection cleared because the filters or records changed.',
   boolYes: 'Yes',
   boolNo: 'No',
   // Pagination template forwarded to SortableTable, which fills the
@@ -90,6 +96,7 @@ export class TableWrapper {
    *   Column metadata keyed by digest column name.
    * @param {boolean} [opts.canModify]
    * @param {{onEdit?: function(number), onDelete?: function(number),
+   *         onDeleteSelected?: function(Array<Array>): Promise<boolean>,
    *         onAdd?: function, extra?: Array<{key: string, title: string,
    *         icon: string, onClick: function(number, Array), visible?: function(Array): boolean}>,
    *         editVisible?: function(Array): boolean,
@@ -131,6 +138,7 @@ export class TableWrapper {
     this.renderSummaryRow = opts.renderSummaryRow || null;
     this._searchText = opts.searchText || '';
     this._externalFilter = null;
+    this._externalFilterKey = undefined;
     this._debounceTimer = null;
     this._searchInputEl = null;
     this._toolbarStartEl = null;
@@ -142,6 +150,12 @@ export class TableWrapper {
     this._tableEl = null;
     this._summaryEl = null;
     this._selectedRowId = null;
+    this._deleteMode = false;
+    this._deleteBusy = false;
+    this._deleteSelection = new Map();
+    this._deleteBar = null;
+    this._deleteNotice = null;
+    this._disposed = false;
     this._tableClickHandler = (e) => this._handleTableClick(e);
     this._tableClickWired = false;
 
@@ -153,6 +167,7 @@ export class TableWrapper {
   /** Replace digest data (e.g., after cache refresh). */
   setData(digest, columnDefs = null) {
     if (!this._table) return;
+    this._reconcileDeleteSelection(digest);
     if (columnDefs) this.columnDefs = columnDefs;
     const previousPage = this._table.currentPage || 1;
     if (!sameColumns(digest.columns, this._digestColumns)) {
@@ -170,8 +185,11 @@ export class TableWrapper {
     this._restorePage(previousPage);
   }
 
-  /** Set an additional filter combined with search (e.g., year slider). */
-  setExternalFilter(fn) {
+  /** Set an additional filter; an optional key identifies its full configuration. */
+  setExternalFilter(fn, key = fn) {
+    if (Object.is(key, this._externalFilterKey)) return;
+    this._clearDeleteSelection(true);
+    this._externalFilterKey = key;
     this._externalFilter = fn;
     this._applyFilters();
   }
@@ -211,6 +229,7 @@ export class TableWrapper {
 
   /** Programmatically set search text (e.g., for reset). */
   setSearchText(text) {
+    if (text !== this._searchText) this._clearDeleteSelection(true);
     this._searchText = text;
     if (this._searchInputEl) this._searchInputEl.value = text;
     this._applyFilters();
@@ -229,8 +248,14 @@ export class TableWrapper {
     this._applySelectedRow();
   }
 
+  /** Whether row clicks currently select records for deletion. */
+  get deleteSelectionActive() { return this._deleteMode; }
+
   /** Tear down DOM and timers. */
   destroy() {
+    this._disposed = true;
+    this._deleteMode = false;
+    this._deleteSelection.clear();
     if (this._debounceTimer) clearTimeout(this._debounceTimer);
     if (this._table) this._table.destroy();
     if (this._tableClickWired) {
@@ -249,6 +274,7 @@ export class TableWrapper {
     this._el.className = 'table-page';
 
     if (this.inlineToolbar) this._buildToolbar();
+    if (this.canModify && this.actions.onDeleteSelected) this._buildDeleteControls();
 
     this._tableEl = document.createElement('div');
     this._tableEl.className = 'table-scroll';
@@ -343,6 +369,7 @@ export class TableWrapper {
     this._searchInputEl = inputEl;
     inputEl.value = this._searchText;
     inputEl.addEventListener('input', () => {
+      this._clearDeleteSelection(true);
       clearTimeout(this._debounceTimer);
       this._debounceTimer = setTimeout(() => {
         this._searchText = inputEl.value;
@@ -354,7 +381,8 @@ export class TableWrapper {
 
   _initTable(digest, sort) {
     this._digestColumns = [...(digest.columns || [])];
-    this._stColumns = buildSTColumns(digest.columns, this.columnDefs, this.actions, this.labels);
+    this._stColumns = buildSTColumns(digest.columns, this.columnDefs, this.actions, this.labels,
+      (cell, row) => this._renderActions(cell, row));
     const initialSort = sort && this._stColumns.some(c => c.key === sort.column)
       ? sort
       : undefined;
@@ -380,6 +408,7 @@ export class TableWrapper {
     const SortableTable = withNaturalSort(window.SortableTable);
     this._table = new SortableTable(tableOptions);
     this._buildSummaryRow();
+    this._buildDeleteHeader();
 
     // Set min-width so columns keep their specified widths and the wrapper
     // scrolls horizontally when the total exceeds the viewport.
@@ -411,6 +440,20 @@ export class TableWrapper {
     const rowData = this.rowForElement(tr);
     if (!rowData) return;
     const rowId = rowData[ROW_ID_COL];
+
+    if (this._deleteMode) {
+      // Stop page-level cell navigation as well as row editing while selecting.
+      e.stopPropagation();
+      if (e.target.closest('a')) e.preventDefault();
+      if (!this._deleteBusy && actionVisible(this.actions.deleteVisible, rowData)) {
+        if (this._deleteSelection.has(rowId)) this._deleteSelection.delete(rowId);
+        else this._deleteSelection.set(rowId, [...rowData]);
+        this._deleteNotice.textContent = '';
+        this._syncDeleteControls();
+        this._applySelectedRow();
+      }
+      return;
+    }
 
     if (icon) {
       if (icon.classList.contains('action-edit')) this.actions.onEdit?.(rowId, rowData);
@@ -486,6 +529,13 @@ export class TableWrapper {
       rowEl.classList.toggle('is-selected', selected);
       if (selected) rowEl.setAttribute('aria-selected', 'true');
       else rowEl.removeAttribute('aria-selected');
+      const deleting = this._deleteMode && this._deleteSelection.has(row?.[ROW_ID_COL]);
+      rowEl.classList.toggle('is-delete-selected', deleting);
+      const checkbox = rowEl.querySelector('.table-delete-checkbox');
+      if (checkbox) {
+        checkbox.checked = deleting;
+        checkbox.disabled = this._deleteBusy;
+      }
     }
   }
 
@@ -497,6 +547,143 @@ export class TableWrapper {
     this._table.currentPage = nextPage;
     this._table.updateTable?.();
     this._applySelectedRow();
+  }
+
+  // -- Selected-row deletion -----------------------------------------------
+
+  _buildDeleteControls() {
+    const bar = document.createElement('div');
+    bar.className = 'table-delete-bar';
+    bar.hidden = true;
+    const count = document.createElement('span');
+    count.className = 'table-delete-count';
+    count.setAttribute('role', 'status');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-delete table-delete-selected';
+    button.addEventListener('click', () => this._deleteSelectedRows());
+    const notice = document.createElement('span');
+    notice.className = 'table-delete-notice';
+    notice.setAttribute('role', 'status');
+    for (const child of [count, button, notice]) bar.appendChild(child);
+    this._deleteBar = bar;
+    this._deleteNotice = notice;
+    if (this.inlineToolbar) {
+      if (!this._toolbarEndEl) {
+        this._toolbarEndEl = document.createElement('div');
+        this._toolbarEndEl.className = 'table-toolbar-actions';
+      }
+      this._toolbarEndEl.appendChild(bar);
+    } else this._el.appendChild(bar);
+  }
+
+  _buildDeleteHeader() {
+    if (!this._deleteBar) return;
+    const header = [...this._tableEl.querySelectorAll('.sortable-table-header')]
+      .find(cell => cell.dataset.column === '_actions');
+    if (!header) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action-icon table-delete-toggle';
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      if (this._deleteBusy) return;
+      this._deleteMode = !this._deleteMode;
+      this._deleteSelection.clear();
+      this._deleteNotice.textContent = '';
+      this._syncDeleteControls();
+      this._table.updateTable();
+      this._applySelectedRow();
+    });
+    header.replaceChildren(button);
+    this._syncDeleteControls();
+  }
+
+  _renderActions(cell, row) {
+    if (!this._deleteMode) return renderRowActions(cell, this.actions, this.labels, row);
+    if (!actionVisible(this.actions.deleteVisible, row)) return;
+    const slot = document.createElement('span');
+    slot.className = 'table-delete-choice';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'table-delete-checkbox';
+    checkbox.checked = this._deleteSelection.has(row[ROW_ID_COL]);
+    checkbox.disabled = this._deleteBusy;
+    checkbox.setAttribute('aria-label', this.labels.selectRow.replace('{id}', row[ROW_ID_COL]));
+    slot.appendChild(checkbox);
+    cell.appendChild(slot);
+  }
+
+  _syncDeleteControls() {
+    if (!this._deleteBar) return;
+    this._deleteBar.hidden = !this._deleteMode;
+    this._tableEl?.classList.toggle('table-scroll-delete-selection', this._deleteMode);
+    const button = this._tableEl?.querySelector('.table-delete-toggle');
+    if (button) {
+      const label = this._deleteMode ? this.labels.cancelSelection : this.labels.selectForDelete;
+      button.textContent = this._deleteMode ? '\u00D7' : '\u{1F5D1}\u{FE0E}';
+      button.title = label;
+      button.setAttribute('aria-label', label);
+      button.setAttribute('aria-pressed', String(this._deleteMode));
+      button.disabled = this._deleteBusy;
+    }
+    const count = this._deleteSelection.size;
+    this._deleteBar.querySelector('.table-delete-count').textContent =
+      this.labels.selectedCount.replace('{count}', count);
+    const submit = this._deleteBar.querySelector('.table-delete-selected');
+    submit.textContent = this.labels.deleteSelected.replace('{count}', count);
+    submit.disabled = this._deleteBusy || count === 0;
+  }
+
+  _clearDeleteSelection(notify = false) {
+    if (!this._deleteSelection?.size) return;
+    this._deleteSelection.clear();
+    if (this._deleteNotice) {
+      this._deleteNotice.textContent = notify ? this.labels.selectionCleared : '';
+    }
+    this._syncDeleteControls();
+    this._applySelectedRow();
+  }
+
+  _reconcileDeleteSelection(digest) {
+    if (!this._deleteSelection?.size) return;
+    if (!sameColumns(digest.columns, this._digestColumns)) {
+      this._clearDeleteSelection(true);
+      return;
+    }
+    const versionColumn = this._digestColumns.indexOf(VERSION);
+    const nextVersionColumn = digest.columns.indexOf(VERSION);
+    const rows = new Map(digest.rows.map(row => [row[ROW_ID_COL], row]));
+    for (const [id, selected] of this._deleteSelection) {
+      const current = rows.get(id);
+      if (!current || current[nextVersionColumn] !== selected[versionColumn]) {
+        this._clearDeleteSelection(true);
+        return;
+      }
+    }
+  }
+
+  async _deleteSelectedRows() {
+    if (this._deleteBusy || !this._deleteSelection.size) return;
+    this._deleteBusy = true;
+    this._syncDeleteControls();
+    this._applySelectedRow();
+    try {
+      const removed = await this.actions.onDeleteSelected([...this._deleteSelection.values()]);
+      if (this._disposed) return;
+      if (removed) {
+        this._deleteMode = false;
+        this._deleteSelection.clear();
+        this._deleteNotice.textContent = '';
+      }
+    } finally {
+      if (!this._disposed) {
+        this._deleteBusy = false;
+        this._syncDeleteControls();
+        this._table.updateTable();
+        this._applySelectedRow();
+      }
+    }
   }
 
   // -- CSV export ----------------------------------------------------------
@@ -552,7 +739,7 @@ function withNaturalSort(Base) {
 // ---------------------------------------------------------------------------
 
 function hasRowActions(actions) {
-  return !!(actions.onEdit || actions.onDelete || extraActions(actions).length);
+  return !!(actions.onEdit || actions.onDelete || actions.onDeleteSelected || extraActions(actions).length);
 }
 
 function extraActions(actions) {
@@ -612,7 +799,7 @@ function actionVisible(fn, row) {
   return !fn || fn(row) !== false;
 }
 
-function buildSTColumns(digestColumns, columnDefs, actions, labels) {
+function buildSTColumns(digestColumns, columnDefs, actions, labels, renderActions) {
   const cols = digestColumns.map(name => {
     if (name === ROW_ID) {
       return { key: ROW_ID, label: 'ID', type: 'number', hidden: true };
@@ -639,8 +826,9 @@ function buildSTColumns(digestColumns, columnDefs, actions, labels) {
       key: '_actions', label: '', sortable: false,
       width: actionColumnWidth(count),
       className: 'col-actions',
+      cellClassName: 'col-actions',
       renderCell: (cell, _value, row) => {
-        renderRowActions(cell, actions, labels, row);
+        renderActions(cell, row);
       },
     });
   }

@@ -2,6 +2,7 @@
  * Prelievi page: harvest operations table with year slider and CRUD forms.
  */
 
+import { confirmDeleteSelection } from '../../base/js/table-delete.js';
 import * as cache from '../../base/js/cache.js';
 import {
   matchesSearch, searchTerms, tableCellForColumn, TableWrapper,
@@ -179,6 +180,10 @@ function showTableView(data, params) {
       onAdd: () => showAddForm(),
       onEdit: (rowId) => showEditForm(rowId),
       onDelete: (rowId) => confirmDelete(rowId),
+      onDeleteSelected: rows => confirmDeleteSelection({
+        dataId: DATA_ID, rows, columns: data.columns, url: DELETE_URL,
+        descriptionColumns: [S.COL_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_CREW],
+      }),
     } : {},
     sort: tableSort(p.table, DEFAULT_TABLE_SORT),
     searchText: p.table.searchText,
@@ -196,7 +201,7 @@ function showTableView(data, params) {
 
   filterRegionId = p.regionId;
   filterParcelId = p.parcelId;
-  table.setExternalFilter(pageFilter());
+  table.setExternalFilter(pageFilter(), pageFilterKey());
   _updateCharts();
 }
 
@@ -236,6 +241,7 @@ function onSpeciesUpdate(data) {
 }
 
 function onTableClick(e) {
+  if (table?.deleteSelectionActive) return;
   const cell = e.target.closest(`.sortable-table-cell.${CLASS_BOSCO_LINK}`);
   if (!cell) return;
   const tr = cell.closest('.sortable-table-row');
@@ -388,7 +394,7 @@ function applyParams(params) {
     bSection.dirty = true;
   }
 
-  if (table) table.setExternalFilter(pageFilter());
+  if (table) table.setExternalFilter(pageFilter(), pageFilterKey());
   _updateCharts();
 
   // Open sections.
@@ -504,6 +510,10 @@ function scopeFilter() {
   if (!hasRegion && !hasParcel) return null;
   return row => (!hasRegion || row[colRegionId] === filterRegionId)
     && (!hasParcel || row[colParcelId] === filterParcelId);
+}
+
+function pageFilterKey() {
+  return JSON.stringify([filterRegionId, filterParcelId, slider?.getRange() ?? null]);
 }
 
 function pageFilter() {
@@ -658,7 +668,7 @@ function buildPage(el, data, p) {
   const maxInput = el.querySelector('[data-role="slider-max"]');
   if (minInput && maxInput && years.length >= 1) {
     slider = createRangeSlider(minInput, maxInput, sliderLabel, () => {
-      if (table) table.setExternalFilter(pageFilter());
+      if (table) table.setExternalFilter(pageFilter(), pageFilterKey());
       syncURL();
       _updateCharts();
     });
@@ -676,7 +686,7 @@ function buildPage(el, data, p) {
       if (slider) {
         slider.setValues(years[0], years[years.length - 1]);
       }
-      if (table) table.setExternalFilter(pageFilter());
+      if (table) table.setExternalFilter(pageFilter(), pageFilterKey());
       if (table) table.setSearchText('');
       syncURL();
       _updateCharts();

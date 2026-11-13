@@ -852,7 +852,43 @@ input:focus, select:focus, textarea:focus {
   background: #dbeee4;
 }
 
-.col-actions { text-align: center; }
+/* Keep the header control, row trash icons and checkboxes in the last slot. */
+.sortable-table .sortable-table-header.col-actions,
+.sortable-table .col-actions { text-align: right; white-space: nowrap; }
+.col-actions .action-icon,
+.table-delete-choice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+}
+/* Match the icons' line box plus their 2px top/bottom padding. */
+.sortable-table-cell.col-actions .action-icon,
+.table-delete-choice {
+  font-size: 1rem;
+  line-height: 1.4;
+  height: calc(1.4em + 4px);
+  vertical-align: middle;
+}
+.table-delete-checkbox { width: 18px; height: 18px; margin: 0; cursor: pointer; }
+.table-delete-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.table-delete-bar[hidden] { display: none; }
+.table-delete-notice { flex-basis: 100%; color: #555; }
+.table-delete-notice:empty { display: none; }
+.table-scroll-delete-selection .sortable-table-row { cursor: pointer; }
+.table-scroll-delete-selection .sortable-table-row.is-delete-selected,
+.table-scroll-delete-selection .sortable-table-row.is-delete-selected:hover {
+  background: #dbeee4;
+}
+.delete-selection-records { max-height: 40vh; overflow: auto; padding-left: 1.5rem; }
+.delete-selection-records li { margin-bottom: 4px; }
 
 /* Action icons (per-row pencil/X) and toolbar add button. */
 .action-icon {

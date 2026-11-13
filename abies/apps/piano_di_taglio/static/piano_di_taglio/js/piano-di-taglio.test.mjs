@@ -847,7 +847,8 @@ async function finish() {
   const actionGroup = controls.querySelector('.table-toolbar-actions');
   check(Boolean(controls.querySelector('.table-search')), 'calendar search is rendered in TableWrapper controls');
   eq(
-    actionGroup.children.map(child => child.textContent),
+    actionGroup.children.filter(child => child.tagName === 'button')
+      .map(child => child.textContent),
     ['Esporta', '+ Aggiungi'],
     'calendar add button is in TableWrapper toolbar immediately after export',
   );

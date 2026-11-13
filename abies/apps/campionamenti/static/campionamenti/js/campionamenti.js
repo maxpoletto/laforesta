@@ -13,6 +13,7 @@
  * manual entry forms, and CSV imports.
  */
 
+import { confirmDeleteSelection } from '../../base/js/table-delete.js';
 import * as cache from '../../base/js/cache.js';
 import { searchTerms, TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
@@ -587,7 +588,8 @@ async function activateSurvey(surveyId) {
   if (unsubCache) unsubCache();
   unsubCache = cache.onUpdate(dataId, () => {
     if (table) table.setData(cache.get(dataId));
-    applyAreaFilter();
+    updateTreesHeaderSummary();
+    updateTreeDetail();
   });
 }
 
@@ -724,6 +726,14 @@ function renderTable(data) {
       onAdd: () => showAddTreeForm(),
       onEdit: (tsId) => showEditTreeForm(tsId),
       onDelete: (tsId) => confirmDeleteTreeSample(tsId),
+      onDeleteSelected: rows => confirmDeleteSelection({
+        dataId: currentTreesId, rows, columns: data.columns,
+        url: TREE_DELETE_URL_PREFIX,
+        body: { [FIELD_SURVEY_ID]: activeSurveyId },
+        descriptionColumns: [S.COL_REGION, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM, S.COL_SPECIES],
+        onSuccess: (response, touched) => applySideEffects(response, touched),
+        onConflict: (response, touched) => applySideEffects(response, touched),
+      }),
     } : {},
     sort: tableSort(treeState, DEFAULT_TREE_SORT),
     searchText: treeState.searchText,
@@ -1645,14 +1655,14 @@ async function refreshAfterTreeImport() {
  * sampleAreasData) and re-renders maps / summary as needed.  The active
  * sampled-trees table repaints through the shared cache.onUpdate listener.
  */
-function applySideEffects(data) {
+function applySideEffects(data, appliedIds = null) {
   if (!data) return;
   let touchedSamples = false;
   let touchedSurveys = false;
   let touchedGrids = false;
   let touchedAreas = false;
 
-  const touchedDataIds = cache.applyResponseChanges(data);
+  const touchedDataIds = appliedIds || cache.applyResponseChanges(data);
 
   touchedAreas = touchedDataIds.has(SAMPLE_AREAS_ID);
   touchedSamples = touchedDataIds.has(SAMPLES_ID);

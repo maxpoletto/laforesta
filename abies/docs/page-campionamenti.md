@@ -421,8 +421,20 @@ warning ("Questa operazione cancellerà N campioni e M misure di alberi che non
 possono essere recuperati") and forces an "Esporta" of the affected rows
 before the delete button is enabled.
 
-Deleting a single `tree_sample` row leaves both the `sample` and the underlying
-`tree` row intact.
+Deleting `tree_sample` rows leaves both their `sample` and underlying `tree`
+rows intact. The sampled-tree table's header trash can enters multi-row
+deletion mode. Select individual measurements across pages, review the listed
+records in one confirmation, and delete them together. Selecting replaces the
+pencil/trash icons with checkboxes and suspends row editing. Search and area
+filter changes clear selection; sorting, pagination and unchanged background
+refreshes preserve it.
+
+The server confines a batch to its survey and checks every selected version
+before deleting anything. A rejected selection leaves every measurement in
+place. Accepted deletions update sample/survey counts, preserved-tree summaries
+and the free-survey map/dendrometric summary. Survey deletion retains its
+separate export safeguard. See
+[Multi-row deletion](ui-design-patterns.md#multi-row-deletion).
 
 Tree/area deletions and all their digest dirty marks share one transaction,
 with or without a request nonce. Tree, area, grid and survey deletes also
