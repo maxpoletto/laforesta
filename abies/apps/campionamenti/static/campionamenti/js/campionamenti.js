@@ -1,11 +1,10 @@
 /**
- * Campionamenti page — 3 collapsible sections.
+ * Campionamenti page — grids and surveys, each with its data-entry controls.
  *
  *   Section 1 (g) — Griglie: grid pulldown + map of its sample areas.
  *   Section 2 (r) — Rilevamenti: survey pulldown + sample-area map for
- *                    predefined surveys.
- *   Section 3 (t) — Alberi campionati: sortable table; free surveys also
- *                    show their tree map and dendrometric summary.
+ *                    predefined surveys, followed by the sampled-tree table.
+ *                    Free surveys include their tree map and dendrometry.
  *
  * URL params: see docs/page-campionamenti.md (o, g, s, a, tf, tsc, tso).
  *
@@ -34,7 +33,7 @@ import {
 } from '../../base/js/import-warnings.js';
 import {
   deleteRowWithVersion, fetchForm, fetchModalForm, renderFormHTML, renderModalForm,
-  interceptSubmit, submitCsvImport, showFormError,
+  interceptSubmit, showCsvImportModal, showFormError,
 } from '../../base/js/forms.js';
 import {
   showConfirmModal, showCascadeDeleteModal, wireActions, wireCancelButtons,
@@ -108,7 +107,7 @@ const PAGE_PATH = '/rilevamenti';
 const TREE_TABLE_KEYS = tableParamKeys('t');
 const DEFAULT_TREE_SORT = { column: S.COL_REGION, ascending: true };
 
-const SECTION_KEYS = ['g', 'r', 't'];
+const SECTION_KEYS = ['g', 'r'];
 const DEFAULT_OPEN = 'r';
 
 // mt= URL param → MapCommon basemap key.  Defaults to 's' (Satellite)
@@ -159,9 +158,8 @@ const sections = {
   r: { open: true, header: null, body: null,
        pulldown: null, summary: null, mapEl: null, map: null,
        savedView: null },
-  t: { open: false, header: null, body: null,
-       host: null, detailHost: null, emptyEl: null, headerSummary: null },
 };
+const treeView = {host: null, detailHost: null, emptyEl: null, scopeSummary: null};
 
 let table = null;
 let activeGridId = null;
@@ -267,8 +265,9 @@ function resetSectionRefs() {
     const s = sections[k];
     s.header = s.body = null;
     s.pulldown = s.summary = s.mapEl = s.map = null;
-    s.host = s.detailHost = s.emptyEl = s.headerSummary = null;
+    s.emptyEl = null;
   }
+  treeView.host = treeView.detailHost = treeView.emptyEl = treeView.scopeSummary = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -310,39 +309,25 @@ function buildPage(el, params) {
   });
   populateSurveyPulldown(r.pulldown);
 
-  // Trees section refs.
-  sections.t.emptyEl = el.querySelector('[data-target="trees-empty"]');
-  sections.t.host = el.querySelector('[data-target="trees-table-host"]');
-  sections.t.detailHost = el.querySelector('[data-target="trees-detail-host"]');
-  mountTreesHeaderSummary();
+  // Sampled-tree workspace refs.
+  treeView.emptyEl = el.querySelector('[data-target="trees-empty"]');
+  treeView.host = el.querySelector('[data-target="trees-table-host"]');
+  treeView.detailHost = el.querySelector('[data-target="trees-detail-host"]');
+  treeView.scopeSummary = el.querySelector('[data-target="trees-scope-summary"]');
 
   disposePageActions = wireActions(el, {
     'new-grid': () => showNewGridForm(),
     'edit-grid': () => showEditGridModal(),
+    'import-grid-csv': () => showGridCsvImport(),
     'delete-grid': () => confirmDeleteGrid(),
     'export-grid-csv': () => activeGridId != null && exportGridAreasCSV(activeGridId),
     'new-survey': () => showNewSurveyForm(),
     'edit-survey': () => showEditSurveyModal(),
     'delete-survey': () => confirmDeleteSurvey(),
-    'export-survey-csv': () => activeSurveyId != null && exportFullSurveyCSV(activeSurveyId),
     'add-area': () => showAddAreaForm(),
   });
 
   updateGridEmptyState();
-}
-
-function mountTreesHeaderSummary() {
-  const title = sections.t.header?.querySelector('[data-field="title"]');
-  if (!title) return;
-  let summary = title.querySelector('[data-target="trees-header-summary"]');
-  if (!summary) {
-    summary = document.createElement('span');
-    summary.className = 'campionamenti-header-summary';
-    summary.dataset.target = 'trees-header-summary';
-    title.appendChild(summary);
-  }
-  sections.t.headerSummary = summary;
-  updateTreesHeaderSummary();
 }
 
 function populatePulldown(sel, digest, labelFn) {
@@ -422,8 +407,10 @@ function populateSurveyPulldown(sel) {
 function updateGridEmptyState() {
   const hasGrids = gridsData?.rows?.length > 0;
   const g = sections.g;
-  const topRow = g.body?.querySelector('.campionamenti-section-top');
-  if (topRow) topRow.hidden = !hasGrids;
+  const selector = g.body?.querySelector('.campionamenti-section-left');
+  if (selector) selector.hidden = !hasGrids;
+  const controls = g.body?.querySelector('[data-target="grid-summary-row"]');
+  if (controls) controls.hidden = !hasGrids;
   if (g.emptyEl) g.emptyEl.hidden = hasGrids;
   if (g.summary) g.summary.hidden = !hasGrids;
   if (g.mapEl) g.mapEl.hidden = !hasGrids;
@@ -436,10 +423,7 @@ function updateGridEmptyState() {
 
 function onSectionOpen(s) {
   // A map first fitted while its section was collapsed (zero-height host)
-  if (s === sections.t) {
-    treeDetail?.showMap();
-    return;
-  }
+  if (s === sections.r) treeDetail?.showMap();
   // clamps to max zoom; re-fit now that the host has a real size.  Skip the
   // re-fit when the user already has a saved pan/zoom, so we don't clobber it.
   if (!s.map) return;
@@ -559,12 +543,12 @@ async function activateSurvey(surveyId) {
   }
   activeSurveyId = surveyId;
   activeAreaId = null;
-  setTreesHeaderSummary('');
+  setTreeScopeSummary('');
 
   renderRilevamentiSummary(surveyId);
   renderRilevamentiMap(surveyId);
 
-  // Section 3: lazy-fetch per-survey trees.
+  // Load the selected survey's tree table.
   const dataId = `${TREES_ID_PREFIX}${surveyId}`;
   cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
   currentTreesId = dataId;
@@ -587,7 +571,7 @@ async function activateSurvey(surveyId) {
 
   if (unsubCache) unsubCache();
   unsubCache = bindTableData({ dataId, table, onUpdate: () => {
-    updateTreesHeaderSummary();
+    updateSurveyTreeSummary();
     updateTreeDetail();
   } });
 }
@@ -600,25 +584,12 @@ function renderRilevamentiSummary(surveyId) {
   s.summary.replaceChildren();
   if (!row) return;
   const desc = row[c.indexOf(S.COL_DESCRIPTION)] || '';
-  const gridId = row[c.indexOf(S.COL_GRID)];
-  const freeSurvey = gridId == null;
   const firstDate = row[c.indexOf(S.COL_DATE_FIRST)];
   const lastDate = row[c.indexOf(S.COL_DATE_LAST)];
-
+  const source = cache.get(`${TREES_ID_PREFIX}${surveyId}`);
+  const count = source?.rows.length ?? surveyTreeCounts().get(surveyId) ?? 0;
   const stats = document.createElement('div');
-  const dates = firstDate
-    ? (freeSurvey
-      ? S.SAMPLES_FREE_SURVEY_DATE_RANGE(firstDate, lastDate)
-      : S.SAMPLES_SURVEY_DATE_RANGE(firstDate, lastDate))
-    : S.STATUS_NO_SAMPLES;
-  stats.textContent = freeSurvey
-    ? dates
-    : S.SAMPLES_SURVEY_SUMMARY(
-      lookupGridName(gridId),
-      row[c.indexOf(S.COL_N_AREAS_VISITED)],
-      row[c.indexOf(S.COL_N_AREAS_TOTAL)],
-      dates,
-    );
+  stats.textContent = S.SAMPLES_SURVEY_OVERVIEW(firstDate, lastDate, count);
   s.summary.appendChild(stats);
   if (desc) {
     const d = document.createElement('div');
@@ -626,12 +597,6 @@ function renderRilevamentiSummary(surveyId) {
     d.textContent = desc;
     s.summary.appendChild(d);
   }
-}
-
-function lookupGridName(gridId) {
-  const c = gridsData.columns;
-  const row = gridsData.rows.find(r => r[c.indexOf(ROW_ID)] === gridId);
-  return row ? row[c.indexOf(S.COL_NAME)] : '';
 }
 
 function renderRilevamentiMap(surveyId) {
@@ -679,10 +644,6 @@ function renderRilevamentiMap(surveyId) {
       activeAreaId = areaId;
       applyAreaFilter();
       syncURL();
-      // Auto-expand Section 3 when the user picks an area.
-      if (areaId != null && !sections.t.open) {
-        toggleSection(sections.t, true);
-      }
     },
     initialView,
     onViewChange: (center, zoom) => {
@@ -699,13 +660,13 @@ function destroyRilevamentiMap() {
 
 function showAlberiEmpty() {
   destroyTable();
-  setTreesHeaderSummary('');
-  if (sections.t.emptyEl) sections.t.emptyEl.hidden = false;
+  setTreeScopeSummary('');
+  if (treeView.emptyEl) treeView.emptyEl.hidden = false;
 }
 
 function renderTable(data) {
   destroyTable();
-  const s = sections.t;
+  const s = treeView;
   if (!s.host) return;
   if (s.emptyEl) s.emptyEl.hidden = true;
 
@@ -737,8 +698,10 @@ function renderTable(data) {
     sort: tableSort(treeState, DEFAULT_TREE_SORT),
     searchText: treeState.searchText,
     csvFilename: S.CSV_SAMPLED_TREES,
-    toolbar: { export: () => exportFilteredSurveyCSV(data) },
-    labels: S.TABLE_LABELS,
+    toolbar: { export: () => exportFilteredSurveyCSV(data),
+      actions: modify ? [{label: S.IMPORT_CSV, className: 'btn btn-import',
+        onClick: () => showSurveyCsvImport()}] : [] },
+    labels: {...S.TABLE_LABELS, add: S.NEW_TREE_LABEL},
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => {
@@ -751,7 +714,7 @@ function renderTable(data) {
 }
 
 function mountTreeDetail(data) {
-  const host = sections.t.detailHost;
+  const host = treeView.detailHost;
   if (!host) return;
   treeDetail = new TreeDetail({
     container: host,
@@ -767,14 +730,14 @@ function mountTreeDetail(data) {
     onExport: rows => exportSurveyDendrometry(data, rows),
   });
   bindBasemapEvents(treeDetail.map);
-  if (sections.t.open) treeDetail.showMap();
+  if (sections.r.open) treeDetail.showMap();
 }
 
 function destroyTable() {
   if (unsubCache) { unsubCache(); unsubCache = null; }
   if (table) { table.destroy(); table = null; }
   if (treeDetail) { treeDetail.destroy(); treeDetail = null; }
-  sections.t.detailHost?.replaceChildren();
+  treeView.detailHost?.replaceChildren();
 }
 
 function applyAreaFilter() {
@@ -785,7 +748,7 @@ function applyAreaFilter() {
         : row => row[areaCol()] === activeAreaId,
     );
   }
-  updateTreesHeaderSummary();
+  updateSurveyTreeSummary();
   updateTreeDetail();
 }
 
@@ -801,36 +764,21 @@ function areaCol() {
   return _areaColIdx;
 }
 
-function setTreesHeaderSummary(text) {
-  if (sections.t.headerSummary) sections.t.headerSummary.textContent = text;
+function setTreeScopeSummary(text) {
+  if (!treeView.scopeSummary) return;
+  treeView.scopeSummary.textContent = text;
+  treeView.scopeSummary.hidden = !text;
 }
 
-function updateTreesHeaderSummary() {
-  if (!sections.t.headerSummary) return;
+function updateSurveyTreeSummary() {
+  if (activeSurveyId != null) renderRilevamentiSummary(activeSurveyId);
   const data = currentTreesId ? cache.get(currentTreesId) : null;
-  if (!data) {
-    setTreesHeaderSummary('');
+  if (!data || surveyGridId(activeSurveyId) == null || activeAreaId == null) {
+    setTreeScopeSummary('');
     return;
   }
-
-  const freeSurvey = surveyGridId(activeSurveyId) == null;
-  const count = freeSurvey ? data.rows.length : countTreesInActiveArea(data);
-  if (freeSurvey) {
-    setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_COUNT(count));
-    return;
-  }
-
-  if (activeAreaId == null) {
-    setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_ALL(count));
-    return;
-  }
-
   const area = sampleAreaSummary(activeAreaId);
-  if (!area) {
-    setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_COUNT(count));
-    return;
-  }
-  setTreesHeaderSummary(S.SAMPLES_TREES_HEADER_AREA(area, count));
+  setTreeScopeSummary(area ? S.SAMPLES_TREES_HEADER_AREA(area, countTreesInActiveArea(data)) : '');
 }
 
 function countTreesInActiveArea(data) {
@@ -875,7 +823,7 @@ function toggleSection(s, open) {
 
 function readParams(params) {
   return {
-    o: params.o !== undefined ? params.o : DEFAULT_OPEN,
+    o: [...new Set((params.o !== undefined ? params.o : DEFAULT_OPEN).replaceAll('t', 'r'))].join(''),
     g: params.g ? parseInt(params.g, 10) : null,
     s: params.s ? parseInt(params.s, 10) : null,
     a: params.a ? parseInt(params.a, 10) : null,
@@ -1245,9 +1193,6 @@ function showEditGridModal() {
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     title: S.RENAME_TITLE_GRID,
-    importTabLabel: S.EDIT_GRID_TAB_IMPORT,
-    importHelp: S.GRID_IMPORT_HELP,
-    showDate: false,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
         `${GRID_EDIT_URL_PREFIX}${activeGridId}/`, {
@@ -1266,22 +1211,6 @@ function showEditGridModal() {
       updatePulldownOption(sections.g, activeGridId, gridsData, S.COL_NAME);
       return null;
     },
-    onImportSubmit: async (form) => {
-      const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
-      if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
-      const { data, status } = await postJSON(GRID_CSV_IMPORT_URL, {
-        [FIELD_SAMPLE_GRID_ID]: String(activeGridId),
-        [FIELD_FILE]: await fileToBase64(file),
-        [FIELD_NONCE]: crypto.randomUUID(),
-      });
-      if (status === 200) {
-        applySideEffects(data);
-        return { ok: true };
-      }
-      return data?.[FIELD_ERRORS]?.length
-        ? { errors: data[FIELD_ERRORS] }
-        : { error: data?.[MESSAGE] };
-    },
   });
 }
 
@@ -1294,9 +1223,6 @@ function showEditSurveyModal() {
     name: row[c.indexOf(S.COL_NAME)] || '',
     description: row[c.indexOf(S.COL_DESCRIPTION)] || '',
     title: S.RENAME_TITLE_SURVEY,
-    importTabLabel: S.EDIT_SURVEY_TAB_IMPORT,
-    importHelp: S.SURVEY_IMPORT_HELP,
-    showDate: true,
     onDetailsSave: async ({ name, description }) => {
       const { data, status } = await postJSON(
         `${SURVEY_EDIT_URL_PREFIX}${activeSurveyId}/`, {
@@ -1315,18 +1241,46 @@ function showEditSurveyModal() {
       rebuildSurveyPulldown();
       return null;
     },
-    onImportSubmit: async (form) => submitTreeCsvImport(form),
   });
 }
 
-async function submitTreeCsvImport(form) {
+function showGridCsvImport() {
+  const gridId = activeGridId;
+  const row = gridRow(gridId);
+  if (!row) return;
+  showCsvImportModal({title: S.GRID_IMPORT_TITLE, help: S.GRID_IMPORT_HELP,
+    context: row[gridsData.columns.indexOf(S.COL_NAME)],
+    onSubmit: async form => {
+      const file = form.querySelector('[name="file"]')?.files?.[0];
+      if (!file) return {error: S.ERR_CSV_FILE_REQUIRED};
+      const {data, status} = await postJSON(GRID_CSV_IMPORT_URL, {
+        [FIELD_SAMPLE_GRID_ID]: String(gridId), [FIELD_FILE]: await fileToBase64(file),
+        [FIELD_NONCE]: crypto.randomUUID(),
+      });
+      if (status === 200) { applySideEffects(data); return {ok: true}; }
+      return csvImportErrorResult(data);
+    },
+  });
+}
+
+function showSurveyCsvImport() {
+  const surveyId = activeSurveyId;
+  const row = surveyRow(surveyId);
+  if (!row) return;
+  showCsvImportModal({title: S.SURVEY_IMPORT_TITLE, help: S.SURVEY_IMPORT_HELP,
+    context: row[surveysData.columns.indexOf(S.COL_NAME)], showDate: true,
+    onSubmit: form => submitTreeCsvImport(form, surveyId),
+  });
+}
+
+async function submitTreeCsvImport(form, surveyId) {
   const file = form.querySelector(`[name="${FIELD_FILE}"]`)?.files?.[0];
   if (!file) return { error: S.ERR_CSV_FILE_REQUIRED };
   const defaultDate = form.querySelector(
     `[name="${FIELD_DEFAULT_DATE}"]`,
   )?.value || '';
   const body = {
-    [FIELD_SURVEY_ID]: String(activeSurveyId),
+    [FIELD_SURVEY_ID]: String(surveyId),
     [FIELD_DEFAULT_DATE]: defaultDate,
     [FIELD_FILE]: await fileToBase64(file),
     [FIELD_NONCE]: crypto.randomUUID(),
@@ -1369,13 +1323,8 @@ function csvImportErrorResult(data) {
 function showEditModal(opts) {
   const frag = cloneTemplate('tmpl-campionamenti-edit-modal');
   frag.querySelector('[data-field="title"]').textContent = opts.title;
-  frag.querySelector('[data-field="import-tab-label"]').textContent = opts.importTabLabel;
   frag.querySelector('[name="name"]').value = opts.name;
   frag.querySelector('[name="description"]').value = opts.description;
-  frag.querySelector('[data-field="import-help"]').textContent = opts.importHelp;
-  if (opts.showDate) frag.querySelector('[data-field="date-row"]').hidden = false;
-
-  const { lockHeight } = wireTabbedModal(frag);
 
   wireCancelButtons(frag, dismissModal);
 
@@ -1394,19 +1343,7 @@ function showEditModal(opts) {
     } catch { showFormError(detailsForm, S.ERROR_NETWORK); btn.disabled = false; }
   });
 
-  const importForm = frag.querySelector('[data-role="import-form"]');
-  const statusBox = frag.querySelector('.csv-import-status');
-  const errorsBox = frag.querySelector('.csv-import-errors');
-  importForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await submitCsvImport({
-      form: importForm, statusBox, errorsBox,
-      attempt: () => opts.onImportSubmit(importForm),
-    });
-  });
-
   showModal(frag);
-  lockHeight();
 
   document.querySelector('#modal-container [name="name"]')?.focus();
 }
@@ -1555,19 +1492,6 @@ function treeRowIds(data, rows) {
     .filter(rowId => Number.isInteger(rowId) && rowId > 0);
 }
 
-async function exportFullSurveyCSV(surveyId) {
-  const dataId = `${TREES_ID_PREFIX}${surveyId}`;
-  cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
-  let d;
-  try { d = await cache.load(dataId); }
-  catch { showError(S.ERROR_NETWORK); return; }
-  if (!d?.rows?.length) {
-    showError(S.NO_RESULTS);
-    return;
-  }
-  downloadFromURL(`${TREE_CSV_EXPORT_URL_PREFIX}${surveyId}/`);
-}
-
 
 /**
  * Update one option's text in a section's pulldown after a rename.
@@ -1622,10 +1546,10 @@ async function refreshCurrentTrees() {
  * (tree_csv_import_view) marks the per-survey trees digest, `samples`,
  * and `surveys` stale, so reload all three and re-render their views.
  *
- * Reloading the trees digest refreshes the Section 3 table through the
+ * Reloading the trees digest refreshes the survey tree table through the
  * same `cache.onUpdate(currentTreesId)` listener used by write-response
  * patches.  Without this reload the table keeps its pre-import rows until a
- * full page reload.  Samples and surveys reloads then feed the Section 2
+ * full page reload. Samples and surveys reloads then feed the survey
  * map's visited-area tooltips and the survey summary + pulldown counts.
  */
 async function refreshAfterTreeImport() {

@@ -1,3 +1,4 @@
+import { csvImportTemplate } from '../../../../../test/js-csv-modal.mjs';
 import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Regression tests for the Campionamenti page async selection state.
 // Run with: node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs
@@ -153,6 +154,7 @@ class MockElement {
       this.parentNode = null;
     }
   }
+  focus() { this.focused = true; }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   setAttribute(name, value) { this[name] = String(value); }
   removeAttribute(name) { delete this[name]; }
@@ -250,11 +252,21 @@ function section(key) {
   const header = el('div', { className: 'collapsible-header', dataset: { section: key } });
   const body = el('div', { className: 'collapsible-body', dataset: { section: key } });
   header.appendChild(el('span', { dataset: { field: 'title' } }));
-  if (key === 'g') body.appendChild(el('select', { id: 'campionamenti-grid-select' }));
+  if (key === 'g') {
+    body.appendChild(el('select', {id:'campionamenti-grid-select'}));
+    const controls = el('div', {dataset:{target:'grid-summary-row'}});
+    controls.appendChild(el('div', {dataset:{target:'grid-summary'}}));
+    controls.appendChild(el('button', {dataset:{action:'import-grid-csv'}}));
+    body.appendChild(controls);
+  }
   if (key === 'r') {
     body.appendChild(el('select', { id: 'campionamenti-survey-select' }));
     body.appendChild(el('div', { dataset: { target: 'survey-summary' } }));
     body.appendChild(el('div', { dataset: { target: 'survey-map' } }));
+    body.appendChild(el('div', { dataset: { target: 'trees-scope-summary' } }));
+    body.appendChild(el('div', { dataset: { target: 'trees-empty' } }));
+    body.appendChild(el('div', { dataset: { target: 'trees-table-host' } }));
+    body.appendChild(el('div', { dataset: { target: 'trees-detail-host' } }));
   }
   if (key === 't') {
     body.appendChild(el('div', { dataset: { target: 'trees-empty' } }));
@@ -267,7 +279,7 @@ function section(key) {
 function buildCampionamentiTemplate() {
   const frag = el('fragment');
   frag.appendChild(el('button', { dataset: { action: 'new-grid' } }));
-  for (const key of ['g', 'r', 't']) frag.append(...section(key));
+  for (const key of ['g', 'r']) frag.append(...section(key));
   return frag;
 }
 
@@ -301,6 +313,7 @@ const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
+  'tmpl-csv-import-modal': {content: csvImportTemplate(tag => el(tag))},
   'tmpl-campionamenti-page': { content: buildCampionamentiTemplate() },
 };
 
@@ -407,6 +420,7 @@ const treeLoads = new Map([
   ['/api/campionamenti/trees/2/', deferred()],
 ]);
 const fetches = [];
+const csvImports = [];
 
 function digest(columns, rows) {
   return { columns, rows };
@@ -466,6 +480,10 @@ let exportedDendrometryRowIds = null;
 globalThis.fetch = async (url, options = {}) => {
   url = String(url);
   fetches.push(url);
+  if (url.endsWith('/import-csv/') && options.method === 'POST') {
+    csvImports.push([url, JSON.parse(options.body)]);
+    return {status:400,ok:false,json:async()=>({status:'validation_error', errors:['Riga 2: Altezza mancante.']})};
+  }
   if (url.startsWith('/api/campionamenti/survey/dendrometry/export/') &&
       options.method === 'POST') {
     exportedDendrometryRowIds = JSON.parse(options.body || '{}').row_ids ?? null;
@@ -491,8 +509,8 @@ await campionamenti.mount({});
 const surveySummary = contentEl.querySelector('[data-target="survey-summary"]');
 eq(
   surveySummary.children[0].textContent,
-  'Griglia: Griglia · 2/4 aree visitate · dal 2025-01-01 al 2025-02-01',
-  'structured survey summary retains grid and area progress',
+  'Dal 2025-01-01 al 2025-02-01. 12 alberi campionati.',
+  'survey overview shows dates and the complete sampled-tree count',
 );
 const surveySelect = contentEl.querySelector('#campionamenti-survey-select');
 const [freeSurveys, structuredSurveys] = surveySelect.children;
@@ -530,8 +548,8 @@ eq(S.SAMPLES_TREES_HEADER_AREA(mappedArea, 12),
 campionamenti.onQueryChange({ s: '2' });
 eq(
   surveySummary.children[0].textContent,
-  'Dal 1970-01-01 al 1970-01-01',
-  'free survey summary displays only its capitalized date range',
+  'Dal 1970-01-01 al 1970-01-01. 1495 alberi campionati.',
+  'free survey overview shows dates and count before tree rows finish loading',
 );
 eq(surveyMap.hidden, true, 'free survey hides the sample-area map');
 
@@ -548,10 +566,11 @@ const visibleTreeFetches = fetches.filter(url => url.includes('/trees/'));
 eq(visibleTreeFetches, ['/api/campionamenti/trees/2/'],
    'stale survey selection does not replace the visible sampled-trees digest');
 const treesHeaderSummary = contentEl.querySelector(
-  '[data-target="trees-header-summary"]',
+  '[data-target="trees-scope-summary"]',
 );
-eq(treesHeaderSummary.textContent, '(2 alberi)',
-   'free survey tree header omits the sample-area wording');
+eq(treesHeaderSummary.hidden, true, 'free surveys have no sample-area filter label');
+eq(surveySummary.children[0].textContent, 'Dal 1970-01-01 al 1970-01-01. 2 alberi campionati.',
+   'loaded tree rows update the survey overview count');
 
 const treeTable = tableInstances.find(table =>
   table.columns.some(column => column.key === S.COL_ACC_M));
@@ -640,6 +659,32 @@ await modalEl.querySelector(
 ).click();
 eq(planner.destroyed, true,
    'standard cancel wiring dismisses and destroys the grid planner');
+
+// The grid and tree imports are discoverable in their workspaces and retain retries.
+await contentEl.querySelector('[data-action="import-grid-csv"]').click();
+const gridFile = modalEl.querySelector('[name="file"]');
+gridFile.files = [new Blob(['grid csv'])];
+modalEl.querySelector('form').dispatchEvent({type:'submit',preventDefault(){}});
+await flushAsyncWork(); await flushAsyncWork();
+eq(csvImports.at(-1)[1].sample_grid_id, '10', 'grid import submits the selected grid');
+eq(modalEl.querySelector('[data-field="date-row"]').hidden, true, 'grid import has no default date');
+await modalEl.querySelector('[data-action="cancel"]').click();
+const treeControls = contentEl.querySelector('[data-target="trees-table-host"] .table-toolbar-actions');
+eq(treeControls.children.filter(node=>node.tagName==='button').map(node=>node.textContent),
+  ['Esporta','Importa CSV','+ Nuovo albero'], 'sample table controls follow the common action order');
+await treeControls.children.find(button=>button.textContent===S.IMPORT_CSV).click();
+const treeFile = modalEl.querySelector('[name="file"]');
+treeFile.files = [new Blob(['tree csv'])];
+modalEl.querySelector('[name="default_date"]').value = '2026-11-14';
+modalEl.querySelector('form').dispatchEvent({type:'submit',preventDefault(){}});
+await flushAsyncWork(); await flushAsyncWork();
+eq(csvImports.at(-1)[1].survey_id, '1', 'tree import submits the selected survey');
+eq(csvImports.at(-1)[1].default_date, '2026-11-14', 'tree import preserves the default-date affordance');
+eq(modalEl.querySelector('[name="file"]') === treeFile, true, 'tree CSV validation retains the file input');
+await modalEl.querySelector('[data-action="cancel"]').click();
+campionamenti.onQueryChange({s:'1', o:'t'});
+eq(contentEl.querySelector('[data-section="r"].collapsible-body').classList.contains('open'), true,
+  'older tree-section links open the combined survey workspace');
 
 campionamenti.unmount();
 

@@ -36,11 +36,21 @@ A button's color is set by what it does, via an intent class on the base
   same gray, but named so it can never drift to a commit color.
 - **Red — destructive:** `.btn-delete` (deletes a record or cascades).
 
-Many objects (survey grids, surveys, harvest plans, the hypsometric parameter
-set) can be both created and exported. The standard pairing is two side-by-side
-buttons on the far right of the work space — `[Esporta]` (`.btn-export`,
-gray) then `[+ Nuovo X]` (`.btn-create`, green); right-align a toolbar's buttons
-with the `.ms-auto` utility.
+Place workspace actions at the far right. When the workspace supports all
+three operations, use `[Esporta]` (gray), `[Importa CSV]` (green), then
+`[+ Nuovo X]` (green), with a specific noun such as *intervento*, *albero*, or
+*prelievo*. The pencil edits the selected object's metadata; importing content
+is a separate, visible action. Readers retain exports but have no import or
+create controls. Keep actions available on an empty table too.
+
+For tables, `TableWrapper` places these actions on the search/pagination row:
+export first, custom actions such as import next, and the built-in add action
+last. `labels.add` supplies the domain noun; the wrapper adds `+`. A page with
+external filters, such as Prelievi, can suppress the table's search input while
+retaining this action row. Non-table workspaces use the same order, such as a
+grid's summary row. Container creation (`+ Nuova griglia`, `+ Nuovo rilevamento`,
+`+ Nuovo piano`) stays beside the container selector, separate from actions on
+its content.
 
 ## Tabular data
 
@@ -75,8 +85,8 @@ Additionally, for users with role "writer" or "admin", tables may (depending on
 their semantics — see the relevant page doc (`docs/page-*.md`)) allow
 modification:
 
-- Tables that allow row addition have a "+ Aggiungi" button below the bottom
-  row, on the right.
+- Tables that allow row addition have a `+ Nuovo X` action at the right of
+  their search/pagination controls, after export and import.
 - Tables that allow row editing have a "pencil" icon on the right of each row.
 - Tables that allow row deletion also have a "garbage can" icon on the right.
 
@@ -169,8 +179,8 @@ After fonts load and the browser paints, the fixture toggles selection and
 checks action-column alignment, equal trash/cancel dimensions, stable header
 and data-row heights, accumulated row positions and table width. At wide
 widths (1400 CSS pixels or more), it also checks the table's top position,
-action-button alignment, nonoverlapping controls and centered Prelievi
-pagination. Phone layouts may wrap toolbar controls; their row-height checks
+action-button alignment, nonoverlapping controls, and the export/import/new
+button order. Phone layouts may wrap toolbar controls; their row-height checks
 compare positions within the table so legitimate toolbar wrapping is separate
 from unintended data-row growth. Cancel must restore the original position.
 
@@ -272,14 +282,15 @@ Infrastructure:
   column-aligned table footer built from the complete filtered row set, so it follows search and
   external filters but is never sorted, paginated, or included in CSV data.
 
-`showCsvImportModal({title, context, help, showDate, onSubmit, onSuccess})` in
-`forms.js` provides the shared standalone CSV file/date form. Domain callbacks
-retain request formats and warning/refresh behavior. Validation errors keep
-the file and target context for retry. After an accepted import the dialog
-closes before refreshing; a refresh failure reports that import succeeded and
-asks the user to reload.
+The grid, survey and harvest-plan pencil dialogs contain metadata fields
+only. Their workspace import buttons use `showCsvImportModal({title, context,
+help, showDate, onSubmit, onSuccess})`, which owns the shared file/date form,
+status/errors and submit lifecycle. Domain callbacks retain their request
+format, warning handling and cache refresh. Validation failures preserve the
+file and target context for retry. A refresh failure after an accepted import
+reports that the import succeeded and asks the user to reload.
 
-Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
+Tabbed modals (for example the empty/generated grid creation choices)
 use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /
 `.modal-tab-bodies` CSS classes (defined in `common.css`).
 `wireTabbedModal` measures all tab bodies after `showModal()` and

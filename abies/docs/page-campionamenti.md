@@ -20,18 +20,18 @@ Three schema entities organize the data:
 
 ## Visual layout
 
-No page-level filter bar. Three collapsible sections:
+No page-level filter bar. Two collapsible workspaces:
 
-1. **Griglie di campionamento** (map, collapsed by default).
-2. **Rilevamenti** (sample-area map for predefined surveys, open by default).
-3. **Alberi campionati** (sortable table; free surveys also show their tree map
-   and dendrometric summary; collapsed and rendered lazily).
+1. **Griglie di campionamento** (grid management map, collapsed by default).
+2. **Rilevamenti** (survey summary, sample-area map when structured, and sampled
+   trees table; open by default). A free survey also shows its tree map and
+   dendrometric summary beneath the table.
 
-Sections are independent except:
-- selecting a survey in section 2 drives section 3 (that survey's trees are
-  shown);
-- selecting a sample area in section 2 further restricts section 3 (only that
-  sample area's trees are shown).
+The trees belong directly to the survey workspace, without a separate Alberi
+campionati foldable section. Selecting a survey changes its tree table;
+selecting an area on a structured survey's map narrows that table. Grid and
+survey selections remain independent: managing another grid does not change
+the selected survey or its trees.
 
 ### Section 1 — Griglie (Grids)
 
@@ -43,11 +43,13 @@ pencil and garbage icons for editing (see "Modifica griglia modal") and deleting
 the active grid (if any surveys reference it, clicking "garbage" generates an
 error modal telling the user to first delete them).
 
-On the far right of the top row, the CSV export and "Nuova Griglia" buttons (see
-UI Design Patterns > Buttons).
+On the far right of the top row, writers see **+ Nuova griglia**.
 
-Below the top row, a short summary of the active grid: n. aree, comprese
-coperte, n. rilevamenti che la usano, data ultimo aggiornamento, descrizione.
+The next row shows the active grid's summary (number of areas, regions, surveys
+using it, last update and description), with `[Esporta] [Importa CSV]
+[+ Nuova area di campionamento]` aligned to the right. Readers see only Esporta.
+The row wraps on narrow screens. Import and manual area creation target the
+selected grid, including an empty grid.
 
 **Map** — Leaflet map of the active grid's sample areas, drawn at their `r_m`
 radius. This map is purely a grid-management surface; it does not show
@@ -70,12 +72,10 @@ Map interactions:
   (resolved from the map geometry); a click outside every parcel leaves them
   for the writer to pick.
 
-Below the map sit (writers only):
-
-- A short hint: "Clicca sulla mappa per aggiungere un'area, o su un'area per
-  modificarla." — addresses the discoverability of the click-to-create gesture.
-- "+ Aggiungi area" button — opens the new-area form with empty lat/lng (for
-  manual entry from a GPS device or paper notes).
+Below the map, writers see the hint "Clicca sulla mappa per aggiungere
+un'area, o su un'area per modificarla." The **+ Nuova area di campionamento**
+button in the summary row opens the same form with empty coordinates, for
+manual entry from a GPS device or paper notes.
 
 The new-area form:
 
@@ -90,7 +90,7 @@ The new-area form:
 - Raggio (m) (default 10 m).
 - Note (optional).
 
-The "Esporta" button at the top right exports the active grid's sample areas
+The "Esporta" button in the summary row exports the active grid's sample areas
 in the same column shape as the import flow (see "Grid CSV import" below),
 including optional notes — useful for programming GPS devices for the field
 crew and as a lossless backup.
@@ -100,7 +100,7 @@ paths:
 
 - *Crea vuota* — creates an empty grid with a name and optional
   description, ready for manual area additions via the map or CSV import
-  (via the pencil modal).
+  (via the workspace Importa CSV button).
 - *Genera automaticamente* — runs the grid generator
   across user-selected regions, writes `sample_grid` plus `sample_area` rows in
   one transaction. Generated areas are numbered per compresa, restarting at 1
@@ -112,7 +112,7 @@ paths:
 
 This deliberately does *not* offer CSV import at creation time: identity
 (the grid exists with a name) is decoupled from content (sample areas).
-Imports happen later via the pencil modal.
+Imports happen later via the workspace Importa CSV button.
 
 Note that a grid can be edited (a sample area added, or an unused sample area
 deleted) after a survey has started. A sample area cannot be deleted once it is
@@ -120,25 +120,23 @@ used in any sample.
 
 #### Modifica griglia modal (pencil)
 
-A two-tab modal acting on the currently-selected grid:
-
-- **Dettagli** — name and description, both editable.
-- **Importa aree da CSV** — upload a CSV of sample areas. Rows are
-  added to the active grid; duplicates (same compresa + area number)
-  are rejected. See "Grid CSV import" below.
+A single form edits the selected grid's name and description. It has no tabs;
+**Importa CSV** in the grid summary row opens the separate file-import dialog.
+Rows are added to the selected grid and duplicate area identities are rejected
+(see "Grid CSV import" below).
 
 #### Empty state
 
-If no grids exist yet, the pulldown is disabled and the section shows a centered
-prompt: "Nessuna griglia. Premi 'Nuova griglia' per crearne una." with the same
-Nuova-griglia button.
+With no grids, the selector is hidden and the section asks the user to create
+a grid. **+ Nuova griglia** stays in its usual top-row position; the summary
+row and map remain hidden until a grid exists.
 
 ### Section 2 — Rilevamenti (Surveys)
 
-Same top-row layout as Griglie (pulldown + pencil/trash + Esporta + Nuovo
-rilevamento). Deleting an empty survey shows a simple warning. Deleting a
-survey with trees prompts with a deletion-after-export modal (see UI Design
-Patterns > Deletion-after-export).
+Same top-row layout as Griglie (pulldown + pencil/trash, with
+**+ Nuovo rilevamento** on the far right). Deleting an empty survey shows a
+simple warning. Deleting a survey with trees prompts with a deletion-after-export
+modal (see UI Design Patterns > Deletion-after-export).
 
 The pulldown separates surveys into **Rilevamenti liberi** and
 **Rilevamenti predefiniti** optgroups, in that order, and sorts each group
@@ -148,39 +146,37 @@ surveys retain the `Nome (visitate/totali aree)` label. The groups and labels
 are rebuilt from the survey and sample caches so tree edits and imports update
 the free-survey counts without a page reload.
 
-For predefined surveys the summary shows the grid, visited/total sample areas,
-and the first/last sample dates. For free surveys it shows only
-`Dal <first> al <last>`, since they have neither a grid nor sample areas.
-The optional description remains on its own line.
-
-Selecting a survey drives Section 3 (only that survey's trees). The
-section-level "Esporta" exports the full survey; Section 3 has its
-own export for the filtered subset.
+Every survey shows a descriptive overview such as
+`Dal 2026-10-01 al 2026-10-16. 43 alberi campionati.` The count covers all
+measurements in the selected survey, independently of the table or sample-area
+filter. If there are no samples, the date range is replaced by `Nessun
+campione.` The user-provided description follows on its own line, preserving
+line breaks.
 
 **Nuovo rilevamento** modal: Nome (required), Griglia (required pulldown),
 Descrizione (optional). Creates an empty survey and binds the survey to an
-existing grid. CSV import happens later via the pencil modal, or trees are added
-individually.
+existing grid. CSV import happens later via the tree-table Importa CSV button,
+or trees are added individually.
 
 #### Modifica rilevamento modal (pencil)
 
-Two-tab modal (same pattern as Modifica griglia):
-
-- **Dettagli** — name and description.
-- **Importa alberi da CSV** — upload + optional "Data predefinita"
-  fallback date. See "Tree-and-sample CSV import" below.
+A single metadata form edits name and description. It has no tabs. The tree
+table's **Importa CSV** button opens a separate file-import dialog naming the
+target survey, with an optional default date for files lacking `Data`.
 
 **Map** — shown only for predefined surveys, whose sample areas are drawn at
 `r_m` radius. Visited areas use the dark semantic marker color and unvisited
 areas the pale color (green on OSM/topographic maps, yellow on satellite).
-Click an area to filter Section 3; click empty space to show all trees. Hover
-tooltip: region, parcel, area number, n. trees sampled. Free surveys have no
-sample areas, so this map is hidden; their tree map appears in Section 3.
+Click an area to filter the survey's tree table; click empty space to show all
+trees. Hover tooltip: region, parcel, area number, n. trees sampled. Free surveys have no
+sample areas, so this map is hidden; their tree map appears below the table.
 
-### Section 3 — Alberi campionati (Sampled trees)
+#### Sampled trees within the survey workspace
 
 Sortable-table of `tree_sample` rows joined with `tree`, `sample`,
-`sample_area`, `parcel`, `species`, with its own search box and CSV export.
+`sample_area`, `parcel`, `species`. Its search/pagination row carries
+`[Esporta] [Importa CSV] [+ Nuovo albero]` at the right. Readers see only
+Esporta. The same controls remain available when an active survey is empty.
 
 Without an active survey the section shows an empty state ("Seleziona un
 rilevamento per visualizzare gli alberi campionati.") rather than every sampled
@@ -196,9 +192,10 @@ Parcel-column sorting is natural (`1`, `1b`, `2`, `2a`, …, `10`, `11`) in eith
 direction. The filtered tree map, summary and export use the same exact parcel
 selection as the table.
 
-The section-heading suffix shows the selected sample area and tree count for
-predefined surveys. For free surveys it shows only `(N alberi)`, without the
-meaningless "Tutte le aree di campionamento" prefix.
+When a sample area is selected in a predefined survey, a line immediately
+above the table identifies that area, sample date and count. Clearing the area
+selection removes that line. Free surveys have no area-scope line; their total
+count is already in the survey overview.
 
 With an active predefined survey and sample area, narrows to that area's trees
 within that survey.
@@ -234,8 +231,8 @@ estimates — see `database.md`).
 
 L10 column is blank if value is 0.
 
-Writers see "+ Aggiungi", pencil, garbage. The "+" requires a survey; a
-predefined survey also requires a selected sample area, while a free survey
+Writers see "+ Nuovo albero", pencil and trash icons. Creating a tree requires
+a survey. A predefined survey also requires a selected sample area, while a free survey
 does not. It opens the manual tree-entry flow (below).
 
 ## Data entry flows
@@ -252,8 +249,8 @@ Required columns: `Compresa`, `Particella`, `Area saggio` (→
 `Raggio` (or `Raggio (m)`).
 
 Flow:
-1. Writer opens the pencil modal on the target grid → "Importa aree da
-   CSV" tab, uploads file.
+1. Writer selects the target grid, then clicks **Importa CSV** in its summary
+   row and uploads a file. The dialog names the grid.
 2. Importer resolves `Compresa` → region, `(region, Particella)` →
    parcel. Failure on either lookup aborts the entire import (no
    partial state).
@@ -326,8 +323,8 @@ species without a configured volume equation. The interactive form mirrors this 
 Mass always uses the selected species' current density, not the proxy's.
 
 Flow:
-1. Writer opens the pencil modal on the target survey → "Importa alberi
-   da CSV" tab.
+1. Writer selects the target survey, then clicks **Importa CSV** in its tree
+   table controls. The dialog names the survey.
 2. Uploads CSV. If the file lacks a `Data` column, the form asks for a default
    sample date applied to all rows.
 3. Structured import maps each `(Compresa, Particella, Area saggio)` to the one
@@ -351,7 +348,7 @@ already exist in the survey's grid; the schema-level trigger (see
 
 ### Manual tree + sample entry
 
-"+ Aggiungi" opens an overlay modal. Read-only header: compresa,
+"+ Nuovo albero" opens an overlay modal. Read-only header: compresa,
 particella, area di saggio.
 
 Fields: numero albero (pulldown — see "Cross-sample tree identity" below),
@@ -470,7 +467,7 @@ the inputs with the device's current coordinates.
 ## Cross-page links
 
 - Any particella reference on this page (the area popover in section
-  1, the new-area form, table cells in section 3) links to the Bosco
+  1, the new-area form, sampled-tree table cells) links to the Bosco
   per-parcel page for that parcel.
 - The per-parcel page on Bosco shows recent surveys touching that
   parcel and links back here pre-filtered to the relevant survey.
@@ -483,28 +480,28 @@ the inputs with the device's current coordinates.
 - Path: `/rilevamenti`
 - Query parameters:
   - `o=...`: which sections are expanded — single-char tokens, order
-    irrelevant.  Tokens: `g` = Griglie, `r` = Rilevamenti, `t` =
-    Alberi campionati.  Absent → default (`r`); explicit empty
+    irrelevant.  Tokens: `g` = Griglie and `r` = Rilevamenti. A legacy `t`
+    token opens Rilevamenti too; generated URLs use only `g` and `r`.  Absent → default (`r`); explicit empty
     (`?o=`) → all closed.
   - `g=N`: id of the active grid in section 1.  Absent or pointing
     at a deleted grid → most recently updated grid (or empty state
     if none exist).
-  - `s=N`: id of the active survey in section 2.  Drives section 3.
+  - `s=N`: id of the active survey in section 2, including its tree table.
     Absent or pointing at a deleted survey → most recently active
     survey (or empty state if none exist).
   - `a=N`: id of the active sample area within the active survey
-    (set by clicking an area on section 2's map). Narrows section
-    3 to that area's trees and surfaces the sample date inline.
+    (set by clicking an area on section 2's map). Narrows the tree
+    table to that area's trees and surfaces the sample date above it.
     Silently cleared if it does not belong to the active survey's grid,
     or if the active survey is free (handles stale shares).
-  - Section 3 sortable-table state:
+  - Survey tree-table state:
     - `tf=...`: URL-encoded search-box filter.
     - `tsc=N`: sort column index.
     - `tso=0|1`: sort order (0 = ascending, 1 = descending).
     Default sort: by Compresa, Particella, n. area, n. albero,
     pollone (natural reading order).
   - `mt=o|t|s`: shared map type for every active map, including a free
-    survey's tree map in Section 3. Defaults to `s` (Satellite).
+    survey's tree map. Defaults to `s` (Satellite).
 
 Map center and zoom are *not* encoded. Grid/sample-area maps fit their active
 grid, while a free survey's tree map fits its parcels. Pan/zoom is treated as
@@ -513,14 +510,14 @@ reproduces a stale viewport" trap.
 
 The active grid (`g=`) and active survey (`s=`) are independent
 controls: they can point at different grids without contradiction.
-Section 3 only depends on `s=` and, for predefined surveys, `a=` — `g=` does
+The tree table depends on `s=` and, for predefined surveys, `a=`; `g=` does
 not narrow it.
 
 ## Data tables
 
 Six digests serve this page. Five are eagerly loaded on first navigation
 (small, drive the always-visible controls and maps); one is lazily loaded per
-active survey when Section 3 expands.
+active survey when Rilevamenti opens.
 
 ### Cache invalidation
 
@@ -591,7 +588,7 @@ Columns: `row_id`, `version`, `Griglia` (sample_grid_id), `Compresa`,
 
 All `sample` rows.  Drives Section 2's visited/unvisited map coloring,
 the per-area "n. alberi" hover tooltip, and the inline sample-date
-display in Section 3.  Eager-loaded.  Invalidated on `sample` writes
+display above the survey tree table.  Eager-loaded.  Invalidated on `sample` writes
 and on `tree_sample` writes (since `N. alberi` is materialized).
 
 Columns: `row_id`, `version`, `Survey`, `Sample area`, `Data`,
@@ -603,7 +600,7 @@ loading the heavy per-survey tree digest.
 
 ### `sampled_trees_<survey_id>.json` (lazy, per survey)
 
-One digest per survey, denormalized for Section 3.  Lazily fetched
+One digest per survey, denormalized for its tree table.  Lazily fetched
 the first time a given `s=<id>` enters scope (either via URL on page
 entry or via Section 2 pulldown change), and cached client-side per
 survey for the rest of the session. Invalidated on relevant `tree_sample`
@@ -634,13 +631,14 @@ invariant).  `Lat`, `Lon` come from row-level `TreeSample` coordinates
 if set, else fall back to the sample-area center. `Acc. (m)` is the nullable
 row-level GPS accuracy and has no sample-area fallback; the UI displays null
 as `-`. `Data campione` is `sample.date` (useful for cross-tab tracking even
-when Section 3 isn't narrowed to a single area).
+when the table isn't narrowed to a single area).
 
-The page uses this digest for the Section 3 sortable table and, for free
-surveys, the tree map and client-side dendrometric summary. CSV exports are
-rendered from normalized database rows so hidden fields are not lost: Section
-2 exports the entire survey, while Section 3 submits the row IDs retained by
-its filters. The dendrometry ZIP endpoint
+The page uses this digest for the survey tree table and, for free surveys,
+the tree map and client-side dendrometric summary. The table's Esporta submits
+the row IDs retained by its filters. The server renders normalized database
+rows, preserving hidden fields, free-sample groups and PAI numbers. With no
+area or text filter this exports the entire survey. The separate survey-delete
+backup always exports all measurements, regardless of the active filters. The dendrometry ZIP endpoint
 (`/api/campionamenti/survey/dendrometry/export/<survey-id>/`) uses the same
 shared server-side matrix builder as Martellate and accepts the visible row IDs
 when the text filter is active.

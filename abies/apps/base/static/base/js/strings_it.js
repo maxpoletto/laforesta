@@ -216,13 +216,9 @@ export const AREA_IN_USE_TOOLTIP =
   'Area di saggio con campioni: non può essere eliminata.';
 export const SAMPLES_TREE_COUNT = (n) =>
   `${n} ${n === 1 ? 'albero' : 'alberi'}`;
-export const SAMPLES_TREES_HEADER_ALL = (n) =>
-  `(Tutte le aree di campionamento / ${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_TREES_HEADER_AREA = (area, n) =>
   `(${area.regionName} ${area.parcelName} / ` +
   `area di campionamento ${area.number} / ${SAMPLES_TREE_COUNT(n)})`;
-export const SAMPLES_TREES_HEADER_COUNT = (n) =>
-  `(${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_FREE_SURVEYS_GROUP = '-- Rilevamenti liberi --';
 export const SAMPLES_STRUCTURED_SURVEYS_GROUP = '-- Rilevamenti predefiniti --';
 export const SAMPLES_FREE_SURVEY_OPTION = (name, nTrees) =>
@@ -231,12 +227,9 @@ export const SAMPLES_SURVEY_OPTION = (name, visited, total) =>
   `${name} (${visited}/${total} aree)`;
 export const SAMPLES_GRID_SUMMARY = (areas, regions, surveys, updatedAt) =>
   `${areas} aree · ${regions} · ${surveys} rilevamenti · aggiornata ${updatedAt}`;
-export const SAMPLES_SURVEY_SUMMARY = (gridName, visited, total, dates) =>
-  `Griglia: ${gridName} · ${visited}/${total} aree visitate · ${dates}`;
-export const SAMPLES_SURVEY_DATE_RANGE = (first, last) =>
-  `dal ${first} al ${last}`;
-export const SAMPLES_FREE_SURVEY_DATE_RANGE = (first, last) =>
-  `Dal ${first} al ${last}`;
+export const SAMPLES_SURVEY_OVERVIEW = (first, last, count) =>
+  `${first ? `Dal ${first} al ${last}.` : 'Nessun campione.'} ${count} ` +
+  `${count === 1 ? 'albero campionato' : 'alberi campionati'}.`;
 export const DELETE_GRID_AREAS_WARNING = (n) =>
   `${n} aree saranno eliminate. ${DELETE_CONFIRM}`;
 
@@ -252,16 +245,15 @@ export const CASCADE_EXPORT_REQUIRED =
   'Per sicurezza, esporta i dati prima di procedere all\'eliminazione.';
 export const RENAME_TITLE_GRID = 'Modifica griglia';
 export const RENAME_TITLE_SURVEY = 'Modifica rilevamento';
-export const EDIT_GRID_TAB_IMPORT  = 'Importa aree da CSV';
-export const EDIT_SURVEY_TAB_IMPORT = 'Importa alberi da CSV';
+export const GRID_IMPORT_TITLE  = 'Importa aree da CSV';
+export const SURVEY_IMPORT_TITLE = 'Importa alberi da CSV';
 export const GRID_IMPORT_HELP =
-  'Colonne necessarie: Compresa, Particella, Area saggio, Lon, Lat, Quota. ' +
-  'Raggio è opzionale; se assente usa 12 m. Sono accettate anche le ' +
-  'intestazioni Alt. (m) e Raggio (m).';
+  'Colonne necessarie: Compresa, Particella, Area saggio, Lon, Lat, Quota, Raggio. ' +
+  'Quota può essere vuota. Sono accettate anche le intestazioni Alt. (m) e Raggio (m).';
 export const SURVEY_IMPORT_HELP =
   'Colonne necessarie: Compresa, Particella, Albero, Pollone, Matricina, ' +
   'D_cm, H_m, L10_mm, Pressler, Genere, Fustaia. Per rilevamenti ' +
-  'strutturati serve anche Area saggio. Opzionali: Data, PAI, H_measured, ' +
+  'strutturati serve anche Area saggio. Opzionali: Data, Campione, PAI, Numero PAI, H_measured, ' +
   'Lat, Lon, Acc_m.';
 
 // CSV import status (large files can take many seconds)
