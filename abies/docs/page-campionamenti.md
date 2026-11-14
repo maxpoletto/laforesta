@@ -278,28 +278,37 @@ Required columns for structured surveys: `Compresa`, `Particella`,
 `Area saggio` must already exist in the survey grid.
 
 Required columns for free surveys: the same fields except `Area saggio`. Free
-rows resolve the parcel directly from `Compresa` + `Particella`, and one CSV
-import operation creates one `Sample(sample_area=NULL)`. If the CSV has a
-`Data` column, all rows in a free import must carry the same date; otherwise
-the modal's default date is used. Tree number/shoot identities must be unique
-within that import's new sample, but may repeat in another sample belonging to
-the same free survey. An ordinary free-survey row may leave `Albero` blank;
-the importer reserves every explicit number, then assigns numbers to blanks
-starting above their maximum (or at 1 when all are blank). A PAI row still
-requires an explicit positive number. This also lets recovery CSVs from Ipso
-preserve genuinely unnumbered source rows without inventing source values.
+rows resolve the parcel directly from `Compresa` + `Particella`. The optional
+`Campione` column groups rows into separate dated samples within a file. Its
+values are file-local labels; exports number the groups from 1. Each group
+must have one date, supplied by `Data` or the modal's default date. Tree/shoot
+numbers are unique within a group but may restart in another, including two
+samples on the same date. A file without `Campione` creates one sample, as do
+rows with blank group values.
 
-Optional columns: `Data` (→ `sample.date`), `PAI` (bool), `H_measured` (bool),
-`Lat`, `Lon`, `Acc_m`, `Operatore`, and `Note`. Blank `H_measured` is false.
-If either `Lat` or `Lon` is present, both must be present. After validation,
-rows with `H_measured=false` generate a non-blocking warning. Rows with both
-coordinates also generate a warning if the point falls in a different parcel
-from the submitted `Compresa`/`Particella`; after confirmation, the submitted
-parcel remains authoritative. `PAI=true` stores a
-parcel-scoped `tree_sample.preserved_number`, using `Albero` as the preserved
-number. If the preserved identity `(parcel_id, preserved_number)` already
-exists, the import reuses that `tree_id`; otherwise it creates a new preserved
-`tree`.
+An ordinary free-survey row may leave `Albero` blank. Within each sample group,
+the importer reserves explicit numbers, then numbers blanks above their
+maximum (or from 1 when all are blank). A PAI row still requires an explicit
+positive `Albero`. This also lets recovery CSVs from Ipso preserve genuinely
+unnumbered source rows without inventing source values.
+
+Optional columns: `Data` (→ `sample.date`), `PAI` (bool), `Numero PAI`,
+`Campione`, `H_measured` (bool), `Lat`, `Lon`, `Acc_m`, `Operatore`, and `Note`.
+Blank `H_measured` is false. If either `Lat` or `Lon` is present, both must be
+present. After validation, rows with `H_measured=false` generate a non-blocking
+warning. Rows with both coordinates also generate a warning if the point falls
+in a different parcel from the submitted `Compresa`/`Particella`; after
+confirmation, the submitted parcel remains authoritative.
+
+`PAI=true` stores a parcel-scoped `tree_sample.preserved_number`. It uses
+`Numero PAI` when supplied and otherwise falls back to `Albero`. The two
+numbers may differ: `Albero` is local to the sample, while `Numero PAI`
+identifies the preserved tree across visits. A nonblank `Numero PAI` must be a
+positive integer and requires `PAI=true`; duplicates within a sample and parcel
+are rejected. If `(parcel_id, preserved_number)` already exists, the import
+reuses that `tree_id`; otherwise it creates a new preserved `tree`. Exports
+include both optional identity columns, so restoring a free survey preserves
+its sample groups and restoring either survey type preserves both numbers.
 
 `V_m3` is computed at import time from `D_cm`, `H_m`, and the selected species'
 configured volume equation, resolved by species ID through `apps/base/equations.py`.
@@ -325,10 +334,10 @@ Flow:
    `sample` row for that area in the target survey. All rows for the same area
    must carry the same sample date; if a sample already exists for that area in
    the survey, the CSV date must match it. Conflicting dates abort the import.
-4. Free import creates one null-area sample for the upload and creates a new
-   `tree` per ordinary row. Coppice rows with the same `Albero` in the same
-   free import share the same `tree`; preserved rows reuse the stable preserved
-   identity as described above.
+4. Free import creates one null-area sample per `Campione` group (one sample
+   for files without groups). Ordinary trees are identified by `Albero` within
+   that group, so coppice shoots share their physical tree. Preserved rows
+   reuse the parcel-scoped PAI identity across groups and visits.
 5. If warnings are present, the modal shows them with proceed/abort controls.
    Proceeding resubmits with confirmation; validation and warnings are
    recomputed before the write.

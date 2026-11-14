@@ -271,3 +271,12 @@ def _dms_rationals(value):
 def _tiff_rationals(values):
     return b''.join(struct.pack('<II', numerator, denominator)
                     for numerator, denominator in values)
+
+
+@pytest.fixture
+def csv_locale(request):
+    """Exercise canonical CSV exports/restores in both supported decimal locales."""
+    from django.utils import translation
+
+    with translation.override(request.param):
+        yield request.param

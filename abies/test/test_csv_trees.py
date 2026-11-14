@@ -511,7 +511,8 @@ def test_validate_free_rejects_preserved_species_mismatch(parcels, species):
 
 
 @pytest.mark.django_db
-def test_export_import_export_import_round_trip(survey_with_area, species):
+@pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
+def test_export_import_export_import_round_trip(survey_with_area, species, csv_locale):
     setup = survey_with_area
     survey = setup['survey']
     area = setup['area']

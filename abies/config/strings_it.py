@@ -462,6 +462,8 @@ CSV_RULE_MINIMUM = 'deve essere maggiore o uguale a {}'
 CSV_RULE_MAXIMUM = 'deve essere minore o uguale a {}'
 CSV_RULE_STORAGE = 'valore troppo grande per essere memorizzato'
 CSV_RULE_COORDINATE_PAIR = 'latitudine e longitudine devono essere presenti insieme'
+ERR_CSV_PRESERVED_NUMBER_DUPLICATE = 'Riga {}: numero PAI {} già presente nello stesso campione e particella.'
+CSV_RULE_PRESERVED_NUMBER = 'un numero PAI richiede PAI=true'
 ERR_CSV_VALUE_REQUIRED = 'Riga {}: valore obbligatorio mancante nella colonna {}.'
 ERR_CSV_DUPLICATE_KEY  = 'Riga {}: chiave duplicata nella colonna {} ({}).'
 ERR_CSV_ECLASS_NOT_FOUND = 'Riga {}: comparto non trovato ({}).'
@@ -496,7 +498,7 @@ ERR_CSV_ROW_SAMPLE_DATE_CONFLICT = (
     '({} / {} / {}; data già registrata: {}).'
 )
 ERR_CSV_ROW_FREE_SAMPLE_DATE_CONFLICT = (
-    'Riga {}: data diversa nello stesso rilevamento libero '
+    'Riga {}: data diversa nello stesso campione del rilevamento libero '
     '(data già registrata: {}).'
 )
 ERR_CSV_ROW_PAI_SPECIES_CONFLICT = (
@@ -593,6 +595,7 @@ CSV_COL_LAT           = 'Lat'
 CSV_COL_ALT           = 'Quota'
 CSV_COL_RADIUS        = 'Raggio'
 CSV_COL_TREE          = 'Albero'
+CSV_COL_SAMPLE_GROUP = 'Campione'
 CSV_COL_COPPICE_SHOOT = 'Pollone'
 CSV_COL_COPPICE_STD   = 'Matricina'
 CSV_COL_D_CM          = 'D_cm'
@@ -604,6 +607,7 @@ CSV_COL_HIGHFOREST       = 'Fustaia'
 CSV_COL_DATA          = 'Data'
 CSV_COL_ESTIMATED_BIRTH_YEAR = 'Anno di nascita stimato'
 CSV_COL_PRESERVED     = 'PAI'
+CSV_COL_PRESERVED_NUMBER = 'Numero PAI'
 
 # --- Reference-table CSV headers (bootstrap: regions/eclasses/crews/
 # species/products).  Paired with COL_* display labels where one exists;

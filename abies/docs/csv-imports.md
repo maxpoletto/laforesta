@@ -57,6 +57,31 @@ importer. A source Ipso session remains completed after its partial import;
 retrying the recovery CSV does not reopen that session. See
 [Importazione](page-importazione.md#importing-only-valid-rows).
 
+## Sampled-tree identities in CSV
+
+Sampled-tree exports include two optional import columns in addition to
+`Albero` (the local tree number):
+
+- **Campione** groups rows into dated samples in a free survey. Values are
+  file-local labels, not database IDs; exports number groups from 1. Each
+  group must have one date, and tree/shoot numbers must be unique within it.
+  Numbers may restart in another group, even on the same date. Without this
+  column, or with blank values, all rows form one sample as in a legacy file.
+  Structured surveys continue to identify samples by their grid's sample area;
+  they do not use this grouping column.
+- **Numero PAI** retains the parcel-scoped preserved-tree number independently
+  of `Albero`. It must be a positive integer and requires `PAI=true`. When it
+  is blank or absent, a PAI row uses `Albero`, retaining the older file format's
+  meaning. A preserved number may appear only once per sample and parcel;
+  later samples may measure the same preserved tree again.
+
+These columns allow a whole-survey export, or a filtered subset, to be restored
+without merging free samples or renumbering preserved trees. Ordinary free-tree
+identity remains local to its sample. A PAI identity remains shared across
+samples through its parcel and preserved number. Restoring measurements still
+requires valid dimensions and dates; exporting a historical unknown height
+leaves a blank that the operator must complete before import.
+
 ## Import entry points
 
 | Data | Entry point | Validation core |

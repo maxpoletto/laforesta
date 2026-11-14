@@ -5,6 +5,7 @@ against an injected ``TreeIndexes``, so the same code can back a ``--check``
 dry-run.  Mirrors ``apps.campionamenti.csv_grid``.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP
 
@@ -48,6 +49,7 @@ TREE_CSV_OPTIONAL = [
     S.CSV_COL_DATA, S.CSV_COL_PRESERVED, S.CSV_COL_H_MEASURED,
     S.CSV_COL_LON, S.CSV_COL_LAT, S.CSV_COL_ACC_M,
     S.CSV_COL_OPERATOR, S.CSV_COL_NOTE,
+    S.CSV_COL_SAMPLE_GROUP, S.CSV_COL_PRESERVED_NUMBER,
 ]
 
 
@@ -62,6 +64,7 @@ class TreeIndexes:
     parcel_cache: dict = field(default_factory=dict)  # (region.lower(), parcel) -> Parcel
     preserved_tree_by_key: dict = field(default_factory=dict)  # (parcel_id, number) -> Tree
     is_unstructured: bool = False
+    existing_preserved_numbers: set = field(default_factory=set)
 
 
 def db_indexes(survey) -> TreeIndexes:
@@ -95,6 +98,10 @@ def db_indexes(survey) -> TreeIndexes:
         area_cache, species_cache, existing_sample_by_area, existing_number_shoots,
         parcel_cache=parcel_cache, preserved_tree_by_key=preserved_tree_by_key,
         is_unstructured=is_unstructured,
+        existing_preserved_numbers=set(TreeSample.objects.filter(
+            sample__survey=survey, preserved_number__isnull=False,
+        ).values_list('sample__sample_area_id', 'parcel_id', 'preserved_number'))
+        if not is_unstructured else set(),
     )
 
 
@@ -127,7 +134,7 @@ def render_csv(survey, row_ids=None) -> str:
         S.CSV_COL_LAT,
         S.CSV_COL_ACC_M,
         S.CSV_COL_OPERATOR,
-        S.CSV_COL_NOTE,
+        S.CSV_COL_NOTE, S.CSV_COL_SAMPLE_GROUP, S.CSV_COL_PRESERVED_NUMBER,
     ])
     rows = (TreeSample.objects
             .filter(sample__survey=survey)
@@ -140,6 +147,7 @@ def render_csv(survey, row_ids=None) -> str:
             ))
     if row_ids is not None:
         rows = rows.filter(id__in=row_ids)
+    sample_groups = {}
     for tree_sample in rows:
         area = tree_sample.sample.sample_area
         writer.writerow([
@@ -163,6 +171,8 @@ def render_csv(survey, row_ids=None) -> str:
             tree_sample.acc_m,
             tree_sample.operator,
             tree_sample.note,
+            sample_groups.setdefault(tree_sample.sample_id, len(sample_groups) + 1),
+            tree_sample.preserved_number,
         ])
     return buf.getvalue()
 
@@ -179,11 +189,14 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
     errors = []
     # Free-survey recovery CSVs preserve genuinely blank ordinary-tree numbers.
     # Reserve explicit values before assigning sample-local numbers to blanks.
-    reserved_numbers = {
-        number for row in reader
-        if (number := reader.integer(row.get(S.CSV_COL_TREE))) is not None and number > 0
-    } if idx.is_unstructured else set()
-    next_number = max(reserved_numbers, default=0) + 1
+    reserved_numbers = defaultdict(set)
+    if idx.is_unstructured:
+        for row in reader:
+            number = reader.integer(row.get(S.CSV_COL_TREE))
+            if number is not None and number > 0:
+                reserved_numbers[(row.get(S.CSV_COL_SAMPLE_GROUP) or '').strip()].add(number)
+    next_numbers = {group: max(numbers) + 1 for group, numbers in reserved_numbers.items()}
+    seen_preserved_numbers = set(idx.existing_preserved_numbers)
     parsed = []
     for i, row in enumerate(reader, 2):
         region_name = row[S.CSV_COL_REGION].strip()
@@ -206,11 +219,15 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             parcel = area.parcel
         cells = CsvRow(reader, row, i)
         preserved = cells.boolean(S.CSV_COL_PRESERVED)
+        sample_group = cells.raw(S.CSV_COL_SAMPLE_GROUP) if idx.is_unstructured else None
+        preserved_number = cells.integer(S.CSV_COL_PRESERVED_NUMBER, required=False, positive=True)
+        if preserved_number is not None and not preserved:
+            cells.problem(S.CSV_COL_PRESERVED_NUMBER, S.CSV_RULE_PRESERVED_NUMBER)
         auto_number = idx.is_unstructured and not preserved and not cells.raw(S.CSV_COL_TREE)
-        number = (int_or_none(next_number) if auto_number else
+        number = (int_or_none(next_numbers.get(sample_group, 1)) if auto_number else
                   cells.integer(S.CSV_COL_TREE, positive=True))
         if auto_number:
-            next_number += 1
+            next_numbers[sample_group] = next_numbers.get(sample_group, 1) + 1
             if number is None:
                 cells.problem(S.CSV_COL_TREE, S.CSV_RULE_STORAGE)
         d_cm = cells.integer(S.CSV_COL_D_CM, positive=True)
@@ -235,6 +252,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             pressler_coeff=pressler, h_measured=h_measured,
         )
         assert values is not None  # CsvRow has checked the same scalar invariants.
+        preserved_number = (preserved_number or values.number) if preserved else None
         coppice = not highforest
 
         species_name = row[S.CSV_COL_SPECIES].strip()
@@ -244,23 +262,23 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             errors.append(S.ERR_CSV_ROW_SPECIES.format(i, species_name))
             continue
         if preserved:
-            existing_tree = idx.preserved_tree_by_key.get((parcel.id, values.number))
+            existing_tree = idx.preserved_tree_by_key.get((parcel.id, preserved_number))
             if existing_tree is not None and existing_tree.species_id != species.id:
                 errors.append(S.ERR_CSV_ROW_PAI_SPECIES_CONFLICT.format(
-                    i, region_name, parcel_name, values.number,
+                    i, region_name, parcel_name, preserved_number,
                     existing_tree.species.common_name,
                 ))
                 continue
 
         if idx.is_unstructured:
-            previous_date = csv_date_by_area.get(None)
+            previous_date = csv_date_by_area.get(sample_group)
             if previous_date is not None and previous_date != row_date:
                 errors.append(S.ERR_CSV_ROW_FREE_SAMPLE_DATE_CONFLICT.format(
                     i, previous_date.isoformat(),
                 ))
                 continue
-            csv_date_by_area.setdefault(None, row_date)
-            number_shoot_key = (None, values.number, values.shoot)
+            csv_date_by_area.setdefault(sample_group, row_date)
+            number_shoot_key = (sample_group, values.number, values.shoot)
         else:
             existing_sample = idx.existing_sample_by_area.get(area.id)
             if existing_sample and existing_sample.date != row_date:
@@ -282,8 +300,14 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             ))
             continue
         seen_number_shoots.add(number_shoot_key)
+        if preserved_number is not None:
+            key = (sample_group if idx.is_unstructured else area.id, parcel.id, preserved_number)
+            if key in seen_preserved_numbers:
+                errors.append(S.ERR_CSV_PRESERVED_NUMBER_DUPLICATE.format(i, preserved_number))
+                continue
+            seen_preserved_numbers.add(key)
 
-        parsed.append(parsed_tree_row(
+        parsed_row = parsed_tree_row(
             area=area, parcel=parcel, row_date=row_date, species=species,
             coppice=coppice, preserved=preserved, number=values.number,
             shoot=values.shoot,
@@ -293,7 +317,11 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             lat=lat, lon=lon, acc_m=acc_m,
             operator=(row.get(S.CSV_COL_OPERATOR) or '').strip(),
             note=(row.get(S.CSV_COL_NOTE) or '').strip(),
-        ))
+        )
+        parsed_row[FIELD_PRESERVED_NUMBER] = preserved_number
+        if idx.is_unstructured:
+            parsed_row['sample_group'] = sample_group
+        parsed.append(parsed_row)
     return parsed, errors
 
 
@@ -411,25 +439,30 @@ def apply(survey, parsed) -> dict:
 
 
 def apply_unstructured(survey, parsed) -> dict:
-    """Persist CSV rows into one null-area Sample for a free survey."""
+    """Persist one free-survey Sample per optional file-local CSV group."""
     if not parsed:
         return {'n_samples': 0, 'n_trees': 0}
     with transaction.atomic():
-        sample = Sample.objects.create(
-            sample_area=None, survey=survey, date=parsed[0][FIELD_DATE],
-        )
+        samples = {}
         tree_by_number = {}
         tree_by_preserved_key = _preserved_tree_identity_map(parsed, for_update=True)
         for r in parsed:
+            group = r.get('sample_group', '')
+            if group not in samples:
+                samples[group] = Sample.objects.create(
+                    sample_area=None, survey=survey, date=r[FIELD_DATE],
+                )
+            sample = samples[group]
+            identity = (group, r[FIELD_NUMBER])
             preserved_key = _preserved_key(r)
             tree = tree_by_preserved_key.get(preserved_key) if preserved_key else None
             if tree is None:
-                tree = tree_by_number.get(r[FIELD_NUMBER])
+                tree = tree_by_number.get(identity)
             if tree is None:
                 tree = Tree.objects.create(
                     species=r[FIELD_SPECIES], coppice=r[FIELD_COPPICE],
                 )
-            tree_by_number.setdefault(r[FIELD_NUMBER], tree)
+            tree_by_number.setdefault(identity, tree)
             if preserved_key:
                 tree_by_preserved_key[preserved_key] = tree
             TreeSample.objects.create(
@@ -450,7 +483,7 @@ def apply_unstructured(survey, parsed) -> dict:
             DIGEST_PARCELS,
             *BOSCO_TREE_DIGESTS, 'audit',
         )
-    return {'n_samples': 1, 'n_trees': len(parsed)}
+    return {'n_samples': len(samples), 'n_trees': len(parsed)}
 
 
 def _tree_identity_map(sample_by_area):
