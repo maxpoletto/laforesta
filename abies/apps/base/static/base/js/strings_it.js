@@ -668,3 +668,11 @@ export const IPSO_IMPORT_VALID_ROWS = count => `Importa righe valide (${count})`
 export const IPSO_IMPORT_EXPORT_REQUIRED = 'Per sicurezza, esporta le righe escluse prima di importare quelle valide.';
 export const IPSO_EXPORT_EXCLUDED = 'Esporta righe escluse';
 export const IPSO_IMPORT_RESULT = (imported, excluded) => `Righe importate: ${imported}. Righe escluse: ${excluded}.`;
+
+export const CSV_IMPORT_REFRESH_FAILED = 'Importazione completata. Impossibile aggiornare la vista; ricarica la pagina.';
+
+export const NEW_TREE_LABEL = 'Nuovo albero';
+export const NEW_INTERVENTION_LABEL = 'Nuovo intervento';
+export const NEW_HARVEST_LABEL = 'Nuovo prelievo';
+export const CALENDAR_IMPORT_TITLE = coppice =>
+  `Importa calendario ${coppice ? 'ceduo' : 'fustaia'} da CSV`;

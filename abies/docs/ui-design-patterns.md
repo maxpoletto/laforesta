@@ -259,7 +259,8 @@ Infrastructure:
   in `_shell_templates_it.html`): `showConfirmModal(message, onConfirm,
   { confirmLabel })`, `showCascadeDeleteModal({ title, warning,
   exportRequired, onExport, onDelete })`. Form-submit lifecycle
-  including CSV import (`submitCsvImport`) lives in `forms.js`. All
+  including CSV import (`submitCsvImport`, `showCsvImportModal`) lives in
+  `forms.js`. All
   pages import from here; never duplicate these locally.
 - **`csv-export.js`**: `csvField(v, fmt)`, `downloadCSV(lines,
   filename)`, `exportDigest(digest, exportCols, srcCols, filename,
@@ -270,6 +271,13 @@ Infrastructure:
   `renderSummaryRow(row, filteredRows, columns)`. The summary is a
   column-aligned table footer built from the complete filtered row set, so it follows search and
   external filters but is never sorted, paginated, or included in CSV data.
+
+`showCsvImportModal({title, context, help, showDate, onSubmit, onSuccess})` in
+`forms.js` provides the shared standalone CSV file/date form. Domain callbacks
+retain request formats and warning/refresh behavior. Validation errors keep
+the file and target context for retry. After an accepted import the dialog
+closes before refreshing; a refresh failure reports that import succeeded and
+asks the user to reload.
 
 Tabbed modals (e.g., pencil-edit modals with Dettagli + Import tabs)
 use `.modal-tabs` / `.modal-tab` / `.modal-tab-body` /

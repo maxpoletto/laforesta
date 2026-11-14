@@ -271,6 +271,7 @@ test-js:
 	node apps/base/static/base/js/digests.test.mjs
 	node apps/base/static/base/js/templates.test.mjs
 	node apps/base/static/base/js/forms.test.mjs
+	node apps/base/static/base/js/forms-csv-modal.test.mjs
 	node apps/base/static/base/js/ui-widgets-modals.test.mjs
 	node apps/base/static/base/js/sections.test.mjs
 	node apps/base/static/base/js/tests.mjs

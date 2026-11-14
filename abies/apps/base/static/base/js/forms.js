@@ -10,6 +10,7 @@ import { postJSON } from './api.js';
 import * as cache from './cache.js';
 import { show as showModal, dismiss as dismissModal, showError } from './modals.js';
 import * as S from './strings.js';
+import { cloneTemplate } from './templates.js';
 import { FIELD_NONCE, HTML, MESSAGE, RECORD, ROW_ID, ROWS, STATUS, STATUS_CONFLICT, VERSION } from './constants.js';
 
 /**
@@ -267,6 +268,35 @@ export function showFormError(form, message) {
 // ---------------------------------------------------------------------------
 // CSV import submission lifecycle
 // ---------------------------------------------------------------------------
+
+/** Standalone CSV dialog; import callbacks retain their domain write protocol. */
+export function showCsvImportModal({title, context = '', help = '', showDate = false,
+  onSubmit, onSuccess} = {}) {
+  const fragment = cloneTemplate('tmpl-csv-import-modal');
+  for (const [name, value] of Object.entries({title, context, help})) {
+    const field = fragment.querySelector(`[data-field="${name}"]`);
+    field.textContent = value;
+    field.hidden = !value;
+  }
+  fragment.querySelector('[data-field="date-row"]').hidden = !showDate;
+  fragment.querySelector('[data-action="cancel"]').addEventListener('click', dismissModal);
+  const form = fragment.querySelector('form');
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const result = await submitCsvImport({form,
+      statusBox: form.querySelector('.csv-import-status'),
+      errorsBox: form.querySelector('.csv-import-errors'),
+      attempt: () => onSubmit(form),
+    });
+    if (result?.ok && onSuccess) {
+      try { await onSuccess(); }
+      catch { showError(S.CSV_IMPORT_REFRESH_FAILED); }
+    }
+  });
+  showModal(fragment);
+  form.querySelector('[name="file"]')?.focus();
+  return form;
+}
 
 /**
  * CSV-import-specific form submit lifecycle.  For non-CSV submits use

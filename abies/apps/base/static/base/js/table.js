@@ -312,12 +312,12 @@ export class TableWrapper {
     actions.className = 'table-toolbar-actions';
     const exportButton = this._buildExportButton();
     if (exportButton) actions.appendChild(exportButton);
-    if (this.canModify && this.actions.onAdd) {
-      actions.appendChild(this._buildAddButton());
-    }
     for (const action of toolbarActions(this.toolbar)) {
       if (!toolbarActionVisible(action)) continue;
       actions.appendChild(this._buildToolbarActionButton(action));
+    }
+    if (this.canModify && this.actions.onAdd) {
+      actions.appendChild(this._buildAddButton());
     }
     if (actions.children.length) this._toolbarEndEl = actions;
   }

@@ -35,3 +35,16 @@ cache.applyResponseChanges({ deletes: [{ data_id: 'table-binding', row_id: 3 }] 
 assert.equal(updates.length, 1, 'Disposal stops stale-view callbacks');
 table.destroy();
 console.log('Cache-to-table binding preserves view state and has scoped disposal');
+
+for (const canModify of [true, false]) {
+  const host = new Element();
+  const workspace = new TableWrapper({ container: host, digest, canModify,
+    labels: { exportCSV: 'Esporta', add: 'Nuovo albero' },
+    actions: { onAdd() {} },
+    toolbar: { actions: [{label:'Importa CSV', visible:canModify, onClick(){}}] },
+  });
+  const labels = host.querySelector('.table-toolbar-actions').children.map(button => button.textContent);
+  assert.deepEqual(labels, canModify ? ['Esporta', 'Importa CSV', '+ Nuovo albero'] : ['Esporta'],
+    'Workspace controls consistently order export, import, and new record');
+  workspace.destroy();
+}

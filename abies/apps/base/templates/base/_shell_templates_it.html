@@ -79,3 +79,22 @@ Rendered once inside the shell; never displayed directly.
     </div>
   </section>
 </template>
+
+<template id="tmpl-csv-import-modal">
+  <div class="form-card">
+    <h2 data-field="title"></h2>
+    <p class="form-help" data-field="context" hidden></p>
+    <form data-role="import-form">
+      <div class="form-group">
+        <label for="csv-import-file">{{ S.LABEL_CSV_FILE }}</label>
+        <input type="file" id="csv-import-file" name="file" accept=".csv,text/csv" required>
+      </div>
+      <div class="form-group" data-field="date-row" hidden>
+        <label for="csv-import-default-date">Data predefinita (se il file non ha colonna "Data")</label>
+        <input type="date" id="csv-import-default-date" name="default_date">
+      </div>
+      <p class="form-help" data-field="help" hidden></p>
+      {% include "base/_partials/_csv_import_tail.html" %}
+    </form>
+  </div>
+</template>
