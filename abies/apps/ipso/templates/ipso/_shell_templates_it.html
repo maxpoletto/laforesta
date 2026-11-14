@@ -36,10 +36,16 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 <template id="tmpl-ipso-import-review-modal">
   <div class="ipso-import-review">
     <h2>Controlla importazione</h2>
-    <p data-field="summary"></p>
     <p class="form-help" data-field="message"></p>
-    <p class="csv-import-errors ipso-review-lines" data-field="errors"></p>
-    <p class="form-help ipso-review-lines" data-field="warnings"></p>
+    <section data-section="errors">
+      <h3>Errori:</h3>
+      <p class="csv-import-errors ipso-review-lines" data-field="errors"></p>
+    </section>
+    <section data-section="warnings">
+      <h3>Avvertenze:</h3>
+      <p class="form-help ipso-review-lines" data-field="warnings"></p>
+    </section>
+    <p class="ipso-review-lines" data-field="summary"></p>
     <p data-field="export-required"></p>
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>

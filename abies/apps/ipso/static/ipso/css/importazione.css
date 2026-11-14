@@ -152,3 +152,7 @@
 
 .ipso-import-review .form-actions { flex-wrap: wrap; }
 .ipso-import-review .form-actions .btn { flex-shrink: 0; white-space: nowrap; }
+
+.ipso-import-review h3 { font-size: 0.95rem; margin: 12px 0 6px; }
+.ipso-import-review [data-field="warnings"] { max-height: 200px; overflow-y: auto; }
+.ipso-import-review [data-field="summary"] { margin: 12px 0; }

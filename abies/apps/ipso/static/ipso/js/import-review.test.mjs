@@ -21,9 +21,17 @@ body.appendChild(modal);
 const template = new Element('template');
 template.id = 'tmpl-ipso-import-review-modal';
 template.content = new Element('#fragment');
-for (const field of ['summary', 'message', 'errors', 'warnings', 'export-required']) {
+for (const name of ['errors', 'warnings']) {
+  const section = new Element('section');
+  section.dataset.section = name;
+  const lines = new Element('p');
+  lines.dataset.field = name;
+  section.appendChild(lines);
+  template.content.appendChild(section);
+}
+for (const name of ['summary', 'message', 'export-required']) {
   const node = new Element('p');
-  node.dataset.field = field;
+  node.dataset.field = name;
   template.content.appendChild(node);
 }
 for (const action of ['cancel', 'export', 'confirm']) {
@@ -62,6 +70,11 @@ assert.equal(button('confirm').disabled, true, 'Import is gated before export');
 assert.match(modal.querySelector('[data-field="export-required"]').textContent, /esporta.*prima/i);
 assert.equal(modal.querySelector('[data-field="errors"]').textContent, review.errors.join('\n'));
 assert.equal(modal.querySelector('[data-field="warnings"]').textContent, review.warnings.join('\n'));
+assert.equal(modal.querySelector('[data-field="summary"]').textContent,
+  'Righe totali: 3\nRighe escluse a causa di errore: 1\nRighe importabili: 2',
+  'Review explains the total, excluded and importable row counts');
+assert.equal(modal.querySelector('[data-section="errors"]').hidden, false);
+assert.equal(modal.querySelector('[data-section="warnings"]').hidden, false);
 await button('confirm').dispatch();
 assert.equal(confirmed, null, 'Disabled confirmation cannot import');
 await button('export').dispatch();
@@ -85,5 +98,16 @@ await button('cancel').dispatch();
 assert.equal(confirmed, null, 'Cancel never imports');
 show(review);
 assert.equal(button('confirm').disabled, true, 'Reopening review requires export again');
+await button('cancel').dispatch();
+show({ ...review, warnings: [] });
+assert.equal(modal.querySelector('[data-section="warnings"]').hidden, true,
+  'An empty warnings section hides its heading too');
+assert.equal(modal.querySelector('[data-section="errors"]').hidden, false);
+await button('cancel').dispatch();
+show({ ...review, errors: [], warnings: [], excluded_count: 0 });
+assert.equal(modal.querySelector('[data-section="errors"]').hidden, true,
+  'An empty errors section hides its heading too');
+assert.equal(modal.querySelector('[data-section="warnings"]').hidden, true);
+assert.equal(button('confirm').disabled, false, 'Valid-only review needs no recovery export');
 await button('cancel').dispatch();
 console.log('Import review: export failure, changed review, successful download, zero-valid rows and cancellation passed');

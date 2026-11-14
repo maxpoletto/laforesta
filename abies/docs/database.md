@@ -91,6 +91,11 @@ links and the token table retain their normal schema and cleanup behavior.
 
 ## Ipso staging
 
+These tables, including their audit history, live in the Abies server database.
+The `apps/ipso` Django migrations run during the server's `manage.py migrate`
+step. The mobile PWA keeps its separate local IndexedDB storage; it does not
+run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-storage).
+
 - ipso_upload: (id:int, session_id:string, mode:string, schema_version:int,
   reference_version:string, work_package_id:string, operator:string,
   record_count:int, record_date:string, checksum:string, inbox_path:string,

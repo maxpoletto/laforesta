@@ -66,10 +66,19 @@ sample destination requires.
 
 For Martellate, predefined samples and free samples, the server checks the
 complete session and identifies the valid rows and the excluded rows. The
-review modal shows **Righe importabili: N. Righe escluse: M.** and one line per
-excluded row. A message such as **Riga 30: altezza mancante.** uses the original
-Ipso row ID shown in the preview. It does not refer to array position or the
-row's current position after sorting the preview table.
+review modal separates two labeled sections: **Errori:** lists the excluded
+rows in a red panel, one source row per line; **Avvertenze:** lists nonblocking
+warnings about the importable rows. A section is hidden when it has no messages.
+Long error and warning lists scroll within their own panels.
+
+Beneath the messages, three lines report **Righe totali: X**, **Righe escluse a
+causa di errore: Y**, and **Righe importabili: X-Y**. These count source rows,
+not individual messages: a row with several errors is excluded only once.
+The safety instruction and action buttons follow the counts.
+
+A message such as **Riga 30: altezza mancante.** uses the original Ipso row ID
+shown in the preview. It does not refer to array position or the row's current
+position after sorting the preview table.
 
 Errors explain the specific invalid fields: date, diameter, height, GPS values,
 sample numbers, references, or calculated values that cannot be stored. Tree
@@ -78,6 +87,13 @@ are excluded before any domain insert. Several
 measurement problems on a row are listed together. Conflicting tree-number or
 sample-date groups are excluded as a group rather than accepting an arbitrary
 first row.
+
+L10 is optional. Null or blank means no core was measured; a supplied
+measurement must be a positive integer width in millimeters. Zero is also
+recognized as the internal missing-value marker used by the mobile payload
+and sample storage. Negative, fractional, malformed and out-of-range values
+are errors, reported with an instruction to leave L10 blank or enter a
+positive integer. Ipso has no L10 entry control.
 
 Errors concerning the entire operation, such as corrupt/missing staged files,
 an invalid destination or a closed worksite, prevent the whole import. There

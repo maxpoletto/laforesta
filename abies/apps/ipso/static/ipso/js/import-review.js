@@ -20,7 +20,7 @@ export function showTreeImportReview({ uploadId, review, onConfirm }) {
   for (const name of ['errors', 'warnings']) {
     const lines = Array.isArray(review[name]) ? review[name] : [];
     field(name).textContent = lines.join('\n');
-    field(name).hidden = !lines.length;
+    fragment.querySelector(`[data-section="${name}"]`).hidden = !lines.length;
   }
   const explanation = field('export-required');
   const exportButton = button('export');

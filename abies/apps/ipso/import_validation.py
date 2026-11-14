@@ -46,6 +46,8 @@ def sample_field_problems(record):
     for name, message in (('shoot', S.IPSO_MEASUREMENT_SHOOT_INVALID),
                           ('l10_mm', S.IPSO_MEASUREMENT_L10_INVALID)):
         value = record.get(name)
+        if name == 'l10_mm' and isinstance(value, str) and not value.strip():
+            continue
         if value is not None and ((parsed := int_or_none(value)) is None or parsed < 0):
             problems.append(message)
     raw = record.get('pressler_coeff')

@@ -187,6 +187,7 @@ def test_partial_import_collects_measurement_problems_on_the_correct_row(partial
     review = _review(client, url, body)
     line = review['errors'][0].lower()
     assert all(word in line for word in ('riga 30', 'data', 'diametro', 'altezza'))
+    assert 'deve essere un numero intero positivo' in line
     assert not model.objects.exists()
 
 

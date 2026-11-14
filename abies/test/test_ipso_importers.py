@@ -243,3 +243,33 @@ def test_record_measurements_reports_missing_height():
         FIELD_DATE: '2026-06-17', FIELD_D_CM: 42, FIELD_H_M: None,
     }, errors=errors) is None
     assert errors == [S.IPSO_MEASUREMENT_HEIGHT_MISSING]
+
+
+@pytest.mark.parametrize('value', [None, '', ' ', 0, '0', 1, '12'])
+def test_optional_l10_accepts_missing_values_and_positive_measurements(value):
+    from apps.ipso.import_validation import sample_field_problems
+
+    # Zero is the existing stored/wire marker for an absent core.
+    assert sample_field_problems({'l10_mm': value}) == []
+
+
+@pytest.mark.parametrize('value', [-1, '-2', 'bad', '1.5', 1.5, True, 10**30])
+def test_optional_l10_rejects_invalid_measurements(value):
+    from apps.ipso.import_validation import sample_field_problems
+
+    assert sample_field_problems({'l10_mm': value}) == [S.IPSO_MEASUREMENT_L10_INVALID]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(('value', 'expected'), [
+    (None, 0), ('', 0), (' ', 0), (0, 0), (12, 12),
+])
+def test_sample_import_preserves_optional_l10(parcels, species, value, expected):
+    survey, area = _sample_context(parcels[0])
+    rows, errors = sample_import_rows({
+        RECORDS: [_sample_record(area, species[0], l10_mm=value)],
+    }, survey)
+
+    assert not errors, errors
+    assert len(rows) == 1
+    assert rows[0]['l10_mm'] == expected

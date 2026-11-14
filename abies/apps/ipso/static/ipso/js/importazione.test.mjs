@@ -228,7 +228,12 @@ function buildConfirmTemplate() {
 
 function buildReviewTemplate() {
   const fragment = el('fragment');
-  for (const name of ['summary', 'message', 'errors', 'warnings', 'export-required']) {
+  for (const name of ['errors', 'warnings']) {
+    const section = el('section', { dataset: { section: name } });
+    section.appendChild(el('p', { dataset: { field: name } }));
+    fragment.appendChild(section);
+  }
+  for (const name of ['summary', 'message', 'export-required']) {
     fragment.appendChild(el('p', { dataset: { field: name } }));
   }
   for (const name of ['cancel', 'export', 'confirm']) {

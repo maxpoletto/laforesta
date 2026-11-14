@@ -152,7 +152,7 @@ IPSO_ERR_FIELD_DECIMAL_FINITE = '{} deve essere un valore decimale finito.'
 
 # Staged tree import review and recovery.
 IPSO_MEASUREMENT_DATE_INVALID = 'data mancante o non valida (AAAA-MM-GG)'
-IPSO_MEASUREMENT_DIAMETER_INVALID = 'diametro mancante o non valido (intero positivo)'
+IPSO_MEASUREMENT_DIAMETER_INVALID = 'diametro mancante o non valido (deve essere un numero intero positivo)'
 IPSO_MEASUREMENT_HEIGHT_MISSING = 'altezza mancante'
 IPSO_MEASUREMENT_HEIGHT_INVALID = 'altezza non valida (deve essere positiva)'
 IPSO_ERR_IMPORT_MEASUREMENTS = 'Riga {}: {}.'
@@ -173,10 +173,10 @@ IPSO_ERR_IMPORT_RECORD_FREE_DATE_AMBIGUOUS = 'Riga {}: date diverse nello stesso
 
 IPSO_ERR_IMPORT_ROW = 'Riga {}: {}'
 IPSO_MEASUREMENT_POSITION_INVALID = 'coordinate mancanti o non valide (Lat e Lon devono essere presenti insieme)'
-IPSO_MEASUREMENT_ACCURACY_INVALID = 'precisione GPS non valida (intero non negativo)'
+IPSO_MEASUREMENT_ACCURACY_INVALID = 'precisione GPS non valida (deve essere un numero intero non negativo)'
 
-IPSO_MEASUREMENT_SHOOT_INVALID = 'numero pollone non valido (intero non negativo)'
-IPSO_MEASUREMENT_L10_INVALID = 'L10 non valido (intero non negativo)'
+IPSO_MEASUREMENT_SHOOT_INVALID = 'numero pollone non valido (deve essere un numero intero non negativo)'
+IPSO_MEASUREMENT_L10_INVALID = 'L10 non valido (lascia vuoto oppure inserisci un numero intero positivo)'
 IPSO_MEASUREMENT_PRESSLER_INVALID = 'coefficiente di Pressler non valido (deve essere positivo)'
 
 ERR_LOGIN_INVALID = 'Nome utente o password non validi.'

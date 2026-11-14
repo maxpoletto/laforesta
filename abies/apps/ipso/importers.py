@@ -341,11 +341,8 @@ def _sample_record_values(
         return _SAMPLE_PARSE_NUMBER_INVALID
     if number <= 0:
         return _SAMPLE_PARSE_NUMBER_POSITIVE
-    try:
-        shoot = int(record.get(FIELD_SHOOT, 0) or 0)
-        l10_mm = int(record.get(FIELD_L10_MM, 0) or 0)
-    except (TypeError, ValueError):
-        return None
+    shoot = int_or_none(record.get(FIELD_SHOOT, 0) or 0)
+    l10_mm = int_or_none(record.get(FIELD_L10_MM))
     pressler_coeff = to_decimal(record.get(FIELD_PRESSLER_COEFF), '.')
     if pressler_coeff is None:
         pressler_coeff = PRESSLER_DEFAULT

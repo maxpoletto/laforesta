@@ -8,6 +8,20 @@ This is not a per-device or per-user authentication scheme. A device that holds
 the shared secret can read the Ipso reference data and stage uploads. Final import
 into Abies still requires an authenticated Abies user with writer permission.
 
+## Server and mobile storage
+
+The Django application `apps/ipso` contains Abies's server-side inbox models,
+views and migrations, alongside the browser assets. Its migrations run through
+`manage.py migrate` on the Abies server, including the deployment migration
+step, once per server database. For example, the inbox's `import_result` JSON
+field stores the outcome of a completed import, and its historical counterpart
+records that outcome in the audit log.
+
+The mobile client is the PWA under `apps/ipso/static/ipso/pwa`. Its local
+sessions and records live in the phone browser's IndexedDB, managed by
+`store.js`. Django migrations do not execute on phones or modify that local
+storage.
+
 ## Provisioning and secret
 
 Production deployments set one secret:
