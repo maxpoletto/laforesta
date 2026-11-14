@@ -108,7 +108,8 @@ def test_malformed_preview_token_returns_normal_validation(client, token):
     assert post(client, 'confirm', dict(token=token)).status_code == 400
 
 
-def test_proxy_import_and_export_round_trip(client, species):
+@pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
+def test_proxy_import_and_export_round_trip(client, species, csv_locale):
     text = 'genere,b0,b1,b2,fonte,riferimento\nCastagno,,,,Proxy example,Abete\n'
     data = preview(client, 'volume', text)
     assert not data['errors']
@@ -118,6 +119,12 @@ def test_proxy_import_and_export_round_trip(client, species):
     assert response.status_code == 200
     data = preview(client, 'volume', response.content.decode())
     assert not data['errors'], data['errors']
+    before = list(VolumeEquation.objects.order_by('species_id').values_list(
+        'species_id', 'proxy_species_id', 'b0', 'b1', 'b2', 'source'))
+    assert post(client, 'confirm', dict(token=data['token'])).status_code == 200
+    assert list(VolumeEquation.objects.order_by('species_id').values_list(
+        'species_id', 'proxy_species_id', 'b0', 'b1', 'b2', 'source')) == before
+    assert client.get('/api/impostazioni/equations/volume/export/').content == response.content
 
 
 def test_circular_proxy_import_has_no_confirmable_token(client, species):
@@ -126,7 +133,8 @@ def test_circular_proxy_import_has_no_confirmable_token(client, species):
     assert data['errors'] and not data['token']
 
 
-def test_manual_height_export_remains_importable_without_fit_statistics(client, species, regions):
+@pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
+def test_manual_height_export_remains_importable_without_fit_statistics(client, species, regions, csv_locale):
     hypsometry.merge_active_set([
         hypsometry.ParamRow(regions[0], species[0], 7, -4, None, None),
     ], source='manual')
@@ -134,6 +142,8 @@ def test_manual_height_export_remains_importable_without_fit_statistics(client, 
     assert response.status_code == 200
     data = preview(client, 'height', response.content.decode())
     assert data['token'] and not data['errors']
+    assert post(client, 'confirm', dict(token=data['token'])).status_code == 200
+    assert client.get('/api/impostazioni/hypso-params/export/').content == response.content
 
 
 def test_preview_localizes_coefficients_and_unknown_statistics(client, species, regions):

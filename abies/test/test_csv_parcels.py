@@ -187,7 +187,8 @@ def test_coppice_metadata_rejected_for_highforest(regions, eclasses):
 
 
 @pytest.mark.django_db
-def test_export_import_export_import_round_trip(regions, eclasses):
+@pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
+def test_export_import_export_import_round_trip(regions, eclasses, csv_locale):
     Parcel.objects.create(
         name='7', region=regions[0], eclass=eclasses[0],
         area_ha=Decimal('12.75'), ave_age=41,

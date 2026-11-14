@@ -52,15 +52,6 @@ async function run() {
     search.placeholder = S.SEARCH_PLACEHOLDER;
     search.setAttribute('aria-label', S.FILTER_LABEL);
     filter.appendChild(search);
-    const actions = [[S.EXPORT, 'btn-export ms-auto']];
-    if (!reader) actions.push([`+ ${S.TABLE_LABELS.add}`, 'btn-create btn-add']);
-    for (const [label, classes] of actions) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `btn ${classes}`;
-      button.textContent = label;
-      filter.appendChild(button);
-    }
     scope.appendChild(filter);
   }
   const host = document.createElement('div');
@@ -79,17 +70,25 @@ async function run() {
       [S.COL_PARCEL]: { type: 'natural', width: '100px' },
       [S.COL_NUMBER]: { type: 'number', width: '100px' },
       [S.COL_SPECIES]: { width: '180px' } },
-    inlineToolbar: view !== 'harvests',
+    inlineToolbar: true,
     actions: reader ? {} : { onAdd() {}, onEdit() {}, onDelete() {},
       onDeleteSelected: async () => false },
-    toolbar: view === 'marks' ? { export: null,
-      actions: [{ label: S.NEW_MARK_LABEL, className: 'btn btn-create' },
-        { label: S.IMPORT_MARKS_LABEL, className: 'btn btn-import' }] } : {},
-    labels: S.TABLE_LABELS,
+    toolbar: { search: view !== 'harvests',
+      actions: reader ? [] : [{ label: S.IMPORT_CSV, className: 'btn btn-import' }] },
+    labels: { ...S.TABLE_LABELS, add: view === 'plan' ? S.NEW_INTERVENTION_LABEL
+      : view === 'harvests' ? S.NEW_HARVEST_LABEL : S.NEW_TREE_LABEL },
   });
   if (view === 'harvests') table.wireSearchInput(scope.querySelector('.table-search'));
   await document.fonts.ready;
   await paint();
+  const toolbar = host.querySelector('.table-toolbar-actions');
+  const actionLabels = [...toolbar.children]
+    .filter(button => button.classList.contains('btn')).map(button => button.textContent);
+  const newLabel = view === 'plan' ? S.NEW_INTERVENTION_LABEL
+    : view === 'harvests' ? S.NEW_HARVEST_LABEL : S.NEW_TREE_LABEL;
+  check(JSON.stringify(actionLabels) === JSON.stringify(reader ? [S.EXPORT]
+    : [S.EXPORT, S.IMPORT_CSV, `+ ${newLabel}`]),
+    'Workspace actions use export/import/new order, including empty tables');
   const toggle = host.querySelector('.table-delete-toggle');
   if (reader) {
     check(!toggle, 'Readers have no selection toggle');
@@ -139,9 +138,8 @@ async function run() {
     const search = controlRow.querySelector('.table-search');
     if (search) check(rect(search).right <= rect(pagination).left, 'Search does not overlap pagination');
     check(rect(pagination).right <= rect(bar).left, 'Pagination does not overlap selection actions');
-    if (view === 'harvests') {
-      near(centerX(pagination), centerX(controlRow), 'External-filter pagination stays centered');
-    }
+    check(rect(controlRow).left <= rect(pagination).left
+      && rect(bar).right <= rect(controlRow).right, 'Controls fit the available width');
     check(Boolean(bar.closest('.sortable-table-controls')),
       'Selection controls use the existing pagination/action row');
   }

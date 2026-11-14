@@ -86,11 +86,11 @@ leaves a blank that the operator must complete before import.
 
 | Data | Entry point | Validation core |
 | --- | --- | --- |
-| Structured and free sampled trees | Campionamenti survey editor; bootstrap | `campionamenti/csv_trees.py` |
+| Structured and free sampled trees | Rilevamenti tree-table Importa CSV; bootstrap | `campionamenti/csv_trees.py` |
 | Marked trees | Intervento → Martellate | `piano_di_taglio/views.py:mark_csv_import_view` |
 | Harvest records and species/tractor percentages | Prelievi CSV import; bootstrap | `prelievi/csv_harvests.py` |
-| Sampling grids and areas | Campionamenti grid editor; bootstrap | `campionamenti/csv_grid.py` |
-| High-forest and coppice calendars | Harvest-plan editor | `piano_di_taglio/csv_plan.py` |
+| Sampling grids and areas | Grid summary-row Importa CSV; bootstrap | `campionamenti/csv_grid.py` |
+| High-forest and coppice calendars | Importa CSV in the matching plan section | `piano_di_taglio/csv_plan.py` |
 | Canonical harvest-plan items | Bootstrap | `piano_di_taglio/csv_plan.py:validate_canonical_items` |
 | Height and volume equations | Impostazioni → Specie → Importa equazioni | `impostazioni/equation_imports.py` |
 | Canonical height equations | Bootstrap | `base/hypsometry.py:parse_param_csv` |
@@ -108,3 +108,20 @@ ordinary mark imports require a positive height.
 The packaged `apps/base/data/species.csv` is a code-owned default resource,
 loaded by `base/refdata.py` through the shared CSV codec. It is separate from
 the operator-supplied species/reference CSV handled by `csv_reference.py`.
+
+## Export/import checks
+
+The paired workspace data exports use their domain CSV schemas rather than
+formatted table-cell text. Tests export, import into matching destination
+contexts, export again and compare values/files for grid areas, sampled and marked trees,
+harvest records, both calendar types, and height/volume equations. They cover
+both delimiter/decimal pairs (`;` with `,`, and `,` with `.`), quoted text,
+nullable fields and identity columns. Sample tests include several free
+samples with restarted local numbers and PAI numbers distinct from local ones.
+
+Dendrometric matrix CSVs and other summary reports are report outputs, not
+inputs to the tree importers. Historical rows with missing fields that are now
+required must be completed before reimport; a backup does not bypass normal
+validation. Settings → Specie retains its dedicated equation preview/confirm
+workflow. Bootstrap and management-command imports remain command-line entry
+points rather than workspace buttons.

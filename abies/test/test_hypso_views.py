@@ -348,9 +348,9 @@ class TestImportExportClear:
             S.CSV_COL_N_REGRESSION, S.CSV_COL_R2,
         ]
 
+    @pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
     def test_export_import_export_import_round_trip(
-        self, writer_client, regions, species, tmp_path, settings,
-    ):
+        self, writer_client, regions, species, tmp_path, settings, csv_locale):
         settings.DIGEST_DIR = tmp_path
         initial = (
             CSV_HEADER + '\n'

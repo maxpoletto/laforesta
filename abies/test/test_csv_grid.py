@@ -219,7 +219,8 @@ def test_apply_creates_sample_areas(parcels):
 
 
 @pytest.mark.django_db
-def test_export_import_export_import_round_trip(parcels):
+@pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
+def test_export_import_export_import_round_trip(parcels, csv_locale):
     grid = SampleGrid.objects.create(name='grid-round-trip')
     SampleArea.objects.create(
         sample_grid=grid, parcel=parcels[0], number='A;1',
