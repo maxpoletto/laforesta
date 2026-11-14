@@ -31,3 +31,18 @@ await fetchJSON('/legacy-file', 'old-date');
 assert.equal(requestHeaders['If-Modified-Since'], 'old-date');
 assert.equal(requestHeaders['If-None-Match'], undefined);
 console.log('API validator tests passed.');
+
+// Binary exports retain signed receipts and structured review errors.
+const { postBlob } = await import('./api.js');
+globalThis.document = { body: { dataset: { csrf: 'test-csrf' } } };
+globalThis.fetch = async () => ({ ok: true, status: 200,
+  headers: new Headers({ 'Content-Disposition': 'attachment; filename="rows.csv"', 'X-Import-Export-Token': 'receipt' }),
+  blob: async () => new Blob(['rows']),
+});
+const exported = await postBlob('/export', {});
+assert.equal(exported.filename, 'rows.csv');
+assert.equal(exported.headers.get('X-Import-Export-Token'), 'receipt');
+const changedReview = { status: 'import_review', review_token: 'new-token' };
+globalThis.fetch = async () => ({ ok: false, status: 409, json: async () => changedReview });
+await assert.rejects(postBlob('/export', {}), error => error.status === 409 && error.data === changedReview);
+console.log('Binary export receipts and structured errors passed.');

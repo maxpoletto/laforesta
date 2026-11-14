@@ -660,3 +660,10 @@ export const COL_VOLUME_EQUATION = 'Eq. volume';
 export const EQUATION_COVERAGE = count => `✓ · ${count}`;
 export const HYPSO_SOURCE_MANUAL_LABEL = 'Manuale';
 export const HYPSO_SOURCE_MIXED_LABEL = 'Misto';
+
+// Review of staged tree imports and recovery of excluded rows.
+export const IPSO_IMPORT_REVIEW_SUMMARY = (valid, excluded) => `Righe importabili: ${valid}. Righe escluse: ${excluded}.`;
+export const IPSO_IMPORT_VALID_ROWS = count => `Importa righe valide (${count})`;
+export const IPSO_IMPORT_EXPORT_REQUIRED = 'Per sicurezza, esporta le righe escluse prima di importare quelle valide.';
+export const IPSO_EXPORT_EXCLUDED = 'Esporta righe escluse';
+export const IPSO_IMPORT_RESULT = (imported, excluded) => `Righe importate: ${imported}. Righe escluse: ${excluded}.`;

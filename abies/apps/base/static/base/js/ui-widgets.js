@@ -165,6 +165,27 @@ export function showConfirmModal(message, onConfirm, { confirmLabel, intent = 'd
   showModal(frag);
 }
 
+/** Shared export gate used by destructive confirmations and partial imports. */
+export function wireExportBeforeConfirm({
+  exportButton, confirmButton, message, onExport, canConfirm = true,
+}) {
+  confirmButton.disabled = true;
+  exportButton.addEventListener('click', async () => {
+    exportButton.disabled = true;
+    confirmButton.disabled = true;
+    try {
+      const result = await onExport();
+      const ok = result === undefined || result === true || result?.ok === true;
+      confirmButton.disabled = !canConfirm || !ok;
+      if (!ok) message.textContent = result?.error || S.ERROR_GENERIC;
+    } catch {
+      message.textContent = S.ERROR_NETWORK;
+    } finally {
+      exportButton.disabled = false;
+    }
+  });
+}
+
 export function showCascadeDeleteModal({ title, warning, exportRequired, onExport, onDelete }) {
   const frag = cloneTemplate('tmpl-cascade-delete-modal');
   frag.querySelector('[data-field="title"]').textContent = title;
@@ -176,21 +197,8 @@ export function showCascadeDeleteModal({ title, warning, exportRequired, onExpor
 
   if (onExport) {
     exportReqEl.textContent = exportRequired || S.CASCADE_EXPORT_REQUIRED;
-    exportBtn.addEventListener('click', async () => {
-      exportBtn.disabled = true;
-      try {
-        const result = await onExport();
-        const ok = result === undefined || result === true || result?.ok === true;
-        if (ok) {
-          delBtn.disabled = false;
-        } else {
-          exportReqEl.textContent = result?.error || S.ERROR_GENERIC;
-        }
-      } catch {
-        exportReqEl.textContent = S.ERROR_NETWORK;
-      } finally {
-        exportBtn.disabled = false;
-      }
+    wireExportBeforeConfirm({
+      exportButton: exportBtn, confirmButton: delBtn, message: exportReqEl, onExport,
     });
   } else {
     exportReqEl.remove();

@@ -146,3 +146,9 @@
     flex-direction: column;
   }
 }
+
+.ipso-review-lines { white-space: pre-line; }
+.ipso-import-recovery { margin: 12px 0; }
+
+.ipso-import-review .form-actions { flex-wrap: wrap; }
+.ipso-import-review .form-actions .btn { flex-shrink: 0; white-space: nowrap; }

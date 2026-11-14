@@ -369,6 +369,18 @@ export data as CSV first. At bottom are three buttons:
 [Annulla] [Esporta] [Elimina]
 Elimina is disabled until after CSV export.
 
+`wireExportBeforeConfirm()` owns this gate: export disables both controls while
+it is running, success enables confirmation, and failure keeps it disabled and
+reports the error. `showCascadeDeleteModal()` uses it for deletion.
+
+The Importazione row-review modal uses the same gate with a green **Importa
+righe valide (N)** button and **Esporta righe escluse**. Its instruction explains
+that the excluded rows must be exported first. The imported-row button remains
+disabled when N is zero, even after export. Errors occupy a scrollable panel,
+one source row per line; nonblocking warnings appear separately in the same
+modal. A changed server review replaces the modal and starts a fresh export
+gate. See [Importazione](page-importazione.md) for the full recovery workflow.
+
 ### Error reporting
 
 Input-related errors are reported directly in the input modals, not in a

@@ -260,6 +260,7 @@ test-js:
 	node apps/ipso/static/ipso/pwa/store.test.mjs
 	node apps/ipso/static/ipso/pwa/app.test.mjs
 	node apps/ipso/static/ipso/js/importazione.test.mjs
+	node apps/ipso/static/ipso/js/import-review.test.mjs
 	node apps/base/static/base/js/geo.test.mjs
 	node apps/base/static/base/js/format.test.mjs
 	node apps/base/static/base/js/csv-export.test.mjs

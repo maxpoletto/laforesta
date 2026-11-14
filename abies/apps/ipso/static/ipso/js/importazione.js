@@ -15,6 +15,7 @@ import {
   showCascadeDeleteModal, showConfirmModal, wireCancelButtons,
 } from '../../base/js/ui-widgets.js';
 import { cloneTemplate } from '../../base/js/templates.js';
+import { excludedRowsURL, showTreeImportReview } from './import-review.js';
 import {
   importWarningLines, isImportWarningResponse, showImportWarningModal,
   withImportWarningsConfirmed,
@@ -459,6 +460,25 @@ function renderDetail(data) {
     [S.IPSO_COL_ERROR, upload[FIELD_ERROR_SUMMARY]],
   ]));
 
+  const outcome = upload.import_result;
+  if (outcome?.excluded_count > 0) {
+    const recovery = document.createElement('div');
+    recovery.className = 'ipso-import-recovery';
+    const result = document.createElement('p');
+    result.textContent = S.IPSO_IMPORT_RESULT(outcome.imported, outcome.excluded_count);
+    recovery.appendChild(result);
+    if (document.body.dataset.role !== ROLE_READER) {
+      const download = document.createElement('button');
+      download.type = 'button';
+      download.className = 'btn btn-export';
+      download.dataset.action = 'export-excluded';
+      download.textContent = S.IPSO_EXPORT_EXCLUDED;
+      download.addEventListener('click', () => downloadFromURL(excludedRowsURL(upload[FIELD_ID])));
+      recovery.appendChild(download);
+    }
+    detailEl.appendChild(recovery);
+  }
+
   const importEl = importTargetPanel(data);
   if (importEl) detailEl.appendChild(importEl);
 
@@ -530,16 +550,25 @@ function confirmImport(uploadId, config, targetId) {
   );
 }
 
-async function importUpload(uploadId, config, targetId, warningsConfirmed = false) {
+async function importUpload(uploadId, config, targetId, warningsConfirmed = false, reviewConfirmation = {}) {
   const baseBody = config.requiresTarget ? {
     [config.targetField]: Number(targetId),
   } : {};
   const body = warningsConfirmed
-    ? withImportWarningsConfirmed(baseBody)
+    ? withImportWarningsConfirmed({ ...baseBody, ...reviewConfirmation })
     : baseBody;
-  const { data, status } = await api.postJSON(
-    config.url(uploadId), mutationBody('import', body),
-  );
+  let data, status;
+  try {
+    ({ data, status } = await api.postJSON(config.url(uploadId), mutationBody('import', body)));
+  } catch {
+    showError(S.ERROR_NETWORK);
+    return;
+  }
+  if (data?.status === 'import_review') {
+    showTreeImportReview({ uploadId, review: data,
+      onConfirm: confirmation => importUpload(uploadId, config, targetId, true, confirmation) });
+    return;
+  }
   if (status >= 400) {
     if (!warningsConfirmed && isImportWarningResponse(data)) {
       showImportWarningModal(

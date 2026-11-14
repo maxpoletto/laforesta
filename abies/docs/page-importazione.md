@@ -54,28 +54,96 @@ Writers and admins can import received uploads:
 - `Osservazioni`: requires no destination and creates observation rows,
   category assignments, and photo metadata/files.
 
-The server validates mode, state, target, staged-file integrity, record ids,
-parcel/region consistency, and mode-specific fields. Failed imports leave the
-upload staged and store the first error in the upload's error summary.
-Successful imports mark the upload `imported`, store importer/timestamp/target
-metadata, and leave the staged files in place until an admin deletes the upload.
+The server validates mode, state, target, staged-file integrity, record IDs,
+parcel/region consistency, and mode-specific fields before writing. All tree
+imports require a positive height. A calculated height is valid even though
+`h_measured=false`; a missing height is an error and is never replaced by zero.
+An uploaded session can still be reviewed after an administrator changes its
+mode, so conversion from marks to samples exposes any fields that the selected
+sample destination requires.
 
-For predefined and free tree-survey imports, validation errors block the import
-and are shown one per line. After validation, the server may return warnings
-instead of writing immediately. Warnings are shown in a standard proceed/abort
-modal when any row has `h_measured=false`, or when row coordinates fall in a
-different parcel from the submitted parcel. Proceeding resubmits the same
-import with explicit confirmation; the server recomputes warnings before
-writing. The submitted parcel remains authoritative after confirmation.
+### Reviewing tree errors
+
+For Martellate, predefined samples and free samples, the server checks the
+complete session and identifies the valid rows and the excluded rows. The
+review modal shows **Righe importabili: N. Righe escluse: M.** and one line per
+excluded row. A message such as **Riga 30: altezza mancante.** uses the original
+Ipso row ID shown in the preview. It does not refer to array position or the
+row's current position after sorting the preview table.
+
+Errors explain the specific invalid fields: date, diameter, height, GPS values,
+sample numbers, references, or calculated values that cannot be stored. Several
+measurement problems on a row are listed together. Conflicting tree-number or
+sample-date groups are excluded as a group rather than accepting an arbitrary
+first row.
+
+Errors concerning the entire operation, such as corrupt/missing staged files,
+an invalid destination or a closed worksite, prevent the whole import. There
+is no valid subset to accept in those cases. Observation imports also retain
+their whole-session transaction, including their photos.
+
+### Importing only valid rows
+
+The review provides **Annulla**, **Esporta righe escluse**, and **Importa righe
+valide (N)**. The instruction above them reads:
+
+> Per sicurezza, esporta le righe escluse prima di importare quelle valide.
+
+The import button starts disabled. A successful CSV export enables it; a
+failed export leaves it disabled and lets the user retry. With no valid rows,
+the button remains disabled after export too. Canceling writes no forestry
+data and leaves the upload available for review or rejection.
+
+For survey imports, unmeasured-but-present heights and GPS/parcel disagreements
+among valid rows remain nonblocking warnings. They appear in the same review,
+and importing the valid subset confirms those warnings too. The supplied
+parcel remains authoritative. If a session has warnings but no row errors,
+it uses the ordinary proceed/abort warning modal.
+
+The server checks the destination again before writing. For example, another
+user could have imported a conflicting tree number while the review was open.
+If the destination or accepted/excluded selection changed, a fresh review is
+shown and the export gate resets. The rejected-row CSV and final confirmation
+must describe the same reviewed set.
+
+### Completion and CSV recovery
+
+Importing the accepted subset completes the Ipso session. Its state is
+`imported`, displayed as **Importato parzialmente** when rows were excluded.
+The detail panel shows imported/excluded counts and retains **Esporta righe
+escluse** for writers and admins. The session cannot be imported again or have
+its mode changed. Retrying the same completed request returns the original
+result and does not add duplicate trees. Completed partial sessions follow
+the existing **Anche dati già importati** visibility filter.
+
+The stored import result records which source rows were accepted and which
+were excluded, including their error reasons. Accepted domain rows, the audited
+result, terminal session state and retry receipt commit together. If the write
+fails, none of that accepted subset remains imported. The original staged JSON
+and files remain until an administrator explicitly deletes the upload.
+
+The recovery CSV contains only excluded rows. Its columns use the normal
+Martellate or sample CSV format and add **Riga Ipso**, **Motivi esclusione**, and
+**Dati originali Ipso**. The last column preserves the complete original JSON
+record, including metadata not represented by ordinary domain CSV columns.
+Blanks remain blank and decimal numbers use the install locale.
+
+To recover excluded measurements, correct the CSV and import it through the
+normal Martellate or survey CSV importer into the intended destination. Those
+importers validate the corrected data as usual. Ordinary free-survey rows may
+keep a blank tree number; their CSV importer assigns a sample-local number.
+Preserved rows still require their original positive PAI number. There is no
+second Ipso import of the partially completed session.
+
+### Destination rules
 
 Target consistency is enforced at import time:
 
 - `Martellate`: every row must match the selected harvest-plan item. For a
   parcel-scoped item, each row must use that parcel. For a region-wide item,
-  each row must use a parcel in that region. Height may be absent only with
-  `h_measured=false`; import then stores null height, volume, and mass. The
-  preview table shows the missing height as `-`, while its downloadable CSV
-  field remains empty.
+  each row must use a parcel in that region. Every imported row needs a
+  positive measured or calculated height. The preview displays missing heights
+  as `-`; rejected-row CSVs preserve them as blank fields for correction.
 - `Rilevamenti predefiniti`: rows must use sample areas in the selected
   survey's grid. If the Ipso session records the survey chosen by the operator,
   importing into a different survey is allowed only when both surveys use the

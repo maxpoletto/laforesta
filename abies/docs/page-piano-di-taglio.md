@@ -455,7 +455,8 @@ The modal displays:
    are computed server-side via the species-ID-based helper
    (`apps/base/equations.py`) from `(D_cm, H_m, species_id)` plus species
    density. It uses the configured volume coefficients and Tabacchi numeric
-   core. A blank `H_m` remains blank when exported.
+   core. If a stored mark has an unknown height, export leaves that field
+   blank; it must be filled before importing the CSV.
    `Catastrofata` is ignored at row level (the item's `damaged` flag
    governs).
 

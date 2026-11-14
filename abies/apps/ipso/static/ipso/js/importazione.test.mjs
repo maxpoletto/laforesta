@@ -226,12 +226,24 @@ function buildConfirmTemplate() {
   return frag;
 }
 
+function buildReviewTemplate() {
+  const fragment = el('fragment');
+  for (const name of ['summary', 'message', 'errors', 'warnings', 'export-required']) {
+    fragment.appendChild(el('p', { dataset: { field: name } }));
+  }
+  for (const name of ['cancel', 'export', 'confirm']) {
+    fragment.appendChild(el('button', { dataset: { action: name } }));
+  }
+  return fragment;
+}
+
 const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
   'tmpl-ipso-inbox-page': { content: buildInboxTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
+  'tmpl-ipso-import-review-modal': { content: buildReviewTemplate() },
 };
 
 globalThis.document = {
@@ -536,6 +548,9 @@ const details = new Map([
 const importErrors = ['Riga 1: errore uno.', 'Riga 2: errore due.'];
 const importWarnings = ['Riga 1: altezza non misurata.', 'Riga 1: particella diversa.'];
 const sampleImportBodies = [];
+let partialReviewTest = false;
+let partialCompleted = false;
+const partialBodies = [];
 
 globalThis.fetch = async (url, opts = {}) => {
   if (opts.method === 'POST' &&
@@ -548,6 +563,17 @@ globalThis.fetch = async (url, opts = {}) => {
   if (opts.method === 'POST' &&
       /^\/api\/ipso\/uploads\/\d+\/import-samples\/$/.test(url)) {
     const body = JSON.parse(opts.body || '{}');
+    if (partialReviewTest) {
+      partialBodies.push(body);
+      if (!body.export_token) return response({ status: 'import_review',
+        review_token: 'review-token', valid_count: 1, excluded_count: 1,
+        errors: ['Riga 30: altezza mancante.'], warnings: [] }, 'review', 409);
+      partialCompleted = true;
+      const completed = details.get('/api/ipso/uploads/503/');
+      completed.upload.state = 'imported';
+      completed.upload.import_result = { imported: 1, excluded_count: 1 };
+      return response({ imported: 1, excluded_count: 1, upload: completed.upload }, 'done', 200);
+    }
     sampleImportBodies.push(body);
     if (!body[FIELD_WARNINGS_CONFIRMED]) {
       return response({
@@ -557,6 +583,13 @@ globalThis.fetch = async (url, opts = {}) => {
       }, 'v1', 409);
     }
     return response({ imported: 1, upload: {}, invalidates: { data_ids: ['future_production'] } }, 'v2', 200);
+  }
+  if (url === '/api/ipso/uploads/503/excluded/export/') {
+    return { ok: true, status: 200,
+      headers: new Headers({ 'X-Import-Export-Token': 'download-receipt',
+        'Content-Disposition': 'attachment; filename="excluded.csv"' }),
+      blob: async () => new Blob(['rejected rows']),
+    };
   }
   if (url === '/api/ipso/inbox/') return response(inboxDigest());
   if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
@@ -644,6 +677,33 @@ check(!sampleImportBodies[0][FIELD_WARNINGS_CONFIRMED],
 check(sampleImportBodies[1][FIELD_WARNINGS_CONFIRMED] === true,
       'warning import confirmation adds warnings_confirmed');
 eq(cache.get('future_production'), null, 'successful imports apply dependent-cache invalidations');
+
+// Real page wiring must invoke the export-gated review and record terminal UI state.
+partialReviewTest = true;
+clickInboxOpen(1);
+await flushSeveral();
+clickInboxOpen(2);
+await flushSeveral();
+const partialPanel = detailEl.querySelector('.ipso-import-target');
+const partialTarget = partialPanel.querySelector('select');
+partialTarget.value = '900';
+for (const fn of partialTarget._listeners.change || []) fn({ target: partialTarget });
+partialPanel.querySelector('.btn-import').click();
+modalEl.querySelector('[data-action="confirm"]').click();
+await flushSeveral();
+check(Boolean(modalEl.querySelector('[data-field="errors"]')), 'row errors open the dedicated import review');
+const partialConfirm = modalEl.querySelector('[data-action="confirm"]');
+check(partialConfirm?.disabled === true, 'partial import is disabled before rejected-row export');
+modalEl.querySelector('[data-action="export"]')?.click();
+await flushSeveral();
+check(partialConfirm?.disabled === false, 'successful recovery export unlocks partial import');
+partialConfirm?.click();
+await flushSeveral();
+check(partialCompleted, 'accepted review submits the partial import');
+eq(partialBodies.at(-1).export_token, 'download-receipt', 'import carries the server export receipt');
+check(!detailEl.querySelector('.ipso-import-target'), 'completed partial upload cannot be imported again');
+check(Boolean(detailEl.querySelector('[data-action="export-excluded"]')),
+      'completed partial upload retains a recovery CSV download');
 
 importazione.unmount();
 

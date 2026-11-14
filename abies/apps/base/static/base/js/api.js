@@ -71,10 +71,16 @@ export async function postBlob(url, body) {
     },
     body: JSON.stringify(body),
   });
-  if (!resp.ok) throw new Error(`POST ${url}: ${resp.status}`);
+  if (!resp.ok) {
+    const error = new Error(`POST ${url}: ${resp.status}`);
+    error.status = resp.status;
+    try { error.data = await resp.json(); } catch { /* A proxy may return non-JSON. */ }
+    throw error;
+  }
   return {
     blob: await resp.blob(),
     filename: contentDispositionFilename(resp.headers.get('Content-Disposition')),
+    headers: resp.headers,
   };
 }
 
