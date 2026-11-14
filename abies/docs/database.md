@@ -96,7 +96,8 @@ links and the token table retain their normal schema and cleanup behavior.
   record_count:int, record_date:string, checksum:string, inbox_path:string,
   state:string, received_at:datetime, updated_at:datetime,
   imported_at:datetime nullable, imported_by_id:int nullable,
-  target_type:string, target_id:int nullable, error_summary:string)
+  target_type:string, target_id:int nullable, error_summary:string,
+  import_result:json)
   - One completed Ipso mobile session staged for later import. `session_id` is
     unique, so identical client retries are idempotent and conflicting retries
     are marked `conflict`.
@@ -112,6 +113,14 @@ links and the token table retain their normal schema and cleanup behavior.
   - Successful domain import records `imported_at`, `imported_by`,
     `target_type`, and `target_id`; rejection/conflict details are stored in
     `error_summary`.
+  - `import_result` records the completed tree import: `imported`,
+    `skipped_duplicates`, `accepted_record_ids`, `excluded_count`, and
+    `excluded` entries containing source array index, original Ipso record ID
+    and error messages. It is audited with the terminal state change and
+    written in the same transaction as the accepted forestry rows. An imported
+    session with exclusions is displayed as **Importato parzialmente**; it
+    cannot be imported or have its mode changed again. The staged source stays
+    intact so its excluded rows can be exported for CSV correction/recovery.
 
 ## Geographic concepts
 
@@ -489,9 +498,9 @@ display totals.
     marks are unique within a harvest-plan item:
     `UNIQUE(harvest_plan_item_id, number)`. Multiple null numbers are allowed.
   - `date` is the day the mark was recorded.
-  - `d_cm` and `h_m` indicate size at time of marking. `h_m` may be null when
-    no measured height or active hypsometric parameters are available. Unknown
-    height is not represented as zero.
+  - `d_cm` and `h_m` indicate size at time of marking. New mark entry and
+    imports require a positive height, measured or calculated. Stored marks
+    can represent an unknown height as NULL; it is never represented as zero.
   - `h_measured` records whether `h_m` came from a hypsometer measurement in
     the field (true) or from the active hypsometric parameter set (false).
     During mark entry, `h_m` is auto-populated from that set, keyed by (region,

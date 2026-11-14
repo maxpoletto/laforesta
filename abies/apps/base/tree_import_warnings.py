@@ -9,7 +9,7 @@ from config.constants import FIELD_H_MEASURED, FIELD_LAT, FIELD_LON, FIELD_PARCE
 
 def tree_import_warnings(
         rows: list[dict], *, first_row_number: int,
-        geometry: ParcelGeometryIndex | None = None,
+        geometry: ParcelGeometryIndex | None = None, row_numbers=None,
 ) -> list[str]:
     """Return warning strings for validated tree-import rows.
 
@@ -18,7 +18,8 @@ def tree_import_warnings(
     """
     geometry = geometry or ParcelGeometryIndex()
     warnings = []
-    for row_number, row in enumerate(rows, start=first_row_number):
+    for offset, row in enumerate(rows):
+        row_number = row_numbers[offset] if row_numbers is not None else first_row_number + offset
         if not bool(row.get(FIELD_H_MEASURED)):
             warnings.append(S.WARN_IMPORT_H_NOT_MEASURED.format(row_number))
 

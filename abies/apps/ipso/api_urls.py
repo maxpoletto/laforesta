@@ -13,6 +13,8 @@ urlpatterns = [
     path('uploads/<int:upload_id>/reject/', views.reject_upload, name='ipso-upload-reject'),
     path('uploads/<int:upload_id>/download/',
          views.download_upload, name='ipso-upload-download'),
+    path('uploads/<int:upload_id>/excluded/export/',
+         views.export_excluded_rows, name='ipso-upload-excluded-export'),
     path('uploads/<int:upload_id>/delete/',
          views.delete_upload, name='ipso-upload-delete'),
     path('uploads/<int:upload_id>/mode/',

@@ -177,6 +177,13 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
     csv_date_by_area = {}
     seen_number_shoots = set(idx.existing_number_shoots)
     errors = []
+    # Free-survey recovery CSVs preserve genuinely blank ordinary-tree numbers.
+    # Reserve explicit values before assigning sample-local numbers to blanks.
+    reserved_numbers = {
+        number for row in reader
+        if (number := reader.integer(row.get(S.CSV_COL_TREE))) is not None and number > 0
+    } if idx.is_unstructured else set()
+    next_number = max(reserved_numbers, default=0) + 1
     parsed = []
     for i, row in enumerate(reader, 2):
         region_name = row[S.CSV_COL_REGION].strip()
@@ -198,6 +205,11 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
                 continue
             parcel = area.parcel
         number = reader.integer(row.get(S.CSV_COL_TREE))
+        if idx.is_unstructured and not (row.get(S.CSV_COL_TREE) or '').strip():
+            preserved, _ = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
+            if not preserved:
+                number = next_number
+                next_number += 1
         d_cm = reader.integer(row.get(S.CSV_COL_D_CM))
         h_dec = reader.decimal(row.get(S.CSV_COL_H_M))
         if number is None or d_cm is None or h_dec is None:

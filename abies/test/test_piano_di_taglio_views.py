@@ -2368,7 +2368,7 @@ class TestMarkSave:
         assert resp.status_code == 200
         assert TreeMark.objects.get().number is None
 
-    def test_create_mark_allows_unknown_height(
+    def test_create_mark_requires_height(
         self, writer_client, planned_item, species,
     ):
         resp = writer_client.post(
@@ -2384,12 +2384,8 @@ class TestMarkSave:
             content_type='application/json',
         )
 
-        assert resp.status_code == 200
-        mark = TreeMark.objects.get()
-        assert mark.h_m is None
-        assert mark.h_measured is False
-        assert mark.volume_m3 is None
-        assert mark.mass_q is None
+        assert resp.status_code == 400
+        assert not TreeMark.objects.exists()
 
     def test_rejects_zero_diameter_or_height(
         self, writer_client, planned_item, species,
@@ -2998,7 +2994,7 @@ class TestMarkCSVImport:
         assert tm.number == 1
         assert tm.d_cm == 30
 
-    def test_import_accepts_unknown_height(
+    def test_import_requires_height(
         self, writer_client, planned_item, species, parcels,
     ):
         parcel = parcels[0]
@@ -3009,13 +3005,8 @@ class TestMarkCSVImport:
 
         resp = self._post(writer_client, planned_item, csv_bytes)
 
-        assert resp.status_code == 200
-        mark = TreeMark.objects.get()
-        assert mark.h_m is None
-        assert mark.h_measured is False
-        assert mark.volume_m3 is None
-        assert mark.mass_q is None
-        assert mark.import_fingerprint.startswith('v2:')
+        assert resp.status_code == 400
+        assert not TreeMark.objects.exists()
 
     def test_import_rejects_measured_flag_without_height(
         self, writer_client, planned_item, species, parcels,

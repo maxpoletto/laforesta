@@ -31,7 +31,7 @@ from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CATEGORIES,
     FIELD_CATEGORY_IDS, FIELD_CHECKSUM, FIELD_CLIENT_PHOTO_ID, FIELD_CLIENT_RECORD_ID,
     FIELD_COMPLETED_AT, FIELD_CONTENT_TYPE, FIELD_COPPICE, FIELD_CREATED_AT,
-    FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DETAIL_URL,
+    FIELD_CSV_TEXT, FIELD_D_CM, FIELD_DAMAGED, FIELD_DATE, FIELD_DETAIL_URL, FIELD_ERRORS,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_H_M, FIELD_ID,
     FIELD_H_MEASURED, FIELD_HEIGHT_PX, FIELD_MAX_BYTES,
     FIELD_HYPSO_PARAM_SET_ID, FIELD_KIND, FIELD_LABEL, FIELD_LAT, FIELD_LON,
@@ -1615,7 +1615,7 @@ def _record_with(base, **updates):
     ),
     (
         lambda base, parcels, species: _record_with(base, **{FIELD_D_CM: 0}),
-        S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(1),
+        S.IPSO_ERR_IMPORT_MEASUREMENTS.format(1, S.IPSO_MEASUREMENT_DIAMETER_INVALID),
     ),
     (
         lambda base, parcels, species: _record_with(base, **{FIELD_NUMBER: 'abc'}),
@@ -2200,31 +2200,14 @@ def test_import_rejects_upload_mode_mismatch(
 
 
 @override_settings(IPSO_SECRET='test-token')
-def test_martellate_import_accepts_unknown_height(
-        writer_client, parcels, species, settings, tmp_path,
-):
+def test_martellate_upload_requires_height(parcels, species, settings, tmp_path):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
-    item = _harvest_item(parcels)
-    payload = _upload_payload(
-        parcels, species, mode=IPSO_MODE_MARTELLATE,
-        session_id='43434343-4343-4343-8343-434343434303',
-        record_overrides={FIELD_H_M: None, FIELD_H_MEASURED: False},
-    )
-    upload_response = _post_upload(Client(), payload)
-    assert upload_response.status_code == 200, upload_response.json()
-    upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
-    resp = writer_client.post(
-        reverse('ipso-upload-import-martellate', args=[upload.id]),
-        data=json.dumps({FIELD_HARVEST_PLAN_ITEM_ID: item.id}),
-        content_type='application/json',
-    )
-
-    assert resp.status_code == 200, resp.content
-    mark = TreeMark.objects.get()
-    assert mark.h_m is None
-    assert mark.h_measured is False
-    assert mark.volume_m3 is None
-    assert mark.mass_q is None
+    payload = _upload_payload(parcels, species, record_overrides={
+        FIELD_H_M: None, FIELD_H_MEASURED: False,
+    })
+    response = _post_upload(Client(), payload)
+    assert response.status_code == 422
+    assert not IpsoUpload.objects.exists()
 
 
 @override_settings(IPSO_SECRET='test-token')
@@ -2376,9 +2359,9 @@ def test_martellate_import_rejects_rows_outside_parcel_target(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 409
     assert (S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(1)
-            in resp.json()[MESSAGE])
+            in '\n'.join(resp.json()[FIELD_ERRORS]))
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -2564,8 +2547,8 @@ def test_martellate_import_rejects_duplicate_mark_number(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in resp.json()[MESSAGE]
+    assert resp.status_code == 409
+    assert S.ERR_MARK_NUMBER_DUPLICATE.format(7) in '\n'.join(resp.json()[FIELD_ERRORS])
     assert TreeMark.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -2588,8 +2571,8 @@ def test_martellate_import_rejects_edited_invalid_number(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_INVALID.format(1) in resp.json()[MESSAGE]
+    assert resp.status_code == 409
+    assert S.IPSO_ERR_RECORD_NUMBER_INVALID.format(1) in '\n'.join(resp.json()[FIELD_ERRORS])
     assert TreeMark.objects.count() == 0
 
 @override_settings(IPSO_SECRET='test-token')
@@ -2610,8 +2593,8 @@ def test_martellate_import_rejects_edited_non_positive_number(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(1) in resp.json()[MESSAGE]
+    assert resp.status_code == 409
+    assert S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(1) in '\n'.join(resp.json()[FIELD_ERRORS])
     assert TreeMark.objects.count() == 0
 
 
@@ -2849,9 +2832,9 @@ def test_samples_import_rejects_area_outside_selected_survey_grid(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 409
     assert (S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(1)
-            in resp.json()[MESSAGE])
+            in '\n'.join(resp.json()[FIELD_ERRORS]))
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -3045,8 +3028,8 @@ def test_samples_import_rejects_staged_missing_number(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in resp.json()[MESSAGE]
+    assert resp.status_code == 409
+    assert S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(1) in '\n'.join(resp.json()[FIELD_ERRORS])
     assert TreeSample.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -3162,8 +3145,8 @@ def test_samples_import_rejects_existing_number_shoot(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(1) in resp.json()[MESSAGE]
+    assert resp.status_code == 409
+    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(1) in '\n'.join(resp.json()[FIELD_ERRORS])
     assert TreeSample.objects.count() == 1
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
@@ -3196,8 +3179,8 @@ def test_samples_import_rejects_duplicate_number_shoot_in_upload(
         content_type='application/json',
     )
 
-    assert resp.status_code == 400
-    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2) in resp.json()[MESSAGE]
+    assert resp.status_code == 409
+    assert S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(2) in '\n'.join(resp.json()[FIELD_ERRORS])
     assert TreeSample.objects.count() == 0
 
 @override_settings(IPSO_SECRET='test-token')

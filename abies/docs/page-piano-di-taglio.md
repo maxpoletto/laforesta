@@ -450,9 +450,9 @@ The modal displays:
    Each row becomes one `tree_mark` row under this `harvest_plan_item`.
    `Compresa`/`Particella` from the CSV must match the item's
    region/parcel (or fall inside its region for region-wide items).
-   `H_m` may be empty only when `H_measured` is false. It is then stored as
-   SQL NULL, along with `volume_m3` and `mass_q`. Otherwise those derived
-   fields are computed server-side via the species-ID-based helper
+   `H_m` must contain a positive height, including when `H_measured` is false
+   because the height was calculated rather than measured. Volume and mass
+   are computed server-side via the species-ID-based helper
    (`apps/base/equations.py`) from `(D_cm, H_m, species_id)` plus species
    density. It uses the configured volume coefficients and Tabacchi numeric
    core. A blank `H_m` remains blank when exported.
@@ -527,9 +527,9 @@ unavailable-volume message rather than a zero estimate.
 parameter set, keyed by (region ID, species ID) — served by the `hypso_params`
 digest, not a per-plan table (see [`hypsometry.md`](hypsometry.md)). Field
 stays editable; operator overrides set `h_measured = true`. If the active set
-has no entry for the (region, species) pair — or no set is active — h is blank
-and may be saved as unknown. The server stores SQL NULL for height, volume, and
-mass and normalizes `h_measured = false`.
+has no entry for the (region, species) pair — or no set is active — the
+operator must enter a positive height manually before saving. The server also
+requires height for manual, CSV and Ipso mark imports.
 Changing to a species without a height equation clears an obsolete automatic
 height and displays a hint. Diameter edits retain a manually measured height.
 The Tabacchi proxy does not substitute another species' hypsometric parameters.

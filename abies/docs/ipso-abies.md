@@ -312,9 +312,10 @@ item. A logged-in Abies user can view upload metadata and previews. Import or
 rejection requires writer permission, and the import endpoints perform the final
 mode-specific validation against the selected target. Martellate rows must fit
 the selected harvest-plan item scope: exact parcel for parcel items, or same
-region for region-wide items. A Martellate row may omit height only when
-`h_measured=false`; other tree-survey modes continue to require a positive
-height. Predefined sample rows must fit the selected
+region for region-wide items. All tree recording and import modes require a
+positive height; measured and calculated heights are both accepted. Missing
+heights are record errors, even when `h_measured=false`. Predefined sample rows
+must fit the selected
 survey grid; if the session records the survey chosen in Ipso, selecting
 another survey is only accepted when it uses the same grid. Free-survey rows
 must be imported into an unstructured survey, where the import creates one
@@ -322,13 +323,32 @@ must be imported into an unstructured survey, where the import creates one
 target selector; they create `Observation` rows, category assignments, and
 photo metadata/files directly from the staged session.
 
-For `samples` and `free_survey` imports, validation errors block immediately.
-After validation and before writing, Abies computes non-blocking warnings for
-rows whose GPS coordinates fall in a different parcel from the submitted
-parcel, and for rows with `h_measured=false`. The import page shows these
-warnings in a standard proceed/abort modal. Proceeding resubmits with explicit
-confirmation; the server recomputes warnings and then writes. The submitted
-parcel remains authoritative because GPS can be wrong under tree cover.
+Tree imports (`martellate`, `samples`, `free_survey`) validate the complete
+session before writing. Each error names the original Ipso row ID displayed in
+the preview, rather than its position in the uploaded array. Date, diameter,
+height, coordinates and storage errors have specific explanations. Ambiguous
+number/date groups are excluded together instead of choosing a winner.
+
+A review with row errors contains the accepted/excluded counts and one error
+line per excluded row. The user can cancel or import the accepted subset after
+exporting a recovery CSV. That CSV uses the destination's ordinary import
+headers and adds the Ipso row ID, error reasons and original JSON record. Blanks
+and source values are preserved. Correct the excluded data and use the ordinary
+CSV importer to recover it; the Ipso session itself cannot be imported again.
+See [Importazione](page-importazione.md) for the review controls.
+
+The server signs the reviewed upload/target/row selection for the authenticated
+user. The CSV response supplies an export receipt bound to that same review.
+Partial import requires both tokens. They expire after 30 minutes. Immediately
+before writing, the server validates again under the write lock. A changed
+selection or destination returns a fresh review and requires a fresh export;
+no subset is committed from an obsolete review.
+
+Survey imports also warn about unmeasured heights and GPS/parcel disagreements
+among the accepted records. These warnings are confirmed along with a partial
+review; an otherwise valid session uses the standard proceed/abort warning
+modal. The submitted parcel remains authoritative because GPS can be wrong
+under tree cover. Observation imports retain their whole-session transaction.
 
 Duplicate uploads with the same session ID and checksum are idempotent. A second
 upload with the same session ID but different content marks the staged upload as
@@ -344,6 +364,15 @@ requires reloading and trying again. Rejected imports retain their diagnostic
 message separately after rollback, but do not consume the nonce or keep partial
 forestry writes. A diagnostic cannot overwrite an upload concurrently imported,
 rejected, deleted or edited.
+
+A successful partial import is terminal too: `state=imported`, displayed as
+**Importato parzialmente**, with accepted/excluded counts in its summary. Its
+`import_result` stores accepted source IDs, excluded source indices/IDs/reasons,
+imported count and any idempotent duplicate count. This audited result commits
+with the accepted domain records and nonce receipt. Replaying the same request
+returns the same result; another import attempt is refused. The original staged
+JSON remains intact, and writers can download the excluded-row CSV again from
+the completed session.
 
 Inbox deletion removes staged files only after the database commit. Mode edits
 restore the previous staged payload/checksum if their nonce-backed transaction

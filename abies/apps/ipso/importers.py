@@ -9,7 +9,9 @@ from decimal import Decimal
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Survey, TreeSample,
 )
-from apps.base.numparse import to_decimal
+from apps.base.numparse import int_or_none, to_decimal
+from apps.base.validation import InputValidationError, decimal_field_value
+from apps.ipso.import_validation import RowErrors, position_problems, record_id, sample_field_problems
 from apps.base.preserved_trees import current_preserved_number_keys
 from apps.campionamenti.csv_trees import parsed_tree_row
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
@@ -29,7 +31,7 @@ from config.constants import (
 class TreeMeasurements:
     date: date_type
     d_cm: int
-    h_m: Decimal | None
+    h_m: Decimal
 
 
 _SAMPLE_PARSE_NUMBER_INVALID = 'sample_number_invalid'
@@ -56,7 +58,7 @@ def _species_and_operator(payload, records):
     return species, operator
 
 
-def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
+def sample_import_rows(payload: dict, survey: Survey, *, issues=None) -> tuple[list[dict], list[str]]:
     if survey.sample_grid_id is None:
         return [], [S.ERR_SURVEY_STRUCTURED_REQUIRED]
     records = _payload_records(payload)
@@ -82,51 +84,62 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
     )
 
     rows = []
-    errors = []
+    errors = RowErrors(issues)
     csv_date_by_area = {}
-    for i, record in enumerate(records, start=1):
+    for index, record in enumerate(records, start=1):
+        i = record_id(record, index)
         if not isinstance(record, dict):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
             continue
         area = areas.get(record.get(FIELD_SAMPLE_AREA_ID))
         if area is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_AREA_NOT_FOUND.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_AREA_NOT_FOUND.format(i))
             continue
         if area.sample_grid_id != survey.sample_grid_id:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_AREA_OUT_OF_SURVEY.format(i))
             continue
         if area.parcel_id != record.get(FIELD_PARCEL_ID):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_AREA_PARCEL_MISMATCH.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_AREA_PARCEL_MISMATCH.format(i))
             continue
         sp = species.get(record.get(FIELD_SPECIES_ID))
         if sp is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
         if record.get(FIELD_NUMBER) is None:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
+            errors.add(index, S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
             continue
-        parsed = _sample_record_values(record, area, sp, session_operator)
+        measurement_errors = []
+        measurements = record_measurements(record, errors=measurement_errors)
+        measurement_errors.extend(sample_field_problems(record))
+        if measurement_errors:
+            errors.add(index, S.IPSO_ERR_IMPORT_MEASUREMENTS.format(i, '; '.join(measurement_errors)))
+            continue
+        try:
+            parsed = _sample_record_values(record, area, sp, session_operator, measurements)
+        except InputValidationError:
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_DERIVED_OVERFLOW.format(i))
+            continue
         if parsed is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(i))
             continue
         if parsed == _SAMPLE_PARSE_NUMBER_INVALID:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
             continue
         if parsed == _SAMPLE_PARSE_NUMBER_POSITIVE:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
+            errors.add(index, S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
             continue
 
         existing_sample = existing_samples.get(area.id)
         row_date = parsed[FIELD_DATE]
         if existing_sample and existing_sample.date != row_date:
-            errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
+            errors.add(index, S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
                 i, area.parcel.region.name, area.parcel.name, area.number,
                 existing_sample.date.isoformat(),
             ))
             continue
         previous_date = csv_date_by_area.get(area.id)
         if previous_date is not None and previous_date != row_date:
-            errors.append(S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
+            errors.add(index, S.ERR_CSV_ROW_SAMPLE_DATE_CONFLICT.format(
                 i, area.parcel.region.name, area.parcel.name, area.number,
                 previous_date.isoformat(),
             ))
@@ -134,14 +147,14 @@ def sample_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[
         csv_date_by_area.setdefault(area.id, row_date)
         number_shoot_key = (area.id, parsed[FIELD_NUMBER], parsed[FIELD_SHOOT])
         if number_shoot_key in seen_number_shoots:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
             continue
         seen_number_shoots.add(number_shoot_key)
         rows.append(parsed)
-    return rows, errors
+    return rows, errors.messages
 
 
-def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], list[str]]:
+def free_survey_import_rows(payload: dict, survey: Survey, *, issues=None) -> tuple[list[dict], list[str]]:
     if survey.sample_grid_id is not None:
         return [], [S.ERR_SURVEY_UNSTRUCTURED_REQUIRED]
     records = _payload_records(payload)
@@ -180,40 +193,46 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
     seen_preserved_numbers = current_preserved_number_keys(parcel_ids)
 
     rows = []
-    errors = []
-    for i, record in enumerate(records, start=1):
+    errors = RowErrors(issues)
+    for index, record in enumerate(records, start=1):
+        i = record_id(record, index)
         if not isinstance(record, dict):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
             continue
         parcel = parcels.get(record.get(FIELD_PARCEL_ID))
         if parcel is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
             continue
         sp = species.get(record.get(FIELD_SPECIES_ID))
         if sp is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
 
+        measurement_errors = []
+        measurements = record_measurements(record, errors=measurement_errors)
+        if measurements is None:
+            errors.add(index, S.IPSO_ERR_IMPORT_MEASUREMENTS.format(i, '; '.join(measurement_errors)))
+            continue
         preserved = bool(record.get(FIELD_PRESERVED))
         number = record.get(FIELD_NUMBER)
         if number is not None:
             try:
                 number = int(number)
             except (TypeError, ValueError):
-                errors.append(S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
+                errors.add(index, S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
                 continue
             if number <= 0:
-                errors.append(S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
+                errors.add(index, S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(i))
                 continue
         if preserved and number is None:
-            errors.append(S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
+            errors.add(index, S.IPSO_ERR_RECORD_NUMBER_REQUIRED.format(i))
             continue
 
         preserved_number = number if preserved else None
         if preserved_number is not None:
             preserved_key = (parcel.id, preserved_number)
             if preserved_key in seen_preserved_numbers:
-                errors.append(S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(i))
+                errors.add(index, S.IPSO_ERR_IMPORT_RECORD_PAI_NUMBER_DUPLICATE.format(i))
                 continue
             seen_preserved_numbers.add(preserved_key)
 
@@ -225,19 +244,23 @@ def free_survey_import_rows(payload: dict, survey: Survey) -> tuple[list[dict], 
             next_sample_number += 1
             unavailable_sample_numbers.add(sample_number)
         if sample_number in seen_sample_numbers:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
             continue
         seen_sample_numbers.add(sample_number)
 
-        parsed = _free_survey_record_values(
-            record, parcel, sp, session_operator, sample_number,
-            preserved_number,
-        )
+        try:
+            parsed = _free_survey_record_values(
+                record, parcel, sp, session_operator, sample_number,
+                preserved_number, measurements,
+            )
+        except InputValidationError:
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_DERIVED_OVERFLOW.format(i))
+            continue
         if parsed is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(i))
             continue
         rows.append(parsed)
-    return rows, errors
+    return rows, errors.messages
 
 
 def _is_positive_int_value(value) -> bool:
@@ -254,28 +277,35 @@ def _payload_records(payload: dict) -> list | None:
     return records if isinstance(records, list) else None
 
 
-def record_measurements(
-        record: dict, *, h_required: bool = True,
-) -> TreeMeasurements | None:
+def record_measurements(record: dict, *, errors=None) -> TreeMeasurements | None:
+    problems = position_problems(record)
     try:
         row_date = date_type.fromisoformat(str(record.get(FIELD_DATE)))
-        d_cm = int(record.get(FIELD_D_CM))
-        h_m = to_decimal(record.get(FIELD_H_M), '.')
     except (TypeError, ValueError):
-        return None
-    if (d_cm <= 0 or (h_m is not None and h_m <= 0)
-            or (h_required and h_m is None)):
+        row_date = None
+        problems.append(S.IPSO_MEASUREMENT_DATE_INVALID)
+    d_cm = int_or_none(record.get(FIELD_D_CM))
+    if d_cm is None or d_cm <= 0:
+        problems.append(S.IPSO_MEASUREMENT_DIAMETER_INVALID)
+    raw_height = record.get(FIELD_H_M)
+    h_m = to_decimal(raw_height, '.')
+    if h_m is not None:
+        h_m = decimal_field_value(h_m, 'base.TreeSample', 'h_m')
+    if raw_height is None or raw_height == '':
+        problems.append(S.IPSO_MEASUREMENT_HEIGHT_MISSING)
+    elif h_m is None or h_m <= 0:
+        problems.append(S.IPSO_MEASUREMENT_HEIGHT_INVALID)
+    if errors is not None:
+        errors.extend(problems)
+    if problems:
         return None
     return TreeMeasurements(date=row_date, d_cm=d_cm, h_m=h_m)
 
 
 def _free_survey_record_values(
         record: dict, parcel: Parcel, sp: Species, session_operator: str,
-        sample_number: int, preserved_number: int | None,
+        sample_number: int, preserved_number: int | None, measurements: TreeMeasurements,
 ) -> dict | None:
-    measurements = record_measurements(record)
-    if measurements is None:
-        return None
     values = normalize_sample_tree_values(
         number=sample_number,
         d_cm=measurements.d_cm,
@@ -306,10 +336,8 @@ def _free_survey_record_values(
 
 def _sample_record_values(
         record: dict, area: SampleArea, sp: Species, session_operator: str,
+        measurements: TreeMeasurements,
 ) -> dict | None:
-    measurements = record_measurements(record)
-    if measurements is None:
-        return None
     try:
         number = int(record.get(FIELD_NUMBER))
     except (TypeError, ValueError):

@@ -107,10 +107,10 @@ def test_sample_import_collects_lookup_and_shape_errors(parcels, species):
         S.IPSO_ERR_IMPORT_RECORD_AREA_NOT_FOUND.format(2),
         S.IPSO_ERR_IMPORT_RECORD_AREA_PARCEL_MISMATCH.format(3),
         S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(4),
-        S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(5),
+        S.IPSO_ERR_IMPORT_MEASUREMENTS.format(5, S.IPSO_MEASUREMENT_DATE_INVALID),
         S.IPSO_ERR_RECORD_NUMBER_INVALID.format(6),
         S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(7),
-        S.IPSO_ERR_IMPORT_RECORD_SAMPLE_FIELDS_INVALID.format(8),
+        S.IPSO_ERR_IMPORT_MEASUREMENTS.format(8, S.IPSO_MEASUREMENT_PRESSLER_INVALID),
     ]
 
 
@@ -237,10 +237,9 @@ def test_record_measurements_rejects_bad_and_non_positive_values():
     }) is None
 
 
-def test_record_measurements_allows_optional_unknown_height():
-    measurements = record_measurements({
+def test_record_measurements_reports_missing_height():
+    errors = []
+    assert record_measurements({
         FIELD_DATE: '2026-06-17', FIELD_D_CM: 42, FIELD_H_M: None,
-    }, h_required=False)
-
-    assert measurements is not None
-    assert measurements.h_m is None
+    }, errors=errors) is None
+    assert errors == [S.IPSO_MEASUREMENT_HEIGHT_MISSING]

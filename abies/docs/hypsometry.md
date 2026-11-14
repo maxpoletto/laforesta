@@ -23,9 +23,10 @@ but cannot match exactly (JS float vs Python Decimal); the bound is locked by
 
 The parameters a and b are obtained by regression over a set of sampled trees,
 per (region, species) pair. If a (region, species) pair lacks parameters, that
-is fine: a marked-tree height can be measured or entered manually, or stored as
-unknown (`h_m=NULL`, `h_measured=false`). An unknown height leaves its
-Tabacchi volume and mass unknown too.
+is fine: the operator must measure or enter the height manually before saving
+or importing a new mark. Calculated heights satisfy the requirement while
+keeping `h_measured=false`. Stored marks can represent an unknown height with
+NULL height, volume and mass, rather than a zero measurement.
 
 Historically the parameters were computed from samples taken while creating a
 harvest plan (pdg-2026) and stored in a "regressions" CSV file like this:

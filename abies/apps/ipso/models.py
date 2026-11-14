@@ -67,6 +67,7 @@ class IpsoUpload(models.Model):
     )
     target_id = models.IntegerField(null=True, blank=True)
     error_summary = models.TextField(blank=True)
+    import_result = models.JSONField(default=dict, blank=True)
     history = HistoricalRecords()
 
     class Meta:

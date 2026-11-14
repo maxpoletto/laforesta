@@ -278,7 +278,11 @@ import operation creates one `Sample(sample_area=NULL)`. If the CSV has a
 `Data` column, all rows in a free import must carry the same date; otherwise
 the modal's default date is used. Tree number/shoot identities must be unique
 within that import's new sample, but may repeat in another sample belonging to
-the same free survey.
+the same free survey. An ordinary free-survey row may leave `Albero` blank;
+the importer reserves every explicit number, then assigns numbers to blanks
+starting above their maximum (or at 1 when all are blank). A PAI row still
+requires an explicit positive number. This also lets recovery CSVs from Ipso
+preserve genuinely unnumbered source rows without inventing source values.
 
 Optional columns: `Data` (→ `sample.date`), `PAI` (bool), `H_measured` (bool),
 `Lat`, `Lon`, `Acc_m`, `Operatore`, and `Note`. Blank `H_measured` is false.

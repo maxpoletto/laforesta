@@ -1732,10 +1732,10 @@ async function wireMarkForm(form, itemId) {
   wireCancelButtons(form, dismissModal);
   interceptSubmit(form, MARK_SAVE_URL, {
     validate: (body) => {
-      // A mark needs D; h is optional, but must be positive when supplied.
+      // A mark needs positive D and a measured or calculated height.
       if (!(parseInt(body.d_cm, 10) > 0)) return S.ERR_D_POSITIVE;
       const hRaw = String(body.h_m || '').trim();
-      if (hRaw && !(parseDecimal(hRaw) > 0)) return S.ERR_H_POSITIVE;
+      if (!(parseDecimal(hRaw) > 0)) return S.ERR_H_POSITIVE;
       return null;
     },
     onSuccess(data, isSaveAndAdd) {

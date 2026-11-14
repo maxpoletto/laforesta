@@ -1007,7 +1007,7 @@ def mark_save_view(request):
         errors.append(S.ERR_MARK_SPECIES_REQUIRED)
     if d_cm is None or d_cm <= 0:
         errors.append(S.ERR_MARK_D_REQUIRED)
-    if h_raw and (h_m is None or h_m <= 0):
+    if h_m is None or h_m <= 0:
         errors.append(S.ERR_MARK_H_REQUIRED)
     if h_m is None:
         h_measured = False
@@ -1292,7 +1292,7 @@ def mark_csv_import_view(request):
         d_cm = reader.integer(row.get('d_cm'))
         h_m, h_m_ok = reader.opt_decimal(row.get('h_m'))
         if (d_cm is None or d_cm <= 0 or not h_m_ok
-                or (h_m is not None and h_m <= 0)):
+                or h_m is None or h_m <= 0):
             errors.append(S.ERR_CSV_ROW_PARSE.format(
                 i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
             continue

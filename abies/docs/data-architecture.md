@@ -340,6 +340,29 @@ updates the cache with the returned record).
 already belongs to a different successful request; reopen the form to obtain
 a fresh nonce. This is distinct from the row-version conflict above.
 
+### Ipso row review and partial import
+
+A staged tree import can return HTTP 409 with `status: "import_review"`,
+`valid_count`, `excluded_count`, grouped `errors`, `warnings`, and a signed
+`review_token`. This is a review request, not a successful write. No forestry
+rows or nonce receipt are committed. The row IDs in errors match Ipso's preview.
+
+`POST /api/ipso/uploads/<id>/excluded/export/` takes that token and returns the
+rejected-row CSV plus an `X-Import-Export-Token` response header. The import
+confirmation sends `review_token`, `export_token` and warning confirmation.
+Both signed tokens are scoped to the user, staged checksum/mode, target/version
+and reviewed row partition. A changed destination or partition returns another
+review; the client resets the export gate. Validation runs again inside the
+write boundary before any accepted rows are applied.
+
+The accepted subset, audited `IpsoUpload.import_result`, terminal upload state,
+digest changes and successful nonce receipt commit atomically. A completed
+session cannot be imported again. Recovery happens through the ordinary CSV
+importer after fixing the excluded records. A writer can also retrieve the
+stored rejected set with `GET` on the same export endpoint after completion.
+The original staged JSON is retained throughout. See
+[Ipso integration](ipso-abies.md) for the outcome fields and recovery format.
+
 ## Data deletion and cache updates
 
 If the user deletes a record (more on the UI details of this below), the UI

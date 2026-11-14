@@ -28,7 +28,7 @@ from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.cache import patch_vary_headers
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.base import csv_io
 from apps.base.auth import require_admin, require_writer
@@ -64,6 +64,10 @@ from apps.base.responses import (
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging
+from apps.ipso.import_validation import RowErrors, record_id
+from apps.ipso.import_review import (
+    EXPORT_SALT, TreeImportReview, read_review_token, recovery_csv,
+)
 from apps.ipso.importers import (
     _int_ids, free_survey_import_rows, record_measurements, sample_import_rows,
 )
@@ -80,7 +84,7 @@ from config.constants import (
     FIELD_ID, FIELD_NAME,
     FIELD_CATEGORY_IDS, FIELD_CATEGORIES, FIELD_CONTENT_TYPE,
     FIELD_MAX_BYTES,
-    FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE,
+    FIELD_COMPLETED_AT, FIELD_CREATED_AT, FIELD_CSV_TEXT, FIELD_DATE, FIELD_ERRORS,
     FIELD_DETAIL_URL,
     FIELD_D_CM, FIELD_ESTIMATED_BIRTH_YEAR, FIELD_HARVEST_PLAN_ITEM_ID,
     FIELD_H_M, FIELD_H_MEASURED, FIELD_HYPSO_PARAM_SET_ID, FIELD_KIND,
@@ -811,182 +815,168 @@ def update_upload_mode(request: HttpRequest, upload_id: int) -> JsonResponse:
     return success_response(request, body, extra={UPLOAD: data})
 
 
-@login_required
-@require_writer
-@require_POST
-def import_martellate_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
-    try:
-        body = _request_json(request)
+def _prepare_tree_review(upload, body):
+    mode = upload.mode
+    if upload.state != IpsoUploadState.RECEIVED:
+        return None, validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    if mode == IPSO_MODE_MARTELLATE:
         item_id = _int(body, FIELD_HARVEST_PLAN_ITEM_ID)
-    except UploadValidationError as e:
-        return validation_error([str(e)])
-
-    upload = _get_upload(upload_id)
-    if upload.mode != IPSO_MODE_MARTELLATE:
-        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-    if upload.state != IpsoUploadState.RECEIVED:
-        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-    item = HarvestPlanItem.objects.filter(id=item_id).first()
-    if item is None:
-        return validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
-    if item.state == HarvestPlanItemState.CLOSED:
-        return validation_error([S.ERR_MARK_ITEM_CLOSED])
-    if not _is_valid_martellate_target(item):
-        return validation_error([S.IPSO_ERR_INVALID_MARTELLATE_TARGET])
+        target = HarvestPlanItem.objects.filter(pk=item_id).first()
+        if target is None:
+            return None, validation_error([S.ERR_PLAN_ITEM_NOT_FOUND])
+        if target.state == HarvestPlanItemState.CLOSED:
+            return None, validation_error([S.ERR_MARK_ITEM_CLOSED])
+        if not _is_valid_martellate_target(target):
+            return None, validation_error([S.IPSO_ERR_INVALID_MARTELLATE_TARGET])
+    else:
+        target = Survey.objects.filter(pk=_int(body, FIELD_SURVEY_ID)).first()
+        if target is None:
+            return None, validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
+        if mode == IPSO_MODE_SAMPLES:
+            if target.sample_grid_id is None:
+                return None, validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
+            source_grid = _source_survey_grid_id(upload.work_package_id)
+            if source_grid is not None and target.sample_grid_id != source_grid:
+                return None, validation_error([S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH])
+        elif target.sample_grid_id is not None:
+            return None, validation_error([S.ERR_SURVEY_UNSTRUCTURED_REQUIRED])
     payload, file_error = _read_staged_payload(upload)
     if file_error:
-        return _upload_validation_error(upload, [file_error], request=request)
-    rows, errors = _martellate_import_rows(upload, payload, item)
-    if errors:
-        return _upload_validation_error(upload, errors, request=request)
-    duplicate_errors = mark_number_duplicate_errors(item.id, rows)
-    if duplicate_errors:
-        return _upload_validation_error(upload, duplicate_errors, request=request)
+        return None, validation_error([file_error])
+    records = payload.get(RECORDS) if isinstance(payload, dict) else None
+    if not isinstance(records, list) or not records or any(not isinstance(row, dict) for row in records):
+        return None, validation_error([S.IPSO_ERR_IMPORT_RECORDS_ARRAY])
+    issues = {}
+    if mode == IPSO_MODE_MARTELLATE:
+        rows, errors = _martellate_import_rows(upload, payload, target, issues=issues)
+    else:
+        parser = sample_import_rows if mode == IPSO_MODE_SAMPLES else free_survey_import_rows
+        rows, errors = parser(payload, target, issues=issues)
+    if errors and not issues:
+        return None, validation_error(errors)
+    review = TreeImportReview(upload, payload, target, rows, issues)
+    review.validate_groups_and_storage()
+    if mode != IPSO_MODE_MARTELLATE:
+        review.warnings = tree_import_warnings(
+            review.rows, first_row_number=1,
+            row_numbers=[record_id(records[i - 1], i) for i in review.accepted_indices],
+        )
+    return review, None
 
+
+def _import_tree_upload(request, upload_id, mode):
+    try:
+        body = _request_json(request)
+        upload = _get_upload(upload_id)
+        if upload.mode != mode:
+            return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
+        review, error = _prepare_tree_review(upload, body)
+    except UploadValidationError as exc:
+        return validation_error([str(exc)])
+    if error:
+        if upload.state != IpsoUploadState.RECEIVED:
+            return error
+        errors = json.loads(error.content).get(FIELD_ERRORS, [S.ERROR_GENERIC])
+        return _upload_validation_error(upload, errors, request=request)
+    token = body.get('review_token')
+    if token and not review.token_matches(token, request.user):
+        return review.response(request.user, S.IPSO_IMPORT_REVIEW_CHANGED)
+    if review.issues:
+        if not review.rows or not token or not review.token_matches(
+                body.get('export_token'), request.user, salt=EXPORT_SALT):
+            _upload_validation_error(upload, [messages[0] for _, messages in sorted(review.issues.items())], request=request)
+            return review.response(request.user, S.IPSO_IMPORT_EXPORT_REQUIRED)
+    if review.warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
+        return warning_response(review.warnings)
     try:
         begin_nonce_write(request)
         with transaction.atomic():
-            upload, error = _lock_prepared_upload(upload)
+            current, error = _lock_prepared_upload(upload)
             if error:
                 return error
-            current = HarvestPlanItem.objects.select_for_update().filter(id=item_id).first()
-            if current is None or current.version != item.version:
-                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
-            item = current
-
-            result = import_mark_rows(item, rows)
-            if result.errors:
-                return _upload_validation_error(upload, result.errors, request=request)
-            if not _claim_upload_import(
-                    upload, request.user, IPSO_TARGET_HARVEST_PLAN_ITEM, item.id):
+            # Destination edits and newly conflicting tree identities can happen
+            # after review/export even though the uploaded source is unchanged.
+            type(review.target).objects.select_for_update().get(pk=review.target.pk)
+            fresh, error = _prepare_tree_review(current, body)
+            if error:
+                return error
+            if fresh.snapshot(request.user) != review.snapshot(request.user):
+                return fresh.response(request.user, S.IPSO_IMPORT_REVIEW_CHANGED)
+            review = fresh
+            if mode == IPSO_MODE_MARTELLATE:
+                result = import_mark_rows(review.target, review.rows)
+                if result.errors:
+                    return _upload_validation_error(current, result.errors, request=request)
+                imported, skipped = result.imported, result.skipped_duplicates
+                target_type = IPSO_TARGET_HARVEST_PLAN_ITEM
+            else:
+                result = csv_trees.apply(review.target, review.rows)
+                imported, skipped = result['n_trees'], 0
+                target_type = IPSO_TARGET_SURVEY
+            current.import_result = review.outcome(imported, skipped)
+            if not _claim_upload_import(current, request.user, target_type, review.target.pk):
                 return _rollback_upload_not_received_response()
-            data = _upload_metadata(upload)
+            data = _upload_metadata(current)
     except IntegrityError:
-        upload = _get_upload(upload_id)
-        return _upload_validation_error(
-            upload, [S.IPSO_ERR_IMPORT_MARK_CONFLICT], request=request,
-        )
-    from apps.piano_di_taglio.dependencies import marked_tree_dependencies
-    return success_response(request, body, invalidates=marked_tree_dependencies([item.id]).invalidates(), extra={
-        IMPORTED: result.imported,
-        SKIPPED_DUPLICATES: result.skipped_duplicates,
-        UPLOAD: data,
-    })
+        message = S.IPSO_ERR_IMPORT_MARK_CONFLICT if mode == IPSO_MODE_MARTELLATE else S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT
+        return _upload_validation_error(upload, [message], request=request)
+    extra = {IMPORTED: imported, SKIPPED_DUPLICATES: skipped,
+             'excluded_count': len(review.issues), UPLOAD: data}
+    invalidates = None
+    if mode == IPSO_MODE_MARTELLATE:
+        from apps.piano_di_taglio.dependencies import marked_tree_dependencies
+        invalidates = marked_tree_dependencies([review.target.pk]).invalidates()
+    return success_response(request, body, extra=extra, invalidates=invalidates)
 
 
 @login_required
 @require_writer
 @require_POST
-def import_samples_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
-    try:
-        body = _request_json(request)
-        survey_id = _int(body, FIELD_SURVEY_ID)
-    except UploadValidationError as e:
-        return validation_error([str(e)])
-
-    upload = _get_upload(upload_id)
-    if upload.mode != IPSO_MODE_SAMPLES:
-        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-    if upload.state != IpsoUploadState.RECEIVED:
-        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-    survey = Survey.objects.filter(id=survey_id).first()
-    if survey is None:
-        return validation_error([S.IPSO_ERR_INVALID_SAMPLES_TARGET])
-    if survey.sample_grid_id is None:
-        return validation_error([S.ERR_SURVEY_STRUCTURED_REQUIRED])
-    source_grid_id = _source_survey_grid_id(upload.work_package_id)
-    if source_grid_id is not None and survey.sample_grid_id != source_grid_id:
-        return validation_error([S.IPSO_ERR_SAMPLES_TARGET_GRID_MISMATCH])
-    payload, file_error = _read_staged_payload(upload)
-    if file_error:
-        return _upload_validation_error(upload, [file_error], request=request)
-    rows, errors = sample_import_rows(payload, survey)
-    if errors:
-        return _upload_validation_error(upload, errors, request=request)
-    warnings = tree_import_warnings(rows, first_row_number=1)
-    if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
-        return warning_response(warnings)
-
-    try:
-        begin_nonce_write(request)
-        with transaction.atomic():
-            upload, error = _lock_prepared_upload(upload)
-            if error:
-                return error
-            current = Survey.objects.select_for_update().filter(id=survey_id).first()
-            if current is None or current.version != survey.version:
-                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
-            survey = current
-
-            result = csv_trees.apply(survey, rows)
-            if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
-                return _rollback_upload_not_received_response()
-            data = _upload_metadata(upload)
-    except IntegrityError:
-        upload = _get_upload(upload_id)
-        return _upload_validation_error(
-            upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT], request=request,
-        )
-    return success_response(request, body, extra={
-        IMPORTED: result['n_trees'],
-        UPLOAD: data,
-    })
+def import_martellate_upload(request, upload_id):
+    return _import_tree_upload(request, upload_id, IPSO_MODE_MARTELLATE)
 
 
 @login_required
 @require_writer
 @require_POST
-def import_free_survey_upload(request: HttpRequest, upload_id: int) -> JsonResponse:
+def import_samples_upload(request, upload_id):
+    return _import_tree_upload(request, upload_id, IPSO_MODE_SAMPLES)
+
+
+@login_required
+@require_writer
+@require_POST
+def import_free_survey_upload(request, upload_id):
+    return _import_tree_upload(request, upload_id, IPSO_MODE_FREE_SURVEY)
+
+
+@login_required
+@require_writer
+@require_http_methods(['GET', 'POST'])
+def export_excluded_rows(request, upload_id):
+    upload = _get_upload(upload_id)
+    if request.method == 'GET':
+        if upload.state != IpsoUploadState.IMPORTED or not upload.import_result.get('excluded'):
+            raise Http404
+        payload, error = _read_staged_payload(upload)
+        if error:
+            return validation_error([error])
+        return recovery_csv(upload, payload, upload.import_result['excluded'])
     try:
         body = _request_json(request)
-        survey_id = _int(body, FIELD_SURVEY_ID)
-    except UploadValidationError as e:
-        return validation_error([str(e)])
-
-    upload = _get_upload(upload_id)
-    if upload.mode != IPSO_MODE_FREE_SURVEY:
-        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
-    if upload.state != IpsoUploadState.RECEIVED:
-        return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-    survey = Survey.objects.filter(id=survey_id).first()
-    if survey is None:
-        return validation_error([S.IPSO_ERR_INVALID_FREE_SURVEY_TARGET])
-    if survey.sample_grid_id is not None:
-        return validation_error([S.ERR_SURVEY_UNSTRUCTURED_REQUIRED])
-    payload, file_error = _read_staged_payload(upload)
-    if file_error:
-        return _upload_validation_error(upload, [file_error], request=request)
-    rows, errors = free_survey_import_rows(payload, survey)
-    if errors:
-        return _upload_validation_error(upload, errors, request=request)
-    warnings = tree_import_warnings(rows, first_row_number=1)
-    if warnings and not is_truthy(body.get(FIELD_WARNINGS_CONFIRMED)):
-        return warning_response(warnings)
-
-    try:
-        begin_nonce_write(request)
-        with transaction.atomic():
-            upload, error = _lock_prepared_upload(upload)
-            if error:
-                return error
-            current = Survey.objects.select_for_update().filter(id=survey_id).first()
-            if current is None or current.version != survey.version:
-                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
-            survey = current
-
-            result = csv_trees.apply(survey, rows)
-            if not _claim_upload_import(upload, request.user, IPSO_TARGET_SURVEY, survey.id):
-                return _rollback_upload_not_received_response()
-            data = _upload_metadata(upload)
-    except IntegrityError:
-        upload = _get_upload(upload_id)
-        return _upload_validation_error(
-            upload, [S.IPSO_ERR_IMPORT_SAMPLE_CONFLICT], request=request,
-        )
-    return success_response(request, body, extra={
-        IMPORTED: result['n_trees'],
-        UPLOAD: data,
-    })
+        token = body.get('review_token')
+        snapshot = read_review_token(token, request.user, upload_id)
+        if snapshot is None or upload.mode not in {IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_FREE_SURVEY}:
+            return validation_error([S.IPSO_IMPORT_TOKEN_INVALID])
+        target_field = FIELD_HARVEST_PLAN_ITEM_ID if upload.mode == IPSO_MODE_MARTELLATE else FIELD_SURVEY_ID
+        review, error = _prepare_tree_review(upload, {target_field: snapshot['target']})
+        if error:
+            return error
+        if not review.token_matches(token, request.user):
+            return review.response(request.user, S.IPSO_IMPORT_REVIEW_CHANGED)
+        return review.export(request.user)
+    except UploadValidationError as exc:
+        return validation_error([str(exc)])
 
 
 @login_required
@@ -1127,11 +1117,17 @@ def _inbox_row(upload: IpsoUpload, labels: dict | None = None) -> list:
         _mode_label(upload.mode),
         upload.operator,
         upload.record_count,
-        STATE_LABELS.get(upload.state, upload.state),
+        _upload_state_label(upload),
         _work_package_label(upload, labels),
         _target_label(upload, labels),
         upload.error_summary,
     ]
+
+
+def _upload_state_label(upload):
+    if upload.state == IpsoUploadState.IMPORTED and upload.import_result.get('excluded_count'):
+        return S.IPSO_STATE_PARTIAL
+    return STATE_LABELS.get(upload.state, upload.state)
 
 
 def _upload_metadata(upload: IpsoUpload, labels: dict | None = None) -> dict:
@@ -1150,13 +1146,14 @@ def _upload_metadata(upload: IpsoUpload, labels: dict | None = None) -> dict:
         RECORD_COUNT: upload.record_count,
         FIELD_CHECKSUM: upload.checksum,
         FIELD_STATE: upload.state,
-        FIELD_STATE_LABEL: STATE_LABELS.get(upload.state, upload.state),
+        FIELD_STATE_LABEL: _upload_state_label(upload),
         FIELD_RECEIVED_AT: _format_dt(upload.received_at),
         FIELD_IMPORTED_AT: _format_dt(upload.imported_at),
         FIELD_TARGET_TYPE: upload.target_type,
         FIELD_TARGET_ID: upload.target_id,
         FIELD_TARGET_LABEL: _target_label(upload, labels),
         FIELD_ERROR_SUMMARY: upload.error_summary,
+        'import_result': upload.import_result,
     }
 
 
@@ -1565,8 +1562,7 @@ def _upload_validation_error(
                 current.save(update_fields=['error_summary'])
 
     if request is None or not after_nonce_rollback(request, save_diagnostic):
-        upload.error_summary = summary
-        upload.save(update_fields=['error_summary'])
+        save_diagnostic()
     return validation_error(errors)
 
 
@@ -1586,10 +1582,12 @@ def _claim_upload_import(
     upload.imported_by = user
     upload.target_type = target_type
     upload.target_id = target_id
-    upload.error_summary = ''
+    upload.error_summary = (S.IPSO_IMPORT_PARTIAL_SUMMARY.format(
+        upload.import_result['imported'], upload.import_result['excluded_count'],
+    ) if upload.import_result.get('excluded_count') else '')
     upload.save(update_fields=[
         'state', 'imported_at', 'imported_by', 'target_type', 'target_id',
-        'error_summary',
+        'error_summary', 'import_result',
     ])
     return True
 
@@ -1608,7 +1606,7 @@ def _staged_mark_number(record: dict, index: int) -> tuple[int | None, str | Non
 
 
 def _martellate_import_rows(
-        upload: IpsoUpload, payload: dict, item: HarvestPlanItem,
+        upload: IpsoUpload, payload: dict, item: HarvestPlanItem, *, issues=None,
 ) -> tuple[list[MarkImportRow], list[str]]:
     session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
     records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
@@ -1632,35 +1630,34 @@ def _martellate_import_rows(
     )
 
     rows = []
-    errors = []
-    for i, record in enumerate(records, start=1):
+    errors = RowErrors(issues)
+    for index, record in enumerate(records, start=1):
+        i = record_id(record, index)
         if not isinstance(record, dict):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_INVALID.format(i))
             continue
         parcel = parcels.get(record.get(FIELD_PARCEL_ID))
         if parcel is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_PARCEL_NOT_FOUND.format(i))
             continue
         if parcel.eclass.coppice and item.parcel_id is not None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_COPPICE_MARTELLATE.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_COPPICE_MARTELLATE.format(i))
             continue
         if not mark_parcel_matches_item(item, parcel):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_MARK_TARGET_MISMATCH.format(i))
             continue
         sp = species.get(record.get(FIELD_SPECIES_ID))
         if sp is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SPECIES_NOT_FOUND.format(i))
             continue
-        measurements = record_measurements(record, h_required=False)
+        problems = []
+        measurements = record_measurements(record, errors=problems)
         if measurements is None:
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
-            continue
-        if measurements.h_m is None and bool(record.get(FIELD_H_MEASURED)):
-            errors.append(S.IPSO_ERR_IMPORT_RECORD_DH_DATE_INVALID.format(i))
+            errors.add(index, S.IPSO_ERR_IMPORT_MEASUREMENTS.format(i, '; '.join(problems)))
             continue
         number, number_error = _staged_mark_number(record, i)
         if number_error:
-            errors.append(number_error)
+            errors.add(index, number_error)
             continue
         operator = (record.get(FIELD_OPERATOR) or session_operator).strip()
         rows.append(MarkImportRow(
@@ -1677,7 +1674,7 @@ def _martellate_import_rows(
             operator=operator,
             fingerprint=ipso_mark_fingerprint(upload.session_id, record),
         ))
-    return rows, errors
+    return rows, errors.messages
 
 
 def _observation_import_rows(
@@ -2152,11 +2149,7 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     if d_cm is not None and d_cm <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_D_CM_POSITIVE.format(index))
 
-    h_m = (
-        _opt_decimal(row, FIELD_H_M)
-        if mode == IPSO_MODE_MARTELLATE
-        else _decimal(row, FIELD_H_M)
-    )
+    h_m = _decimal(row, FIELD_H_M)
     if h_m is not None and h_m <= 0:
         raise UploadValidationError(S.IPSO_ERR_RECORD_H_M_POSITIVE.format(index))
 
