@@ -72,7 +72,9 @@ Ipso row ID shown in the preview. It does not refer to array position or the
 row's current position after sorting the preview table.
 
 Errors explain the specific invalid fields: date, diameter, height, GPS values,
-sample numbers, references, or calculated values that cannot be stored. Several
+sample numbers, references, or calculated values that cannot be stored. Tree
+numbers must also fit the shared integer storage bounds; out-of-range values
+are excluded before any domain insert. Several
 measurement problems on a row are listed together. Conflicting tree-number or
 sample-date groups are excluded as a group rather than accepting an arbitrary
 first row.
@@ -104,7 +106,8 @@ The server checks the destination again before writing. For example, another
 user could have imported a conflicting tree number while the review was open.
 If the destination or accepted/excluded selection changed, a fresh review is
 shown and the export gate resets. The rejected-row CSV and final confirmation
-must describe the same reviewed set.
+must describe the same reviewed set. If the destination was deleted, the
+operation stops with an error and imports no rows.
 
 ### Completion and CSV recovery
 

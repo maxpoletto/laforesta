@@ -16,7 +16,7 @@ from apps.base.digests import mark_stale
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Tree, TreeSample,
 )
-from apps.base.numparse import coord_float
+from apps.base.numparse import coord_float, int_or_none
 from apps.base.preserved_trees import latest_preserved_tree_samples
 from apps.base.refdata import SPECIES_NAME_ALIASES
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
@@ -208,7 +208,7 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
         if idx.is_unstructured and not (row.get(S.CSV_COL_TREE) or '').strip():
             preserved, _ = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
             if not preserved:
-                number = next_number
+                number = int_or_none(next_number)
                 next_number += 1
         d_cm = reader.integer(row.get(S.CSV_COL_D_CM))
         h_dec = reader.decimal(row.get(S.CSV_COL_H_M))

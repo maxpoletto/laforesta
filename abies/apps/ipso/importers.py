@@ -216,9 +216,8 @@ def free_survey_import_rows(payload: dict, survey: Survey, *, issues=None) -> tu
         preserved = bool(record.get(FIELD_PRESERVED))
         number = record.get(FIELD_NUMBER)
         if number is not None:
-            try:
-                number = int(number)
-            except (TypeError, ValueError):
+            number = int_or_none(number)
+            if number is None:
                 errors.add(index, S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
                 continue
             if number <= 0:
@@ -243,6 +242,9 @@ def free_survey_import_rows(payload: dict, survey: Survey, *, issues=None) -> tu
             sample_number = next_sample_number
             next_sample_number += 1
             unavailable_sample_numbers.add(sample_number)
+        if int_or_none(sample_number) is None:
+            errors.add(index, S.IPSO_ERR_RECORD_NUMBER_INVALID.format(i))
+            continue
         if sample_number in seen_sample_numbers:
             errors.add(index, S.IPSO_ERR_IMPORT_RECORD_SAMPLE_NUMBER_DUPLICATE.format(i))
             continue
@@ -264,12 +266,8 @@ def free_survey_import_rows(payload: dict, survey: Survey, *, issues=None) -> tu
 
 
 def _is_positive_int_value(value) -> bool:
-    if value is None:
-        return False
-    try:
-        return int(value) > 0
-    except (TypeError, ValueError):
-        return False
+    parsed = int_or_none(value)
+    return parsed is not None and parsed > 0
 
 
 def _payload_records(payload: dict) -> list | None:
@@ -338,9 +336,8 @@ def _sample_record_values(
         record: dict, area: SampleArea, sp: Species, session_operator: str,
         measurements: TreeMeasurements,
 ) -> dict | None:
-    try:
-        number = int(record.get(FIELD_NUMBER))
-    except (TypeError, ValueError):
+    number = int_or_none(record.get(FIELD_NUMBER))
+    if number is None:
         return _SAMPLE_PARSE_NUMBER_INVALID
     if number <= 0:
         return _SAMPLE_PARSE_NUMBER_POSITIVE

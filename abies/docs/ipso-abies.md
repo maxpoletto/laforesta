@@ -300,6 +300,10 @@ Supported modes are:
   snapshot as photo metadata. The photo list displays filename,
   original/upload size, and `ok`/`errore` conversion status.
 
+Boundary points can be recorded as **Osservazioni**, with coordinates and an
+appropriate category, instead of placeholder trees. Observations require no
+diameter or height and do not enter tree counts or dendrometric statistics.
+
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,
 and mode-specific invariants. Observation uploads also validate category IDs

@@ -9,7 +9,7 @@ from django.test import Client
 from django.urls import reverse
 
 from apps.base import csv_io
-from apps.base.models import Sample, Survey, TreeMark, TreeSample, UsedNonce
+from apps.base.models import HarvestPlanItemState, Sample, Survey, TreeMark, TreeSample, UsedNonce
 from apps.campionamenti import csv_trees
 from apps.ipso.models import IpsoUploadState
 from config import strings as S
@@ -268,9 +268,27 @@ def test_recovery_of_unnumbered_free_row_preserves_blank_then_assigns_csv_number
     assert not errors, errors
     assert parsed[0]['number'] == 1
 
+    for explicit in (1, 2 ** 63 - 1):
+        buffer, writer = csv_io.csv_buffer(delimiter)
+        writer.writerow(reader.fieldnames)
+        writer.writerow([raw[name] for name in reader.fieldnames])
+        numbered = {**raw, S.CSV_COL_TREE: str(explicit)}
+        writer.writerow([numbered[name] for name in reader.fieldnames])
+        parsed, errors = csv_trees.validate_rows(
+            csv_io.read(buffer.getvalue()), csv_trees.db_indexes(survey),
+            has_date_column=True, default_date=None,
+        )
+        if explicit == 1:
+            assert not errors
+            assert [row['number'] for row in parsed] == [2, 1]
+        else:
+            assert errors, 'Automatic numbering must reject storage overflow'
+            assert [row['number'] for row in parsed] == [explicit]
+
 
 @pytest.mark.parametrize('fields', [
     {'lat': 91}, {'lat': None, 'lon': 16.2}, {'acc_m': -1}, {'d_cm': 10 ** 18},
+    {'number': 10 ** 30},
 ])
 def test_invalid_position_or_unrepresentable_volume_is_a_row_error(
         partial_import, settings, tmp_path, fields):
@@ -287,3 +305,79 @@ def test_invalid_position_or_unrepresentable_volume_is_a_row_error(
     assert response.json()['valid_count'] == response.json()['excluded_count'] == 1
     assert 'Riga 30' in response.json()['errors'][0]
     assert not model.objects.exists()
+
+
+@pytest.mark.parametrize('partial_import', ['samples', 'free_survey'], indirect=True)
+def test_conflicting_sample_dates_exclude_the_entire_group(partial_import, settings, tmp_path):
+    client, upload, _, body, _, model = partial_import
+    payload = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
+    payload[RECORDS][1].update(h_m='20', date='2026-06-18')
+    upload.delete()
+    upload = _stage_upload_direct(settings, tmp_path, payload)
+    route = 'ipso-upload-import-samples' if upload.mode == 'samples' else 'ipso-upload-import-free-survey'
+    response = _post(client, reverse(route, args=[upload.pk]), body)
+    assert response.status_code == 409, response.content
+    assert response.json()['valid_count'] == 0
+    assert response.json()['excluded_count'] == 2
+    assert all('date' in error.lower() for error in response.json()['errors'])
+    assert not model.objects.exists()
+
+
+@pytest.mark.parametrize('partial_import', ['martellate', 'samples'], indirect=True)
+def test_new_conflicting_tree_requires_review_even_without_parent_version_change(partial_import):
+    client, upload, target, body, url, model = partial_import
+    if upload.mode == 'martellate':
+        target.state = HarvestPlanItemState.MARKED
+        target.save(update_fields=['state'])
+    review = _review(client, url, body)
+    export = _post(client, reverse('ipso-upload-excluded-export', args=[upload.pk]), {
+        'review_token': review['review_token'],
+    })
+    source = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())[RECORDS][0]
+    other = {'species_id': source['species_id'], 'parcel_id': source['parcel_id'],
+             'number': 25, 'd_cm': 42, 'h_m': '22', 'date': source['date'],
+             'operator': 'Other entry', 'nonce': 'other-entry'}
+    version = target.version
+    if upload.mode == 'martellate':
+        other['harvest_plan_item_id'] = target.pk
+        response = _post(client, '/api/piano-di-taglio/mark/save/', other)
+    else:
+        other.update(survey_id=target.pk, sample_area_id=source['sample_area_id'], fustaia='true')
+        response = _post(client, '/api/campionamenti/tree/save/', other)
+    assert response.status_code == 200, response.content
+    target.refresh_from_db()
+    assert target.version == version
+    response = _post(client, url, {
+        **body, 'review_token': review['review_token'],
+        'export_token': export['X-Import-Export-Token'], 'nonce': 'new-row-conflict',
+    })
+    assert response.status_code == 409, response.content
+    assert response.json()['valid_count'] == 0 and response.json()['excluded_count'] == 2
+    assert model.objects.count() == 1
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED
+
+
+def test_destination_deleted_after_preparation_returns_an_error_without_importing(
+        partial_import, monkeypatch):
+    from apps.ipso import views
+    client, upload, target, body, url, model = partial_import
+    review = _review(client, url, body)
+    exported = _post(client, reverse('ipso-upload-excluded-export', args=[upload.pk]), {
+        'review_token': review['review_token'],
+    })
+    prepare = views._prepare_tree_review
+    def remove_destination_after_read(*args, **kwargs):
+        prepared = prepare(*args, **kwargs)
+        target.delete()
+        return prepared
+    monkeypatch.setattr(views, '_prepare_tree_review', remove_destination_after_read)
+    # No nonce is needed for this fault injection: the deletion represents an
+    # independent committed operation between the initial read and write lock.
+    response = _post(client, url, {**body, 'review_token': review['review_token'],
+                                  'export_token': exported['X-Import-Export-Token'],
+                                  'warnings_confirmed': True})
+    assert response.status_code == 400, response.content
+    assert not model.objects.exists()
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.RECEIVED and upload.import_result == {}

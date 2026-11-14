@@ -48,7 +48,7 @@ from apps.base.models import (
     Species, Survey, TreeMark, TreeSample,
     natural_sort_key, parcel_sort_key,
 )
-from apps.base.numparse import coord_float, to_decimal
+from apps.base.numparse import coord_float, int_or_none, to_decimal
 from apps.base.observation_images import (
     PhotoError, UploadBudget, check_photo_count, inspect_photo, prepare_photo, read_photo,
 )
@@ -896,7 +896,9 @@ def _import_tree_upload(request, upload_id, mode):
                 return error
             # Destination edits and newly conflicting tree identities can happen
             # after review/export even though the uploaded source is unchanged.
-            type(review.target).objects.select_for_update().get(pk=review.target.pk)
+            locked_target = type(review.target).objects.select_for_update().filter(pk=review.target.pk).first()
+            if locked_target is None:
+                return validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
             fresh, error = _prepare_tree_review(current, body)
             if error:
                 return error
@@ -1596,9 +1598,8 @@ def _staged_mark_number(record: dict, index: int) -> tuple[int | None, str | Non
     raw = record.get(FIELD_NUMBER)
     if raw is None:
         return None, None
-    try:
-        number = int(raw)
-    except (TypeError, ValueError):
+    number = int_or_none(raw)
+    if number is None:
         return None, S.IPSO_ERR_RECORD_NUMBER_INVALID.format(index)
     if number <= 0:
         return None, S.IPSO_ERR_RECORD_NUMBER_POSITIVE.format(index)
