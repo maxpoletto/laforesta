@@ -17,7 +17,6 @@ import hashlib
 import json
 from collections import Counter
 from dataclasses import dataclass
-from datetime import date as date_type
 from decimal import Decimal
 
 from django.db import transaction
@@ -25,6 +24,7 @@ from apps.piano_di_taglio.totals import lock_plan_items, refresh_actual_total
 from apps.piano_di_taglio.dependencies import harvest_dependencies
 
 from apps.base import csv_io
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_stale
 from apps.base.models import (
     Crew, HarvestPlanItem, Parcel, Product, Region, Species, Tractor,
@@ -34,7 +34,6 @@ from apps.prelievi.models import (
 )
 from apps.prelievi.harvest_validation import (
     percentages_sum_to_0_or_100, percentages_sum_to_100,
-    valid_harvest_mass, valid_percentage,
 )
 from config import strings as S
 
@@ -302,14 +301,6 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                 errors.append(S.ERR_CSV_HARVEST_LOCATION.format(i, region_name))
                 continue
 
-        # --- Date. ---
-        raw_date = (row.get(S.CSV_COL_DATA) or '').strip()
-        try:
-            row_date = date_type.fromisoformat(raw_date)
-        except ValueError:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_DATA))
-            continue
-
         # --- Crew and product. ---
         crew_name = (row.get(S.CSV_COL_CREW) or '').strip()
         crew = idx.crews.get(crew_name)
@@ -323,40 +314,30 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
             errors.append(S.ERR_CSV_UNKNOWN_PRODUCT.format(i, product_name))
             continue
 
-        # --- Quintals (required). ---
-        mass_q = reader.decimal(row.get(S.CSV_COL_QUINTALS))
-        if not valid_harvest_mass(mass_q):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_QUINTALS))
+        cells = CsvRow(reader, row, i)
+        row_date = cells.date(S.CSV_COL_DATA)
+        mass_q = cells.decimal(S.CSV_COL_QUINTALS, positive=True,
+                              storage=('prelievi.Harvest', 'mass_q'))
+        volume_m3 = cells.decimal(S.CSV_COL_VOLUME_M3, required=False, minimum=0,
+                                 storage=('prelievi.Harvest', 'volume_m3'))
+        plan_item_id = cells.integer(S.CSV_COL_HARVEST_PLAN_ITEM_ID, required=False, positive=True)
+        record1 = cells.integer(S.CSV_COL_VDP, required=False)
+        record2 = cells.integer(S.CSV_COL_PROT, required=False)
+        damaged = cells.boolean(S.CSV_COL_HARVEST_DAMAGED)
+        unhealthy = cells.boolean(S.CSV_COL_HARVEST_UNHEALTHY)
+        psr = cells.boolean(S.CSV_COL_HARVEST_PSR)
+        species_pcts = [(sp, cells.integer(header, required=False, default=0, minimum=0, maximum=100))
+                        for sp, header in species_dyn]
+        tractor_pcts = [(tractor, cells.integer(header, required=False, default=0, minimum=0, maximum=100))
+                        for tractor, header in tractor_dyn]
+        if not cells.validate(errors):
             continue
-
-        # --- Optional capture-time volume. ---
-        volume_m3 = None
-        if S.CSV_COL_VOLUME_M3 in static_cols:
-            volume_m3, volume_ok = reader.opt_decimal(
-                row.get(S.CSV_COL_VOLUME_M3),
-            )
-            if not volume_ok or (volume_m3 is not None and volume_m3 < 0):
-                errors.append(S.ERR_CSV_ROW_PARSE.format(
-                    i, S.CSV_COL_VOLUME_M3,
-                ))
-                continue
 
         # --- Optional link to the originating cutting-plan item. ---
         plan_item = None
         if S.CSV_COL_HARVEST_PLAN_ITEM_ID in static_cols:
-            plan_item_id, plan_item_ok = reader.opt_int(
-                row.get(S.CSV_COL_HARVEST_PLAN_ITEM_ID),
-            )
-            if not plan_item_ok or (
-                plan_item_id is not None
-                and (
-                    plan_item_id <= 0
-                    or plan_item_id not in idx.plan_items
-                )
-            ):
-                errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(
-                    i, row.get(S.CSV_COL_HARVEST_PLAN_ITEM_ID) or '',
-                ))
+            if plan_item_id is not None and plan_item_id not in idx.plan_items:
+                errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(i, plan_item_id))
                 continue
             if plan_item_id is not None:
                 plan_item = idx.plan_items[plan_item_id]
@@ -369,27 +350,6 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                     ))
                     continue
 
-        # --- Optional integer fields. ---
-        record1, r1_ok = reader.opt_int(row.get(S.CSV_COL_VDP))
-        record2, r2_ok = reader.opt_int(row.get(S.CSV_COL_PROT))
-        if not (r1_ok and r2_ok):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_VDP}/{S.CSV_COL_PROT}',
-            ))
-            continue
-
-        # --- Boolean flags (blank → False). ---
-        damaged_raw, dmg_ok = reader.opt_bool(row.get(S.CSV_COL_HARVEST_DAMAGED, ''))
-        unhealthy_raw, unh_ok = reader.opt_bool(row.get(S.CSV_COL_HARVEST_UNHEALTHY, ''))
-        psr_raw, psr_ok = reader.opt_bool(row.get(S.CSV_COL_HARVEST_PSR, ''))
-        if not (dmg_ok and unh_ok and psr_ok):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_HARVEST_DAMAGED}/{S.CSV_COL_HARVEST_UNHEALTHY}/{S.CSV_COL_HARVEST_PSR}',
-            ))
-            continue
-        damaged = bool(damaged_raw)
-        unhealthy = bool(unhealthy_raw)
-        psr = bool(psr_raw)
         if plan_item is not None and (
             damaged != plan_item.damaged
             or unhealthy != plan_item.unhealthy
@@ -402,45 +362,9 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
 
         note = (row.get(S.CSV_COL_EXTRA_NOTE) or '').strip()
 
-        # --- Species percentages. ---
-        species_pcts = []  # [(Species, int_pct)]
-        ok = True
-        for sp, hdr in species_dyn:
-            pct, pct_ok = reader.opt_int(row.get(hdr, ''))
-            if not pct_ok:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
-                ok = False
-                break
-            pct = pct or 0
-            if not valid_percentage(pct):
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
-                ok = False
-                break
-            species_pcts.append((sp, pct))
-        if not ok:
-            continue
-
         sp_sum = sum(pct for _, pct in species_pcts)
         if not percentages_sum_to_100(pct for _, pct in species_pcts):
             errors.append(S.ERR_CSV_SPECIES_PCT_SUM.format(i, sp_sum))
-            continue
-
-        # --- Tractor percentages. ---
-        tractor_pcts = []  # [(Tractor, int_pct)]
-        ok = True
-        for tr, hdr in tractor_dyn:
-            pct, pct_ok = reader.opt_int(row.get(hdr, ''))
-            if not pct_ok:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
-                ok = False
-                break
-            pct = pct or 0
-            if not valid_percentage(pct):
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, hdr))
-                ok = False
-                break
-            tractor_pcts.append((tr, pct))
-        if not ok:
             continue
 
         tr_sum = sum(pct for _, pct in tractor_pcts)

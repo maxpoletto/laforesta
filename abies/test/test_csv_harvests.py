@@ -320,7 +320,7 @@ def test_zero_mass_rejected_before_species_pct_sum(parcels, species, base_setup)
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
     assert parsed == []
-    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_QUINTALS)]
+    assert errors == [S.ERR_CSV_ROW_INVALID.format(2, S.ERR_CSV_FIELD_VALUE.format(S.CSV_COL_QUINTALS, '0', S.CSV_RULE_POSITIVE_NUMBER))]
 
 
 @pytest.mark.django_db
@@ -402,7 +402,7 @@ def test_zero_mass_rejected_before_volume_compute(parcels, species, base_setup):
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
     assert parsed == []
-    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_QUINTALS)]
+    assert errors == [S.ERR_CSV_ROW_INVALID.format(2, S.ERR_CSV_FIELD_VALUE.format(S.CSV_COL_QUINTALS, '0', S.CSV_RULE_POSITIVE_NUMBER))]
 
 
 # ---------------------------------------------------------------------------
@@ -562,4 +562,4 @@ def test_zero_mass_without_species_breakdown_rejected(parcels, species, base_set
     cols, dyn, missing = csv_harvests.resolve_columns(reader.fieldnames)
     parsed, errors = csv_harvests.validate_rows(reader, cols, dyn, csv_harvests.db_indexes())
     assert parsed == []
-    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_QUINTALS)]
+    assert errors == [S.ERR_CSV_ROW_INVALID.format(2, S.ERR_CSV_FIELD_VALUE.format(S.CSV_COL_QUINTALS, '0', S.CSV_RULE_POSITIVE_NUMBER))]

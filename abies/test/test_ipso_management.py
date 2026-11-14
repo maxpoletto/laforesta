@@ -138,7 +138,7 @@ def test_stage_marks_uploads_rejects_blank_parcel(parcels, species, settings, tm
     )
     (source_dir / 'blank-parcel.csv').write_text(csv_text, encoding='utf-8')
 
-    with pytest.raises(CommandError, match='unknown parcel Capistrano/'):
+    with pytest.raises(CommandError, match='Riga 2: particella non trovata'):
         call_command('stage_marks_uploads', str(source_dir))
 
     assert IpsoUpload.objects.count() == 0

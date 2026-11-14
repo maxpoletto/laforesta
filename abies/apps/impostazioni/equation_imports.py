@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from apps.base import csv_io, hypsometry
 from apps.base.auth import require_writer
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import build_species_record
 from apps.base.equations import lock_species
 from apps.base.idempotency import begin_nonce_write
@@ -59,6 +60,7 @@ def _preview_rows(request, body):
         if any(value is not None and not isinstance(value, str) for value in raw.values()):
             raise InputValidationError(S.ERR_EQUATION_INVALID)
         row = {(key or '').strip().casefold(): (value or '').strip() for key, value in raw.items()}
+        cells = CsvRow(reader, row, index, labels={key.strip().casefold(): key for key in reader.fieldnames})
         name = row.get(S.CSV_COL_SPECIES.casefold()) or row.get('specie') or row.get('species') or ''
         region_name = row.get(S.CSV_COL_REGION.casefold(), '')
         proxy_name = row.get(S.CSV_COL_EQUATION_REFERENCE.casefold()) or row.get('proxy_species') or ''
@@ -80,17 +82,18 @@ def _preview_rows(request, body):
             seen.add(key)
             if kind == 'height':
                 if row.get('funzione', 'ln') != 'ln':
-                    raise InputValidationError(S.ERR_CSV_FUNCTION_INVALID.format(index, row.get('funzione')))
-                values = {}
-                for field in ('a', 'b', 'r2'):
-                    parsed = reader.decimal(row.get(field)) if row.get(field) else None
-                    if row.get(field) and parsed is None:
-                        raise InputValidationError(S.ERR_EQUATION_INVALID)
-                    values[field] = number(str(parsed) if parsed is not None else None,
-                        'base.HypsoParam', field, optional=field == 'r2')
-                n = reader.integer(row.get('n')) if row.get('n') else None
-                if (row.get('n') and (n is None or n < 1)) or (values['r2'] is not None and not 0 <= values['r2'] <= 1):
-                    raise InputValidationError(S.ERR_EQUATION_INVALID)
+                    cells.problem('funzione', S.CSV_RULE_CHOICES.format('ln'))
+                values = {field: cells.decimal(field, required=field != 'r2',
+                          minimum=0 if field == 'r2' else None,
+                          maximum=1 if field == 'r2' else None,
+                          storage=('base.HypsoParam', field))
+                          for field in ('a', 'b', 'r2')}
+                n = cells.integer('n', required=False, positive=True)
+                if cells.errors:
+                    raise InputValidationError('; '.join(cells.errors))
+                values = {field: number(str(value) if value is not None else None,
+                          'base.HypsoParam', field, optional=field == 'r2')
+                          for field, value in values.items()}
                 values['n'] = n
                 previous = HypsoParam.objects.filter(param_set__superseded_at__isnull=True,
                     species=sp, region=region).first() if sp and region else None
@@ -101,12 +104,13 @@ def _preview_rows(request, body):
                               'proxy_species_id': proxy.pk if proxy else None,
                               'source': row.get(S.CSV_COL_EQUATION_SOURCE.casefold()) or row.get('source') or ''}
                 if proxy_name and any(row.get(key) for key in ('b0', 'b1', 'b2')):
-                    raise InputValidationError(S.ERR_EQUATION_INVALID)
+                    cells.problem(S.CSV_COL_EQUATION_REFERENCE, S.CSV_RULE_PROXY_COEFFICIENTS)
                 for key in ('b0', 'b1', 'b2'):
-                    parsed = reader.decimal(row.get(key)) if row.get(key) else None
-                    if row.get(key) and parsed is None:
-                        raise InputValidationError(S.ERR_EQUATION_INVALID)
+                    parsed = cells.decimal(key, required=not proxy_name and key != 'b2',
+                                           storage=('base.VolumeEquation', key))
                     raw_values[key] = str(parsed) if parsed is not None else ''
+                if cells.errors:
+                    raise InputValidationError('; '.join(cells.errors))
                 values = volume_values(raw_values) if not proxy_name or proxy else raw_values
                 previous = VolumeEquation.objects.filter(species=sp).first() if sp else None
                 old = _volume_label(previous) if previous else '—'

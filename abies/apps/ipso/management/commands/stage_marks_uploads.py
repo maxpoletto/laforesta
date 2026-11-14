@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError, transaction
 
-from apps.base.numparse import coord_float
+from apps.base.csv_validation import CsvRow
 from apps.base.models import Parcel, Species
 from apps.piano_di_taglio import csv_plan
 from apps.piano_di_taglio.mark_import import MARK_CSV_SPECIES_HEADERS
@@ -26,7 +25,7 @@ from config.constants import (
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_SPECIES_ID,
     FIELD_WORK_PACKAGE_ID, IPSO_MODE_MARTELLATE,
     IPSO_REFERENCE_LEGACY_CONVERTED, RECORDS, SESSION,
-    TREE_H_QUANTUM, parse_bool,
+    TREE_H_QUANTUM,
 )
 
 SESSION_NAMESPACE = uuid.UUID('6bde56d0-9184-4962-9b61-7df0e16e3d2d')
@@ -111,7 +110,7 @@ def _payload_from_csv(path: Path, parcels: dict, species: dict) -> tuple[dict, s
     operators = set()
     region_ids = set()
     for i, row in enumerate(result.rows, start=1):
-        record, record_damaged = _record_from_row(path, i, reader, row, parcels, species)
+        record, record_damaged = _record_from_row(path, i, reader, row, parcels, species, labels=result.columns)
         records.append(record)
         damaged = damaged or record_damaged
         region_ids.add(record[FIELD_REGION_ID])
@@ -135,35 +134,39 @@ def _payload_from_csv(path: Path, parcels: dict, species: dict) -> tuple[dict, s
     return {SESSION: session, RECORDS: records}, csv_text
 
 
-def _record_from_row(path: Path, index: int, reader, row: dict, parcels: dict, species: dict):
+def _record_from_row(path: Path, index: int, reader, row: dict, parcels: dict, species: dict, *, labels=None):
     region_name = row['region_name'].strip()
     parcel_name = row['parcel_name'].strip()
     species_name = row['species_name'].strip()
     parcel = parcels.get((region_name.lower(), parcel_name.lower()))
     if parcel is None:
-        raise CommandError(f'{path}: row {index}: unknown parcel {region_name}/{parcel_name}')
+        raise CommandError(f'{path}: {S.ERR_CSV_PARCEL_NOT_FOUND.format(index + 1, region_name, parcel_name)}')
     sp = species.get(species_name.lower())
     if sp is None:
-        raise CommandError(f'{path}: row {index}: unknown species {species_name}')
+        raise CommandError(f'{path}: {S.ERR_CSV_ROW_SPECIES.format(index + 1, species_name)}')
 
-    d_cm = reader.integer(row.get('d_cm'))
-    h_m, h_m_ok = reader.opt_decimal(row.get('h_m'))
-    h_measured = _optional_bool(
-        path, index, row.get('h_measured'), S.CSV_COL_H_MEASURED,
-    )
-    if d_cm is None or d_cm <= 0:
-        raise CommandError(f'{path}: row {index}: invalid {S.CSV_COL_D_CM}')
-    if (not h_m_ok or (h_m is not None and h_m <= 0)
-            or (h_m is None and h_measured)):
-        raise CommandError(f'{path}: row {index}: invalid {S.CSV_COL_H_M}')
+    cells = CsvRow(reader, row, index + 1, labels=labels)
+    d_cm = cells.integer('d_cm', positive=True)
+    h_m = cells.decimal('h_m', required=False, positive=True, storage=('base.TreeMark', 'h_m'))
+    h_measured = cells.boolean('h_measured')
+    if h_measured and not cells.raw('h_m'):
+        cells.problem('h_m', S.CSV_RULE_REQUIRED)
+    recorded_date = cells.date('date', formats=('%d/%m/%Y', '%d-%m-%Y'))
+    number = cells.integer('number', required=False, positive=True)
+    lat, lon = cells.coordinates('lat', 'lon')
+    accuracy = cells.integer('acc_m', required=False, minimum=0)
+    damaged = cells.boolean('damaged')
+    errors = []
+    if not cells.validate(errors):
+        raise CommandError(f'{path}: {errors[0]}')
 
     record = {
         FIELD_CLIENT_RECORD_ID: str(index),
-        FIELD_DATE: _parse_date(path, index, row['date']).isoformat(),
+        FIELD_DATE: recorded_date.isoformat(),
         FIELD_REGION_ID: parcel.region_id,
         FIELD_PARCEL_ID: parcel.id,
         FIELD_SPECIES_ID: sp.id,
-        FIELD_NUMBER: _optional_int(path, index, reader, row.get('number'), S.CSV_COL_NUMBER),
+        FIELD_NUMBER: number,
         FIELD_D_CM: d_cm,
         FIELD_H_M: (
             format(h_m.quantize(TREE_H_QUANTUM), 'f')
@@ -171,49 +174,12 @@ def _record_from_row(path: Path, index: int, reader, row: dict, parcels: dict, s
         ),
         FIELD_H_MEASURED: h_measured,
         FIELD_HYPSO_PARAM_SET_ID: None,
-        FIELD_LAT: _optional_coord(path, index, reader, row.get('lat'), S.CSV_COL_LAT),
-        FIELD_LON: _optional_coord(path, index, reader, row.get('lon'), S.CSV_COL_LON),
-        FIELD_ACC_M: _optional_int(path, index, reader, row.get('acc_m'), S.CSV_COL_ACC_M),
+        FIELD_LAT: lat,
+        FIELD_LON: lon,
+        FIELD_ACC_M: accuracy,
         FIELD_OPERATOR: (row.get('operator') or '').strip(),
     }
-    damaged = _optional_bool(path, index, row.get('damaged'), S.CSV_COL_DAMAGED)
     return record, damaged
-
-
-def _parse_date(path: Path, index: int, value: str):
-    raw = (value or '').strip()
-    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
-        try:
-            return datetime.strptime(raw, fmt).date()
-        except ValueError:
-            pass
-    raise CommandError(f'{path}: row {index}: invalid {S.CSV_COL_DATA}')
-
-
-def _optional_int(path: Path, index: int, reader, value, label: str) -> int | None:
-    parsed, ok = reader.opt_int(value or '')
-    if not ok:
-        raise CommandError(f'{path}: row {index}: invalid {label}')
-    if parsed is not None and parsed <= 0:
-        raise CommandError(f'{path}: row {index}: invalid {label}')
-    return parsed
-
-
-def _optional_coord(path: Path, index: int, reader, value, label: str) -> float | None:
-    parsed, ok = reader.opt_decimal(value or '')
-    if not ok:
-        raise CommandError(f'{path}: row {index}: invalid {label}')
-    return coord_float(parsed)
-
-
-def _optional_bool(path: Path, index: int, value, label: str) -> bool:
-    raw = (value or '').strip()
-    if not raw:
-        return False
-    parsed = parse_bool(raw)
-    if parsed is None:
-        raise CommandError(f'{path}: row {index}: invalid {label}')
-    return parsed
 
 
 def _session_id(path: Path, csv_text: str) -> str:

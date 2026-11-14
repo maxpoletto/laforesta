@@ -146,6 +146,11 @@ Additional validation (client and server):
 Validation errors appear directly in the form (UI Design Patterns > Error
 reporting).
 
+CSV imports use the same field-specific diagnostics as the other domains:
+each invalid cell names its column and expected value, with the first data
+row numbered 2. Invalid files are rejected as a unit. See
+[CSV imports](csv-imports.md) for percentage, date and numeric validation.
+
 The form has [Annulla/Salva/Salva e continua] buttons. See UI Design Patterns >
 Bottom-of-form button layout.
 

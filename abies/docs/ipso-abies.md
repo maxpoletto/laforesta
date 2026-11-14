@@ -362,6 +362,19 @@ before writing, the server validates again under the write lock. A changed
 selection or destination returns a fresh review and requires a fresh export;
 no subset is committed from an obsolete review.
 
+`REVIEW_SALT` and `EXPORT_SALT` in `import_review.py` are public purpose
+namespaces for Django signing, not secret values. Django signs with the
+server's secret key; the separate namespaces prevent a review token from
+being accepted as proof of export. The `v1` suffix identifies the token
+contract. These signatures establish integrity, not encryption.
+
+`REVIEW_MAX_AGE` is the maximum token age in seconds, currently 30 minutes,
+applied separately to the review and export receipt. It limits how long an
+open review can be confirmed. On expiration the user reviews and exports
+again; staged data and the persistent recovery download are not expired.
+The timeout supplements the live destination/row revalidation rather than
+replacing it.
+
 Survey imports also warn about unmeasured heights and GPS/parcel disagreements
 among the accepted records. These warnings are confirmed along with a partial
 review; an otherwise valid session uses the standard proceed/abort warning

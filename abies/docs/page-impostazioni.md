@@ -122,6 +122,9 @@ Removing a regional height equation is an explicit action in its species popup.
 There is no global delete button. Height exports contain the entire active set;
 volume exports include configured equations and explicit proxy references.
 See [`hypsometry.md`](hypsometry.md#reviewed-batch-imports) for CSV formats.
+Invalid coefficients name the field and its numeric or storage rule in the
+preview. The preview remains read-only until all errors are resolved. See
+[CSV imports](csv-imports.md) for shared field diagnostics and row numbering.
 
 `Calcola equazioni di altezza`, inside the Species section, fits regressions from
 selected surveys with measured non-coppice trees. Its preview shows `a`, `b`,

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_all_stale
 from apps.base.models import Crew, Eclass, Product, Region, Species, SpeciesType, Tractor
 from apps.base.species import (
@@ -127,20 +128,6 @@ def resolve_columns(table: RefTable, fieldnames):
     return found, missing
 
 
-def _coerce(reader, raw, kind):
-    """Coerce one raw cell.  Returns ``(value, ok)``: ``value`` is ``None`` for a
-    blank cell; ``ok`` is ``False`` only when a non-blank cell fails to parse.
-    Numeric/boolean handling delegates to the shared ``CsvReader`` helpers so the
-    blank-vs-invalid logic lives in exactly one place."""
-    if kind == KIND_STR:
-        return ((raw or '').strip() or None), True
-    if kind == KIND_INT:
-        return reader.opt_int(raw)
-    if kind == KIND_DECIMAL:
-        return reader.opt_decimal(raw)
-    return reader.opt_bool(raw)   # KIND_BOOL
-
-
 def validate_rows(table: RefTable, reader, cols):
     """Validate parsed rows for ``table``.  Pure: no DB writes.
 
@@ -152,34 +139,29 @@ def validate_rows(table: RefTable, reader, cols):
     """
     errors, parsed, seen = [], [], set()
     for i, row in enumerate(reader, 2):
-        values, ok = {}, True
+        values = {}
+        cells = CsvRow(reader, row, i)
+        parsers = {KIND_STR: cells.text, KIND_INT: cells.integer,
+                   KIND_DECIMAL: cells.decimal, KIND_BOOL: cells.boolean}
         for col in table.columns:
             header = cols.get(col.field)
-            if header is None:           # optional column absent -> model default
+            if header is None:
                 continue
-            value, parsed_ok = _coerce(reader, row.get(header), col.kind)
-            if not parsed_ok:
-                errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                    i, col.header, (row.get(header) or '').strip()))
-                ok = False
-                break
-            if value is None:            # blank cell
-                if col.required:
-                    errors.append(
-                        S.ERR_CSV_VALUE_REQUIRED.format(i, col.header))
-                    ok = False
-                    break
-                if col.default is not None:
-                    values[col.field] = col.default
-            else:
-                values[col.field] = value
-        if not ok:
+            options = {'required': col.required}
+            if col.kind == KIND_DECIMAL:
+                options['storage'] = (table.model._meta.label, col.field)
+            if col.kind in (KIND_STR, KIND_BOOL):
+                options['default'] = None
+            value = parsers[col.kind](header, **options)
+            if value is not None or col.default is not None:
+                values[col.field] = value if value is not None else col.default
+        if not cells.validate(errors):
             continue
         key_val = values[table.key.field]
         if (table is SPECIES and FIELD_BOTANICAL_TYPE in values
                 and values[FIELD_BOTANICAL_TYPE] not in SpeciesType.values):
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.COL_BOTANICAL_TYPE, values[FIELD_BOTANICAL_TYPE]))
+            cells.problem(S.COL_BOTANICAL_TYPE, S.CSV_RULE_CHOICES.format(', '.join(SpeciesType.values)))
+            cells.validate(errors)
             continue
         if table is SPECIES:
             if key_val in PROTECTED_SPECIES_NAMES and values.get(FIELD_MINOR):

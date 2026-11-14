@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from django.db import transaction
 
 from apps.base import csv_io
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_stale
 from apps.base.models import Parcel, SampleArea
-from apps.base.numparse import coord_float
 from config import strings as S
 from config.constants import (
     FIELD_ALTITUDE, FIELD_LAT, FIELD_LON, FIELD_NOTE,
@@ -134,27 +134,17 @@ def validate_rows(reader, cols, idx: GridIndexes):
                 i, region_name, parcel_name, number))
             continue
         seen_in_csv.add(key)
-        lat = reader.decimal(row.get(cols[S.CSV_COL_LAT]))
-        lon = reader.decimal(row.get(cols[S.CSV_COL_LON]))
-        if lat is None or lon is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'))
-            continue
-        radius_col = cols[S.CSV_COL_RADIUS]
-        altitude_col = cols[S.CSV_COL_ALT]
-        r_m = reader.integer((row.get(radius_col) or '').strip())
-        if r_m is None:  # blank or invalid — Raggio is required, no default
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, radius_col))
-            continue
-        altitude, alt_ok = reader.opt_int(row.get(altitude_col))
-        if not alt_ok:   # present but invalid (blank → None, allowed: nullable)
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, altitude_col))
+        cells = CsvRow(reader, row, i)
+        lat, lon = cells.coordinates(cols[S.CSV_COL_LAT], cols[S.CSV_COL_LON], required=True)
+        r_m = cells.integer(cols[S.CSV_COL_RADIUS])
+        altitude = cells.integer(cols[S.CSV_COL_ALT], required=False)
+        if not cells.validate(errors):
             continue
         parsed.append({
             FIELD_PARCEL: parcel,
             FIELD_NUMBER: number,
-            FIELD_LAT: coord_float(lat),
-            FIELD_LON: coord_float(lon),
+            FIELD_LAT: lat,
+            FIELD_LON: lon,
             FIELD_ALTITUDE: altitude,
             FIELD_R_M: r_m,
             FIELD_NOTE: (

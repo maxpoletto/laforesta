@@ -240,6 +240,11 @@ does not. It opens the manual tree-entry flow (below).
 
 ## Data entry flows
 
+CSV validation names the incorrect field and explains its required value.
+Messages count the header as row 1, combine scalar problems per row and abort
+an invalid file without partial writes. See [CSV imports](csv-imports.md) for
+shared diagnostics and the full list of import paths.
+
 ### Grid CSV import
 
 Required columns: `Compresa`, `Particella`, `Area saggio` (→

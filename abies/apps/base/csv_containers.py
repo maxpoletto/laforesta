@@ -17,10 +17,10 @@ dendrometry digests after bootstrap.
 """
 
 from dataclasses import dataclass
-from datetime import date as date_type
 
 from django.db import transaction
 
+from apps.base.csv_validation import CsvRow
 from apps.base.csv_reference import KIND_INT, KIND_STR, RefColumn, RefTable
 from apps.base.digests import mark_all_stale
 from apps.base.models import HarvestPlan, SampleGrid, Survey
@@ -83,19 +83,11 @@ def validate_surveys(reader, idx: SurveyIndexes):
         if name in seen:
             errors.append(S.ERR_CSV_DUPLICATE_KEY.format(i, S.CSV_COL_SURVEY, name))
             continue
-        active, active_ok = reader.opt_bool(row.get(S.CSV_COL_ACTIVE, ''))
-        if not active_ok:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_ACTIVE))
+        cells = CsvRow(reader, row, i)
+        active = cells.boolean(S.CSV_COL_ACTIVE)
+        default_date = cells.date(S.CSV_COL_DATA, required=False)
+        if not cells.validate(errors):
             continue
-        default_date = None
-        raw_date = (row.get(S.CSV_COL_DATA) or '').strip()
-        if raw_date:
-            try:
-                default_date = date_type.fromisoformat(raw_date)
-            except ValueError:
-                errors.append(
-                    S.ERR_CSV_VALUE_PARSE.format(i, S.CSV_COL_DATA, raw_date))
-                continue
         seen.add(name)
         parsed.append({
             'name': name, 'sample_grid': grid,

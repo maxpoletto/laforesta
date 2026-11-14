@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from django.db import transaction
 
 from apps.base import csv_io
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_all_stale
 from apps.base.models import Eclass, Parcel, Region
 from config import strings as S
@@ -128,28 +129,20 @@ def validate_rows(reader, idx: ParcelIndexes):
         if key in seen:
             errors.append(S.ERR_CSV_DUPLICATE_KEY.format(i, S.CSV_COL_PARCEL, name))
             continue
-        area_ha = reader.decimal(row.get(S.CSV_COL_AREA_HA))
-        if area_ha is None:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_AREA_HA, (row.get(S.CSV_COL_AREA_HA) or '').strip()))
-            continue
-        optional_ints, bad_col = {}, None
-        for field_name, col in (
-            ('ave_age', S.CSV_COL_AVE_AGE),
-            ('altitude_min_m', S.CSV_COL_ALT_MIN),
-            ('altitude_max_m', S.CSV_COL_ALT_MAX),
-            ('grade_pct', S.CSV_COL_GRADE_PCT),
-            ('intervention_interval', S.CSV_COL_INTERVAL),
-            ('standards_per_ha', S.CSV_COL_STANDARDS),
-        ):
-            value, ok = reader.opt_int(row.get(col))
-            if not ok:
-                bad_col = col
-                break
-            optional_ints[field_name] = value
-        if bad_col is not None:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, bad_col, (row.get(bad_col) or '').strip()))
+        cells = CsvRow(reader, row, i)
+        area_ha = cells.decimal(S.CSV_COL_AREA_HA, storage=('base.Parcel', 'area_ha'))
+        optional_ints = {
+            field_name: cells.integer(column, required=False)
+            for field_name, column in (
+                ('ave_age', S.CSV_COL_AVE_AGE),
+                ('altitude_min_m', S.CSV_COL_ALT_MIN),
+                ('altitude_max_m', S.CSV_COL_ALT_MAX),
+                ('grade_pct', S.CSV_COL_GRADE_PCT),
+                ('intervention_interval', S.CSV_COL_INTERVAL),
+                ('standards_per_ha', S.CSV_COL_STANDARDS),
+            )
+        }
+        if not cells.validate(errors):
             continue
         coppice_error = False
         for field_name, col in (

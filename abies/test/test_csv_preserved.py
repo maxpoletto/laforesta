@@ -126,7 +126,7 @@ def test_preserved_blank_height_cannot_be_marked_measured(parcels, species):
     parsed, errors = csv_preserved.validate_rows(reader, idx)
 
     assert parsed == []
-    assert errors == [S.ERR_CSV_ROW_PARSE.format(2, S.CSV_COL_H_M)]
+    assert errors == [S.ERR_CSV_ROW_INVALID.format(2, S.ERR_CSV_FIELD.format(S.CSV_LABEL_HEIGHT, S.CSV_RULE_REQUIRED))]
 
 
 @pytest.mark.django_db

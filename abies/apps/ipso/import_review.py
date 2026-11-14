@@ -20,8 +20,10 @@ from config.constants import (
     FIELD_H_MEASURED, FIELD_LAT, FIELD_LON, FIELD_PARCEL, PRESSLER_DEFAULT, RECORDS, SESSION,
 )
 
+# Public purpose namespaces: Django signs both token kinds with SECRET_KEY.
 REVIEW_SALT = 'ipso.tree-import.review.v1'
 EXPORT_SALT = 'ipso.tree-import.export.v1'
+# Workflow timeout for both token kinds; staged/recovery data does not expire.
 REVIEW_MAX_AGE = 30 * 60
 EXPORT_HEADER = 'X-Import-Export-Token'
 

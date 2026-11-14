@@ -4,19 +4,18 @@ bootstrap file.
 
 Each valid row creates a physical ``Tree(coppice=False)`` and
 one preserved ``TreeSample`` observation row.  Species are resolved by
-``common_name.lower()`` (strict canonical — no SPECIES_NAME_ALIASES aliasing).  Lon/Lat
-are converted via ``reader.decimal`` → ``coord_float``.
+``common_name.lower()`` (strict canonical — no SPECIES_NAME_ALIASES aliasing).  Coordinates and optional historical measurements use the shared ``CsvRow``
+field diagnostics.
 """
 
 from dataclasses import dataclass
-from datetime import date as date_type
 from decimal import ROUND_HALF_UP
 
 from django.db import transaction
 
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_stale
 from apps.base.models import Parcel, Sample, Species, Tree, TreeSample
-from apps.base.numparse import coord_float
 from apps.base.preserved_trees import (
     PRESERVED_LEGACY_UNKNOWN_DATE, current_preserved_number_keys,
     get_preserved_tree_survey,
@@ -86,13 +85,19 @@ def validate_rows(reader, idx: PreservedIndexes):
             errors.append(S.ERR_CSV_ROW_SPECIES.format(i, species_name))
             continue
 
-        number = reader.integer(row.get(S.CSV_COL_NUMBER))
-        lat = coord_float(reader.decimal(row.get(S.CSV_COL_LAT)))
-        lon = coord_float(reader.decimal(row.get(S.CSV_COL_LON)))
-        if number is None or number <= 0 or lat is None or lon is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_NUMBER}/{S.CSV_COL_LAT}/{S.CSV_COL_LON}',
-            ))
+        cells = CsvRow(reader, row, i)
+        number = cells.integer(S.CSV_COL_NUMBER, positive=True)
+        lat, lon = cells.coordinates(S.CSV_COL_LAT, S.CSV_COL_LON, required=True)
+        row_date = cells.date(S.CSV_COL_DATA, required=False)
+        birth_year = cells.integer(S.CSV_COL_ESTIMATED_BIRTH_YEAR, required=False)
+        d_cm = cells.integer(S.CSV_COL_D_CM, positive=True)
+        h_m = cells.decimal(S.CSV_COL_H_M, required=False, positive=True,
+                            storage=('base.TreeSample', 'h_m'))
+        h_measured = cells.boolean(S.CSV_COL_H_MEASURED)
+        acc_m = cells.integer(S.CSV_COL_ACC_M, required=False, minimum=0)
+        if h_measured and not cells.raw(S.CSV_COL_H_M):
+            cells.problem(S.CSV_COL_H_M, S.CSV_RULE_REQUIRED)
+        if not cells.validate(errors):
             continue
         number_key = (parcel.id, number)
         if number_key in seen_numbers:
@@ -102,31 +107,10 @@ def validate_rows(reader, idx: PreservedIndexes):
             ))
             continue
         seen_numbers.add(number_key)
-
-        row_date, date_ok = _optional_date(row.get(S.CSV_COL_DATA))
-        birth_year, birth_ok = reader.opt_int(row.get(S.CSV_COL_ESTIMATED_BIRTH_YEAR, ''))
-        d_cm, d_ok = reader.opt_int(row.get(S.CSV_COL_D_CM, ''))
-        h_m, h_ok = reader.opt_decimal(row.get(S.CSV_COL_H_M, ''))
-        h_measured, h_measured_ok = reader.opt_bool(row.get(S.CSV_COL_H_MEASURED, ''))
-        acc_m, acc_ok = reader.opt_int(row.get(S.CSV_COL_ACC_M, ''))
-        if not all((date_ok, birth_ok, d_ok, h_ok, h_measured_ok, acc_ok)):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_FILE_PRESERVED_TREES))
-            continue
-        if d_cm is None or d_cm <= 0:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_D_CM))
-            continue
         if h_m is None:
-            if h_measured is True:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
-                continue
             h_measured = False
         else:
-            if h_m <= 0:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_H_M))
-                continue
             h_m = h_m.quantize(TREE_H_QUANTUM, rounding=ROUND_HALF_UP)
-            if h_measured is None:
-                h_measured = False
         if row_date is None:
             row_date = PRESERVED_LEGACY_UNKNOWN_DATE
 
@@ -146,16 +130,6 @@ def validate_rows(reader, idx: PreservedIndexes):
             FIELD_NOTE: (row.get(S.CSV_COL_NOTE) or '').strip(),
         })
     return parsed, errors
-
-
-def _optional_date(value):
-    raw = (value or '').strip()
-    if not raw:
-        return None, True
-    try:
-        return date_type.fromisoformat(raw), True
-    except ValueError:
-        return None, False
 
 
 def apply(parsed) -> int:

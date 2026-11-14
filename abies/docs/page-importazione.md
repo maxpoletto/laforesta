@@ -149,7 +149,10 @@ Blanks remain blank and decimal numbers use the install locale.
 
 To recover excluded measurements, correct the CSV and import it through the
 normal Martellate or survey CSV importer into the intended destination. Those
-importers validate the corrected data as usual. Ordinary free-survey rows may
+importers validate the corrected data using the shared [CSV diagnostics](csv-imports.md).
+For example, an uncorrected missing height is reported as **Riga 2: Altezza
+(h, m): valore obbligatorio mancante.** CSV row numbers include the header;
+**Riga Ipso** retains the original source ID separately. Ordinary free-survey rows may
 keep a blank tree number; their CSV importer assigns a sample-local number.
 Preserved rows still require their original positive PAI number. There is no
 second Ipso import of the partially completed session.

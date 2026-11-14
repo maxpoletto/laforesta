@@ -22,8 +22,6 @@ if TYPE_CHECKING:
     from apps.base.models import HypsoParamSet, Region, Species
 
 _DECIMAL_PLACES = Decimal('0.0001')
-# a and b persist to DecimalField(max_digits=10, decimal_places=4): |value| < 1e6.
-_COEF_MAX = 10 ** 6
 
 
 def fit_log(
@@ -120,6 +118,7 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
     number, is reported as an error (the caller aborts on a non-empty list).
     """
     from apps.base import csv_io
+    from apps.base.csv_validation import CsvRow
     from apps.base.models import HYPSO_FUNC_LN, Region, Species
 
     region_cache = {r.name.lower(): r for r in Region.objects.all()}
@@ -149,22 +148,15 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
         if function != HYPSO_FUNC_LN:
             errors.append(S.ERR_CSV_FUNCTION_INVALID.format(i, function))
             continue
-        a = reader.decimal(row.get(S.CSV_COL_A))
-        b = reader.decimal(row.get(S.CSV_COL_B))
-        r2 = reader.decimal(row.get(S.CSV_COL_R2))
-        n = reader.integer(row.get(S.CSV_COL_N_REGRESSION))
-        bad = next((col for col, v in (
-            (S.CSV_COL_A, a), (S.CSV_COL_B, b),
-            (S.CSV_COL_R2, r2), (S.CSV_COL_N_REGRESSION, n),
-        ) if v is None and (col in (S.CSV_COL_A, S.CSV_COL_B) or (row.get(col) or '').strip())), None)
-        if bad is not None:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(i, bad, row.get(bad, '')))
+        cells = CsvRow(reader, row, i)
+        a = cells.decimal(S.CSV_COL_A, storage=('base.HypsoParam', 'a'))
+        b = cells.decimal(S.CSV_COL_B, storage=('base.HypsoParam', 'b'))
+        r2 = cells.decimal(S.CSV_COL_R2, required=False, minimum=0, maximum=1,
+                           storage=('base.HypsoParam', 'r2'))
+        n = cells.integer(S.CSV_COL_N_REGRESSION, required=False, positive=True)
+        if not cells.validate(errors):
             continue
         a, b, r2 = float(a), float(b), float(r2) if r2 is not None else None
-        range_error = _range_error(i, a, b, r2, n)
-        if range_error:
-            errors.append(range_error)
-            continue
         key = (region.id, species.id)
         if key in seen:
             errors.append(S.ERR_CSV_DUPLICATE_PARAM.format(i, region_name, species_name))
@@ -172,24 +164,6 @@ def parse_param_csv(source) -> tuple[list[ParamRow], list[str]]:
         seen.add(key)
         rows.append(ParamRow(region, species, a, b, r2, n))
     return rows, errors
-
-
-def _range_error(line: int, a: float, b: float, r2: float | None, n: int | None) -> str | None:
-    """Reject values that overflow storage or are out of their valid range.
-
-    Guards the persist step: `a`/`b` must fit DecimalField(10,4); `r2` is a
-    coefficient of determination in [0, 1]; `n` is a positive sample count.
-    """
-    checks = [
-        (S.CSV_COL_A, a, abs(a) < _COEF_MAX),
-        (S.CSV_COL_B, b, abs(b) < _COEF_MAX),
-        (S.CSV_COL_R2, r2, r2 is None or 0.0 <= r2 <= 1.0),
-        (S.CSV_COL_N_REGRESSION, n, n is None or n >= 1),
-    ]
-    for col, val, ok in checks:
-        if not ok:
-            return S.ERR_CSV_VALUE_RANGE.format(line, col, val)
-    return None
 
 
 def active_set() -> HypsoParamSet | None:

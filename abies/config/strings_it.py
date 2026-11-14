@@ -417,8 +417,6 @@ ERR_CSV_SPECIES_NOT_FOUND = 'Riga {}: specie non trovata ({}).'
 ERR_CSV_FUNCTION_INVALID = (
     'Riga {}: funzione di regressione non supportata ({}).'
 )
-ERR_CSV_VALUE_PARSE = 'Riga {}: valore non valido nella colonna {} ({}).'
-ERR_CSV_VALUE_RANGE = 'Riga {}: valore fuori intervallo nella colonna {} ({}).'
 ERR_CSV_DUPLICATE_PARAM = 'Riga {}: coppia compresa/genere duplicata ({} / {}).'
 ERR_REGION_XOR_PARCEL = 'Indicare esattamente una particella o una compresa.'
 ERR_HARVEST_REGION_XOR_PARCEL = ERR_REGION_XOR_PARCEL
@@ -448,7 +446,6 @@ ERR_CSV_EMPTY = 'Il file CSV è vuoto.'
 ERR_CSV_MISSING_COLS = 'Colonne CSV mancanti: {}.'
 ERR_CSV_ROW_AREA = 'Riga {}: area di saggio non trovata ({} / {} / {}).'
 ERR_CSV_ROW_SPECIES = 'Riga {}: specie sconosciuta: {}.'
-ERR_CSV_ROW_PARSE = 'Riga {}: errore di parsing ({}).'
 ERR_CSV_ROW_INVALID = 'Riga {}: {}.'
 ERR_CSV_FIELD = '{}: {}'
 CSV_LABEL_DIAMETER = 'Diametro (D, cm)'

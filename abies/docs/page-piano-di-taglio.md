@@ -559,6 +559,11 @@ Submit: "Salva" / "Salva e continua" (batch entry).
 
 ## CSV files
 
+CSV validation names the incorrect field and explains its required value.
+Messages count the header as row 1, combine scalar problems per row and abort
+an invalid file without partial writes. See [CSV imports](csv-imports.md) for
+shared diagnostics and the full list of import paths.
+
 ### Fustaia plan CSV (e.g., `fustaia.csv`)
 
 Accepts both pdg-2026 output (`Compresa, Particella, Anno, Prelievo (m³)`)

@@ -158,3 +158,15 @@ def test_late_confirmation_failure_rolls_back_equations_history_and_nonce(client
     assert list(VolumeEquation.objects.order_by('pk').values()) == before
     assert VolumeEquation.history.count() == count
     assert not UsedNonce.objects.filter(nonce='failed-confirm').exists()
+
+
+@pytest.mark.parametrize('kind, text, field', [
+    ('height', 'compresa;genere;funzione;a;b\nCapistrano;Abete;ln;wrong;-4\n', 'a'),
+    ('volume', 'genere;b0;b1\nAbete;wrong;0\n', 'b0'),
+])
+def test_equation_csv_errors_name_the_coefficient_and_rule(client, regions, species, kind, text, field):
+    data = preview(client, kind, text)
+    assert len(data['errors']) == 1
+    assert data['errors'][0].startswith('Riga 2:')
+    assert field in data['errors'][0] and 'numero finito' in data['errors'][0]
+    assert not data['token']
