@@ -62,6 +62,7 @@ from apps.base.models import (
 )
 from apps.piano_di_taglio import csv_plan
 from apps.piano_di_taglio.mark_import import (
+    render_mark_csv,
     MARK_CSV_SPECIES_HEADERS, MarkImportRow,
     csv_mark_fingerprint, import_mark_rows,
     legacy_csv_mark_fingerprint, mark_parcel_matches_item,
@@ -680,40 +681,6 @@ def item_export_view(request, item_id: int):
     if item is None:
         return JsonResponse({STATUS: STATUS_NOT_FOUND}, status=404)
 
-    # martellate_<id>.csv
-    delimiter, decimal_sep = csv_io.export_format()
-    marks_buf, marks_w = csv_io.csv_buffer(delimiter)
-    marks_w.writerow([
-        S.CSV_COL_DATA, S.CSV_COL_REGION, S.CSV_COL_PARCEL,
-        S.CSV_COL_DAMAGED, S.CSV_COL_NUMBER, S.CSV_COL_SPECIES,
-        S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_H_MEASURED,
-        S.CSV_COL_LAT, S.CSV_COL_LON, S.CSV_COL_ACC_M, S.CSV_COL_OPERATOR,
-    ])
-    marks_qs = (TreeMark.objects
-                .filter(harvest_plan_item=item)
-                .select_related('tree__species', 'parcel__region')
-                .order_by('date', 'id'))
-    for tm in marks_qs:
-        # Compresa / Particella reflect the row-level mark parcel; for
-        # region-wide items, this differs from the item's missing parcel by
-        # design.
-        parcel = tm.parcel
-        marks_w.writerow([
-            tm.date.isoformat(),
-            parcel.region.name,
-            parcel.name,
-            '1' if item.damaged else '0',
-            tm.number,
-            tm.tree.species.common_name,
-            tm.d_cm,
-            csv_io.format_decimal(tm.h_m, decimal_sep),
-            '1' if tm.h_measured else '0',
-            csv_io.format_decimal(tm.lat, decimal_sep),
-            csv_io.format_decimal(tm.lon, decimal_sep),
-            tm.acc_m if tm.acc_m is not None else '',
-            tm.operator,
-        ])
-
     harvests_qs = (Harvest.objects
                    .filter(harvest_plan_item=item)
                    .select_related(
@@ -728,11 +695,32 @@ def item_export_view(request, item_id: int):
     safe_name = _safe_filename('-'.join(p for p in parts if p))
     return csv_io.zip_csv_response(
         [
-            (f'martellate_{item.id}.csv', marks_buf.getvalue()),
+            (S.CSV_FILE_TREE_MARKS.format(item.id), render_mark_csv(item)),
             (f'prelievi_{item.id}.csv', prelievi_csv),
         ],
         f'{safe_name}.zip',
     )
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def mark_csv_export_view(request, item_id: int):
+    item = HarvestPlanItem.objects.filter(pk=item_id).first()
+    if item is None:
+        raise Http404
+    row_ids = None
+    if request.method == 'POST':
+        body, error = parse_json_body(request)
+        if error:
+            return error
+        row_ids, valid = positive_int_list(body.get(FIELD_ROW_IDS))
+        if not valid:
+            return validation_error([S.ERR_ROW_ID_INVALID])
+    response = HttpResponse(render_mark_csv(item, row_ids=row_ids),
+                            content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{S.CSV_FILE_TREE_MARKS.format(item.pk)}"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 @login_required

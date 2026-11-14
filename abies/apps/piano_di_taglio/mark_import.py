@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from django.db import transaction
 
+from apps.base import csv_io
 from apps.base.digests import mark_stale
 from apps.base.models import (
     HarvestPlanItem, Parcel, Species, Tree, TreeMark,
@@ -200,3 +201,42 @@ def next_mark_number(item_id: int) -> int:
     return next_sequence_number(
         TreeMark.objects.filter(harvest_plan_item_id=item_id), FIELD_NUMBER,
     )
+
+
+def render_mark_csv(item, *, row_ids=None):
+    """Canonical marked-tree CSV used by table exports and intervention backups."""
+    delimiter, decimal_sep = csv_io.export_format()
+    marks_buf, marks_w = csv_io.csv_buffer(delimiter)
+    marks_w.writerow([
+        S.CSV_COL_DATA, S.CSV_COL_REGION, S.CSV_COL_PARCEL,
+        S.CSV_COL_DAMAGED, S.CSV_COL_NUMBER, S.CSV_COL_SPECIES,
+        S.CSV_COL_D_CM, S.CSV_COL_H_M, S.CSV_COL_H_MEASURED,
+        S.CSV_COL_LAT, S.CSV_COL_LON, S.CSV_COL_ACC_M, S.CSV_COL_OPERATOR,
+    ])
+    marks_qs = (TreeMark.objects
+                .filter(harvest_plan_item=item)
+                .select_related('tree__species', 'parcel__region')
+                .order_by('date', 'id'))
+    if row_ids is not None:
+        marks_qs = marks_qs.filter(id__in=row_ids)
+    for tm in marks_qs:
+        # Compresa / Particella reflect the row-level mark parcel; for
+        # region-wide items, this differs from the item's missing parcel by
+        # design.
+        parcel = tm.parcel
+        marks_w.writerow([
+            tm.date.isoformat(),
+            parcel.region.name,
+            parcel.name,
+            '1' if item.damaged else '0',
+            tm.number,
+            tm.tree.species.common_name,
+            tm.d_cm,
+            csv_io.format_decimal(tm.h_m, decimal_sep),
+            '1' if tm.h_measured else '0',
+            csv_io.format_decimal(tm.lat, decimal_sep),
+            csv_io.format_decimal(tm.lon, decimal_sep),
+            tm.acc_m if tm.acc_m is not None else '',
+            tm.operator,
+        ])
+    return marks_buf.getvalue()

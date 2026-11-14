@@ -628,8 +628,6 @@ export const LABEL_MASS_TOTAL      = 'Massa totale';
 export const COL_WORKSITE          = 'Cantiere';
 
 // Marks (tree-mark CRUD + CSV import in the per-item modal).
-export const NEW_MARK_LABEL       = '+ Nuovo albero';
-export const IMPORT_MARKS_LABEL   = '+ Importa martellata';
 export const MARK_CLOSED_BANNER   =
   'Il cantiere è chiuso, non si possono aggiungere martellate.';
 export const NEW_MARK_TITLE       = 'Nuovo albero martellato';

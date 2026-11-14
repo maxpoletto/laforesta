@@ -802,9 +802,9 @@ class TestPlanExport:
         ).count()
         assert after == before  # idempotent
 
+    @pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
     def test_round_trip_export_then_reimport(
-        self, writer_client, plan, planned_item, parcels, species,
-    ):
+        self, writer_client, plan, planned_item, parcels, species, csv_locale):
         # Export a plan with one fustaia item, then re-import the same
         # CSV (Italian locale + display names) back into the same plan —
         # should be idempotent and preserve the volume.
@@ -838,9 +838,9 @@ class TestPlanExport:
         assert reup_again.status_code == 200, reup_again.json()
         assert HarvestPlanItem.objects.filter(harvest_plan=plan).count() == 1
 
+    @pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
     def test_round_trip_duplicate_region_items_and_notes(
-        self, writer_client, plan, regions,
-    ):
+        self, writer_client, plan, regions, csv_locale):
         items = [
             (regions[0], True, False, 'Serra catastrofato'),
             (regions[0], False, True, 'Serra fitosanitario'),
@@ -1864,9 +1864,9 @@ class TestItemExport:
         assert reader[0][S.CSV_COL_HARVEST_PLAN_ITEM_ID] == str(item.id)
         assert S.CSV_COL_NOTE not in reader.fieldnames
 
+    @pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
     def test_mark_export_import_export_import_round_trip(
-        self, writer_client, planned_item, species,
-    ):
+        self, writer_client, planned_item, species, csv_locale):
         planned_item.state = HarvestPlanItemState.MARKED
         planned_item.save(update_fields=['state'])
         specs = [
@@ -3272,3 +3272,51 @@ class TestMarkCSVImport:
         ])
         resp = self._post(writer_client, planned_item, csv_bytes)
         assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('locale', ['it', 'en'])
+def test_mark_table_csv_export_reuses_the_zip_renderer(writer_client, planned_item, species, locale):
+    from django.utils import translation
+
+    mark = TreeMark.objects.create(harvest_plan_item=planned_item, parcel=planned_item.parcel,
+        tree=Tree.objects.create(species=species[0]), date=date_type(2026, 11, 14),
+        number=None, d_cm=30, h_m='20.25', h_measured=False,
+        operator='Mario; "Rossi"', lat=None, lon=None, acc_m=None)
+    url = f'/api/piano-di-taglio/mark/export-csv/{planned_item.id}/'
+    with translation.override(locale):
+        response = writer_client.get(url)
+        assert response.status_code == 200
+        archive = writer_client.get(f'/api/piano-di-taglio/item/export/{planned_item.id}/')
+        expected = zipfile.ZipFile(io.BytesIO(archive.content)).read(f'martellate_{planned_item.id}.csv')
+        assert response.content == expected
+        assert response['Cache-Control'] == 'no-store'
+        rows = list(csv_io.read(response.content))
+        assert rows[0][S.CSV_COL_NUMBER] == ''
+        assert rows[0][S.CSV_COL_H_M] == ('20,25' if locale == 'it' else '20.25')
+        empty = writer_client.post(url, json.dumps({'row_ids': []}), content_type='application/json')
+        assert empty.status_code == 200 and len(csv_io.read(empty.content)) == 0
+        selected = writer_client.post(url, json.dumps({'row_ids': [mark.id]}), content_type='application/json')
+        assert selected.content == response.content
+        invalid = writer_client.post(url, json.dumps({'row_ids': ['bad']}), content_type='application/json')
+        assert invalid.status_code == 400
+
+
+@pytest.mark.django_db
+def test_mark_table_export_requires_login_and_confines_selection_to_item(
+    planned_item, plan, parcels, species, reader_client,
+):
+    own = _create_mark(planned_item, species[0])
+    other_item = HarvestPlanItem.objects.create(harvest_plan=plan,
+        parcel=parcels[1], year_planned=2026, volume_planned_m3=100)
+    foreign = _create_mark(other_item, species[0])
+    url = f'/api/piano-di-taglio/mark/export-csv/{planned_item.pk}/'
+    assert Client().get(url).status_code == 302
+    assert reader_client.get(url).status_code == 200
+    response = reader_client.post(url, json.dumps({'row_ids': [own.pk, foreign.pk]}),
+        content_type='application/json')
+    assert response.status_code == 200
+    rows = list(csv_io.read(response.content))
+    assert len(rows) == 1
+    assert rows[0][S.CSV_COL_PARCEL] == planned_item.parcel.name
+    assert reader_client.get('/api/piano-di-taglio/mark/export-csv/999999/').status_code == 404

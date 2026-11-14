@@ -72,21 +72,20 @@ implicitly as CSV imports land or can be edited via the pencil modal.
 
 This deliberately does *not* import any CSVs: identity (the plan exists with
 a name) is decoupled from content (calendar entries). Imports happen later via
-the pencil modal or the empty-state CTA in the calendar sections.
+the Importa CSV button in either calendar section.
 
 #### Modifica piano modal (pencil)
 
-A two-tab modal acting on the currently-selected plan:
+A single metadata form for the selected plan: name, description, and year
+range. It has no import tab.
 
-- **Dettagli** — name, description, and year range, all editable.
-- **Importa calendario da CSV** — upload `piano.csv` or `ceduo.csv`
-  (checkbox `Ceduo` selects the dispatch). Rows are upserted on
-  `(parcel, year_planned)`: an existing matching item is overwritten
-  with the CSV values, new rows are appended, the plan's
-  `year_start`/`year_end` widen to cover any new years. Re-importing
-  the same file is therefore idempotent, and importing a revised CSV
-  replaces the affected rows in place. See "Fustaia plan CSV" and
-  "Ceduo plan CSV" below.
+Calendar content is imported through the **Importa CSV** button in the relevant
+calendar section. Its dialog names both the target plan and the calendar type;
+the button's section determines high forest or coppice, so there is no Ceduo
+checkbox. Import behavior is unchanged: rows match existing items by explicit
+CSV ID where supplied, or by the importer's parcel/year identity rules; new
+rows are appended and year ranges widen to cover new years. See "Fustaia plan
+CSV" and "Ceduo plan CSV" below for matching and update details.
 
 ### High forest calendar section
 
@@ -129,21 +128,12 @@ not just the visible pagination page. Each value is aligned under its source
 column; an empty search result shows zero for all three totals. The coppice
 table has no totals row.
 
-The table toolbar includes a `+ Aggiungi` button for manually creating a new
-entry (see "Add-harvest-plan-item modal"). For example, after storms the forest
-authority may authorize a previously unplanned item to pick up destroyed trees.
-
-**Empty-state CTA.** When the currently active plan has zero fustaia (or
-zero ceduo) items, the section's table — along with its search box,
-Esporta button, and `+ Aggiungi` row — is replaced by an inline
-panel:
-
-  Nessun intervento. [Importa calendario CSV] [+ Aggiungi manualmente]
-
-`Importa calendario CSV` opens the Modifica piano modal pre-focused on
-the matching import tab; `+ Aggiungi manualmente` opens the
-Add-harvest-plan-item modal. The panel disappears as soon as the first
-item lands, and the table + toolbar + `+ Aggiungi` come back.
+The table controls carry `[Esporta] [Importa CSV] [+ Nuovo intervento]`,
+right-aligned in that order. Import and create are available to writers only.
+Export and import use this section's calendar type; the new-item form also
+starts with this type selected. An empty section keeps the same table controls,
+so its first intervention can be imported or entered manually without finding
+a separate empty-state action.
 
 Clicking on a row (or its pencil icon) navigates to the full-page
 "view/edit harvest plan item" view (which surfaces marks/prelievi
@@ -287,11 +277,19 @@ The modal displays:
      original opening and closing events remain in the transition history;
      later closure creates another closing event.
 
-2. **A foldable section "Martellate" (fustaia only).** The top of the
-   section shows total `volume_marked_m3` so far, and on the right a
-   `[+ Nuova martellata]` button (a CSV import for `tree_mark` rows) and
-   below that the standard `+ Aggiungi` button (for the manual "Nuovo
-   albero martellato" modal — see below).
+2. **A foldable section "Martellate" (fustaia only).** The top shows total
+   `volume_marked_m3` and mass. The table controls carry `[Esporta]
+   [Importa CSV] [+ Nuovo albero]`, right-aligned in that order. The new-tree
+   action opens the manual "Nuovo albero martellato" modal (see below).
+
+   The table's Esporta downloads a canonical, importable marked-tree CSV for
+   the rows retained by Filtra. It uses the same renderer as the intervention
+   ZIP's marked-tree member, retaining hidden fields and raw coordinates,
+   optional numbers and measured-height flags. It is available to readers and
+   for closed worksites. The endpoint
+   `/api/piano-di-taglio/mark/export-csv/<item-id>/` accepts GET for all marks
+   or POST with `row_ids` for a selection, always restricted to this item.
+   This data export is separate from the dendrometric report ZIP below.
 
    The table lists `tree_mark` rows under this item. Columns:
 
@@ -440,10 +438,9 @@ The modal displays:
    replacing the table. Filtering out all marks also shows an empty summary,
    but keeps the map so the user can restore its points by clearing Filtra.
 
-   Clicking `[+ Nuova martellata]` opens an "Importa CSV martellate"
-   modal (analogous to "Nuovo Rilevamento" → "Importa da CSV" on the
-   campionamenti page). The CSV is in the shape produced by the
-   Ipso mobile PWA:
+   Clicking **Importa CSV** opens the shared file-import dialog, identifying
+   this intervention as its destination. The CSV is in the shape produced by
+   the Ipso mobile PWA:
 
        Data;Compresa;Particella;Catastrofata;Numero;Genere;D_cm;H_m;H_measured;Lat;Lon;Acc_m;Operatore
 
@@ -467,7 +464,7 @@ The modal displays:
    is skipped. Two slightly different GPS readings of the same tree
    produce two different fingerprints → two rows (intentional).
 
-   If `state = closed`, the `[+ Nuova martellata]` and `+ Aggiungi`
+   If `state = closed`, the `Importa CSV` and `+ Nuovo albero`
    buttons are hidden; an inline banner above the table reads
    "Il cantiere è chiuso, non si possono aggiungere martellate".
 
@@ -484,8 +481,8 @@ Title: Interventi ceduo
 
 This section contains a flat sortable-table of calendar entries for coppice
 parcels. It has the same shape and the same affordances as the fustaia
-section (`+ Aggiungi` for manual create, looking-glass and trash icons per
-row), reusing the same "Add-harvest-plan-item" and "View/edit-harvest-plan-
+section (`Esporta`, `Importa CSV`, `+ Nuovo intervento`, and edit/trash
+icons per row), reusing the same "Add-harvest-plan-item" and "View/edit-harvest-plan-
 item" modals.
 
 The sortable table has the following columns: `Anno previsto`, `Anno

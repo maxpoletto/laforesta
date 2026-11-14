@@ -1,3 +1,4 @@
+import { csvImportTemplate } from '../../../../../test/js-csv-modal.mjs';
 import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Regression tests for Piano di taglio async item-view state.
 // Run with: node apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.test.mjs
@@ -105,6 +106,7 @@ class MockElement {
       this.parentNode = null;
     }
   }
+  focus() { this.focused = true; }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   removeEventListener(type, fn) {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
@@ -184,6 +186,7 @@ class MockElement {
     clone.id = this.id;
     clone.textContent = this.textContent;
     clone.value = this.value;
+    clone.name = this.name;
     clone.hidden = this.hidden;
     clone.href = this.href;
     clone.rel = this.rel;
@@ -353,6 +356,7 @@ const contentEl = el('main');
 const modalEl = el('div', { id: 'modal-container' });
 const links = [];
 const templates = {
+  'tmpl-csv-import-modal': {content: csvImportTemplate(tag => el(tag))},
   'tmpl-pdt-page': { content: buildPageTemplate() },
   'tmpl-table-summary-label': { content: buildTableSummaryTemplate() },
   'tmpl-pdt-item-view': { content: buildItemViewTemplate() },
@@ -543,6 +547,8 @@ const markLoads = new Map();
 const markDataOverrides = new Map();
 const prelieviLoads = [];
 const fetchUrls = [];
+const calendarImports = [];
+let calendarImportStatus = 400;
 const deletionChecks = new Map();
 let exportedDendrometryRowIds = null;
 let dendrometryExportCalls = 0;
@@ -732,6 +738,11 @@ function latestTreeMarkers() {
 
 globalThis.fetch = async (url, options = {}) => {
   fetchUrls.push(String(url));
+  if (url === '/api/piano-di-taglio/plan/import-csv/' && options.method === 'POST') {
+    calendarImports.push(JSON.parse(options.body));
+    return response(calendarImportStatus === 200 ? {row_id:10} :
+      {status:'validation_error', errors:['Riga 2: Anno non valido.']}, 'v2', calendarImportStatus);
+  }
   if (url === '/api/piano-di-taglio/plans/data/') return response(planDigest);
   if (url === '/api/piano-di-taglio/items/data/') return response(itemsDigest);
   if (url === '/api/impostazioni/hypso-params/data/') return response({ columns: [], rows: [] });
@@ -880,9 +891,31 @@ async function finish() {
   eq(
     actionGroup.children.filter(child => child.tagName === 'button')
       .map(child => child.textContent),
-    ['Esporta', '+ Aggiungi'],
-    'calendar add button is in TableWrapper toolbar immediately after export',
+    ['Esporta', 'Importa CSV', '+ Nuovo intervento'],
+    'calendar toolbar orders export, import and new intervention',
   );
+  for (const [section, field, kind] of [['f','fustaia_file','fustaia'], ['c','ceduo_file','ceduo']]) {
+    const host = contentEl.querySelector(`[data-target="table-${section}"]`);
+    check(host.hidden === false, 'empty calendars retain their import/new controls');
+    const buttons = host.querySelectorAll('.btn');
+    const importButton = buttons.find(button => button.textContent === S.IMPORT_CSV);
+    await importButton.click();
+    check(modalEl.querySelector('[data-field="title"]').textContent.includes(kind),
+      'calendar import identifies its forest type without a checkbox');
+    check(!modalEl.querySelector('[name="is_ceduo"]'), 'calendar import has no type checkbox');
+    const file = modalEl.querySelector('[name="file"]');
+    file.files = [new Blob(['calendar rows'])];
+    modalEl.querySelector('form').dispatchEvent({type:'submit',preventDefault(){}});
+    await flushAsyncWork(); await flushAsyncWork();
+    const body = calendarImports.at(-1);
+    eq(body.harvest_plan_id, '10', 'calendar import stays scoped to the selected plan');
+    check(Boolean(body[field]) && !body[field === 'fustaia_file' ? 'ceduo_file' : 'fustaia_file'],
+      'the workspace supplies exactly one calendar type');
+    check(Boolean(modalEl.querySelector('.csv-import-errors').children.length),
+      'CSV validation errors stay in the standalone import dialog');
+    check(modalEl.querySelector('[name="file"]') === file, 'CSV errors retain the selected file');
+    await modalEl.querySelector('[data-action="cancel"]').click();
+  }
   const fustaiaSummary = contentEl.querySelector(
     '[data-target="table-f"] .table-totals-row',
   );

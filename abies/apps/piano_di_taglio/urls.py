@@ -61,6 +61,8 @@ urlpatterns = [
          name='piano-di-taglio-mark-delete'),
     path('mark/import-csv/', views.mark_csv_import_view,
          name='piano-di-taglio-mark-import-csv'),
+    path('mark/export-csv/<int:item_id>/', views.mark_csv_export_view,
+         name='piano-di-taglio-mark-export-csv'),
     path('mark/dendrometry/export/<int:item_id>/',
          views.mark_dendrometry_export_view,
          name='piano-di-taglio-mark-dendrometry-export'),

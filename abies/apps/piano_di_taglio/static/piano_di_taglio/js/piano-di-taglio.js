@@ -19,11 +19,11 @@ import {
 import { fetchJSON, fileToBase64, postBlob, postJSON } from '../../base/js/api.js';
 import {
   deleteRowWithVersion, fetchModalForm, injectNonce, interceptSubmit,
-  parseHTMLFragment, submitCsvImport, showFormError,
+  parseHTMLFragment, showCsvImportModal, showFormError,
 } from '../../base/js/forms.js';
 import {
   showCascadeDeleteModal, showConfirmModal, wireActions, wireCancelButtons,
-  wireCollapsibleToggle, wireTabbedModal, showLoadingIn,
+  wireCollapsibleToggle, showLoadingIn,
 } from '../../base/js/ui-widgets.js';
 import { canModify, isAdmin } from '../../base/js/roles.js';
 import { installEscapeHandler } from '../../base/js/escape.js';
@@ -81,6 +81,7 @@ const ITEM_FORM_URL = '/api/piano-di-taglio/item/form/';
 const ITEM_SAVE_URL = '/api/piano-di-taglio/item/save/';
 const ITEM_DELETE_URL = '/api/piano-di-taglio/item/delete/';
 const ITEM_EXPORT_URL = '/api/piano-di-taglio/item/export/';
+const MARK_CSV_EXPORT_URL = '/api/piano-di-taglio/mark/export-csv/';
 const TRANSITION_SAVE_URL = '/api/piano-di-taglio/transition/save/';
 const MARK_TREES_URL = '/api/piano-di-taglio/mark-trees/';
 const MARK_FORM_URL = '/api/piano-di-taglio/mark/form/';
@@ -128,7 +129,7 @@ let disposeItemKeyboard = null;
 let disposePageActions = null;
 
 // Calendar sections — keyed by the single-char URL `o=` token.  `f`
-// fills in here; `c` (Calendario ceduo) lands in a later increment.
+// selects high forest; `c` selects coppice.
 const SECTION_KEYS = ['f', 'c'];
 const DEFAULT_OPEN = 'f';
 
@@ -136,7 +137,6 @@ const sections = {
   f: {
     open: true, kind: 'fustaia',
     header: null, body: null, host: null, table: null,
-    emptyState: null,
     itemMatcher: (row) => !rowIsCoppice(row),
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
@@ -147,7 +147,6 @@ const sections = {
   c: {
     open: false, kind: 'ceduo',
     header: null, body: null, host: null, table: null,
-    emptyState: null,
     itemMatcher: (row) => rowIsCoppice(row),
     hiddenCols: [
       S.COL_HARVEST_PLAN, S.COL_TYPE, COL_COPPICE,
@@ -223,7 +222,6 @@ function onItemsUpdate() {
   itemsData = cache.get(ITEMS_ID);
   for (const k of SECTION_KEYS) {
     if (sections[k].table) sections[k].table.setData(itemsData);
-    updateEmptyState(sections[k]);
   }
   if (itemViewContext) {
     const row = itemsData?.rows.find(record => record[0] === activeItemId);
@@ -334,7 +332,6 @@ function buildPage(el) {
     s.header?.classList.toggle('open', s.open);
     s.body?.classList.toggle('open', s.open);
     s.host = el.querySelector(`[data-target="table-${k}"]`);
-    s.emptyState = el.querySelector(`[data-target="empty-${k}"]`) || null;
 
     if (s.header && s.body) {
       wireCollapsibleToggle(s.header, s.body, (open) => {
@@ -355,10 +352,6 @@ function buildPage(el) {
     'delete-plan': () => onDeletePlan(),
     'export-plan': () => { if (activePlanId != null) downloadPlanExport(activePlanId); },
     'new-plan': () => onNewPlan(),
-    'import-calendar-f': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: false }),
-    'import-calendar-c': () => openEditPlanModal(EDIT_PLAN_TAB_CALENDAR, { ceduo: true }),
-    'add-manual-f': () => showAddItemModal(sections.f),
-    'add-manual-c': () => showAddItemModal(sections.c),
   });
 }
 
@@ -412,6 +405,8 @@ function buildTable(s) {
       }),
     } : {},
     toolbar: {
+      actions: modify ? [{label: S.IMPORT_CSV, className: 'btn btn-import',
+        onClick: () => showCalendarImport(s)}] : [],
       export: {
         label: S.EXPORT,
         className: 'btn btn-export',
@@ -422,7 +417,7 @@ function buildTable(s) {
     },
     sort: tableSort(state, DEFAULT_SECTION_SORT),
     searchText: state.searchText,
-    labels: S.TABLE_LABELS,
+    labels: {...S.TABLE_LABELS, add: S.NEW_INTERVENTION_LABEL},
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => syncURL(),
@@ -442,18 +437,6 @@ function applyPlanFilter(s) {
       return s.itemMatcher(row);
     });
   }
-  updateEmptyState(s);
-}
-
-/** Toggle between the table and the empty-state CTA based on item count. */
-function updateEmptyState(s) {
-  if (!s.emptyState || !itemsData) return;
-  const planCol = itemsData.columns.indexOf(S.COL_HARVEST_PLAN);
-  const hasItems = activePlanId != null && itemsData.rows.some(r =>
-    r[planCol] === activePlanId && s.itemMatcher(r),
-  );
-  s.emptyState.hidden = hasItems;
-  if (s.host) s.host.hidden = !hasItems;
 }
 
 function rowIsCoppice(row) {
@@ -630,7 +613,6 @@ function attachItemSubmit(form, kind, onSuccess) {
       applyWriteResponse(data);
       for (const k of SECTION_KEYS) {
         sections[k].table?.setData(itemsData);
-        updateEmptyState(sections[k]);
       }
       dismissModal();
       onSuccess();
@@ -744,7 +726,6 @@ async function doDeleteItem(itemId) {
         itemsData = cache.get(ITEMS_ID);
         for (const k of SECTION_KEYS) {
           sections[k].table?.setData(itemsData);
-          updateEmptyState(sections[k]);
         }
       },
       onConflict: (data) => {
@@ -775,19 +756,11 @@ function downloadItemExport(itemId) {
 // endpoint with `harvest_plan_id` set.
 // ---------------------------------------------------------------------------
 
-const EDIT_PLAN_TAB_DETAILS    = 'details';
-const EDIT_PLAN_TAB_CALENDAR   = 'calendar';
-
 function onEditPlan() {
-  openEditPlanModal(EDIT_PLAN_TAB_DETAILS);
+  showEditPlanModal();
 }
 
-/**
- * Open the Modifica piano modal on a specific tab.  Exported so the
- * empty-state CTA in the calendar sections can land directly on the
- * matching import tab.
- */
-export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
+function showEditPlanModal() {
   if (activePlanId == null) return;
   const row = planRow(activePlanId);
   if (!row) return;
@@ -809,16 +782,7 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
   detailsForm.querySelector('#pdt-edit-y2').value = current.year_end;
   detailsForm.querySelector('#pdt-edit-desc').value = current.description;
 
-  // Pre-check ceduo checkbox on calendar tab.
-  const calendarForm = frag.querySelector('[data-role="calendar-form"]');
-  const ceduoCb = calendarForm.querySelector('input[name="is_ceduo"]');
-  ceduoCb.checked = ceduo;
-
-  // Wire cancel buttons on both forms.
-  for (const f of [detailsForm, calendarForm]) {
-    f.querySelector('[data-action="cancel"]')
-      .addEventListener('click', dismissModal);
-  }
+  wireCancelButtons(frag, dismissModal);
 
   // Wire Dettagli submit.
   detailsForm.addEventListener('submit', async (e) => {
@@ -863,39 +827,35 @@ export function openEditPlanModal(initialTab, { ceduo = false } = {}) {
     }
   });
 
-  // Wire Calendar submit.
-  const calFileInput = calendarForm.querySelector('#pdt-edit-cal-file');
-  const calStatusBox = calendarForm.querySelector('.csv-import-status');
-  const calErrorsBox = calendarForm.querySelector('.csv-import-errors');
-
-  calendarForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (activePlanId == null) return;
-    const file = calFileInput.files[0];
-    if (!file) { showFormError(calendarForm, S.ERR_CSV_FILE_REQUIRED); return; }
-
-    const body = {
-      [FIELD_HARVEST_PLAN_ID]: String(activePlanId),
-      [ceduoCb.checked ? FIELD_COPPICE_FILE : FIELD_HIGHFOREST_FILE]: await fileToBase64(file),
-      [FIELD_NONCE]: crypto.randomUUID(),
-    };
-
-    await submitPlanCsvImport(calendarForm, body, calStatusBox, calErrorsBox);
-  });
-
-  const { lockHeight } = wireTabbedModal(frag, {
-    initialTab: initialTab || EDIT_PLAN_TAB_DETAILS,
-  });
   showModal(frag);
-  lockHeight();
+  detailsForm.querySelector('[name="name"]')?.focus();
+}
+
+function showCalendarImport(section) {
+  const planId = activePlanId;
+  const row = planRow(planId);
+  if (planId == null || !row) return;
+  const coppice = section === sections.c;
+  showCsvImportModal({ title: S.CALENDAR_IMPORT_TITLE(coppice),
+    context: row[plansData.columns.indexOf(S.COL_NAME)],
+    onSubmit: async form => {
+      const file = form.querySelector('[name="file"]')?.files?.[0];
+      if (!file) return {error: S.ERR_CSV_FILE_REQUIRED};
+      return submitPlanCsvImport({
+        [FIELD_HARVEST_PLAN_ID]: String(planId),
+        [coppice ? FIELD_COPPICE_FILE : FIELD_HIGHFOREST_FILE]: await fileToBase64(file),
+        [FIELD_NONCE]: crypto.randomUUID(),
+      });
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Nuovo piano modal — name + description only.  An empty plan starts
 // with year_start = year_end = current civil year; the range widens
 // later via pencil edit or implicitly on CSV import.
-// Identity (name) is deliberately decoupled from content (calendar /
-// equations) — those land via the pencil modal.
+// Identity (name) is separate from calendar content, which arrives through
+// the workspace import buttons.
 // ---------------------------------------------------------------------------
 
 function onNewPlan() {
@@ -942,23 +902,18 @@ function onNewPlan() {
  * wrapper around `submitCsvImport` that knows the plan-specific URL + side
  * effects.
  */
-async function submitPlanCsvImport(form, body, statusBox, errorsBox) {
-  return submitCsvImport({
-    form, statusBox, errorsBox,
-    attempt: async () => {
-      const { data, status } = await postJSON(PLAN_IMPORT_CSV_URL, body);
-      if (status === 200) {
-        await Promise.all([refreshPlans(), refreshItems()]);
-        activePlanId = data[ROW_ID];
-        onPlansUpdate();
-        syncURL();
-        return { ok: true };
-      }
-      return data?.[FIELD_ERRORS]?.length
-        ? { errors: data[FIELD_ERRORS] }
-        : { error: data?.[MESSAGE] };
-    },
-  });
+async function submitPlanCsvImport(body) {
+  const {data, status} = await postJSON(PLAN_IMPORT_CSV_URL, body);
+  if (status === 200) {
+    await Promise.all([refreshPlans(), refreshItems()]);
+    activePlanId = data[ROW_ID];
+    onPlansUpdate();
+    syncURL();
+    return {ok: true};
+  }
+  return data?.[FIELD_ERRORS]?.length
+    ? {errors: data[FIELD_ERRORS]}
+    : {error: data?.[MESSAGE]};
 }
 
 async function refreshPlans() {
@@ -1507,6 +1462,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     columnDefs: buildMarkTreeColumnDefs(data.columns, showParcel),
     canModify: showActions,
     actions: showActions ? {
+      onAdd: () => showNewMarkForm(itemId),
       onEdit: rowId => showEditMarkForm(itemId, rowId),
       onDelete: rowId => deleteMarkRow(itemId, rowId),
       onDeleteSelected: rows => confirmDeleteSelection({
@@ -1515,13 +1471,12 @@ async function appendItemMarkTreesSection(card, itemId, state) {
         descriptionColumns: [S.COL_NUMBER, S.COL_TREE_NUM, S.COL_SPECIES, S.COL_PARCEL, S.COL_DATE],
       }),
     } : {},
-    toolbar: { export: null, actions: showActions ? [
-      { label: S.NEW_MARK_LABEL, className: 'btn btn-create', onClick: () => showNewMarkForm(itemId) },
-      { label: S.IMPORT_MARKS_LABEL, className: 'btn btn-import', onClick: () => showImportMarksForm(itemId) },
+    toolbar: { export: () => downloadMarkCsv(view), actions: showActions ? [
+      {label: S.IMPORT_CSV, className: 'btn btn-import', onClick: () => showImportMarksForm(itemId)},
     ] : [] },
     sort: { column: S.COL_DATE, ascending: false },
     csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
-    labels: S.TABLE_LABELS, csvFormat: S.TABLE_CSV_FORMAT,
+    labels: {...S.TABLE_LABELS, add: S.NEW_TREE_LABEL}, csvFormat: S.TABLE_CSV_FORMAT,
     onSearch: () => updateItemMarkTreeDependents(itemId),
   });
   view.detail = new TreeDetail({
@@ -1777,49 +1732,40 @@ async function showEditMarkForm(itemId, rowId) {
   return form;
 }
 
-async function showImportMarksForm(itemId) {
-  const frag = cloneTemplate('tmpl-pdt-import-marks');
-  const form = frag.querySelector('form');
-  const statusBox = form.querySelector('.csv-import-status');
-  const errorsBox = form.querySelector('.csv-import-errors');
-
-  form.querySelector('[data-action="cancel"]')
-    .addEventListener('click', dismissModal);
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fileInput = form.querySelector('#mark-csv-file');
-    if (!fileInput?.files?.length) {
-      showFormError(form, S.ERR_CSV_FILE_REQUIRED);
-      return;
-    }
-    const body = {
-      [FIELD_HARVEST_PLAN_ITEM_ID]: String(itemId),
-      [FIELD_FILE]: await fileToBase64(fileInput.files[0]),
-      [FIELD_NONCE]: crypto.randomUUID(),
-    };
-
-    const result = await submitCsvImport({
-      form, statusBox, errorsBox,
-      attempt: async () => {
-        const { data, status } = await postJSON(MARK_CSV_IMPORT_URL, body);
-        if (status === 200) {
-          applyWriteResponse(data);
-          return { ok: true };
-        }
-        return data?.[FIELD_ERRORS]?.length
-          ? { errors: data[FIELD_ERRORS] }
-          : { error: data?.[MESSAGE] };
-      },
-    });
-    if (result?.ok && itemViewIsActive(itemId)) {
-      try {
+function showImportMarksForm(itemId) {
+  const record = itemsData?.rows.find(row => row[0] === itemId);
+  return showCsvImportModal({title: S.IMPORT_MARKS_TITLE,
+    context: record ? formatItemTitle(record, itemsData.columns) : '',
+    onSubmit: async form => {
+      const file = form.querySelector('[name="file"]')?.files?.[0];
+      if (!file) return {error: S.ERR_CSV_FILE_REQUIRED};
+      const {data, status} = await postJSON(MARK_CSV_IMPORT_URL, {
+        [FIELD_HARVEST_PLAN_ITEM_ID]: String(itemId),
+        [FIELD_FILE]: await fileToBase64(file),
+        [FIELD_NONCE]: crypto.randomUUID(),
+      });
+      if (status === 200) {
+        applyWriteResponse(data);
+        return {ok: true};
+      }
+      return data?.[FIELD_ERRORS]?.length ? {errors: data[FIELD_ERRORS]} : {error: data?.[MESSAGE]};
+    },
+    onSuccess: async () => {
+      if (itemViewIsActive(itemId)) {
         await Promise.all([cache.load(markTreesDataId(itemId)), cache.load(ITEMS_ID)]);
-      } catch { if (itemViewIsActive(itemId)) showError(S.ERROR_NETWORK); }
-    }
+      }
+    },
   });
+}
 
-  showModal(frag);
+async function downloadMarkCsv(view) {
+  try {
+    const rowIdColumn = view.digest.columns.indexOf(ROW_ID);
+    const {blob, filename} = await postBlob(`${MARK_CSV_EXPORT_URL}${view.itemId}/`, {
+      [FIELD_ROW_IDS]: view.table.getFilteredRows().map(row => row[rowIdColumn]),
+    });
+    downloadBlob(blob, filename);
+  } catch { showError(S.ERROR_NETWORK); }
 }
 
 function deleteMarkRow(itemId, rowId) {
