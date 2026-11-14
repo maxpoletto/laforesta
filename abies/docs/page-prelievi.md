@@ -5,8 +5,8 @@ This page supports recording and display of harvesting operations.
 ## Visual appearance
 
 A top filter bar hosts a double-ended year slider (`Anni`, see
-`base/.../range-slider.js`), search box (`Filtra`), "Azzera filtri" reset, and
-"Esporta" export. Below it sit three collapsible sections, separated by the
+`base/.../range-slider.js`), search box (`Filtra`), and "Azzera filtri" reset.
+Below it sit three collapsible sections, separated by the
 standard dark-green 4px rule:
 
 1. **Riassunto** — two stacked bar charts:
@@ -29,7 +29,10 @@ standard dark-green 4px rule:
    further restricting the charts, calendar, and table to that period and
    parcel while preserving unrelated search terms such as `squadra:zaffino`.
 3. **Interventi** — harvest-operations in a sortable-table, as in UI Design
-   Patterns > Tabular Data.
+   Patterns > Tabular Data. The table controls carry `[Esporta] [Importa CSV]
+   [+ Nuovo prelievo]` at the right, in that order. Readers see only Esporta.
+   These actions remain available when there are no rows. The table uses the
+   page-wide filter rather than a second search box.
 
 Sections 1 and 2 are collapsed by default; section 3 is open. Summary charts
 and the calendar render lazily (only when first opened) and re-render whenever
@@ -87,8 +90,8 @@ confirm the deletion. The header cancel icon exits selection mode. Search and
 year/parcel filter changes clear selection; sorting and pagination preserve it.
 Row editing and parcel navigation are suspended while selecting. Selection
 controls occupy the existing table pagination/action row; they do not insert a
-new block above the table. The page-wide search, year slider and export/import
-controls remain in their filter bar.
+new block above the table. Search and the year slider remain in the page-wide
+filter bar; export, import and create stay in the table action row.
 
 The server checks every selected harvest's version, deletes the entire batch
 atomically and returns updated intervention totals. The table totals and any

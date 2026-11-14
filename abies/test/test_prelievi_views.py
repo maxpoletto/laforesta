@@ -1016,9 +1016,9 @@ class TestCsvRoundTrip:
             FIELD_FILE: base64.b64encode(content).decode('ascii'),
         })
 
+    @pytest.mark.parametrize('csv_locale', ['it', 'en'], indirect=True)
     def test_export_import_export_import_is_lossless(
-        self, writer_client, harvest_fixtures,
-    ):
+        self, writer_client, harvest_fixtures, csv_locale):
         f = harvest_fixtures
         major, minor, other = (
             f['species'][0], f['species'][2], f['species'][3]

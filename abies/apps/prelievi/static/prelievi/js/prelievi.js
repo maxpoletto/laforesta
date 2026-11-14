@@ -9,7 +9,7 @@ import {
 } from '../../base/js/table.js';
 import {
   deleteRowWithVersion, fetchModalForm, renderModalForm, showFormError,
-  submitCsvImport,
+  showCsvImportModal as openCsvImportModal,
 } from '../../base/js/forms.js';
 import {
   showConfirmModal, wireActions, wireCancelButtons, wirePageSections,
@@ -174,7 +174,7 @@ function showTableView(data, params) {
     container: sections.i.body,
     digest: data,
     columnDefs: buildPrelieviColumnDefs(data.columns, speciesNames),
-    inlineToolbar: false,
+    inlineToolbar: true,
     canModify: modify,
     actions: modify ? {
       onAdd: () => showAddForm(),
@@ -188,7 +188,10 @@ function showTableView(data, params) {
     sort: tableSort(p.table, DEFAULT_TABLE_SORT),
     searchText: p.table.searchText,
     csvFilename: S.CSV_PRELIEVI,
-    labels: S.TABLE_LABELS,
+    toolbar: { search: false, export: () => exportCsv(),
+      actions: modify ? [{label: S.IMPORT_CSV, className: 'btn btn-import',
+        onClick: () => showCsvImportModal()}] : [] },
+    labels: {...S.TABLE_LABELS, add: S.NEW_HARVEST_LABEL},
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => { syncURL(); _updateCharts(); },
@@ -691,9 +694,6 @@ function buildPage(el, data, p) {
       syncURL();
       _updateCharts();
     },
-    'export-csv': () => exportCsv(),
-    'import-csv': () => showCsvImportModal(),
-    add: () => showAddForm(),
   });
 
   // Wire collapsible sections.
@@ -754,29 +754,14 @@ function buildPage(el, data, p) {
 // ---------------------------------------------------------------------------
 
 function showCsvImportModal() {
-  const frag = cloneTemplate('tmpl-prelievi-import-csv-modal');
-  wireCancelButtons(frag, dismissModal);
-
-  const form = frag.querySelector('[data-role="import-form"]');
-  const statusBox = frag.querySelector('.csv-import-status');
-  const errorsBox = frag.querySelector('.csv-import-errors');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const result = await submitCsvImport({
-      form,
-      statusBox,
-      errorsBox,
-      attempt: () => importCsv(form),
-    });
-    if (result?.ok) {
+  return openCsvImportModal({ title: S.IMPORT_CSV,
+    onSubmit: importCsv,
+    onSuccess: async () => {
       await cache.load(DATA_ID);
       refreshTable();
       _updateCharts();
-    }
+    },
   });
-
-  showModal(frag);
-  document.querySelector('#modal-container [name="file"]')?.focus();
 }
 
 async function importCsv(form) {

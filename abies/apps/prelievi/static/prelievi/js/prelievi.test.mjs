@@ -1,3 +1,4 @@
+import { csvImportTemplate } from '../../../../../test/js-csv-modal.mjs';
 import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
 // Regression tests for Prelievi URL-state restoration.
 // Run with: node apps/prelievi/static/prelievi/js/prelievi.test.mjs
@@ -92,6 +93,7 @@ class MockElement {
     for (const child of children) this.appendChild(child);
   }
   remove() { this.removed = true; }
+  focus() { this.focused = true; }
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   removeEventListener(type, fn) {
     this._listeners[type] = (this._listeners[type] || []).filter(f => f !== fn);
@@ -222,8 +224,6 @@ function buildPrelieviTemplate() {
     ]),
     search,
     el('button', { dataset: { action: 'reset-filters' } }),
-    el('button', { dataset: { action: 'export-csv' } }),
-    el('button', { dataset: { action: 'add' } }),
   ]));
 
   const [ha, ba] = section('a');
@@ -255,6 +255,7 @@ const hamburgerEl = el('button');
 const mobileMenuEl = el('div');
 const links = [];
 const templates = {
+  'tmpl-csv-import-modal': {content: csvImportTemplate(tag => el(tag))},
   'tmpl-table-summary-label': { content: buildTableSummaryTemplate() },
   'tmpl-prelievi-page': { content: buildPrelieviTemplate() },
   'tmpl-confirm-modal': { content: buildConfirmTemplate() },
@@ -285,6 +286,9 @@ globalThis.document = {
 const tableInstances = [];
 class MockSortableTable {
   constructor(opts) {
+    for (const controls of [opts.controlsStart, opts.controlsEnd]) {
+      if (controls) opts.container.appendChild(controls);
+    }
     this.container = opts.container;
     this._allData = opts.data;
     this.data = opts.data;
@@ -781,6 +785,17 @@ check(Boolean(modalEl.querySelector('[data-action="confirm"]')),
       'delete action opens the shared confirm modal');
 prelievi.unmount();
 document.body.dataset.role = 'reader';
+for (const role of ['reader','writer']) {
+  document.body.dataset.role = role;
+  await prelievi.mount({});
+  const controls = contentEl.querySelector('.table-toolbar-actions');
+  eq(controls.children.filter(node=>node.tagName==='button').map(node=>node.textContent),
+    role==='writer' ? ['Esporta','Importa CSV','+ Nuovo prelievo'] : ['Esporta'],
+    'harvest workspace controls follow the common order and role permissions');
+  check(!contentEl.querySelector('.prelievi-filter-bar').querySelector('.btn-add'),
+    'harvest data-entry controls are beside the table');
+  prelievi.unmount();
+}
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

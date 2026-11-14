@@ -19,14 +19,6 @@ render context.
            placeholder="{{ S.SEARCH_PLACEHOLDER }}">
     <button type="button" class="btn"
             data-action="reset-filters">{{ S.PRELIEVI_RESET_FILTERS }}</button>
-    <button type="button" class="btn btn-export ms-auto"
-            data-action="export-csv">{{ S.EXPORT }}</button>
-    {% if user.can_modify %}
-    <button type="button" class="btn btn-import"
-            data-action="import-csv">{{ S.IMPORT_CSV }}</button>
-    <button type="button" class="btn btn-create btn-add"
-            data-action="add">+ Aggiungi</button>
-    {% endif %}
   </div>
 
   {% include "base/_partials/_collapsible_header.html" with section="a" title=S.PRELIEVI_SECTION_SUMMARY %}
@@ -78,19 +70,5 @@ render context.
 
   {% include "base/_partials/_collapsible_header.html" with section="i" title=S.PRELIEVI_SECTION_HARVESTS %}
   <div class="collapsible-body" data-section="i" data-target="table-host">
-  </div>
-</template>
-
-<template id="tmpl-prelievi-import-csv-modal">
-  <div class="form-card">
-    <h2>{{ S.IMPORT_CSV }}</h2>
-    <form data-role="import-form">
-      <div class="form-group">
-        <label for="prelievi-csv-file">{{ S.LABEL_CSV_FILE }}</label>
-        <input type="file" id="prelievi-csv-file" name="file"
-               accept=".csv,text/csv" required>
-      </div>
-      {% include "base/_partials/_csv_import_tail.html" %}
-    </form>
   </div>
 </template>
