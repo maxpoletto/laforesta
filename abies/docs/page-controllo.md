@@ -21,6 +21,11 @@ Stored protocol codes are rendered through their localized model-choice
 labels. In particular, Ipso upload modes, lifecycle states, and destination
 types appear as Italian labels rather than values such as `free_survey`,
 `received`, or `harvest_plan_item`.
+An Ipso destination appears once, combining its type and readable survey or
+harvest-plan-item name. Names resolve from the current referenced record, as
+with other audit references; a deleted destination falls back to its type and
+`#ID`. Destination changes show the resolved name in both the before and after
+records.
 
 Insert rows have an empty previous value and the full audited record in
 the next value. Delete rows do the opposite. Update rows show the full

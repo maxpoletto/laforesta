@@ -936,6 +936,54 @@ class TestGenerateAudit:
         assert f'{S.IPSO_COL_STATE}: {state.value}' not in after
         assert f'{S.IPSO_COL_TARGET}: {target_type.value}' not in after
 
+    @pytest.mark.parametrize('target_type', [
+        IpsoUploadTargetType.SURVEY, IpsoUploadTargetType.HARVEST_PLAN_ITEM,
+    ])
+    def test_ipso_upload_audit_resolves_destination_names(
+        self, parcels, settings, tmp_path, target_type,
+    ):
+        settings.DIGEST_DIR = tmp_path
+        if target_type == IpsoUploadTargetType.SURVEY:
+            targets = [Survey.objects.create(name=name) for name in ('Field survey', 'Other survey')]
+        else:
+            plan = HarvestPlan.objects.create(name='Forest plan', year_start=2026, year_end=2027)
+            targets = [HarvestPlanItem.objects.create(
+                harvest_plan=plan, parcel=parcels[0], year_planned=year,
+            ) for year in (2026, 2027)]
+        upload = IpsoUpload.objects.create(
+            session_id='audit-named-destination', mode=IpsoUploadMode.SAMPLES,
+            schema_version=1, checksum='a' * 64, inbox_path='/tmp/audit-destination',
+            target_type=target_type, target_id=targets[0].pk,
+        )
+        upload.target_id = targets[1].pk
+        upload.save(update_fields=['target_id'])
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as source:
+            rows = [row for row in json.load(source)[ROWS] if row[3] == S.TABLE_IPSO_UPLOAD]
+        insertion = next(row for row in rows if row[4] == S.AUDIT_INSERT)
+        update = next(row for row in rows if row[4] == S.AUDIT_UPDATE)
+        for record, target in ((insertion[6], targets[0]), (update[5], targets[0]), (update[6], targets[1])):
+            assert str(target) in record
+            assert record.count(f'{S.IPSO_COL_TARGET}:') == 1
+            assert f'{S.IPSO_COL_TARGET}: {target.pk};' not in record
+
+    def test_ipso_upload_audit_handles_a_deleted_destination(self, db, settings, tmp_path):
+        settings.DIGEST_DIR = tmp_path
+        survey = Survey.objects.create(name='Removed survey')
+        survey_id = survey.pk
+        IpsoUpload.objects.create(
+            session_id='audit-deleted-destination', mode=IpsoUploadMode.SAMPLES,
+            schema_version=1, checksum='a' * 64, inbox_path='/tmp/audit-destination',
+            target_type=IpsoUploadTargetType.SURVEY, target_id=survey_id,
+        )
+        survey.delete()
+
+        generate_audit()
+        with gzip.open(tmp_path / 'audit.json.gz', 'rt') as source:
+            row = next(row for row in json.load(source)[ROWS] if row[3] == S.TABLE_IPSO_UPLOAD)
+        assert f'{S.IPSO_COL_TARGET}: {S.TABLE_SURVEY} — #{survey_id}' in row[6]
+
     def test_audit_diff_values_use_human_readable_labels(
         self, db, parcels, settings, tmp_path,
     ):

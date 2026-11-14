@@ -670,7 +670,6 @@ def _audit_configs() -> list:
             'state': S.IPSO_COL_STATE,
             'error_summary': S.IPSO_COL_ERROR,
             'target_type': S.IPSO_COL_TARGET,
-            'target_id': S.IPSO_COL_TARGET,
             'imported_at': S.IPSO_COL_IMPORTED,
             'imported_by_id': S.IPSO_COL_IMPORTED_BY,
         }),
@@ -756,7 +755,10 @@ def _format_fields(model, entry, field_labels: dict, value_cache: dict) -> str:
     for field, label in field_labels.items():
         val = getattr(entry, field, None)
         if val is not None and val != '':
-            rendered = _format_audit_value(model, field, val, value_cache)
+            if model._meta.label_lower == 'ipso.ipsoupload' and field == 'target_type':
+                rendered = _format_audit_upload_target(entry, value_cache)
+            else:
+                rendered = _format_audit_value(model, field, val, value_cache)
             parts.append(f'{label}: {rendered}')
     return '; '.join(parts)
 
@@ -817,6 +819,20 @@ def _format_audit_value(model, field_name: str, value, value_cache: dict) -> str
     if isinstance(field, models.BooleanField):
         return 'sì' if value else 'no'
     return str(value)
+
+
+def _format_audit_upload_target(entry, value_cache):
+    from apps.base.models import HarvestPlanItem, Survey
+    from apps.ipso.models import IpsoUploadTargetType
+
+    label = dict(IpsoUploadTargetType.choices).get(entry.target_type, entry.target_type)
+    target_model = {
+        IpsoUploadTargetType.HARVEST_PLAN_ITEM: HarvestPlanItem,
+        IpsoUploadTargetType.SURVEY: Survey,
+    }.get(entry.target_type)
+    if target_model is not None and entry.target_id is not None:
+        return f'{label} — {_format_audit_fk(target_model, entry.target_id, value_cache)}'
+    return label
 
 
 def _format_audit_fk(related_model, pk, value_cache: dict) -> str:
