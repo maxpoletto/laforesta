@@ -980,7 +980,7 @@ class TestItemTargetInvariant:
         if not allowed:
             assert S.ERR_PLAN_ITEM_MARKS_OUTSIDE_TARGET in response.json()[MESSAGE]
             if path == 'csv':
-                assert S.ERR_CSV_ROW_PARSE.format(
+                assert S.ERR_CSV_ROW_INVALID.format(
                     2, S.ERR_PLAN_ITEM_MARKS_OUTSIDE_TARGET,
                 ) in response.json()[MESSAGE]
             assert self._state() == before
@@ -3060,7 +3060,7 @@ class TestMarkCSVImport:
         resp = self._post(writer_client, planned_item, csv_bytes)
 
         assert resp.status_code == 400
-        assert S.ERR_MARK_ROW_TARGET_MISMATCH.format(1) in resp.json()[MESSAGE]
+        assert S.ERR_MARK_ROW_TARGET_MISMATCH.format(2) in resp.json()[MESSAGE]
         assert TreeMark.objects.count() == 0
 
     def test_import_accepts_legacy_ipso_species_header(

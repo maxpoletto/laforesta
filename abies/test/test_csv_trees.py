@@ -388,7 +388,7 @@ def test_validate_free_rows_rejects_one_sided_coordinates(parcels, species):
 
     assert parsed == []
     assert errors == [
-        S.ERR_CSV_ROW_PARSE.format(2, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}'),
+        S.ERR_CSV_ROW_INVALID.format(2, S.ERR_CSV_FIELD.format(S.CSV_COL_LON, S.CSV_RULE_COORDINATE_PAIR)),
     ]
 
 

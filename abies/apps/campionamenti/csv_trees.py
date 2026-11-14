@@ -6,17 +6,17 @@ dry-run.  Mirrors ``apps.campionamenti.csv_grid``.
 """
 
 from dataclasses import dataclass, field
-from datetime import date as date_type
 from decimal import ROUND_HALF_UP
 
 from django.db import transaction
 
 from apps.base import csv_io
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_stale
 from apps.base.models import (
     Parcel, Sample, SampleArea, Species, Tree, TreeSample,
 )
-from apps.base.numparse import coord_float, int_or_none
+from apps.base.numparse import int_or_none
 from apps.base.preserved_trees import latest_preserved_tree_samples
 from apps.base.refdata import SPECIES_NAME_ALIASES
 from apps.campionamenti.tree_validation import normalize_sample_tree_values
@@ -204,74 +204,37 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
                 errors.append(S.ERR_CSV_ROW_AREA.format(i, region_name, parcel_name, area_number))
                 continue
             parcel = area.parcel
-        number = reader.integer(row.get(S.CSV_COL_TREE))
-        if idx.is_unstructured and not (row.get(S.CSV_COL_TREE) or '').strip():
-            preserved, _ = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
-            if not preserved:
-                number = int_or_none(next_number)
-                next_number += 1
-        d_cm = reader.integer(row.get(S.CSV_COL_D_CM))
-        h_dec = reader.decimal(row.get(S.CSV_COL_H_M))
-        if number is None or d_cm is None or h_dec is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
-            continue
-        if number <= 0 or d_cm <= 0 or h_dec <= 0:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}'))
-            continue
-        shoot, shoot_ok = reader.opt_int(row.get(S.CSV_COL_COPPICE_SHOOT))
-        l10, l10_ok = reader.opt_int(row.get(S.CSV_COL_L10_MM))
-        pressler = reader.decimal(row.get(S.CSV_COL_PRESSLER))
-        standard, std_ok = reader.opt_bool(row.get(S.CSV_COL_COPPICE_STD))
-        preserved, pai_ok = reader.opt_bool(row.get(S.CSV_COL_PRESERVED, ''))
-        h_measured, h_measured_ok = reader.opt_bool(row.get(S.CSV_COL_H_MEASURED, ''))
-        lat, lat_ok = _optional_coord(reader, row.get(S.CSV_COL_LAT, ''))
-        lon, lon_ok = _optional_coord(reader, row.get(S.CSV_COL_LON, ''))
-        acc_m, acc_ok = reader.opt_int(row.get(S.CSV_COL_ACC_M, ''))
-        if (
-                not (shoot_ok and l10_ok and std_ok and pai_ok and h_measured_ok
-                     and lat_ok and lon_ok and acc_ok)
-                or pressler is None or pressler <= 0
-        ):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}/'
-                   f'{S.CSV_COL_PRESSLER}/{S.CSV_COL_COPPICE_STD}/'
-                   f'{S.CSV_COL_PRESERVED}/{S.CSV_COL_H_MEASURED}/'
-                   f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}/{S.CSV_COL_ACC_M}'))
-            continue
-        if (lat is None) != (lon is None):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_LAT}/{S.CSV_COL_LON}',
-            ))
-            continue
-        if (shoot is not None and shoot < 0) or (l10 is not None and l10 < 0):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_COPPICE_SHOOT}/{S.CSV_COL_L10_MM}'))
+        cells = CsvRow(reader, row, i)
+        preserved = cells.boolean(S.CSV_COL_PRESERVED)
+        auto_number = idx.is_unstructured and not preserved and not cells.raw(S.CSV_COL_TREE)
+        number = (int_or_none(next_number) if auto_number else
+                  cells.integer(S.CSV_COL_TREE, positive=True))
+        if auto_number:
+            next_number += 1
+            if number is None:
+                cells.problem(S.CSV_COL_TREE, S.CSV_RULE_STORAGE)
+        d_cm = cells.integer(S.CSV_COL_D_CM, positive=True)
+        h_dec = cells.decimal(S.CSV_COL_H_M, positive=True, storage=('base.TreeSample', 'h_m'))
+        shoot = cells.integer(S.CSV_COL_COPPICE_SHOOT, required=False, default=0, minimum=0)
+        l10 = cells.integer(S.CSV_COL_L10_MM, required=False, default=0, minimum=0)
+        pressler = cells.decimal(S.CSV_COL_PRESSLER, positive=True,
+                                storage=('base.TreeSample', 'pressler_coeff'))
+        standard = cells.boolean(S.CSV_COL_COPPICE_STD)
+        h_measured = cells.boolean(S.CSV_COL_H_MEASURED)
+        highforest = cells.boolean(S.CSV_COL_HIGHFOREST, required=True)
+        lat, lon = cells.coordinates(S.CSV_COL_LAT, S.CSV_COL_LON)
+        acc_m = cells.integer(S.CSV_COL_ACC_M, required=False, minimum=0)
+        row_date = (cells.date(S.CSV_COL_DATA, default=default_date)
+                    if has_date_column else default_date)
+        if row_date is None and not has_date_column:
+            cells.problem(S.CSV_COL_DATA, S.CSV_RULE_REQUIRED)
+        if not cells.validate(errors):
             continue
         values = normalize_sample_tree_values(
-            number=number,
-            d_cm=d_cm,
-            h_m=h_dec,
-            shoot=shoot or 0,
-            l10_mm=l10 or 0,
-            pressler_coeff=pressler,
-            h_measured=h_measured,
+            number=number, d_cm=d_cm, h_m=h_dec, shoot=shoot, l10_mm=l10,
+            pressler_coeff=pressler, h_measured=h_measured,
         )
-        if values is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_TREE}/{S.CSV_COL_COPPICE_SHOOT}/'
-                   f'{S.CSV_COL_D_CM}/{S.CSV_COL_H_M}/'
-                   f'{S.CSV_COL_L10_MM}/{S.CSV_COL_PRESSLER}',
-            ))
-            continue
-        standard = bool(standard)        # required column; blank → False
-        preserved = bool(preserved)      # optional; absent/blank → False
-        # Fustaia is required: a blank or unrecognised value is an error.
-        highforest, highforest_ok = reader.opt_bool(row[S.CSV_COL_HIGHFOREST])
-        if not highforest_ok or highforest is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_HIGHFOREST))
-            continue
+        assert values is not None  # CsvRow has checked the same scalar invariants.
         coppice = not highforest
 
         species_name = row[S.CSV_COL_SPECIES].strip()
@@ -288,21 +251,6 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
                     existing_tree.species.common_name,
                 ))
                 continue
-
-        # Per-row date (if column present) else default.
-        if has_date_column and row.get(S.CSV_COL_DATA, '').strip():
-            try:
-                row_date = date_type.fromisoformat(row[S.CSV_COL_DATA].strip())
-            except ValueError:
-                errors.append(S.ERR_CSV_ROW_PARSE.format(
-                    i, f'{S.CSV_COL_DATA}: {row[S.CSV_COL_DATA]}',
-                ))
-                continue
-        else:
-            row_date = default_date
-        if row_date is None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, S.CSV_COL_DATA))
-            continue
 
         if idx.is_unstructured:
             previous_date = csv_date_by_area.get(None)
@@ -347,14 +295,6 @@ def validate_rows(reader, idx: TreeIndexes, *, has_date_column, default_date):
             note=(row.get(S.CSV_COL_NOTE) or '').strip(),
         ))
     return parsed, errors
-
-
-def _optional_coord(reader, value):
-    raw = (value or '').strip()
-    if not raw:
-        return None, True
-    parsed = coord_float(reader.decimal(raw))
-    return parsed, parsed is not None
 
 
 def tree_volume_and_mass(coppice, d_cm, h_m, species):

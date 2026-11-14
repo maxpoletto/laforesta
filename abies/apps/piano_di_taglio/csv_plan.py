@@ -7,7 +7,7 @@ foreign keys resolved against an injected ``PlanIndexes`` — so the same
 code can back a true ``--check`` dry-run against a staged index.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date as date_type
 from decimal import Decimal
 
@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import Sum
 
 from apps.base import csv_io
+from apps.base.csv_validation import CsvRow
 from apps.base.digests import mark_stale
 from apps.base.models import (
     HarvestDetail,
@@ -135,6 +136,7 @@ class AliasedCsv:
     separator) and header presence through ``reader.fieldnames``."""
     reader: csv_io.CsvReader
     rows: list[dict]
+    columns: dict = field(default_factory=dict)
 
 
 def read_optional(upload, required, optional=None) -> AliasedCsv | CsvError | None:
@@ -171,7 +173,7 @@ def read_optional(upload, required, optional=None) -> AliasedCsv | CsvError | No
             resolved[alias] = hit
     rows = [{alias: r.get(col, '') for alias, col in resolved.items()}
             for r in reader]
-    return AliasedCsv(reader, rows)
+    return AliasedCsv(reader, rows, resolved)
 
 
 # Substrings (case-insensitive) recognised in the Note column for
@@ -194,32 +196,6 @@ def parse_flag_keywords(note: str) -> tuple[bool, bool, bool]:
     )
 
 
-def _optional_row_id(data, row, row_number, errors):
-    raw = row.get('row_id', '')
-    if raw in (None, ''):
-        return None, True
-    value = data.reader.integer(raw)
-    if value is None:
-        errors.append(S.ERR_CSV_VALUE_PARSE.format(row_number, S.COL_ID, raw))
-        return None, False
-    return value, True
-
-
-def _optional_decimal(reader, row, column, row_number, errors):
-    value, ok = reader.opt_decimal(row.get(column))
-    if not ok:
-        errors.append(S.ERR_CSV_VALUE_PARSE.format(
-            row_number, column, row.get(column, ''),
-        ))
-        return None, False
-    if value is not None and value < 0:
-        errors.append(S.ERR_CSV_VALUE_PARSE.format(
-            row_number, column, row.get(column, ''),
-        ))
-        return None, False
-    return value, ok
-
-
 def _parcel_key(region_name, parcel_name):
     return (str(region_name or '').lower(), str(parcel_name or '').lower())
 
@@ -237,8 +213,12 @@ def parse_highforest_rows(data, parcel_cache, region_cache, errors):
     for i, row in enumerate(data.rows, 2):
         region_name = (row.get('region_name') or '').strip()
         parcel_name = (row.get('parcel_name') or '').strip()
-        row_id, row_id_ok = _optional_row_id(data, row, i, errors)
-        if not row_id_ok:
+        cells = CsvRow(data.reader, row, i, labels=data.columns)
+        row_id = cells.integer('row_id', required=False)
+        year = cells.integer('year_planned')
+        planned_volume = cells.decimal('volume_planned_m3', required=False, minimum=0,
+            storage=('base.HarvestPlanItem', 'volume_planned_m3'))
+        if not cells.validate(errors):
             continue
         note_raw = (row.get('flag_note') or '').strip()
         damaged, unhealthy, psr = parse_flag_keywords(note_raw)
@@ -264,17 +244,6 @@ def parse_highforest_rows(data, parcel_cache, region_cache, errors):
                     i, region_name, parcel_name,
                 ))
                 continue
-        year = data.reader.integer(row.get('year_planned'))
-        if year is None:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_YEAR, row.get('year_planned', ''),
-            ))
-            continue
-        planned_volume, planned_volume_ok = _optional_decimal(
-            data.reader, row, 'volume_planned_m3', i, errors,
-        )
-        if not planned_volume_ok:
-            continue
         parsed = {
             _SOURCE_ROW: i,
             ROW_ID: row_id,
@@ -302,8 +271,13 @@ def parse_coppice_rows(data, parcel_cache, errors):
     out = []
     has_free_note_column = S.CSV_COL_EXTRA_NOTE in data.reader.fieldnames
     for i, row in enumerate(data.rows, 2):
-        row_id, row_id_ok = _optional_row_id(data, row, i, errors)
-        if not row_id_ok:
+        cells = CsvRow(data.reader, row, i, labels=data.columns)
+        row_id = cells.integer('row_id', required=False)
+        year = cells.integer('year_planned')
+        interval = cells.integer('period_y')
+        area = cells.decimal('intervention_area_ha', required=False, minimum=0,
+            storage=('base.HarvestPlanItem', 'intervention_area_ha'))
+        if not cells.validate(errors):
             continue
         region_name = (row.get('region_name') or '').strip()
         parcel_name = (row.get('parcel_name') or '').strip()
@@ -311,18 +285,6 @@ def parse_coppice_rows(data, parcel_cache, errors):
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
                 i, region_name, parcel_name,
-            ))
-            continue
-        year = data.reader.integer(row.get('year_planned'))
-        interval = data.reader.integer(row.get('period_y'))
-        area, area_ok = _optional_decimal(
-            data.reader, row, 'intervention_area_ha', i, errors,
-        )
-        if not area_ok:
-            continue
-        if year is None or interval is None:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_PERIOD_Y, row.get('period_y', ''),
             ))
             continue
         if has_free_note_column:
@@ -434,7 +396,7 @@ def apply(*, target_plan, name, description, highforest_rows, coppice_rows):
                     source_row = row.get(_SOURCE_ROW)
                     if source_row is not None:
                         errors = [
-                            S.ERR_CSV_ROW_PARSE.format(source_row, error)
+                            S.ERR_CSV_ROW_INVALID.format(source_row, error)
                             for error in errors
                         ]
                     raise PlanItemValidationError(errors)
@@ -669,25 +631,13 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
         parcel_name = (row.get(S.CSV_COL_PARCEL) or '').strip()
         is_region_wide = not parcel_name
 
-        year = reader.integer(row.get(S.CSV_COL_YEAR))
-        if year is None:
-            errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                i, S.CSV_COL_YEAR, row.get(S.CSV_COL_YEAR, '')))
+        cells = CsvRow(reader, row, i)
+        year = cells.integer(S.CSV_COL_YEAR)
+        damaged = cells.boolean(S.CSV_COL_HARVEST_DAMAGED)
+        unhealthy = cells.boolean(S.CSV_COL_HARVEST_UNHEALTHY)
+        psr = cells.boolean(S.CSV_COL_HARVEST_PSR)
+        if not cells.validate(errors):
             continue
-
-        damaged_val, damaged_ok = reader.opt_bool(
-            row.get(S.CSV_COL_HARVEST_DAMAGED, ''))
-        unhealthy_val, unhealthy_ok = reader.opt_bool(
-            row.get(S.CSV_COL_HARVEST_UNHEALTHY, ''))
-        psr_val, psr_ok = reader.opt_bool(row.get(S.CSV_COL_HARVEST_PSR, ''))
-        if not (damaged_ok and unhealthy_ok and psr_ok):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_HARVEST_DAMAGED}/'
-                   f'{S.CSV_COL_HARVEST_UNHEALTHY}/{S.CSV_COL_HARVEST_PSR}'))
-            continue
-        damaged = bool(damaged_val)
-        unhealthy = bool(unhealthy_val)
-        psr = bool(psr_val)
 
         note = (row.get(S.CSV_COL_NOTE) or '').strip()
         group = group_for(plan_name)
@@ -700,10 +650,9 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
             if not (damaged or unhealthy):
                 errors.append(S.ERR_CSV_PLAN_ITEM_REGION_REQUIRES_FLAG.format(i))
                 continue
-            volume, ok = _optional_decimal(
-                reader, row, S.CSV_COL_HARVEST_M3, i, errors,
-            )
-            if not ok:
+            volume = cells.decimal(S.CSV_COL_HARVEST_M3, required=False, minimum=0,
+                storage=('base.HarvestPlanItem', 'volume_planned_m3'))
+            if not cells.validate(errors):
                 continue
             group.highforest.append({
                 FIELD_REGION_ID: region,
@@ -721,15 +670,10 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     i, region_name, parcel_name))
                 continue
             if parcel.eclass.coppice:
-                area, ok = _optional_decimal(
-                    reader, row, S.CSV_COL_SURFACE_HA, i, errors,
-                )
-                if not ok:
-                    continue
-                interval = reader.integer(row.get(S.CSV_COL_PERIOD_Y))
-                if interval is None:
-                    errors.append(S.ERR_CSV_VALUE_PARSE.format(
-                        i, S.CSV_COL_PERIOD_Y, row.get(S.CSV_COL_PERIOD_Y, '')))
+                area = cells.decimal(S.CSV_COL_SURFACE_HA, required=False, minimum=0,
+                    storage=('base.HarvestPlanItem', 'intervention_area_ha'))
+                interval = cells.integer(S.CSV_COL_PERIOD_Y)
+                if not cells.validate(errors):
                     continue
                 group.coppice.append({
                     FIELD_PARCEL_ID: parcel,
@@ -742,10 +686,9 @@ def validate_canonical_items(reader, indexes: PlanIndexes, plans: dict):
                     FIELD_PSR: psr,
                 })
             else:
-                volume, ok = _optional_decimal(
-                    reader, row, S.CSV_COL_HARVEST_M3, i, errors,
-                )
-                if not ok:
+                volume = cells.decimal(S.CSV_COL_HARVEST_M3, required=False, minimum=0,
+                    storage=('base.HarvestPlanItem', 'volume_planned_m3'))
+                if not cells.validate(errors):
                     continue
                 group.highforest.append({
                     FIELD_REGION_ID: None,

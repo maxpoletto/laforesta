@@ -26,6 +26,7 @@ from apps.base.auth import require_writer
 from apps.base.deletion import parse_delete_rows, lock_delete_rows
 from apps.base.idempotency import begin_nonce_write
 from apps.base.species import selectable_species
+from apps.base.csv_validation import CsvRow
 from apps.base import csv_io
 from apps.base.dendrometry import current_diameter_class_mode
 from apps.base.dendrometry_export import render_tree_dendrometry_csvs
@@ -960,16 +961,6 @@ def _parse_optional_mark_number(body: dict):
     return number, None
 
 
-def _parse_csv_mark_number(reader, row: dict):
-    raw = row.get('number')
-    if raw is None or str(raw).strip() == '':
-        return None, None
-    number = reader.integer(raw)
-    if number is None or number <= 0:
-        return None, raw
-    return number, None
-
-
 @login_required
 @require_writer
 @require_POST
@@ -1263,63 +1254,35 @@ def mark_csv_import_view(request):
     errors = []
     parsed = []
     for i, row in enumerate(rows, start=1):
-        date_str = row['date'].strip()
-        region_name = row['region_name'].strip()
-        parcel_name = row['parcel_name'].strip()
-        species_name = row['species_name'].strip()
-        operator = row.get('operator', '').strip()
-
-        try:
-            date = _parse_date_flex(date_str)
-        except ValueError:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, date_str))
+        cells = CsvRow(reader, row, i + 1, labels=result.columns)
+        date = cells.date('date', formats=('%d/%m/%Y',))
+        d_cm = cells.integer('d_cm', positive=True)
+        h_m = cells.decimal('h_m', positive=True, storage=('base.TreeMark', 'h_m'))
+        lat, lon = cells.coordinates('lat', 'lon')
+        acc_m = cells.integer('acc_m', required=False, minimum=0)
+        h_measured = cells.boolean('h_measured')
+        number = cells.integer('number', required=False, positive=True)
+        if not cells.validate(errors):
             continue
+        region_name = cells.raw('region_name')
+        parcel_name = cells.raw('parcel_name')
+        species_name = cells.raw('species_name')
+        operator = cells.raw('operator')
 
         parcel = parcel_map.get((region_name.lower(), parcel_name.lower()))
         if parcel is None:
             errors.append(S.ERR_CSV_PARCEL_NOT_FOUND.format(
-                i, region_name, parcel_name))
+                i + 1, region_name, parcel_name))
             continue
         if not mark_parcel_matches_item(item, parcel):
-            errors.append(S.ERR_MARK_ROW_TARGET_MISMATCH.format(i))
+            errors.append(S.ERR_MARK_ROW_TARGET_MISMATCH.format(i + 1))
             continue
 
         species = species_map.get(species_name.lower())
         if species is None:
-            errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i, species_name))
+            errors.append(S.ERR_CSV_SPECIES_NOT_FOUND.format(i + 1, species_name))
             continue
 
-        d_cm = reader.integer(row.get('d_cm'))
-        h_m, h_m_ok = reader.opt_decimal(row.get('h_m'))
-        if (d_cm is None or d_cm <= 0 or not h_m_ok
-                or h_m is None or h_m <= 0):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f"{row.get('d_cm', '')}/{row.get('h_m', '')}"))
-            continue
-
-        lat_raw, lat_ok = reader.opt_decimal(row.get('lat'))
-        lon_raw, lon_ok = reader.opt_decimal(row.get('lon'))
-        acc_m, acc_ok = reader.opt_int(row.get('acc_m'))
-        h_measured, h_measured_ok = reader.opt_bool(row.get('h_measured'))
-        if not (lat_ok and lon_ok and acc_ok and h_measured_ok):
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_H_MEASURED}/{S.CSV_COL_LAT}/'
-                   f'{S.CSV_COL_LON}/{S.CSV_COL_ACC_M}',
-            ))
-            continue
-        lat = coord_float(lat_raw)
-        lon = coord_float(lon_raw)
-        if h_m is None and h_measured:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(
-                i, f'{S.CSV_COL_H_M}/{S.CSV_COL_H_MEASURED}',
-            ))
-            continue
-        h_measured = bool(h_measured)
-
-        number, number_error = _parse_csv_mark_number(reader, row)
-        if number_error is not None:
-            errors.append(S.ERR_CSV_ROW_PARSE.format(i, number_error))
-            continue
         parsed.append(MarkImportRow(
             date=date, parcel=parcel, species=species,
             number=number, d_cm=d_cm, h_m=h_m, h_measured=h_measured,
@@ -1383,16 +1346,6 @@ def _resolve_mark_parcel(item, parcel_id):
     if not mark_parcel_matches_item(item, parcel):
         return validation_error([S.ERR_MARK_PARCEL_NOT_IN_TARGET])
     return parcel
-
-
-def _parse_date_flex(s: str) -> date_type:
-    """Parse ISO (YYYY-MM-DD) or Italian (DD/MM/YYYY) date."""
-    if '/' in s:
-        parts = s.split('/')
-        if len(parts) != 3:
-            raise ValueError
-        return date_type(int(parts[2]), int(parts[1]), int(parts[0]))
-    return date_type.fromisoformat(s)
 
 
 def _parse_plan_body(body):

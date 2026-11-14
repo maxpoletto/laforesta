@@ -121,6 +121,24 @@ def test_partial_import_requires_export_and_retains_recovery_csv(partial_import,
 
     # The recovery CSV uses the destination's normal import format. Correcting
     # the missing height is sufficient to validate it through the real importer.
+    if upload.mode != 'martellate':
+        _, unchanged_errors = csv_trees.validate_rows(
+            csv_io.read(exported.content), csv_trees.db_indexes(target),
+            has_date_column=True, default_date=None,
+        )
+    else:
+        unchanged = _post(client, '/api/piano-di-taglio/mark/import-csv/', {
+            'harvest_plan_item_id': target.pk,
+            'file': base64.b64encode(exported.content).decode(), 'nonce': 'unchanged-recovery',
+        })
+        assert unchanged.status_code == 400
+        unchanged_errors = unchanged.json()['errors']
+    assert len(unchanged_errors) == 1
+    assert unchanged_errors[0].startswith('Riga 2:')
+    assert 'Altezza' in unchanged_errors[0] and 'mancante' in unchanged_errors[0]
+    assert 'parsing' not in unchanged_errors[0]
+    assert model.objects.count() == 1
+
     reader = csv_io.read(exported.content)
     delimiter, _ = csv_io.export_format()
     buffer, writer = csv_io.csv_buffer(delimiter)

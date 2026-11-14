@@ -27,7 +27,9 @@ class CsvRow:
             S.CSV_COL_D_CM: S.CSV_LABEL_DIAMETER,
             S.CSV_COL_H_M: S.CSV_LABEL_HEIGHT,
         }.get(label, label)
-        self.errors.append(S.ERR_CSV_FIELD.format(label, rule))
+        raw = self.raw(column)
+        self.errors.append(S.ERR_CSV_FIELD_VALUE.format(label, raw, rule) if raw else
+                           S.ERR_CSV_FIELD.format(label, rule))
 
     def validate(self, errors):
         if self.errors:
@@ -52,9 +54,14 @@ class CsvRow:
         if value is None:
             self.problem(column, rule)
             return None
-        if storage and decimal_field_value(value, *storage) is None:
-            self.problem(column, S.CSV_RULE_STORAGE)
-            return None
+        if storage:
+            stored = decimal_field_value(value, *storage)
+            if stored is None:
+                self.problem(column, S.CSV_RULE_STORAGE)
+                return None
+            if positive and stored <= 0:
+                self.problem(column, rule)
+                return None
         if positive and value <= 0:
             self.problem(column, rule)
             return None

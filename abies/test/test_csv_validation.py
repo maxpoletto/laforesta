@@ -91,3 +91,21 @@ def test_csv_row_resolves_alias_labels_in_diagnostics():
     errors = []
     assert not row.validate(errors)
     assert 'Anno previsto' in errors[0] and 'year' not in errors[0]
+
+
+@pytest.mark.parametrize('field', ['h_m', 'pressler_coeff'])
+def test_positive_csv_measurements_cannot_round_to_zero_in_storage(field):
+    row = cells({'measurement': '0,004'})
+    assert row.decimal('measurement', positive=True, storage=('base.TreeSample', field)) is None
+    errors = []
+    assert not row.validate(errors)
+    assert 'measurement' in errors[0] and 'positivo' in errors[0]
+
+
+def test_csv_errors_keep_the_rejected_cell_value_for_correction():
+    row = cells({'planned volume': 'nope'})
+    row.decimal('planned volume')
+    errors = []
+    assert not row.validate(errors)
+    assert 'planned volume' in errors[0] and 'nope' in errors[0]
+    assert 'numero finito' in errors[0]
