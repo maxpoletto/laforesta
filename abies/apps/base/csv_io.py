@@ -27,6 +27,7 @@ import csv
 import io
 import re
 import zipfile
+from collections import Counter
 from collections.abc import Iterable
 from decimal import Decimal
 
@@ -144,7 +145,14 @@ def read(source, required_cols=None) -> CsvReader:
             missing = [c for c in required_cols if c not in dict_reader.fieldnames]
             if missing:
                 raise CsvError(S.ERR_CSV_MISSING_COLS.format(', '.join(missing)))
-        rows = list(dict_reader)
+        duplicates = [name for name, count in Counter(dict_reader.fieldnames).items() if count > 1]
+        if duplicates:
+            raise CsvError(S.ERR_CSV_DUPLICATE_COLUMNS.format(', '.join(duplicates)))
+        rows = []
+        for number, row in enumerate(dict_reader, 2):
+            if None in row:
+                raise CsvError(S.ERR_CSV_ROW_INVALID.format(number, S.CSV_RULE_EXTRA_CELLS))
+            rows.append({name: value if value is not None else '' for name, value in row.items()})
     except csv.Error as exc:
         raise CsvError(S.ERR_CSV_INVALID) from exc
     return CsvReader(rows, delimiter, dict_reader.fieldnames)

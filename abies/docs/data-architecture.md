@@ -229,6 +229,14 @@ derived volume/mass or aggregate values cannot pass the input checks and then
 leave an unreadable SQLite row. It neither changes rounding nor imposes a
 scientific diameter/height cutoff. Direct bulk/update operations must preserve
 the same checks themselves; they bypass model `save()`.
+CSV field diagnostics are implemented by `apps.base.csv_validation.CsvRow`,
+on top of the locale-aware `CsvReader`. It distinguishes missing required
+values, malformed values, and range/storage failures; collects scalar problems
+into one message per source row; and uses original CSV headers or readable
+measurement labels. It performs no writes and leaves numeric rounding with the
+owning domain. The shared reader rejects duplicate headers and extra cells,
+and supplies blank strings for omitted trailing cells.
+
 CSV integer parsing still tolerates integral spreadsheet values such as `12,0`;
 the JSON/form integer edge accepts only actual integers or bare integer strings.
 Nested shoot/grid-point arrays use the same object/type checks, and boolean

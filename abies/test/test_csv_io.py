@@ -204,3 +204,18 @@ def test_zip_csv_response_builds_no_store_download():
     assert set(zf.namelist()) == {'a.csv', 'b.csv'}
     assert zf.read('a.csv').decode() == 'one\n'
     assert zf.read('b.csv') == b'two\n'
+
+
+def test_short_csv_rows_treat_absent_trailing_cells_as_blank():
+    reader = csv_io.read('name,height,note\nFir,20\n')
+    assert reader[0]['note'] == ''
+
+
+def test_extra_csv_cells_report_the_source_row():
+    with pytest.raises(CsvError, match='Riga 2:'):
+        csv_io.read('name,height\nFir,20,unassigned\n')
+
+
+def test_duplicate_csv_headers_do_not_silently_discard_a_column():
+    with pytest.raises(CsvError, match='height'):
+        csv_io.read('name,height,height\nFir,20,30\n')
