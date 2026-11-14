@@ -50,8 +50,8 @@ const martellate = allModes.find((mode) =>
   mode.id === IPSO_MODE_MARTELLATE
 );
 check(Boolean(martellate), "martellate mode is present");
-check(martellate.hRequired === false,
-      "martellate mode permits trees with unknown height");
+check(martellate.hRequired === true,
+      "martellate mode requires height before saving");
 
 const observations = allModes.find((mode) =>
   mode.id === IPSO_MODE_OBSERVATIONS

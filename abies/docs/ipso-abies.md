@@ -284,11 +284,12 @@ the parcel.
 
 Supported modes are:
 
-- `martellate` — marked trees for a harvest-plan item. Height is optional in
-  this mode: when no active (region, species) equation is available and the
-  operator has no measurement, Ipso records `h_m=null` and
-  `h_measured=false`. Abies preserves that state and leaves volume and mass
-  null;
+- `martellate` — marked trees for a harvest-plan item. Recording requires a
+  positive height, either calculated using the configured species/region
+  equation or entered manually. When no equation is available, a red message
+  asks the operator to enter the height; it disappears after a valid height is
+  supplied. The measured-height label is **Altezza (h) misurata**. Its flag
+  distinguishes field measurements from calculated heights;
 - `samples` — predefined/grid-based tree surveys;
 - `free_survey` — free/unstructured tree surveys;
 - `observations` — point observations with text, categories, GPS, and

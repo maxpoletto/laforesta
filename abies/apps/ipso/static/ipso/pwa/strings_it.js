@@ -66,8 +66,8 @@ const S = {
   REC_D: 'D (cm)',
   REC_H: 'h (m)',
   REC_AUTO_H_MISSING:
-    'Nessuna regressione per questa compresa e specie: inserisci h manualmente.',
-  REC_H_MEASURED: 'h misurata',
+    'Non ci sono equazioni di altezza per questa combinazione di specie e compresa: inserisci l’altezza manualmente.',
+  REC_H_MEASURED: 'Altezza (h) misurata',
   REC_PRESERVED: 'Albero da preservare',
   REC_SAVE: 'Salva e prossimo',
   REC_MAP: 'Mappa',

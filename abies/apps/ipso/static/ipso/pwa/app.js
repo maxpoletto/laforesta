@@ -1597,6 +1597,7 @@ function recomputeAutoH() {
     if (!eq) {
       State.numpad.setValue('h', '');
       hint.textContent = S.REC_AUTO_H_MISSING;
+      hint.classList.add('error');
       hint.hidden = false;
       return;
     }
@@ -1885,6 +1886,16 @@ function currentHypsoParamSetId() {
 }
 
 function updateSaveEnabled() {
+  const hint = document.getElementById('hint-autoh');
+  if (hint && !isObservationMode()) {
+    const height = Number(State.numpad?.value('h'));
+    hint.hidden = !shouldAutoHeight() || !State.speciesName
+      || Boolean(currentHeightEquation()) || (Number.isFinite(height) && height > 0);
+    if (!hint.hidden) {
+      hint.textContent = S.REC_AUTO_H_MISSING;
+      hint.classList.add('error');
+    }
+  }
   const rec = isObservationMode() ? currentObservationRecord() : currentRecord();
   const errs = isObservationMode()
     ? validateObservation(rec)

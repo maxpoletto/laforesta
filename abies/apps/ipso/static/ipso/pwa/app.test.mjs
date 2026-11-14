@@ -1599,6 +1599,32 @@ for (const failure of ['session-refresh', 'preference', 'backup']) {
   check(app.State.speciesName === 'Altra latifoglia', 'new catch-all sticky default is restored');
 }
 
+// Missing equations block saving only until a manual height is supplied.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  context.session.validateTree = () => [];
+  app.State.reference = referenceFixture();
+  app.State.reference.ipsometrica = {};
+  context.IpsoModes.get('martellate').autoHeight = true;
+  app.State.session = { ...session, status: 'open', mode: 'martellate', region_id: 1 };
+  app.State.speciesName = 'Abete';
+  app.State.override = { resolve: () => '1' };
+  let height = '';
+  app.State.numpad = {
+    value(field) { return { d: '42', h: height, numero: '1' }[field] || ''; },
+    setValue(field, value) { if (field === 'h') height = value; },
+  };
+  const hint = context.document.getElementById('hint-autoh');
+  app.recomputeAutoH();
+  check(!hint.hidden, 'missing equation explains why height must be entered');
+  check(hint.classList.contains('error'), 'missing-height equation hint is an error');
+  height = '22';
+  app.State.hMeasured = true;
+  app.updateSaveEnabled();
+  check(hint.hidden, 'manual height clears the missing-equation error');
+}
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
