@@ -150,6 +150,14 @@ Full schema in [`docs/database.md`](docs/database.md). Cross-cutting conventions
 Currently Italian (UI, URL paths, locale for numbers/dates, CSV `;` separator),
 but the architecture supports switching to other languages.
 
+Documentation uses the current Italian UI labels, button text, messages and CSV
+headers when describing the application. These are examples of localizable
+presentation, not fixed internal identifiers. Keep user-facing strings in the
+locale-specific catalogs/templates, including new table labels and CSV headers.
+Use English date placeholders in explanatory prose (`DD/MM/YYYY`, `YYYY-MM-DD`)
+and ordinary English descriptions of row positions. Preserve literal UI-message
+quotes and actual code identifiers when illustrating their current spelling.
+
 No inline strings. All user-facing text is a named constant. The pattern
 applies at three levels:
 

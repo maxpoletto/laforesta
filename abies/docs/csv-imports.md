@@ -8,9 +8,9 @@ lookups, identity rules, duplicate handling and write transactions.
 
 ## Error messages
 
-CSV row numbers include the header: the first data row is **Riga 2**. This is
-the CSV row number, independent of a tree number or an original Ipso row ID
-stored in a recovery column.
+The first data row is the second row of the file, after the header. Error
+messages refer to CSV row positions, independently of tree numbers or original
+Ipso row IDs stored in recovery columns.
 
 Scalar errors name the actual CSV column, or a readable measurement label,
 and explain how to correct it. Nonblank rejected values remain in the message
@@ -31,8 +31,8 @@ Optional blank cells retain their domain meaning and defaults. CSV integers
 accept integral spreadsheet values such as `12,0`; numeric coercion follows
 the detected delimiter/decimal pairing. Storage checks do not round values:
 the owning import/domain service still performs its established rounding.
-Dates use `AAAA-MM-GG`; mark imports also accept `GG/MM/AAAA`, and the legacy
-mark-staging command additionally accepts `GG-MM-AAAA`.
+Dates use `YYYY-MM-DD`; mark imports also accept `DD/MM/YYYY`, and the legacy
+mark-staging command additionally accepts `DD-MM-YYYY`.
 
 Duplicate headers are rejected before dictionaries can discard a value.
 Rows with more cells than declared columns receive a source-row error asking

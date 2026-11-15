@@ -180,7 +180,7 @@ Its heading explains what the markers represent:
 
 Clicking a sample area **replaces** the table's text filter with its complete
 region/parcel/area identity, for example
-`compresa:Serra particella:9 "n. area":72`. Names with spaces are quoted.
+`compresa:Serra particella:9 area:72`. Names with spaces are quoted.
 Qualified region, parcel and area terms match whole identifiers, so area `7`
 does not select `72` or an equally numbered area in another region. There is
 no additional hidden area filter. The input, table, summary and data/report
@@ -252,10 +252,19 @@ click), the client submits all matching `tree_sample` IDs, across pagination
 pages, so the ZIP matches the visible summary. With no filter the server
 exports the whole survey.
 
-Columns: compresa, particella, area di campionamento, n. albero
-(`tree_sample.number`), specie, tipo (fustaia / ceduo), pollone, matricina, D
-(cm), h (m), L10 (mm), V (m³), m (q), PAI, Lat, Lon, Acc. (m). Pressler
-coefficient is not displayed. Missing legacy accuracy is shown as `-`.
+Display columns, in order: `Data`, `Compresa`, `Particella`, `Area`, `Albero`,
+`Specie`, `Tipo`, `Poll`, `Mat`, `Diam (cm)`, `Alt (m)`, `L10 (mm)`, `Vol (m3)`,
+`Massa (q)`, `PAI`, `Lat`, `Lon`, `Acc (m)`. Abbreviations have no trailing dots.
+Measurement headers can wrap at the units to retain compact column widths.
+Pressler is not displayed. Missing legacy accuracy is shown as `-`.
+
+The first word of each label is an unambiguous selector, so users can type
+`area:72`, `albero:17`, `diam:>30`, `alt:>15`, `vol:>1` or `massa:>10` without
+quoting column names. Values containing spaces still need quotes, for example
+`compresa:"Serra San Bruno"`. The selectors follow the localized display labels.
+Only display metadata changes: digest keys, stored records and the canonical
+CSV headers retain their existing names. Older filters using key names such as
+`"n. area":72` continue to work, including their map/manual-entry context.
 
 Pollone value is blank (not 0) for high forest (fustaia) rows.
 

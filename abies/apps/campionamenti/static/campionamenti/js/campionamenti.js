@@ -130,23 +130,23 @@ const TREES_COLS = {
   [S.COL_SAMPLE_DATE]: { label: S.LABEL_DATE, type: 'date', width: '90px' },
   [S.COL_REGION]:    { label: S.COL_REGION, searchMatch: 'exact', width: '90px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, type: 'natural', searchMatch: 'exact', width: '85px' },
-  [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, type: 'natural', searchMatch: 'exact', width: '70px' },
-  [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
+  [S.COL_AREA_NUM]:    { label: S.SAMPLED_TREE_COLUMN_LABELS.area, type: 'natural', searchMatch: 'exact', width: '70px' },
+  [S.COL_TREE_NUM]:    { label: S.SAMPLED_TREE_COLUMN_LABELS.number, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
   [COL_COPPICE]:       { hidden: true },
-  [S.COL_COPPICE_SHOOT]:     { label: S.COL_COPPICE_SHOOT_SHORT, type: 'number', width: '55px', formatter: fmtInt },
-  [S.COL_COPPICE_STD]:   { label: S.COL_COPPICE_STD_SHORT, type: 'boolean', width: '55px', formatter: fmtBool },
-  [S.COL_D_CM]:        { label: S.COL_D_CM, type: 'number', width: '65px', formatter: fmtInt },
-  [S.COL_H_M]:         { label: S.COL_H_M, type: 'number', width: '60px', formatter: fmtDecimal2 },
+  [S.COL_COPPICE_SHOOT]:     { label: S.SAMPLED_TREE_COLUMN_LABELS.shoot, type: 'number', width: '55px', formatter: fmtInt },
+  [S.COL_COPPICE_STD]:   { label: S.SAMPLED_TREE_COLUMN_LABELS.standard, type: 'boolean', width: '55px', formatter: fmtBool },
+  [S.COL_D_CM]:        { label: S.SAMPLED_TREE_COLUMN_LABELS.diameter, type: 'number', width: '65px', formatter: fmtInt },
+  [S.COL_H_M]:         { label: S.SAMPLED_TREE_COLUMN_LABELS.height, type: 'number', width: '60px', formatter: fmtDecimal2 },
   [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fmtInt },
   [S.COL_PRESSLER]:    { hidden: true },
-  [S.COL_V_M3]:        { label: S.COL_V_M3, type: 'number', width: '65px', formatter: fmtDecimal2 },
-  [S.COL_MASS_Q]:      { label: S.COL_MASS_Q, type: 'number', width: '70px', formatter: fmtDecimal1 },
+  [S.COL_V_M3]:        { label: S.SAMPLED_TREE_COLUMN_LABELS.volume, type: 'number', width: '65px', formatter: fmtDecimal2 },
+  [S.COL_MASS_Q]:      { label: S.SAMPLED_TREE_COLUMN_LABELS.mass, type: 'number', width: '70px', formatter: fmtDecimal1 },
   [S.COL_PRESERVED]:         { label: S.COL_PRESERVED, type: 'boolean', width: '50px', formatter: fmtBool },
   [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtCoord },
   [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtCoord },
-  [S.COL_ACC_M]:       { label: S.COL_ACC_M, type: 'number', width: '75px', formatter: fmtAccuracyM },
+  [S.COL_ACC_M]:       { label: S.SAMPLED_TREE_COLUMN_LABELS.accuracy, type: 'number', width: '75px', formatter: fmtAccuracyM },
   [VERSION]: { label: VERSION, hidden: true },
 };
 
@@ -767,9 +767,10 @@ function areaSearch(areaId, surveyId = activeSurveyId) {
   return areaRowSearch(area, columns);
 }
 
-function areaRowSearch(area, columns) {
+function areaRowSearch(area, columns, {useKeys = false} = {}) {
   return [S.COL_REGION, S.COL_PARCEL, S.COL_AREA_NUM].map(column => columnSearchTerm(
-    column, area[columns.indexOf(column === S.COL_AREA_NUM ? S.COL_NUMBER : column)],
+    useKeys ? column : TREES_COLS[column].label,
+    area[columns.indexOf(column === S.COL_AREA_NUM ? S.COL_NUMBER : column)],
   )).join(' ');
 }
 
@@ -783,8 +784,9 @@ function syncAreaSelection() {
     for (const row of sampleAreasData.rows) {
       if (row[columns.indexOf(S.COL_GRID)] !== gridId) continue;
       const id = row[columns.indexOf(ROW_ID)];
-      const filter = areaRowSearch(row, columns);
-      if (filter && searchTerms(filter).every(term => terms.has(term))) {
+      // Existing links can use digest-key selectors; new links use table labels.
+      const filters = [areaRowSearch(row, columns), areaRowSearch(row, columns, {useKeys: true})];
+      if (filters.some(filter => filter && searchTerms(filter).every(term => terms.has(term)))) {
         activeAreaId = id;
         break;
       }

@@ -65,19 +65,26 @@ async function run() {
   const host = document.createElement('div');
   host.className = view === 'marks' ? 'subsection-host' : view === 'plan' ? 'pdt-table-host' : '';
   scope.appendChild(host);
+  if (view === 'samples') host.dataset.target = 'trees-table-host';
   const digest = {
     columns: [ROW_ID, VERSION, S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER, S.COL_SPECIES],
     rows: empty ? [] : Array.from({ length: 32 }, (_, index) => [
       index + 1, 1, '2026-11-13', String(index % 3 + 1), index + 1, 'Abete bianco',
     ]),
   };
+  if (view === 'samples') {
+    digest.columns.push(S.COL_D_CM, S.COL_MASS_Q);
+    for (const row of digest.rows) row.push(30, 12.5);
+  }
   const table = new TableWrapper({
     container: host, digest, canModify: !reader,
     columnDefs: { [VERSION]: { hidden: true },
       [S.COL_DATE]: { type: 'date', width: '110px' },
       [S.COL_PARCEL]: { type: 'natural', width: '100px' },
       [S.COL_NUMBER]: { type: 'number', width: '100px' },
-      [S.COL_SPECIES]: { width: '180px' } },
+      [S.COL_SPECIES]: { width: '180px' },
+      [S.COL_D_CM]: { label: S.SAMPLED_TREE_COLUMN_LABELS.diameter, type: 'number', width: '65px' },
+      [S.COL_MASS_Q]: { label: S.SAMPLED_TREE_COLUMN_LABELS.mass, type: 'number', width: '70px' } },
     inlineToolbar: true,
     rowsPerPage: view === 'samples' ? 20 : undefined,
     actions: reader ? {} : { onAdd() {}, onEdit() {}, onDelete() {},
@@ -110,6 +117,12 @@ async function run() {
     const lastAction = [...toolbar.children].filter(el => el.classList.contains('btn')).at(-1);
     near(rect(lastAction).right, rect(workspaceButton).right,
       'Table actions align with the workspace action above');
+  }
+  if (view === 'samples') {
+    for (const header of host.querySelectorAll('.sortable-table-header:not(.col-actions)')) {
+      check(header.scrollWidth <= header.clientWidth + 1,
+        'Survey measurement labels fit within their existing column widths');
+    }
   }
   const toggle = host.querySelector('.table-delete-toggle');
   if (reader) {

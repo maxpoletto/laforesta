@@ -495,11 +495,18 @@ export const COL_PRESERVED       = 'PAI';
 export const COL_OBSERVATION_CATEGORIES = 'Categorie';
 export const COL_PHOTO_COUNT = 'Foto';
 
-// Abbreviated column labels used only in the TREES_COLS table header to
-// save horizontal space; not in any digest.
-export const COL_TREE_NUM_SHORT      = 'N. alb.';
-export const COL_COPPICE_SHOOT_SHORT = 'Poll.';
-export const COL_COPPICE_STD_SHORT   = 'Mat.';
+// Survey table display labels; digest keys and CSV headers are independent.
+export const SAMPLED_TREE_COLUMN_LABELS = {
+  area: 'Area',
+  number: 'Albero',
+  shoot: 'Poll',
+  standard: 'Mat',
+  diameter: 'Diam (cm)',
+  height: 'Alt (m)',
+  volume: 'Vol (m3)',
+  mass: 'Massa (q)',
+  accuracy: 'Acc (m)',
+};
 
 // Status message fragments
 export const STATUS_NO_SAMPLES = 'nessun campione';

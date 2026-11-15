@@ -180,7 +180,8 @@ Leaflet's `getSize()` with its map container's client dimensions, rather than
 checking only the outer map frame's height.
 
 An area click writes full region/parcel/area terms to the ordinary table
-filter. It replaces earlier search terms and uses exact identifier matching;
+filter, using the visible table labels (for example `area:72`). It replaces
+earlier search terms and uses exact identifier matching;
 there is no external area predicate silently narrowing the results. Matching
 identity terms also supply the selected marker and manual tree-entry context,
 including for an unvisited area with no measurement rows. Clearing them clears

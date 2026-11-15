@@ -249,3 +249,8 @@
   border: 0;
   border-radius: 0;
 }
+
+/* Keep measurement labels readable within the compact survey columns. */
+[data-target="trees-table-host"] .sortable-table-header:not(.col-actions) {
+  white-space: normal;
+}

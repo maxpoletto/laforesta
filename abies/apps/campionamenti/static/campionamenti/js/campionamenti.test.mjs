@@ -428,6 +428,7 @@ const flushAsyncWork = () => new Promise(resolve => setTimeout(resolve, 0));
 
 const S = await import(staticModule('base/js/strings.js'));
 const { ROW_ID } = await import(staticModule('base/js/constants.js'));
+const {matchesSearch,searchTerms}=await import(staticModule('base/js/table.js'));
 const cache = await import(staticModule('base/js/cache.js'));
 
 const treeLoads = new Map([
@@ -479,6 +480,7 @@ const payloads = new Map([
 const treeColumns = [
   ROW_ID, S.COL_SAMPLE_AREA, S.COL_REGION, S.COL_PARCEL, S.COL_TREE_NUM, S.COL_SPECIES,
   S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_LAT, S.COL_LON, S.COL_ACC_M, S.COL_AREA_NUM,
+  S.COL_SAMPLE_DATE,S.COL_TYPE,S.COL_COPPICE_SHOOT,S.COL_COPPICE_STD,S.COL_L10_MM,S.COL_MASS_Q,S.COL_PRESERVED,
 ];
 const freeTreeDigest = digest(treeColumns, [
   [201, null, 'A', '1', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4, ''],
@@ -623,6 +625,34 @@ eq(treeAccColumn.formatter(null), '-',
    'sampled-tree null accuracy is displayed as a dash');
 eq(treeAccColumn.formatter(4), '4',
    'sampled-tree accuracy is displayed as integer meters');
+const labelledFields=[
+ [S.COL_SAMPLE_DATE,'Data','data','2026-11-15','2026-11-15'],
+ [S.COL_REGION,'Compresa','compresa','Serra','Serra'],
+ [S.COL_PARCEL,'Particella','particella','1','1'],
+ [S.COL_AREA_NUM,'Area','area','72','72'],
+ [S.COL_TREE_NUM,'Albero','albero',17,'17'],
+ [S.COL_SPECIES,'Specie','specie','Abete bianco','Abete'],
+ [S.COL_TYPE,'Tipo','tipo','Fustaia','Fustaia'],
+ [S.COL_COPPICE_SHOOT,'Poll','poll',2,'2'],
+ [S.COL_COPPICE_STD,'Mat','mat',true,'✓'],
+ [S.COL_D_CM,'Diam (cm)','diam',30,'>29'],
+ [S.COL_H_M,'Alt (m)','alt',15.5,'>15'],
+ [S.COL_L10_MM,'L10 (mm)','l10',2,'>1'],
+ [S.COL_V_M3,'Vol (m3)','vol',1.25,'>1'],
+ [S.COL_MASS_Q,'Massa (q)','massa',10.5,'>10'],
+ [S.COL_PRESERVED,'PAI','pai',true,'✓'],
+ [S.COL_LAT,'Lat','lat',38.5,'>38'],
+ [S.COL_LON,'Lon','lon',16.2,'>16'],
+ [S.COL_ACC_M,'Acc (m)','acc',4,'>3'],
+];
+const values=new Map(labelledFields.map(([key,_label,_prefix,value])=>[key,value]));
+const example=treeTable.columns.map(column=>values.get(column.key)??null);
+for(const [key,label,prefix,_value,criterion] of labelledFields){
+ eq(treeTable.columns.find(column=>column.key===key)?.label,label,`survey display label: ${label}`);
+ eq(matchesSearch(example,searchTerms(`${prefix}:${criterion}`),treeTable.columns),true,
+    `unquoted ${prefix} selector resolves uniquely to its column`);
+}
+
 
 eq(globalThis.__treeDetailInstances.length, 1,
    'free survey mounts one shared summary component');
@@ -701,7 +731,7 @@ structuredSearch.dispatchEvent({type:'input'});
 await new Promise(resolve=>setTimeout(resolve,550));
 const areaMap=globalThis.__rilevamentiMapInstances.at(-1);
 areaMap.opts.onAreaSelect(50);
-eq(structuredSearch.value,'compresa:Serra particella:01b "n. area":7',
+eq(structuredSearch.value,'compresa:Serra particella:01b area:7',
    'map selection overwrites the filter with its full area identity');
 eq(structuredDetail.rows.map(row=>row[0]),[301],
    'area filter is exact and replaces a previous species restriction');
@@ -719,7 +749,7 @@ eq(structuredDetail.rows.map(row=>row[0]),[301,302,303],
    'clearing the visible filter removes every area restriction');
 eq(areaMap.activeAreaId,null,'clearing the filter clears the active map marker');
 areaMap.opts.onAreaSelect(52);
-eq(structuredSearch.value,'compresa:"Serra San Bruno" particella:9 "n. area":7',
+eq(structuredSearch.value,'compresa:"Serra San Bruno" particella:9 area:7',
    'map filters quote region names containing spaces');
 eq(structuredDetail.rows.map(row=>row[0]),[303],'area filtering separates equally numbered areas in other regions');
 areaMap.opts.onAreaSelect(53);
@@ -739,8 +769,15 @@ eq(contentEl.querySelector('.table-search').value,'','dropdown survey change res
 eq(new URLSearchParams(location.search).has('tf'),false,'dropdown selection clears the filter from the URL');
 campionamenti.onQueryChange({s:'1',a:'51'});
 await flushAsyncWork();
-eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b "n. area":72',
+eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b area:72',
    'legacy area links become explicit visible filters');
+campionamenti.onQueryChange({s:'1',tf:'compresa:Serra particella:01b "n. area":7'});
+await flushAsyncWork();
+eq(globalThis.__treeDetailInstances.at(-1).rows.map(row=>row[0]),[301],
+   'existing URLs using digest-key selectors continue to filter the same records');
+eq(globalThis.__rilevamentiMapInstances.at(-1).activeAreaId,50,
+   'existing key-based selectors retain the selected area for manual entry');
+
 
 
 await contentEl.querySelector('[data-action="new-grid"]').click();
@@ -763,7 +800,7 @@ const loadingMap=globalThis.__rilevamentiMapInstances.at(-1);
 loadingMap.opts.onAreaSelect(50);
 treeLoads.get('/api/campionamenti/trees/4/').resolve(structuredTreeDigest);
 await flushAsyncWork();
-eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b "n. area":7',
+eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b area:7',
    'area click while loading overrides the pending table filter');
 eq(globalThis.__treeDetailInstances.at(-1).rows.map(row=>row[0]),[301],
    'slow-load selection constrains the summary after rows arrive');
