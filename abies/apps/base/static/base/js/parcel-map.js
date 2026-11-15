@@ -126,6 +126,23 @@ export class ParcelMap {
       this.leaflet.on('moveend', report);
       this.leaflet.on('zoomend', report);
     }
+
+    // CSS arrival, hidden sections and container reflow can change size without
+    // a window resize. Keep Leaflet's cached viewport in sync with the map box.
+    if (typeof ResizeObserver === 'function') {
+      let needsInitialFit = !opts.initialView;
+      this._sizeObserver = new ResizeObserver(() => {
+        const box = this.mapEl;
+        if (!this.leaflet || !box?.clientWidth || !box.clientHeight) return;
+        const previous = this.leaflet.getSize();
+        if (previous.x !== box.clientWidth || previous.y !== box.clientHeight) {
+          this.invalidateSize();
+          if (needsInitialFit && (!previous.x || !previous.y)) this.fitParcels();
+        }
+        needsInitialFit = false;
+      });
+      this._sizeObserver.observe(this.mapEl);
+    }
   }
 
   /** True while any tool is capturing map clicks (so onMapClick is suppressed). */
@@ -245,6 +262,7 @@ export class ParcelMap {
   }
 
   destroy() {
+    this._sizeObserver?.disconnect();
     // Tear down tools (stops the geolocation watch) before removing the map.
     if (this._toolHandles) {
       this._toolHandles.forEach(h => h.destroy());

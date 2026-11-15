@@ -157,6 +157,12 @@ asynchronously, and page controllers check that the owning view is still active
 before applying it. Controllers dispose their table bindings and tree-detail
 components together when changing context.
 
+`ParcelMap` observes its own container dimensions, including changes caused by
+late stylesheets or showing a hidden panel. Nonzero size changes invalidate
+Leaflet's cached viewport. The first usable size fits the parcels when no saved
+view was supplied; subsequent resizing preserves the current view. Hidden and
+unchanged dimensions do no work. Map teardown disconnects the observer.
+
 ### Survey maps and visible area filters
 
 Campionamenti places a titled, 600px map above its tree table. Free surveys
@@ -164,6 +170,14 @@ use `TreeDetail`'s tree map in that external host, with points following the
 text filter. Structured surveys use `RilevamentiMap` in the same position:
 all grid areas remain visible, colored by visit progress, while the shared
 `TreeDetail` renders only the summary below the table.
+
+Reveal the free-survey map panel before constructing `TreeDetail` or calling
+`setData()` with the first rows after an empty source. Leaflet caches the
+container size during initialization; showing the panel afterward leaves its
+viewport at zero until an explicit resize. Opening a collapsed section calls
+`showMap()` after it becomes visible. Browser verification must compare
+Leaflet's `getSize()` with its map container's client dimensions, rather than
+checking only the outer map frame's height.
 
 An area click writes full region/parcel/area terms to the ordinary table
 filter. It replaces earlier search terms and uses exact identifier matching;

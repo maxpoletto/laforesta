@@ -54,6 +54,7 @@ export class TreeDetail {
   constructor(opts) {
     this.opts = opts;
     this.rows = [...opts.digest.rows];
+    this.visibilityAtCreation = this.isMapVisible();
     this.setRowsCalls = [this.rows];
     this.destroyed = false;
     this.map = opts.mapEnabled === false ? null : { leaflet: { on() {} } };
@@ -62,12 +63,21 @@ export class TreeDetail {
     opts.container.appendChild(this.node);
     globalThis.__treeDetailInstances.push(this);
   }
-  setData(digest, {rows=digest.rows}={}) { this.opts.digest=digest; this.setRows(rows); }
+  isMapVisible() {
+    for (let node=this.opts.mapContainer;node;node=node.parentNode) {
+      if (node.hidden) return false;
+    }
+    return true;
+  }
+  setData(digest, {rows=digest.rows}={}) {
+    this.visibilityOnUpdate=this.isMapVisible();
+    this.opts.digest=digest; this.setRows(rows);
+  }
   setRows(rows) {
     this.rows = [...rows];
     this.setRowsCalls.push(this.rows);
   }
-  showMap() { this.showMapCalls = (this.showMapCalls || 0) + 1; }
+  showMap() { this.visibilityOnShow=this.isMapVisible(); this.showMapCalls = (this.showMapCalls || 0) + 1; }
   syncBasemap(name) { this.basemap = name; }
   destroy() {
     this.destroyed = true;
@@ -619,6 +629,16 @@ eq(globalThis.__treeDetailInstances.length, 1,
 const detail = globalThis.__treeDetailInstances[0];
 eq(treeTable.rowsPerPage,20,'survey tables request twenty rows per page');
 eq(detail.opts.mapContainer===surveyMap,true,'free-survey map is mounted above the table');
+eq(detail.visibilityAtCreation,true,'a first-load tree map is constructed in a visible panel');
+eq(detail.visibilityOnShow,true,'Leaflet is resized only after its panel is visible');
+eq(detail.visibilityOnUpdate,true,'source updates reveal a map panel before updating the component');
+const savedFreeRows=freeTreeDigest.rows.map(row=>[...row]);
+cache.applyResponseChanges({deletes:savedFreeRows.map(row=>({data_id:'sampled_trees_2',row_id:row[0]}))});
+eq(contentEl.querySelector('[data-target="survey-map-section"]').hidden,true,
+   'deleting the final free-survey tree hides its map panel');
+cache.applyResponseChanges({patches:savedFreeRows.map(row=>({data_id:'sampled_trees_2',row_id:row[0],record:row}))});
+eq(detail.visibilityOnUpdate,true,'a first tree after an empty source reveals its panel before map creation');
+
 eq(detail.rows.map(row => row[0]), [201, 202],
    'tree detail starts with the sampled-tree table rows');
 eq(detail.opts.digest.diameter_class_mode, 'shifted_up',

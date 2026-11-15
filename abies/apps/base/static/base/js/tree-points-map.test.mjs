@@ -49,12 +49,17 @@ function makeFakeMap() {
       return this;
     },
     fire(name, detail) { for (const callback of handlers[name] || []) callback(detail); },
-    fitBounds(bounds, opts) { this.fitted = { bounds, opts }; return this; },
+    size: {x:0,y:0}, invalidations: 0, fits: 0,
+    getSize() { return {...this.size}; },
+    invalidateSize() { this.invalidations++; this.size={x:this.container.clientWidth,y:this.container.clientHeight}; },
+    setView(center,zoom) { this.view={center,zoom}; },
+    fitBounds(bounds, opts) { this.fits++; this.fitted = { bounds, opts }; return this; },
     remove() { this.removed = true; },
   };
 }
-MapCommon.create = () => {
+MapCommon.create = container => {
   lastMap = makeFakeMap();
+  lastMap.container=container;
   let basemap = 'satellite';
   return {
     getLeafletMap: () => lastMap,
@@ -171,6 +176,39 @@ check(first.tooltip.content.textContent.includes('Numero: 12')
 
 map.destroy();
 check(lastMap.removed === true, 'destroy delegates to ParcelMap teardown');
+
+const observers=[];
+globalThis.ResizeObserver=class {
+  constructor(callback) { this.callback=callback; observers.push(this); }
+  observe(target) { this.target=target; }
+  disconnect() { this.disconnected=true; }
+};
+const {ParcelMap}=await import('./parcel-map.js');
+const geographicContext={type:'FeatureCollection',features:[{properties:{layer:'Serra',name:'Serra-9'}}]};
+for(const initialView of [undefined,{center:[38.1,16.2],zoom:14}]) {
+  const sized=new ParcelMap({container:new MockNode('div'),geojson:geographicContext,initialView});
+  const leaflet=sized.leaflet;
+  const observer=observers.at(-1);
+  check(Boolean(observer),'ParcelMap observes its actual container dimensions');
+  if(observer) {
+    const fits=leaflet.fits;
+    sized.mapEl.clientWidth=800;sized.mapEl.clientHeight=600;
+    observer.callback();
+    check(leaflet.size.x===800&&leaflet.size.y===600,'a first visible box replaces the cached zero-size viewport');
+    check(leaflet.fits===fits+(initialView?0:1),'first visibility fits parcels without replacing a saved view');
+    const initialFits=leaflet.fits;
+    sized.mapEl.clientWidth=1000;
+    observer.callback();
+    check(leaflet.size.x===1000&&leaflet.fits===initialFits,'later container resizing retains the current map view');
+    const invalidations=leaflet.invalidations;
+    observer.callback();
+    sized.mapEl.clientHeight=0;observer.callback();
+    check(leaflet.invalidations===invalidations,'unchanged and hidden boxes do not invalidate the map');
+    sized.destroy();observer.callback();
+    check(observer.disconnected&&leaflet.invalidations===invalidations,'teardown disconnects sizing observation and ignores queued callbacks');
+  } else sized.destroy();
+}
+delete globalThis.ResizeObserver;
 
 console.log('tree-points-map.js');
 if (failures.length) {

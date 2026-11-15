@@ -730,6 +730,7 @@ function renderTable(data, treeState) {
 function mountTreeDetail(data) {
   const host = treeView.detailHost;
   if (!host) return;
+  updateSurveyMapVisibility(data);
   treeDetail = new TreeDetail({
     container: host,
     mapContainer: sections.r.mapEl,
@@ -804,9 +805,14 @@ function setAreaSearch(areaId) {
 function updateTreeDetail() {
   const data = currentTreesId ? cache.get(currentTreesId) : null;
   if (!treeDetail || !data) return;
+  updateSurveyMapVisibility(data);
   const previousMap = treeDetail.map;
   treeDetail.setData(data, {rows: table?.getFilteredRows() || []});
   if (treeDetail.map !== previousMap) bindBasemapEvents(treeDetail.map);
+}
+
+// Leaflet must measure a visible panel when constructing or recreating its map.
+function updateSurveyMapVisibility(data) {
   const mapSection = sections.r.body?.querySelector('[data-target="survey-map-section"]');
   if (mapSection) mapSection.hidden = surveyGridId(activeSurveyId) == null && !data.rows.length;
 }
