@@ -10,9 +10,11 @@ ASSETS = {
     'geographiclib-geodesic/geographiclib-geodesic.min.js': 'geographiclib/geographiclib-geodesic.min.js',
     'geographiclib-geodesic/LICENSE.txt': 'geographiclib/LICENSE.txt',
     'leaflet/dist/leaflet.js': 'leaflet/leaflet.js',
+    'leaflet/dist/leaflet.js.map': 'leaflet/leaflet.js.map',
     'leaflet/dist/leaflet.css': 'leaflet/leaflet.css',
     'leaflet/dist/images': 'leaflet/images',
     'chart.js/dist/chart.umd.js': 'chartjs/chart.umd.js',
+    'chart.js/dist/chart.umd.js.map': 'chartjs/chart.umd.js.map',
     '@maxpoletto/sortable-table/src/sortable-table.js': 'sortable-table/sortable-table.js',
     '@maxpoletto/sortable-table/src/sortable-table.css': 'sortable-table/sortable-table.css',
 }

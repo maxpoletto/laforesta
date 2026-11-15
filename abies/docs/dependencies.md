@@ -138,6 +138,13 @@ the manifest/lock; it does not copy files into Django static directories. CI
 rejects stale, missing or obsolete browser assets until they match the installed
 locked packages. A check never rewrites committed files.
 
+The Chart.js and Leaflet bundles reference debugging source maps.
+`bin/update-vendor` copies these `.js.map` files alongside their scripts from
+the same locked packages, and `make check-vendor` checks them for drift too.
+They are served through Django staticfiles so opening browser developer tools
+does not request missing map files. These debug maps do not control map tiles
+or the application's runtime rendering.
+
 ## Automated checks and response
 
 Dependabot security alerts are triggered by advisories and dependency graph

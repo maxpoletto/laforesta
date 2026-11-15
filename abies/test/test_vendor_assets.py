@@ -1,9 +1,12 @@
 """A dependency update must refresh the actual files served to browsers."""
 
+import json
+import re
 import runpy
 from pathlib import Path
 
 import pytest
+from django.contrib.staticfiles import finders
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -11,9 +14,11 @@ ASSETS = {
     'geographiclib-geodesic/geographiclib-geodesic.min.js': 'geographiclib/geographiclib-geodesic.min.js',
     'geographiclib-geodesic/LICENSE.txt': 'geographiclib/LICENSE.txt',
     'leaflet/dist/leaflet.js': 'leaflet/leaflet.js',
+    'leaflet/dist/leaflet.js.map': 'leaflet/leaflet.js.map',
     'leaflet/dist/leaflet.css': 'leaflet/leaflet.css',
     'leaflet/dist/images/marker-icon.png': 'leaflet/images/marker-icon.png',
     'chart.js/dist/chart.umd.js': 'chartjs/chart.umd.js',
+    'chart.js/dist/chart.umd.js.map': 'chartjs/chart.umd.js.map',
     '@maxpoletto/sortable-table/src/sortable-table.js': 'sortable-table/sortable-table.js',
     '@maxpoletto/sortable-table/src/sortable-table.css': 'sortable-table/sortable-table.css',
 }
@@ -42,8 +47,9 @@ def test_matching_installed_packages_and_browser_assets_pass(sync_assets, vendor
 
 
 @pytest.mark.parametrize('missing', [False, True])
-def test_check_detects_drift_without_rewriting_browser_assets(sync_assets, vendor_tree, missing):
-    target = vendor_tree / 'apps/base/static/vendor/chartjs/chart.umd.js'
+@pytest.mark.parametrize('asset', ['chartjs/chart.umd.js', 'chartjs/chart.umd.js.map', 'leaflet/leaflet.js.map'])
+def test_check_detects_drift_without_rewriting_browser_assets(sync_assets, vendor_tree, missing, asset):
+    target = vendor_tree / 'apps/base/static/vendor' / asset
     if missing:
         target.unlink()
     else:
@@ -73,3 +79,19 @@ def test_missing_install_is_reported_without_deleting_committed_assets(sync_asse
     with pytest.raises(FileNotFoundError):
         sync_assets(vendor_tree)
     assert (vendor_tree / 'apps/base/static/vendor/leaflet/leaflet.js').exists()
+
+
+@pytest.mark.parametrize('script', ['chartjs/chart.umd.js', 'leaflet/leaflet.js'])
+def test_vendored_debug_map_references_resolve_to_valid_source_maps(script):
+    path = PROJECT_ROOT / 'apps/base/static/vendor' / script
+    references = re.findall(r'sourceMappingURL=(\S+)', path.read_text())
+    assert references
+    for reference in references:
+        source_map = path.parent / reference
+        assert source_map.is_file(), f'Missing source map: {source_map}'
+        found = finders.find('vendor/' + str(source_map.relative_to(path.parents[1])))
+        assert found is not None
+        assert Path(found).resolve() == source_map.resolve()
+        contents = json.loads(source_map.read_text())
+        assert contents['version'] == 3
+        assert contents['sources']
