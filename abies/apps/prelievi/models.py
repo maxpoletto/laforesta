@@ -30,6 +30,14 @@ def harvest_volume_m3(mass_q: Decimal,
     return total.quantize(VOLUME_QUANTUM_M3)
 
 
+class HarvestHistoryDetails(models.Model):
+    """Extra deletion context stored only on HistoricalHarvest."""
+    species_masses = models.JSONField(null=True, blank=True, editable=False)
+
+    class Meta:
+        abstract = True
+
+
 class Harvest(TimestampedModel):
     """A single harvest operation by one crew on a given day."""
     date = models.DateField()
@@ -71,7 +79,7 @@ class Harvest(TimestampedModel):
     import_fingerprint = models.CharField(
         max_length=67, null=True, blank=True, unique=True,
     )
-    history = HistoricalRecords()
+    history = HistoricalRecords(bases=[HarvestHistoryDetails])
 
     class Meta:
         verbose_name = S.HARVEST

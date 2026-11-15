@@ -604,6 +604,18 @@ for coppice parcels there is no per-tree harvest record at all.
   | `harvest_flags_consistency_insert` | BEFORE INSERT | `damaged`, `unhealthy`, `psr` match linked item's flags |
   | `harvest_flags_consistency_update` | BEFORE UPDATE OF `damaged, unhealthy, psr, harvest_plan_item_id` | same flag consistency on update |
 
+- historicalharvest additionally stores `species_masses:json nullable`;
+  this field belongs only to the history table, not to `harvest`.
+  - On deletion it contains a list of objects with `species_id`,
+    `species_name` (captured at deletion) and `mass_q` (canonical decimal
+    string). Each non-zero amount is `harvest.mass_q × percent / 100`, without
+    display rounding or grouping of minor species.
+  - `NULL` means no species snapshot was captured. Insert/edit history has
+    `NULL`; a captured deletion with no non-zero species masses has `[]`.
+  - A `pre_delete` hook reads the breakdown before cascading child deletion;
+    simple-history attaches it to the deletion record in the same transaction.
+    Rolling back the deletion also rolls back this snapshot.
+
 - harvest_species: (harvest_id:int, species_id:int, percent:int) — PK is
   (harvest_id, species_id)
 

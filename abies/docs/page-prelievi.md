@@ -99,6 +99,11 @@ open charts/calendar refresh from the accepted response. See
 [Multi-row deletion](ui-design-patterns.md#multi-row-deletion) for the
 shared controls and confirmation rules.
 
+Both single-row and multi-row deletions retain the non-zero species masses in
+Controllo, using each species' name at deletion. See
+[Deleted harvests](page-controllo.md#deleted-harvests) for the calculation and
+history snapshot.
+
 ### Add/edit form
 
 The add/edit form is laid out as a compact grid (three fields per row):

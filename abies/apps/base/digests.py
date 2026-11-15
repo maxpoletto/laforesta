@@ -17,13 +17,14 @@ import math
 import os
 import tempfile
 from datetime import timezone as dt_timezone
+from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from django.db.models import Count, F, Q, Sum
-from django.utils import timezone
+from django.utils import formats, timezone
 
 from apps.base.dendrometry import (
     basal_area_m2, current_diameter_class_mode, diameter_class_cm,
@@ -734,7 +735,12 @@ def _audit_rows(model, manager, table_label, field_labels, events):
                 model, prev_map[pk], entry, field_labels, value_cache,
             )
         elif ht == '-':
-            row = (_format_fields(model, entry, field_labels, value_cache), '')
+            before = _format_fields(model, entry, field_labels, value_cache)
+            if model._meta.label_lower == 'prelievi.harvest':
+                summary = _format_audit_harvest_species(entry)
+                if summary:
+                    before = _append_audit_note(before, summary)
+            row = (before, '')
         else:
             row = ('', _format_fields(model, entry, field_labels, value_cache))
 
@@ -747,6 +753,17 @@ def _audit_rows(model, manager, table_label, field_labels, events):
         events.append((entry.history_date, model._meta.label_lower, entry.history_id,
                        [identity, ts, user, table_label, action, before, after, label]))
         prev_map[pk] = entry
+
+
+def _format_audit_harvest_species(entry) -> str:
+    """Render the frozen deletion breakdown without rounding away small masses."""
+    parts = []
+    for part in entry.species_masses or []:
+        mass = Decimal(part['mass_q'])
+        places = max(0, -mass.normalize().as_tuple().exponent)
+        value = formats.number_format(mass, decimal_pos=places, use_l10n=True)
+        parts.append(f"{part['species_name']}: {value}")
+    return f"{S.AUDIT_HARVEST_SPECIES_MASSES}: {', '.join(parts)}" if parts else ''
 
 
 def _format_fields(model, entry, field_labels: dict, value_cache: dict) -> str:

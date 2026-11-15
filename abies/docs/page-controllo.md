@@ -36,6 +36,22 @@ updates are suppressed; password-only user updates are displayed as
 recalculations are intentionally omitted because the underlying marks and
 harvest rows carry the meaningful operational changes.
 
+## Deleted harvests
+
+For a deleted harvest, the previous value includes the species breakdown in
+quintals, for example `Specie (q): Abete: 100, Castagno: 50`. Each amount is the
+harvest's total mass multiplied by that species' percentage. Zero amounts are
+omitted; minor or inactive species keep their own names rather than being
+combined into an "other" category. Fractional amounts use the active locale's
+decimal separator and retain enough precision to show every non-zero amount.
+
+The server captures these species names, IDs and masses before deleting the
+harvest's child rows. It saves the snapshot with the deletion history in the
+same transaction. This applies to single-row, multi-row and ORM queryset
+deletions. A later species rename does not change the captured breakdown.
+History entries without a captured snapshot still display the harvest's other
+audited fields; a missing breakdown does not mean the harvest had no species.
+
 ## Coverage
 
 Every model carrying `HistoricalRecords()` is audited. The authoritative
@@ -77,7 +93,7 @@ dropping it from the config.
 | `ipso.IpsoUpload` | `ipso_ipsoupload` | `ipso_historicalipsoupload` | `Upload Ipso` | Staged PWA upload lifecycle. |
 | `mannesi.ProductionCredit` | `mannesi_credits` | `mannesi_historicalproductioncredit` | `Acconto squadre` | Production credits/acconti. |
 | `mannesi.WorkHour` | `mannesi_hours` | `mannesi_historicalworkhour` | `Ore squadre` | Team work hours. |
-| `prelievi.Harvest` | `prelievi_harvest` | `prelievi_historicalharvest` | `Prelievo` | Harvest rows, including parcel and plan-item links. |
+| `prelievi.Harvest` | `prelievi_harvest` | `prelievi_historicalharvest` | `Prelievo` | Harvest rows, including parcel and plan-item links; deletion snapshots also retain species masses. |
 
 Existing worksite transitions receive baseline snapshots when their history
 table is introduced. These snapshots establish before values for later edits;

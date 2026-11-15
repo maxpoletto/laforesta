@@ -287,6 +287,7 @@ TABLE_IPSO_UPLOAD = 'Caricamento Ipso'
 AUDIT_INSERT = 'Inserimento'
 AUDIT_UPDATE = 'Modifica'
 AUDIT_DELETE = 'Eliminazione'
+AUDIT_HARVEST_SPECIES_MASSES = 'Specie (q)'
 
 # Settings
 PASSWORD_MISMATCH = 'Le password non coincidono.'
