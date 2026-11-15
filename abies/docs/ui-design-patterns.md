@@ -27,6 +27,8 @@ page's collapsibles are documented in its `docs/page-*.md`). They are thin
 
 A button's color is set by what it does, via an intent class on the base
 `.btn`. All colors live in `common.css`; never choose one at the call site.
+Button labels use a uniform 14px font (`--button-font-size`), including table
+actions and compact form buttons. Intent and create modifiers retain that size.
 
 - **Green — affirmative:** `.btn-create` (`+ Nuovo X`, `+ Aggiungi`),
   `.btn-save` (Salva / Crea / Conferma — any form commit), `.btn-import`
@@ -50,7 +52,9 @@ external filters, such as Prelievi, can suppress the table's search input while
 retaining this action row. Non-table workspaces use the same order, such as a
 grid's summary row. Container creation (`+ Nuova griglia`, `+ Nuovo rilevamento`,
 `+ Nuovo piano`) stays beside the container selector, separate from actions on
-its content.
+its content. Table controls have no left/right padding, aligning their outer
+actions with the workspace controls above. Their vertical padding follows the
+responsive table styles.
 
 ## Tabular data
 
@@ -177,11 +181,13 @@ responsive viewport controls when needed.
 
 After fonts load and the browser paints, the fixture toggles selection and
 checks action-column alignment, equal trash/cancel dimensions, stable header
-and data-row heights, accumulated row positions and table width. At wide
+and data-row heights, accumulated row positions, table width, uniform 14px
+button text, and zero horizontal control padding. At wide
 widths (1400 CSS pixels or more), it also checks the table's top position,
-action-button alignment, nonoverlapping controls, and the export/import/new
-button order. Phone layouts may wrap toolbar controls; their row-height checks
-compare positions within the table so legitimate toolbar wrapping is separate
+action-button alignment, matching action edges above/below the workspace,
+nonoverlapping controls, and the export/import/new button order. Phone layouts
+may wrap toolbar controls; their row-height checks compare positions within
+the table so legitimate toolbar wrapping is separate
 from unintended data-row growth. Cancel must restore the original position.
 
 The page reports PASS or the measured failures, with a tolerance of 0.25 CSS

@@ -43,6 +43,14 @@ async function run() {
   const scope = document.createElement('section');
   if (view === 'marks') scope.className = 'pdt-item-card';
   fixture.appendChild(scope);
+  const workspaceHeader = document.createElement('div');
+  workspaceHeader.className = 'fixture-workspace-header';
+  const workspaceButton = document.createElement('button');
+  workspaceButton.type = 'button';
+  workspaceButton.className = 'btn btn-export';
+  workspaceButton.textContent = S.EXPORT;
+  workspaceHeader.appendChild(workspaceButton);
+  scope.appendChild(workspaceHeader);
   if (view === 'harvests') {
     const filter = document.createElement('div');
     filter.className = 'prelievi-filter-bar fixture-filter';
@@ -89,6 +97,19 @@ async function run() {
   check(JSON.stringify(actionLabels) === JSON.stringify(reader ? [S.EXPORT]
     : [S.EXPORT, S.IMPORT_CSV, `+ ${newLabel}`]),
     'Workspace actions use export/import/new order, including empty tables');
+  const controlRow = host.querySelector('.sortable-table-controls');
+  const controlStyle = getComputedStyle(controlRow);
+  near(parseFloat(controlStyle.paddingLeft), 0, 'Controls have no left padding');
+  near(parseFloat(controlStyle.paddingRight), 0, 'Controls have no right padding');
+  for (const button of scope.querySelectorAll('.btn')) {
+    near(parseFloat(getComputedStyle(button).fontSize), 14,
+      'Workspace buttons have a uniform 14px font inside and outside the table');
+  }
+  if (innerWidth >= 1400) {
+    const lastAction = [...toolbar.children].filter(el => el.classList.contains('btn')).at(-1);
+    near(rect(lastAction).right, rect(workspaceButton).right,
+      'Table actions align with the workspace action above');
+  }
   const toggle = host.querySelector('.table-delete-toggle');
   if (reader) {
     check(!toggle, 'Readers have no selection toggle');

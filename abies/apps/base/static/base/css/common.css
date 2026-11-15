@@ -1,9 +1,10 @@
 /* Abies — common styles. */
 
-/* --- Color tokens --------------------------------------------------------- */
+/* --- Shared tokens -------------------------------------------------------- */
 
 :root {
   --header-height: 48px;
+  --button-font-size: 14px;
   --color-bosco-green: #006400;
   --color-bosco-green-hover: #228B22;
   --color-bosco-green-dark: #2d5d2c;
@@ -324,7 +325,7 @@ body {
   padding: 0.5rem 1.2rem;
   border: none;
   border-radius: 6px;
-  font-size: 0.9rem;
+  font-size: var(--button-font-size);
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -471,7 +472,6 @@ input:focus, select:focus, textarea:focus {
 
 .pct-row .btn {
   padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
   margin: 0;
 }
 
@@ -745,7 +745,7 @@ input:focus, select:focus, textarea:focus {
 
 .table-page {
   --table-toolbar-button-line-height: 1.4;
-  --table-toolbar-button-height: calc(0.9rem * var(--table-toolbar-button-line-height) + 1rem);
+  --table-toolbar-button-height: calc(var(--button-font-size) * var(--table-toolbar-button-line-height) + 1rem);
   display: flex;
   flex-direction: column;
 }
@@ -772,6 +772,9 @@ input:focus, select:focus, textarea:focus {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* Align table controls with the surrounding workspace; retain vertical padding. */
+.table-page .sortable-table-controls { padding-left: 0; padding-right: 0; }
 
 /* Selection uses the same control row even when search/export are external. */
 .table-page .sortable-table-controls-combined { flex-wrap: wrap; }
@@ -925,8 +928,6 @@ input:focus, select:focus, textarea:focus {
 }
 
 .action-icon:hover { color: var(--color-bosco-green); }
-
-.btn-add { font-size: 0.85rem; }
 
 /* ========================================================================== */
 /* End TableWrapper                                                           */

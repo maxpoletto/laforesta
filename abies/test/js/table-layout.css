@@ -6,3 +6,9 @@ body.table-layout-fixture { padding: 20px; }
 .table-layout-fixture .pass { color: #006400; }
 .table-layout-fixture .fail { color: #c00; }
 .table-layout-fixture .fixture-filter { margin-bottom: 8px; }
+
+.table-layout-fixture .fixture-workspace-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}

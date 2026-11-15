@@ -47,7 +47,7 @@ On the far right of the top row, writers see **+ Nuova griglia**.
 
 The next row shows the active grid's summary (number of areas, regions, surveys
 using it, last update and description), with `[Esporta] [Importa CSV]
-[+ Nuova area di campionamento]` aligned to the right. Readers see only Esporta.
+[+ Nuova area]` aligned to the right. Readers see only Esporta.
 The row wraps on narrow screens. Import and manual area creation target the
 selected grid, including an empty grid.
 
@@ -73,7 +73,7 @@ Map interactions:
   for the writer to pick.
 
 Below the map, writers see the hint "Clicca sulla mappa per aggiungere
-un'area, o su un'area per modificarla." The **+ Nuova area di campionamento**
+un'area, o su un'area per modificarla." The **+ Nuova area**
 button in the summary row opens the same form with empty coordinates, for
 manual entry from a GPS device or paper notes.
 
