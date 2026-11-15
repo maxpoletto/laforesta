@@ -82,6 +82,12 @@ Search input sits above the table (left). Debounced (500ms), filters
 rows by matching all whitespace-separated terms against the
 concatenation of all fields. Sort order is preserved.
 
+The shared `TableWrapper` defaults to 25 rows per page. A workspace can pass
+`rowsPerPage` (a positive integer) to choose another size.
+Sorting, filtering, summary calculations and exports operate on all retained
+rows, independently of the current page. The configured size survives data
+updates and table-schema rebuilds.
+
 Tables fill the viewport height with their own scrollbar. 1px
 medium-gray borders; light gray column headers.
 

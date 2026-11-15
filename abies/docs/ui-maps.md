@@ -133,7 +133,13 @@ keeps the view, but switching grid/survey resets to `fitBounds`. See
 
 `base/js/tree-detail.js` composes `TreePointsMap` with the shared dendrometry
 charts. Pages own their `TableWrapper` and pass its filtered rows to
-`TreeDetail.setRows(rows)` when a table filter changes. Filtering does not
+`TreeDetail.setRows(rows)` when a table filter changes. The default layout
+places its tree map above its summary in one container. Consumers can provide a
+separate `mapContainer`, allowing a table between map and summary, or set
+`mapEnabled: false` to use the summary with a different map type. Neither
+option changes the dendrometry calculations. Source changes remove and
+recreate an external tree map correctly when the last/first tree is deleted or
+added; teardown removes content from both hosts. Filtering does not
 change the parcel choices derived from the complete source marking.
 
 When records or digest metadata change, use

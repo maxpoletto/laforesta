@@ -267,6 +267,7 @@ test-js:
 	node apps/base/static/base/js/tree-form.test.mjs
 	node apps/base/static/base/js/charts.test.mjs
 	node apps/base/static/base/js/dendrometry.test.mjs
+	node apps/base/static/base/js/tree-detail.test.mjs
 	node apps/base/static/base/js/coppice.test.mjs
 	node apps/base/static/base/js/digests.test.mjs
 	node apps/base/static/base/js/templates.test.mjs

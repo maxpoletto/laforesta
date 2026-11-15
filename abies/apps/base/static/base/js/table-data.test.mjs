@@ -48,3 +48,15 @@ for (const canModify of [true, false]) {
     'Workspace controls consistently order export, import, and new record');
   workspace.destroy();
 }
+
+
+for (const [rowsPerPage, expected] of [[undefined, 25], [20, 20]]) {
+  const paginated = new TableWrapper({container:new Element(), digest, rowsPerPage});
+  assert.equal(paginated._table.rowsPerPage, expected, 'Page size is configurable with a 25-row default');
+  assert.equal(paginated._tableEl.querySelectorAll('.sortable-table-row').length, expected);
+  assert.equal(paginated.getFilteredRows().length, 32, 'Pagination does not narrow summary/export rows');
+  paginated.setData({...digest, columns:[...digest.columns, 'Extra'],
+    rows:digest.rows.map(row=>[...row,'new column'])});
+  assert.equal(paginated._table.rowsPerPage, expected, 'Configured page size survives a schema rebuild');
+  paginated.destroy();
+}

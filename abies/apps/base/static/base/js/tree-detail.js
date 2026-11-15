@@ -2,7 +2,8 @@
  * Shared tree-detail visualization: point map plus dendrometric summary.
  *
  * Pages retain ownership of their TableWrapper and pass its filtered rows to
- * setRows(). This component owns only presentation and delegates row actions
+ * setRows(). The map can use a separate host or be disabled for an area-map
+ * survey. This component owns presentation and delegates row actions
  * and export policy to callbacks supplied by the page.
  */
 
@@ -20,6 +21,8 @@ import * as S from './strings.js';
 export class TreeDetail {
   constructor({
     container,
+    mapContainer = container,
+    mapEnabled = true,
     digest,
     geojson = null,
     basemap = undefined,
@@ -31,6 +34,8 @@ export class TreeDetail {
     emptyMessage = S.TREE_DENDROMETRY_EMPTY,
   }) {
     this.container = container;
+    this.mapContainer = mapContainer;
+    this.mapEnabled = mapEnabled;
     this.columns = digest?.columns || [];
     this.diameterClassMode = digest?.[FIELD_DIAMETER_CLASS_MODE];
     this.geojson = geojson;
@@ -48,7 +53,7 @@ export class TreeDetail {
     this.parcelColumn = this.columns.indexOf(S.COL_PARCEL);
     this.selectedParcel = '';
 
-    if (digest?.rows?.length && geojson && typeof L !== 'undefined') {
+    if (mapEnabled && digest?.rows?.length && geojson && typeof L !== 'undefined') {
       this._mountMap();
     }
     const fragment = cloneTemplate('tmpl-tree-dendrometry-summary');
@@ -74,7 +79,7 @@ export class TreeDetail {
     this.geojson = geojson;
     if (this.parcelSummary) this._syncParcelSelector(digest?.rows || []);
     if (!digest?.rows?.length) this._destroyMap();
-    else if (!this.map && geojson && typeof L !== 'undefined') this._mountMap();
+    else if (this.mapEnabled && !this.map && geojson && typeof L !== 'undefined') this._mountMap();
     this.setRows(rows);
   }
 
@@ -95,6 +100,7 @@ export class TreeDetail {
 
   /** Mirror a basemap change made on another map on the same page. */
   syncBasemap(name) {
+    this.basemap = name;
     this.map?.wrapper?.syncBasemap(name);
   }
 
@@ -115,8 +121,8 @@ export class TreeDetail {
   _mountMap() {
     this.mapHost = document.createElement('div');
     this.mapHost.className = 'tree-detail-map-host';
-    if (this.root) this.root.before(this.mapHost);
-    else this.container.appendChild(this.mapHost);
+    if (this.root && this.mapContainer === this.container) this.root.before(this.mapHost);
+    else this.mapContainer.appendChild(this.mapHost);
     this.map = new TreePointsMap({
       container: this.mapHost,
       className: 'tree-detail-map',

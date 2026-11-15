@@ -14,7 +14,7 @@ import { compareNaturalLabels } from './natural-sort.js';
 
 const DEBOUNCE_MS = 500;
 const ROW_ID_COL = 0;
-const ROWS_PER_PAGE = 25;
+const DEFAULT_ROWS_PER_PAGE = 25;
 const DEFAULT_COL_WIDTH = '100';  // px fallback for columns without explicit width
 const ACTION_COLUMN_SINGLE_WIDTH_PX = 44;
 const ACTION_COLUMN_ICON_SLOT_WIDTH_PX = 36;
@@ -103,6 +103,7 @@ export class TableWrapper {
    *         deleteVisible?: function(Array): boolean}} [opts.actions]
    * @param {{column: string, ascending: boolean}} [opts.sort]
    * @param {string} [opts.searchText]
+   * @param {number} [opts.rowsPerPage=25] — positive page size for this table.
    * @param {string} [opts.csvFilename]
    * @param {boolean} [opts.inlineToolbar=true] — when false, the built-in
    *   toolbar is omitted.  The caller is responsible for providing controls
@@ -127,6 +128,7 @@ export class TableWrapper {
     this.container = opts.container;
     this.columnDefs = opts.columnDefs || {};
     this.canModify = opts.canModify || false;
+    this.rowsPerPage = opts.rowsPerPage ?? DEFAULT_ROWS_PER_PAGE;
     this.actions = opts.actions || {};
     this.csvFilename = opts.csvFilename || 'export.csv';
     this.inlineToolbar = opts.inlineToolbar !== false;
@@ -391,7 +393,7 @@ export class TableWrapper {
       container: this._tableEl,
       data: digest.rows,
       columns: this._stColumns,
-      rowsPerPage: ROWS_PER_PAGE,
+      rowsPerPage: this.rowsPerPage,
       sort: initialSort,
       emptyMessage: this.labels.empty,
       pageInfo: this.labels.pageInfo,
