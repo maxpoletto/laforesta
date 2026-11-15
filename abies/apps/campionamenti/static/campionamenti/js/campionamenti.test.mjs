@@ -56,12 +56,13 @@ export class TreeDetail {
     this.rows = [...opts.digest.rows];
     this.setRowsCalls = [this.rows];
     this.destroyed = false;
-    this.map = { leaflet: { on() {} } };
+    this.map = opts.mapEnabled === false ? null : { leaflet: { on() {} } };
     this.node = document.createElement('div');
     this.node.className = 'tree-detail-stub';
     opts.container.appendChild(this.node);
     globalThis.__treeDetailInstances.push(this);
   }
+  setData(digest, {rows=digest.rows}={}) { this.opts.digest=digest; this.setRows(rows); }
   setRows(rows) {
     this.rows = [...rows];
     this.setRowsCalls.push(this.rows);
@@ -262,8 +263,11 @@ function section(key) {
   if (key === 'r') {
     body.appendChild(el('select', { id: 'campionamenti-survey-select' }));
     body.appendChild(el('div', { dataset: { target: 'survey-summary' } }));
-    body.appendChild(el('div', { dataset: { target: 'survey-map' } }));
-    body.appendChild(el('div', { dataset: { target: 'trees-scope-summary' } }));
+    const map = el('section', {dataset:{target:'survey-map-section'}});
+    map.appendChild(el('h3',{dataset:{field:'survey-map-title'}}));
+    map.appendChild(el('p',{className:'subsection-note',dataset:{target:'survey-map-help'}}));
+    map.appendChild(el('div', {dataset:{target:'survey-map'}}));
+    body.appendChild(map);
     body.appendChild(el('div', { dataset: { target: 'trees-empty' } }));
     body.appendChild(el('div', { dataset: { target: 'trees-table-host' } }));
     body.appendChild(el('div', { dataset: { target: 'trees-detail-host' } }));
@@ -360,6 +364,7 @@ class MockSortableTable {
     this.currentSort = opts.sort || null;
     this.currentPage = 1;
     this.onSort = opts.onSort;
+    this.rowsPerPage = opts.rowsPerPage;
     if (opts.controlsStart) opts.container.appendChild(opts.controlsStart);
     if (opts.controlsEnd) opts.container.appendChild(opts.controlsEnd);
     const actions = opts.columns.find(column => column.key === '_actions');
@@ -418,6 +423,7 @@ const cache = await import(staticModule('base/js/cache.js'));
 const treeLoads = new Map([
   ['/api/campionamenti/trees/1/', deferred()],
   ['/api/campionamenti/trees/2/', deferred()],
+  ['/api/campionamenti/trees/4/', deferred()],
 ]);
 const fetches = [];
 const csvImports = [];
@@ -440,7 +446,10 @@ const payloads = new Map([
   )],
   ['/api/campionamenti/sample-areas/data/', digest(
     [ROW_ID, S.COL_GRID, S.COL_REGION, S.COL_PARCEL, S.COL_NUMBER, S.COL_LAT, S.COL_LON],
-    [[50, 10, 'Serra', '01b', 7, 38.1, 16.2]],
+    [[50, 10, 'Serra', '01b', '7', 38.1, 16.2],
+     [51, 10, 'Serra', '01b', '72', 38.2, 16.3],
+     [52, 10, 'Serra San Bruno', '9', '7', 38.3, 16.4],
+     [53, 10, 'Serra', '01b', '99', 38.4, 16.5]],
   )],
   ['/api/campionamenti/samples/data/', digest(
     [ROW_ID, S.COL_SURVEY, S.COL_SAMPLE_AREA, S.COL_N_TREES],
@@ -459,11 +468,11 @@ const payloads = new Map([
 
 const treeColumns = [
   ROW_ID, S.COL_SAMPLE_AREA, S.COL_REGION, S.COL_PARCEL, S.COL_TREE_NUM, S.COL_SPECIES,
-  S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_LAT, S.COL_LON, S.COL_ACC_M,
+  S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_LAT, S.COL_LON, S.COL_ACC_M, S.COL_AREA_NUM,
 ];
 const freeTreeDigest = digest(treeColumns, [
-  [201, null, 'A', '1', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4],
-  [202, null, 'A', '10b', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3, null],
+  [201, null, 'A', '1', 1, 'Abete bianco', 30, 20, 1.2, 38.1, 16.2, 4, ''],
+  [202, null, 'A', '10b', 2, 'Faggio', 40, 22, 2.4, 38.2, 16.3, null, ''],
 ]);
 freeTreeDigest.diameter_class_mode = 'shifted_up';
 
@@ -477,12 +486,17 @@ function response(data, lastModified = 'v1') {
 }
 
 let exportedDendrometryRowIds = null;
+let exportedTreeRowIds = null;
 globalThis.fetch = async (url, options = {}) => {
   url = String(url);
   fetches.push(url);
   if (url.endsWith('/import-csv/') && options.method === 'POST') {
     csvImports.push([url, JSON.parse(options.body)]);
     return {status:400,ok:false,json:async()=>({status:'validation_error', errors:['Riga 2: Altezza mancante.']})};
+  }
+  if (url.startsWith('/api/campionamenti/survey/export-csv/') && options.method === 'POST') {
+    exportedTreeRowIds = JSON.parse(options.body).row_ids;
+    return {status:200,ok:true,headers:{get:()=>null},blob:async()=>new Blob(['csv'])};
   }
   if (url.startsWith('/api/campionamenti/survey/dendrometry/export/') &&
       options.method === 'POST') {
@@ -541,9 +555,10 @@ eq(S.TOOLTIP_SAMPLE_AREA_VISITED(
   mappedArea, S.SAMPLES_TREE_COUNT(mappedSurvey.visited.get(50).treeCount)),
   'Serra 01b / adc 7 / 12 alberi',
   'visited-area tooltip retains the count from the selected survey');
-eq(S.SAMPLES_TREES_HEADER_AREA(mappedArea, 12),
-   '(Serra 01b / area di campionamento 7 / 12 alberi)',
-   'selected-area header uses the same private map identity');
+eq(contentEl.querySelector('[data-field="survey-map-title"]').textContent,
+   'Mappa delle aree di saggio', 'structured survey map has an explicit title');
+eq(contentEl.querySelector('[data-target="survey-map-help"]').hidden, false,
+   'sample-area map explains its filter interaction');
 
 campionamenti.onQueryChange({ s: '2' });
 eq(
@@ -551,14 +566,19 @@ eq(
   'Dal 1970-01-01 al 1970-01-01. 1495 alberi campionati.',
   'free survey overview shows dates and count before tree rows finish loading',
 );
-eq(surveyMap.hidden, true, 'free survey hides the sample-area map');
+eq(globalThis.__rilevamentiMapInstances.at(-1).destroyed, true, 'free survey tears down the sample-area map');
 
 treeLoads.get('/api/campionamenti/trees/2/').resolve(freeTreeDigest);
 await flushAsyncWork();
-treeLoads.get('/api/campionamenti/trees/1/').resolve(digest(
-  treeColumns, [freeTreeDigest.rows[0]],
-));
+const structuredTreeDigest = digest(treeColumns, [
+  [301,50,'Serra','01b',1,'Abete bianco',30,20,1.2,38.1,16.2,4,'7'],
+  [302,51,'Serra','01b',1,'Faggio',40,22,2.4,38.2,16.3,3,'72'],
+  [303,52,'Serra San Bruno','9',1,'Faggio',40,22,2.4,38.3,16.4,3,'7'],
+]);
+treeLoads.get('/api/campionamenti/trees/1/').resolve(structuredTreeDigest);
 await flushAsyncWork();
+eq(surveySummary.children[0].textContent, 'Dal 1970-01-01 al 1970-01-01. 2 alberi campionati.',
+   'the survey overview uses newly loaded rows without waiting for background refresh');
 
 fetches.length = 0;
 await cache.refreshVisible();
@@ -568,7 +588,11 @@ eq(visibleTreeFetches, ['/api/campionamenti/trees/2/'],
 const treesHeaderSummary = contentEl.querySelector(
   '[data-target="trees-scope-summary"]',
 );
-eq(treesHeaderSummary.hidden, true, 'free surveys have no sample-area filter label');
+eq(treesHeaderSummary, null, 'area selection is represented only in the visible filter');
+eq(contentEl.querySelector('[data-field="survey-map-title"]').textContent,
+   'Mappa degli alberi', 'free survey map has an explicit title');
+eq(contentEl.querySelector('[data-target="survey-map-help"]').hidden, true,
+   'tree maps have no sample-area instruction');
 eq(surveySummary.children[0].textContent, 'Dal 1970-01-01 al 1970-01-01. 2 alberi campionati.',
    'loaded tree rows update the survey overview count');
 
@@ -591,8 +615,10 @@ eq(treeAccColumn.formatter(4), '4',
    'sampled-tree accuracy is displayed as integer meters');
 
 eq(globalThis.__treeDetailInstances.length, 1,
-   'free survey mounts one shared tree-detail component below the table');
+   'free survey mounts one shared summary component');
 const detail = globalThis.__treeDetailInstances[0];
+eq(treeTable.rowsPerPage,20,'survey tables request twenty rows per page');
+eq(detail.opts.mapContainer===surveyMap,true,'free-survey map is mounted above the table');
 eq(detail.rows.map(row => row[0]), [201, 202],
    'tree detail starts with the sampled-tree table rows');
 eq(detail.opts.digest.diameter_class_mode, 'shifted_up',
@@ -643,8 +669,59 @@ eq(exportedDendrometryRowIds, [202],
 campionamenti.onQueryChange({ s: '1' });
 await flushAsyncWork();
 eq(surveyMap.hidden, false, 'switching back restores the structured survey map');
-eq(detail.destroyed, true,
-   'structured surveys tear down the free-survey tree detail');
+eq(detail.destroyed, true, 'switching survey disposes the previous tree detail');
+const structuredDetail = globalThis.__treeDetailInstances.at(-1);
+eq(structuredDetail.opts.mapEnabled,false,'structured summary does not create a tree map');
+eq(structuredDetail.rows.map(row=>row[0]),[301,302,303],
+   'structured surveys have a summary of all trees after switching');
+const structuredSearch=contentEl.querySelector('.table-search');
+eq(structuredSearch.value,'','switching survey clears the previous text filter');
+structuredSearch.value='Faggio';
+structuredSearch.dispatchEvent({type:'input'});
+await new Promise(resolve=>setTimeout(resolve,550));
+const areaMap=globalThis.__rilevamentiMapInstances.at(-1);
+areaMap.opts.onAreaSelect(50);
+eq(structuredSearch.value,'compresa:Serra particella:01b "n. area":7',
+   'map selection overwrites the filter with its full area identity');
+eq(structuredDetail.rows.map(row=>row[0]),[301],
+   'area filter is exact and replaces a previous species restriction');
+await structuredDetail.opts.onExport(structuredDetail.rows);
+eq(exportedDendrometryRowIds,[301],'structured dendrometry export uses the selected area');
+await contentEl.querySelector('[data-target="trees-table-host"] .btn-export').click();
+await flushAsyncWork();
+eq(exportedTreeRowIds,[301],'tree-data CSV export uses the same selected area');
+areaMap.opts.onAreaSelect(51);
+eq(structuredDetail.rows.map(row=>row[0]),[302],'selecting area 72 replaces area 7');
+structuredSearch.value='';
+structuredSearch.dispatchEvent({type:'input'});
+await new Promise(resolve=>setTimeout(resolve,550));
+eq(structuredDetail.rows.map(row=>row[0]),[301,302,303],
+   'clearing the visible filter removes every area restriction');
+eq(areaMap.activeAreaId,null,'clearing the filter clears the active map marker');
+areaMap.opts.onAreaSelect(52);
+eq(structuredSearch.value,'compresa:"Serra San Bruno" particella:9 "n. area":7',
+   'map filters quote region names containing spaces');
+eq(structuredDetail.rows.map(row=>row[0]),[303],'area filtering separates equally numbered areas in other regions');
+areaMap.opts.onAreaSelect(53);
+eq(structuredDetail.rows.length,0,'unvisited areas produce an empty table and summary');
+eq(areaMap.activeAreaId,53,'unvisited areas remain selected for adding their first tree');
+areaMap.opts.onAreaSelect(null);
+eq(structuredSearch.value,'','clicking empty map space clears the area filter');
+
+// URL filters apply after asynchronous selection, while dropdown selection resets them.
+campionamenti.onQueryChange({s:'2',tf:'Faggio'});
+await flushAsyncWork();
+eq(contentEl.querySelector('.table-search').value,'Faggio','deep-linked filter survives asynchronous survey activation');
+surveySelect.value='1';
+surveySelect.dispatchEvent({type:'change'});
+await flushAsyncWork();
+eq(contentEl.querySelector('.table-search').value,'','dropdown survey change resets the filter');
+eq(new URLSearchParams(location.search).has('tf'),false,'dropdown selection clears the filter from the URL');
+campionamenti.onQueryChange({s:'1',a:'51'});
+await flushAsyncWork();
+eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b "n. area":72',
+   'legacy area links become explicit visible filters');
+
 
 await contentEl.querySelector('[data-action="new-grid"]').click();
 await flushAsyncWork();
@@ -659,6 +736,19 @@ await modalEl.querySelector(
 ).click();
 eq(planner.destroyed, true,
    'standard cancel wiring dismisses and destroys the grid planner');
+
+// Selection while a slow survey digest is loading must survive its arrival.
+campionamenti.onQueryChange({s:'4',tf:'Faggio'});
+const loadingMap=globalThis.__rilevamentiMapInstances.at(-1);
+loadingMap.opts.onAreaSelect(50);
+treeLoads.get('/api/campionamenti/trees/4/').resolve(structuredTreeDigest);
+await flushAsyncWork();
+eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b "n. area":7',
+   'area click while loading overrides the pending table filter');
+eq(globalThis.__treeDetailInstances.at(-1).rows.map(row=>row[0]),[301],
+   'slow-load selection constrains the summary after rows arrive');
+campionamenti.onQueryChange({s:'1'});
+await flushAsyncWork();
 
 // The grid and tree imports are discoverable in their workspaces and retain retries.
 await contentEl.querySelector('[data-action="import-grid-csv"]').click();

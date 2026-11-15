@@ -206,6 +206,8 @@ export const CSV_AUDIT = 'controllo.csv';
 export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 
 // Samples
+export const SAMPLES_MAP_TREES = 'Mappa degli alberi';
+export const SAMPLES_MAP_AREAS = 'Mappa delle aree di saggio';
 export const SAMPLES_PICK_SURVEY_FIRST =
   'Seleziona prima un rilevamento.';
 export const SAMPLES_PICK_AREA_FIRST =
@@ -216,9 +218,6 @@ export const AREA_IN_USE_TOOLTIP =
   'Area di saggio con campioni: non può essere eliminata.';
 export const SAMPLES_TREE_COUNT = (n) =>
   `${n} ${n === 1 ? 'albero' : 'alberi'}`;
-export const SAMPLES_TREES_HEADER_AREA = (area, n) =>
-  `(${area.regionName} ${area.parcelName} / ` +
-  `area di campionamento ${area.number} / ${SAMPLES_TREE_COUNT(n)})`;
 export const SAMPLES_FREE_SURVEYS_GROUP = '-- Rilevamenti liberi --';
 export const SAMPLES_STRUCTURED_SURVEYS_GROUP = '-- Rilevamenti predefiniti --';
 export const SAMPLES_FREE_SURVEY_OPTION = (name, nTrees) =>

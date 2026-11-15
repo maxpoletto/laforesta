@@ -79,6 +79,7 @@ async function run() {
       [S.COL_NUMBER]: { type: 'number', width: '100px' },
       [S.COL_SPECIES]: { width: '180px' } },
     inlineToolbar: true,
+    rowsPerPage: view === 'samples' ? 20 : undefined,
     actions: reader ? {} : { onAdd() {}, onEdit() {}, onDelete() {},
       onDeleteSelected: async () => false },
     toolbar: { search: view !== 'harvests',

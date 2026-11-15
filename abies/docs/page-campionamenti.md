@@ -23,9 +23,9 @@ Three schema entities organize the data:
 No page-level filter bar. Two collapsible workspaces:
 
 1. **Griglie di campionamento** (grid management map, collapsed by default).
-2. **Rilevamenti** (survey summary, sample-area map when structured, and sampled
-   trees table; open by default). A free survey also shows its tree map and
-   dendrometric summary beneath the table.
+2. **Rilevamenti** (survey overview, titled map, sampled-tree table and
+   dendrometric summary; open by default). Structured surveys map sample areas;
+   free surveys map individual trees. Both maps are 600px tall.
 
 The trees belong directly to the survey workspace, without a separate Alberi
 campionati foldable section. Selecting a survey changes its tree table;
@@ -164,12 +164,46 @@ A single metadata form edits name and description. It has no tabs. The tree
 table's **Importa CSV** button opens a separate file-import dialog naming the
 target survey, with an optional default date for files lacking `Data`.
 
-**Map** — shown only for predefined surveys, whose sample areas are drawn at
-`r_m` radius. Visited areas use the dark semantic marker color and unvisited
-areas the pale color (green on OSM/topographic maps, yellow on satellite).
-Click an area to filter the survey's tree table; click empty space to show all
-trees. Hover tooltip: region, parcel, area number, n. trees sampled. Free surveys have no
-sample areas, so this map is hidden; their tree map appears below the table.
+**Map** — appears above the tree table in both survey types, at 600px tall.
+Its heading explains what the markers represent:
+
+- **Mappa delle aree di saggio** for a structured survey. Markers represent
+  the grid's areas, including areas that have not been visited. Visited areas
+  use the dark semantic marker color and unvisited areas the pale color (green
+  on OSM/topographic maps, yellow on satellite). Hover shows region, parcel,
+  area number and the survey's sampled-tree count. The gray italic note reads
+  "Clicca su un'area di saggio per filtrare gli alberi."
+- **Mappa degli alberi** for a free survey. Points represent sampled trees with
+  valid coordinates. Trees without coordinates remain in the table and
+  summary. A free survey with no measurements hides the map; an empty text
+  filter result keeps the map visible with no tree points.
+
+Clicking a sample area **replaces** the table's text filter with its complete
+region/parcel/area identity, for example
+`compresa:Serra particella:9 "n. area":72`. Names with spaces are quoted.
+Qualified region, parcel and area terms match whole identifiers, so area `7`
+does not select `72` or an equally numbered area in another region. There is
+no additional hidden area filter. The input, table, summary and data/report
+exports all describe the same selection.
+
+The selected map marker follows these full identity terms. Keeping the terms
+and adding a species filter retains the selected area as manual-entry context.
+Clearing or replacing them clears the marker selection; clicking empty map
+space while an area is selected clears the filter. Unvisited areas can be
+selected too: the table/summary are empty, and **+ Nuovo albero** can add the
+first measurement to that area. The separate selected-area description is
+unnecessary because the scope is visible in the filter input.
+
+For a free survey, editing the table filter updates the map's tree points.
+For a structured survey, filtering leaves all area markers and their visit
+progress visible; the markers are a survey-navigation surface, not a map of
+individual filtered trees.
+
+Changing survey **from the dropdown** clears the text/area filter, retaining
+the sort order. Opening a shared URL honors its supplied filter instead. The
+old table is removed while another survey loads; a map selection made during
+that load is retained when its rows arrive. A late response from a previous
+survey cannot replace the current view.
 
 #### Sampled trees within the survey workspace
 
@@ -177,14 +211,16 @@ Sortable-table of `tree_sample` rows joined with `tree`, `sample`,
 `sample_area`, `parcel`, `species`. Its search/pagination row carries
 `[Esporta] [Importa CSV] [+ Nuovo albero]` at the right. Readers see only
 Esporta. The same controls remain available when an active survey is empty.
+The table displays 20 rows per page. Pagination limits visible rows only;
+filter results, exports, maps and summary include every matching measurement.
 
 Without an active survey the section shows an empty state ("Seleziona un
 rilevamento per visualizzare gli alberi campionati.") rather than every sampled
 tree in the database.
 
 With an active survey, shows all trees from that survey's samples. The
-**Filtra** input is the single filter for the table and, for a free survey, its
-tree map and dendrometric summary.
+**Filtra** input is the single filter for the table and dendrometric summary.
+It also filters the free survey's tree map.
 
 Qualified parcel filters such as `part:1` match the full parcel identifier,
 excluding `1b`, `10` and `10b`; unqualified text search remains substring-based.
@@ -192,32 +228,29 @@ Parcel-column sorting is natural (`1`, `1b`, `2`, `2a`, …, `10`, `11`) in eith
 direction. The filtered tree map, summary and export use the same exact parcel
 selection as the table.
 
-When a sample area is selected in a predefined survey, a line immediately
-above the table identifies that area, sample date and count. Clearing the area
-selection removes that line. Free surveys have no area-scope line; their total
-count is already in the survey overview.
+Both survey types show **Riassunto dendrometrico** below the table, using the
+shared Bosco/Martellate three-chart layout, species legend, and totals for
+sampled measurements, volume and basal area. These are totals of the filtered
+sampled rows, not estimates per hectare. Bosco owns the per-hectare estimates.
 
-With an active predefined survey and sample area, narrows to that area's trees
-within that survey.
+The shared `TreeDetail` component renders this summary for both types. For free
+surveys its tree map is mounted in the separate map host above the table; for
+structured surveys its tree map is disabled, leaving the area-map controller
+responsible for the markers and visit progress. Marking-page consumers retain
+the component's default map-then-summary layout.
 
-For a free survey, the table is followed by the shared tree-detail component
-also used by Martellate:
-
-- an 840 px Leaflet map of the trees with valid coordinates; trees without
-  coordinates remain in the table and dendrometric calculations;
-- **Riassunto dendrometrico**, with the shared Bosco/Martellate three-chart
-  layout, species legend and totals for number of trees, volume and basal area.
-
-The component consumes the rows retained by the table's filter, so table, map,
-charts, legend and totals remain synchronized. Its gray **Esporta** button
+The summary consumes every row retained by the table's filter, so charts,
+legend and totals remain synchronized with the selection. The free tree map
+uses those same rows. The summary's gray **Esporta** button
 downloads `riassunto_dendrometrico_rilevamento_<survey-id>.zip` containing
 `numero_alberi.csv`, `volume_m3.csv`, and `area_basimetrica_m2.csv`. Each CSV
 has species on rows and five-centimeter diameter classes on columns. Chart and
 ZIP boundaries follow the site-wide **Classi diametriche** setting; the export
 endpoint reads it directly. Species whose entire row is zero for that metric
-are omitted. With an active text filter, the client submits the displayed
-`tree_sample` IDs so the ZIP matches
-the visible summary.
+are omitted. With an active text filter (including one written by an area
+click), the client submits all matching `tree_sample` IDs, across pagination
+pages, so the ZIP matches the visible summary. With no filter the server
+exports the whole survey.
 
 Columns: compresa, particella, area di campionamento, n. albero
 (`tree_sample.number`), specie, tipo (fustaia / ceduo), pollone, matricina, D
@@ -446,8 +479,8 @@ refreshes preserve it.
 
 The server confines a batch to its survey and checks every selected version
 before deleting anything. A rejected selection leaves every measurement in
-place. Accepted deletions update sample/survey counts, preserved-tree summaries
-and the free-survey map/dendrometric summary. Survey deletion retains its
+place. Accepted deletions update sample/survey counts, preserved-tree summaries, the
+dendrometric summary, and the appropriate survey map. Survey deletion retains its
 separate export safeguard. See
 [Multi-row deletion](ui-design-patterns.md#multi-row-deletion).
 
@@ -481,19 +514,17 @@ the inputs with the device's current coordinates.
 - Query parameters:
   - `o=...`: which sections are expanded — single-char tokens, order
     irrelevant.  Tokens: `g` = Griglie and `r` = Rilevamenti. A legacy `t`
-    token opens Rilevamenti too; generated URLs use only `g` and `r`.  Absent → default (`r`); explicit empty
-    (`?o=`) → all closed.
+    token opens Rilevamenti too; generated URLs use only `g` and `r`.
+    Absent → default (`r`); explicit empty (`?o=`) → all closed.
   - `g=N`: id of the active grid in section 1.  Absent or pointing
     at a deleted grid → most recently updated grid (or empty state
     if none exist).
   - `s=N`: id of the active survey in section 2, including its tree table.
     Absent or pointing at a deleted survey → most recently active
     survey (or empty state if none exist).
-  - `a=N`: id of the active sample area within the active survey
-    (set by clicking an area on section 2's map). Narrows the tree
-    table to that area's trees and surfaces the sample date above it.
-    Silently cleared if it does not belong to the active survey's grid,
-    or if the active survey is free (handles stale shares).
+  - Legacy `a=N` sample-area links are read as a visible region/parcel/area
+    filter. New URLs express selection in `tf` alone. An area outside the
+    selected survey's grid, or an area supplied for a free survey, is ignored.
   - Survey tree-table state:
     - `tf=...`: URL-encoded search-box filter.
     - `tsc=N`: sort column index.
@@ -510,8 +541,8 @@ reproduces a stale viewport" trap.
 
 The active grid (`g=`) and active survey (`s=`) are independent
 controls: they can point at different grids without contradiction.
-The tree table depends on `s=` and, for predefined surveys, `a=`; `g=` does
-not narrow it.
+The tree table depends on `s=` and its visible `tf` filter; `g=` does not
+narrow it. A structured area selection is represented by normal `tf` terms.
 
 ## Data tables
 
@@ -586,9 +617,8 @@ Columns: `row_id`, `version`, `Griglia` (sample_grid_id), `Compresa`,
 
 ### `samples.json`
 
-All `sample` rows.  Drives Section 2's visited/unvisited map coloring,
-the per-area "n. alberi" hover tooltip, and the inline sample-date
-display above the survey tree table.  Eager-loaded.  Invalidated on `sample` writes
+All `sample` rows. Drives Section 2's visited/unvisited map coloring and the
+per-area "n. alberi" hover tooltip. Eager-loaded. Invalidated on `sample` writes
 and on `tree_sample` writes (since `N. alberi` is materialized).
 
 Columns: `row_id`, `version`, `Survey`, `Sample area`, `Data`,
@@ -633,12 +663,13 @@ row-level GPS accuracy and has no sample-area fallback; the UI displays null
 as `-`. `Data campione` is `sample.date` (useful for cross-tab tracking even
 when the table isn't narrowed to a single area).
 
-The page uses this digest for the survey tree table and, for free surveys,
-the tree map and client-side dendrometric summary. The table's Esporta submits
-the row IDs retained by its filters. The server renders normalized database
+The page uses this digest for the survey tree table and client-side
+dendrometric summary in both survey types, plus the tree map for free surveys.
+The table's Esporta submits the row IDs retained by its filters. The server renders normalized database
 rows, preserving hidden fields, free-sample groups and PAI numbers. With no
 area or text filter this exports the entire survey. The separate survey-delete
-backup always exports all measurements, regardless of the active filters. The dendrometry ZIP endpoint
+backup always exports all measurements, regardless of the active filters.
+The dendrometry ZIP endpoint
 (`/api/campionamenti/survey/dendrometry/export/<survey-id>/`) uses the same
 shared server-side matrix builder as Martellate and accepts the visible row IDs
 when the text filter is active.

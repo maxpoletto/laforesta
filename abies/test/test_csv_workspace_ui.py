@@ -69,7 +69,7 @@ def test_sampled_trees_are_inside_the_survey_workspace():
     root = templates('campionamenti').find(id='tmpl-campionamenti-page')
     assert root.find(**{'data-section': 't'}) is None
     survey = root.find(**{'data-section': 'r', 'class': 'collapsible-body'})
-    for target in ('survey-summary', 'survey-map', 'trees-table-host', 'trees-detail-host'):
+    for target in ('survey-summary', 'survey-map-section', 'survey-map', 'trees-table-host', 'trees-detail-host'):
         assert survey.find(**{'data-target': target}) is not None, target
 
 
@@ -81,3 +81,14 @@ def test_read_only_grid_has_export_without_import_or_new_area():
 
 def test_calendar_import_does_not_ask_for_a_forest_type():
     assert templates('piano_di_taglio').find(name='is_ceduo') is None
+
+
+def test_survey_map_precedes_table_and_summary_with_an_area_filter_hint():
+    survey = templates('campionamenti').find(**{'data-section':'r', 'class':'collapsible-body'})
+    targets = [child.attrs.get('data-target') for child in survey.children]
+    assert targets.index('survey-map-section') < targets.index('trees-table-host') < targets.index('trees-detail-host')
+    map_section = survey.find(**{'data-target':'survey-map-section'})
+    assert map_section.find(**{'data-field':'survey-map-title'}).tag == 'h3'
+    hint = map_section.find(**{'data-target':'survey-map-help'})
+    assert hint is not None and hint.attrs['class'] == 'subsection-note'
+    assert survey.find(**{'data-target':'trees-scope-summary'}) is None

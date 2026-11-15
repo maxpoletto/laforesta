@@ -4,7 +4,7 @@
  *   Section 1 (g) — Griglie: grid pulldown + map of its sample areas.
  *   Section 2 (r) — Rilevamenti: survey pulldown + sample-area map for
  *                    predefined surveys, followed by the sampled-tree table.
- *                    Free surveys include their tree map and dendrometry.
+ *                    Both survey types include a dendrometric summary.
  *
  * URL params: see docs/page-campionamenti.md (o, g, s, a, tf, tsc, tso).
  *
@@ -14,7 +14,7 @@
 
 import { confirmDeleteSelection } from '../../base/js/table-delete.js';
 import * as cache from '../../base/js/cache.js';
-import { searchTerms, TableWrapper } from '../../base/js/table.js';
+import { columnSearchTerm, searchTerms, TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -128,9 +128,9 @@ function areaInUse(areaId) {
 const TREES_COLS = {
   [S.COL_SAMPLE_AREA]: { hidden: true },
   [S.COL_SAMPLE_DATE]: { label: S.LABEL_DATE, type: 'date', width: '90px' },
-  [S.COL_REGION]:    { label: S.COL_REGION, width: '90px' },
+  [S.COL_REGION]:    { label: S.COL_REGION, searchMatch: 'exact', width: '90px' },
   [S.COL_PARCEL]:      { label: S.COL_PARCEL, type: 'natural', searchMatch: 'exact', width: '85px' },
-  [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, width: '70px' },
+  [S.COL_AREA_NUM]:    { label: S.COL_AREA_NUM, type: 'natural', searchMatch: 'exact', width: '70px' },
   [S.COL_TREE_NUM]:    { label: S.COL_TREE_NUM_SHORT, type: 'number', width: '70px', formatter: fmtInt },
   [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
   [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
@@ -159,9 +159,10 @@ const sections = {
        pulldown: null, summary: null, mapEl: null, map: null,
        savedView: null },
 };
-const treeView = {host: null, detailHost: null, emptyEl: null, scopeSummary: null};
+const treeView = {host: null, detailHost: null, emptyEl: null};
 
 let table = null;
+let pendingTreeState = null;
 let activeGridId = null;
 let activeSurveyId = null;
 let activeAreaId = null;
@@ -175,7 +176,6 @@ let treeDetail = null;
 let unsubCache = null;
 let currentTreesId = null;
 let surveyActivationSeq = 0;
-let _areaColIdx = -1;
 let inForm = false;
 let pendingQueryParams = null;
 let disposePageActions = null;
@@ -254,10 +254,10 @@ function destroyPage() {
   destroyGriglieMap();
   resetSectionRefs();
   activeGridId = activeSurveyId = activeAreaId = null;
+  pendingTreeState = null;
   surveysData = gridsData = sampleAreasData = samplesData = parcelsGeo = null;
   speciesNames = [];
   currentTreesId = null;
-  _areaColIdx = -1;
 }
 
 function resetSectionRefs() {
@@ -267,7 +267,7 @@ function resetSectionRefs() {
     s.pulldown = s.summary = s.mapEl = s.map = null;
     s.emptyEl = null;
   }
-  treeView.host = treeView.detailHost = treeView.emptyEl = treeView.scopeSummary = null;
+  treeView.host = treeView.detailHost = treeView.emptyEl = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -304,7 +304,8 @@ function buildPage(el, params) {
   r.summary = el.querySelector('[data-target="survey-summary"]');
   r.mapEl = el.querySelector('[data-target="survey-map"]');
   r.pulldown?.addEventListener('change', () => {
-    activateSurvey(parseInt(r.pulldown.value, 10));
+    const state = {sort: table?.getSort() || pendingTreeState?.sort, searchText: ''};
+    activateSurvey(parseInt(r.pulldown.value, 10), state);
     syncURL();
   });
   populateSurveyPulldown(r.pulldown);
@@ -313,7 +314,6 @@ function buildPage(el, params) {
   treeView.emptyEl = el.querySelector('[data-target="trees-empty"]');
   treeView.host = el.querySelector('[data-target="trees-table-host"]');
   treeView.detailHost = el.querySelector('[data-target="trees-detail-host"]');
-  treeView.scopeSummary = el.querySelector('[data-target="trees-scope-summary"]');
 
   disposePageActions = wireActions(el, {
     'new-grid': () => showNewGridForm(),
@@ -534,16 +534,20 @@ function rebuildSection(key, activeId) {
   syncURL();
 }
 
-async function activateSurvey(surveyId) {
+async function activateSurvey(surveyId, state = readTableState(
+  new URLSearchParams(location.search), TREE_TABLE_KEYS,
+)) {
   const activationSeq = ++surveyActivationSeq;
   const s = sections.r;
   if (surveyId == null || isNaN(surveyId)) { showAlberiEmpty(); return; }
   if (s.pulldown && s.pulldown.value !== String(surveyId)) {
     s.pulldown.value = String(surveyId);
   }
+  destroyTable();
+  if (treeView.emptyEl) treeView.emptyEl.hidden = true;
+  pendingTreeState = {...state};
   activeSurveyId = surveyId;
   activeAreaId = null;
-  setTreeScopeSummary('');
 
   renderRilevamentiSummary(surveyId);
   renderRilevamentiMap(surveyId);
@@ -552,7 +556,7 @@ async function activateSurvey(surveyId) {
   const dataId = `${TREES_ID_PREFIX}${surveyId}`;
   cache.register(dataId, `${TREES_URL_PREFIX}${surveyId}/`);
   currentTreesId = dataId;
-  _areaColIdx = -1;
+  syncAreaSelection();
 
   let data;
   try { data = await cache.load(dataId); }
@@ -564,14 +568,17 @@ async function activateSurvey(surveyId) {
   }
   if (activationSeq !== surveyActivationSeq || currentTreesId !== dataId) return;
 
-  renderTable(data);
+  renderTable(data, pendingTreeState);
+  renderRilevamentiSummary(surveyId);
+  pendingTreeState = null;
   cache.setVisible([
     SURVEYS_ID, GRIDS_ID, SAMPLE_AREAS_ID, SAMPLES_ID, SPECIES_ID, dataId,
   ]);
 
   if (unsubCache) unsubCache();
   unsubCache = bindTableData({ dataId, table, onUpdate: () => {
-    updateSurveyTreeSummary();
+    renderRilevamentiSummary(activeSurveyId);
+    syncAreaSelection();
     updateTreeDetail();
   } });
 }
@@ -603,15 +610,23 @@ function renderRilevamentiMap(surveyId) {
   destroyRilevamentiMap();
   const s = sections.r;
   if (!s.mapEl) return;
-  s.mapEl.hidden = true;
+  const mapSection = s.body?.querySelector('[data-target="survey-map-section"]');
+  if (mapSection) mapSection.hidden = true;
 
   const surveyRow = surveysData.rows.find(
     r => r[surveysData.columns.indexOf(ROW_ID)] === surveyId,
   );
   if (!surveyRow) return;
   const gridId = surveyRow[surveysData.columns.indexOf(S.COL_GRID)];
-  if (gridId == null) return;
+  const freeSurvey = gridId == null;
+  const title = s.body?.querySelector('[data-field="survey-map-title"]');
+  if (title) title.textContent = freeSurvey ? S.SAMPLES_MAP_TREES : S.SAMPLES_MAP_AREAS;
+  const help = s.body?.querySelector('[data-target="survey-map-help"]');
+  if (help) help.hidden = freeSurvey;
+  if (mapSection) mapSection.hidden = freeSurvey
+    && !cache.get(`${TREES_ID_PREFIX}${surveyId}`)?.rows.length;
   s.mapEl.hidden = false;
+  if (freeSurvey) return;
 
   const c = sampleAreasData.columns;
   const areas = sampleAreasData.rows
@@ -641,9 +656,7 @@ function renderRilevamentiMap(surveyId) {
     geojson: parcelsGeo,
     basemap: activeBasemap(),
     onAreaSelect: (areaId) => {
-      activeAreaId = areaId;
-      applyAreaFilter();
-      syncURL();
+      setAreaSearch(areaId);
     },
     initialView,
     onViewChange: (center, zoom) => {
@@ -652,6 +665,7 @@ function renderRilevamentiMap(surveyId) {
   });
   bindBasemapEvents(s.map);
   s.map.setAreas(areas, visitedById);
+  s.map.setActiveAreaId(activeAreaId);
 }
 
 function destroyRilevamentiMap() {
@@ -660,25 +674,23 @@ function destroyRilevamentiMap() {
 
 function showAlberiEmpty() {
   destroyTable();
-  setTreeScopeSummary('');
+  pendingTreeState = null;
+  const mapSection = sections.r.body?.querySelector('[data-target="survey-map-section"]');
+  if (mapSection) mapSection.hidden = true;
   if (treeView.emptyEl) treeView.emptyEl.hidden = false;
 }
 
-function renderTable(data) {
+function renderTable(data, treeState) {
   destroyTable();
   const s = treeView;
   if (!s.host) return;
   if (s.emptyEl) s.emptyEl.hidden = true;
 
-  const treeState = readTableState(
-    new URLSearchParams(location.search),
-    TREE_TABLE_KEYS,
-  );
-
   const modify = canModify();
   table = new TableWrapper({
     container: s.host,
     digest: data,
+    rowsPerPage: 20,
     columnDefs: buildColumnDefs(data.columns),
     inlineToolbar: true,
     canModify: modify,
@@ -705,12 +717,14 @@ function renderTable(data) {
     csvFormat: S.TABLE_CSV_FORMAT,
     onSort: () => syncURL(),
     onSearch: () => {
-      syncURL();
+      syncAreaSelection();
       updateTreeDetail();
+      syncURL();
     },
   });
-  applyAreaFilter();
-  if (surveyGridId(activeSurveyId) == null) mountTreeDetail(data);
+  syncAreaSelection();
+  mountTreeDetail(data);
+  updateTreeDetail();
 }
 
 function mountTreeDetail(data) {
@@ -718,6 +732,8 @@ function mountTreeDetail(data) {
   if (!host) return;
   treeDetail = new TreeDetail({
     container: host,
+    mapContainer: sections.r.mapEl,
+    mapEnabled: surveyGridId(activeSurveyId) == null,
     digest: {
       columns: data.columns,
       rows: table?.getFilteredRows() || [],
@@ -740,65 +756,59 @@ function destroyTable() {
   treeView.detailHost?.replaceChildren();
 }
 
-function applyAreaFilter() {
-  if (table) {
-    table.setExternalFilter(
-      activeAreaId == null
-        ? null
-        : row => row[areaCol()] === activeAreaId,
-    );
+/** Visible filter terms identify an area; no additional hidden row filter exists. */
+function areaSearch(areaId, surveyId = activeSurveyId) {
+  if (areaId == null || !sampleAreasData) return '';
+  const columns = sampleAreasData.columns;
+  const area = sampleAreasData.rows.find(row => row[columns.indexOf(ROW_ID)] === areaId
+    && row[columns.indexOf(S.COL_GRID)] === surveyGridId(surveyId));
+  if (!area) return '';
+  return areaRowSearch(area, columns);
+}
+
+function areaRowSearch(area, columns) {
+  return [S.COL_REGION, S.COL_PARCEL, S.COL_AREA_NUM].map(column => columnSearchTerm(
+    column, area[columns.indexOf(column === S.COL_AREA_NUM ? S.COL_NUMBER : column)],
+  )).join(' ');
+}
+
+function syncAreaSelection() {
+  const text = table?.getSearchText() ?? pendingTreeState?.searchText ?? '';
+  const terms = new Set(searchTerms(text));
+  activeAreaId = null;
+  const gridId = surveyGridId(activeSurveyId);
+  if (gridId != null) {
+    const columns = sampleAreasData.columns;
+    for (const row of sampleAreasData.rows) {
+      if (row[columns.indexOf(S.COL_GRID)] !== gridId) continue;
+      const id = row[columns.indexOf(ROW_ID)];
+      const filter = areaRowSearch(row, columns);
+      if (filter && searchTerms(filter).every(term => terms.has(term))) {
+        activeAreaId = id;
+        break;
+      }
+    }
   }
-  updateSurveyTreeSummary();
+  sections.r.map?.setActiveAreaId(activeAreaId);
+}
+
+function setAreaSearch(areaId) {
+  const text = areaSearch(areaId);
+  if (table) table.setSearchText(text);
+  else if (pendingTreeState) pendingTreeState.searchText = text;
+  syncAreaSelection();
   updateTreeDetail();
+  syncURL();
 }
 
 function updateTreeDetail() {
-  treeDetail?.setRows(table?.getFilteredRows() || []);
-}
-
-function areaCol() {
-  if (_areaColIdx >= 0) return _areaColIdx;
   const data = currentTreesId ? cache.get(currentTreesId) : null;
-  if (!data) return -1;
-  _areaColIdx = data.columns.indexOf(S.COL_SAMPLE_AREA);
-  return _areaColIdx;
-}
-
-function setTreeScopeSummary(text) {
-  if (!treeView.scopeSummary) return;
-  treeView.scopeSummary.textContent = text;
-  treeView.scopeSummary.hidden = !text;
-}
-
-function updateSurveyTreeSummary() {
-  if (activeSurveyId != null) renderRilevamentiSummary(activeSurveyId);
-  const data = currentTreesId ? cache.get(currentTreesId) : null;
-  if (!data || surveyGridId(activeSurveyId) == null || activeAreaId == null) {
-    setTreeScopeSummary('');
-    return;
-  }
-  const area = sampleAreaSummary(activeAreaId);
-  setTreeScopeSummary(area ? S.SAMPLES_TREES_HEADER_AREA(area, countTreesInActiveArea(data)) : '');
-}
-
-function countTreesInActiveArea(data) {
-  if (activeAreaId == null) return data.rows.length;
-  const c = data.columns.indexOf(S.COL_SAMPLE_AREA);
-  if (c < 0) return 0;
-  return data.rows.filter(row => row[c] === activeAreaId).length;
-}
-
-function sampleAreaSummary(areaId) {
-  if (!sampleAreasData) return null;
-  const c = sampleAreasData.columns;
-  const idCol = c.indexOf(ROW_ID);
-  const row = sampleAreasData.rows.find(r => r[idCol] === areaId);
-  if (!row) return null;
-  return {
-    regionName: row[c.indexOf(S.COL_REGION)] ?? '',
-    parcelName: row[c.indexOf(S.COL_PARCEL)] ?? '',
-    number: row[c.indexOf(S.COL_NUMBER)] ?? '',
-  };
+  if (!treeDetail || !data) return;
+  const previousMap = treeDetail.map;
+  treeDetail.setData(data, {rows: table?.getFilteredRows() || []});
+  if (treeDetail.map !== previousMap) bindBasemapEvents(treeDetail.map);
+  const mapSection = sections.r.body?.querySelector('[data-target="survey-map-section"]');
+  if (mapSection) mapSection.hidden = surveyGridId(activeSurveyId) == null && !data.rows.length;
 }
 
 function buildColumnDefs(columns) {
@@ -909,27 +919,22 @@ function applyParams(params) {
     targetSurvey = surveysData.rows[0][surveysData.columns.indexOf(ROW_ID)];
   }
   if (targetSurvey == null) { showAlberiEmpty(); return; }
-  const targetArea = surveyGridId(targetSurvey) == null ? null : p.a;
-
-  if (targetSurvey !== activeSurveyId) {
-    const requestedSurvey = targetSurvey;
-    const activationSeq = surveyActivationSeq + 1;
-    activateSurvey(targetSurvey).then(() => {
-      if (activationSeq !== surveyActivationSeq || activeSurveyId !== requestedSurvey) return;
-      if (targetArea != null) {
-        activeAreaId = targetArea;
-        if (sections.r.map) sections.r.map.setActiveAreaId(targetArea);
-        applyAreaFilter();
-      }
-    });
-  } else if (targetArea !== activeAreaId) {
-    activeAreaId = targetArea;
-    if (sections.r.map) sections.r.map.setActiveAreaId(targetArea);
-    applyAreaFilter();
+  const areaFilter = areaSearch(p.a, targetSurvey);
+  const terms = new Set(searchTerms(p.t.searchText));
+  if (areaFilter && !searchTerms(areaFilter).every(term => terms.has(term))) {
+    p.t.searchText = [areaFilter, p.t.searchText].filter(Boolean).join(' ');
   }
-
-  applyTableState(table, p.t, DEFAULT_TREE_SORT);
-  updateTreeDetail();
+  if (targetSurvey !== activeSurveyId) {
+    activateSurvey(targetSurvey, p.t);
+  } else if (table) {
+    if (applyTableState(table, p.t, DEFAULT_TREE_SORT)) {
+      syncAreaSelection();
+      updateTreeDetail();
+    }
+  } else {
+    pendingTreeState = p.t;
+    syncAreaSelection();
+  }
 }
 
 function syncURL() {
@@ -946,7 +951,6 @@ function syncURL() {
     const defaultSurvey = surveysData?.rows[0]?.[surveysData.columns.indexOf(ROW_ID)];
     if (activeSurveyId !== defaultSurvey) u.set('s', String(activeSurveyId));
   }
-  if (activeAreaId != null) u.set('a', String(activeAreaId));
 
   // Round-trip the basemap token if it differs from the default.
   // `currentMapType` is the long-form key ('osm' / 'topo' / 'satellite');
@@ -955,7 +959,11 @@ function syncURL() {
     k => MAP_TYPE_TOKENS[k] === currentMapType);
   if (mtToken && mtToken !== DEFAULT_MAP_TYPE) u.set('mt', mtToken);
 
-  writeTableState(u, table, TREE_TABLE_KEYS);
+  const stateSource = table || (pendingTreeState && {
+    getSort: () => tableSort(pendingTreeState, DEFAULT_TREE_SORT),
+    getSearchText: () => pendingTreeState.searchText,
+  });
+  writeTableState(u, stateSource, TREE_TABLE_KEYS);
 
   navigateWithParams(PAGE_PATH, u);
 }
@@ -1484,6 +1492,7 @@ async function exportSurveyDendrometry(data, rows) {
   }
 }
 
+
 function treeRowIds(data, rows) {
   const rowIdCol = data.columns.indexOf(ROW_ID);
   if (rowIdCol < 0) return null;
@@ -1995,6 +2004,7 @@ function returnToPage(overrides = {}) {
   destroyGriglieMap();
   destroyRilevamentiMap();
   activeGridId = activeSurveyId = activeAreaId = null;
+  pendingTreeState = null;
   if (unsubCache) { unsubCache(); unsubCache = null; }
 
   const el = document.getElementById('content');

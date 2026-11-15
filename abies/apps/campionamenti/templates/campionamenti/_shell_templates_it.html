@@ -53,8 +53,11 @@ render context.
       {% endif %}
     </div>
     <div class="campionamenti-summary" data-target="survey-summary"></div>
-    <div class="campionamenti-map-host" data-target="survey-map"></div>
-    <div class="campionamenti-summary" data-target="trees-scope-summary" hidden></div>
+    <section data-target="survey-map-section" hidden>
+      <h3 class="campionamenti-map-title" data-field="survey-map-title"></h3>
+      <p class="subsection-note" data-target="survey-map-help" hidden>Clicca su un'area di saggio per filtrare gli alberi.</p>
+      <div class="campionamenti-map-host" data-target="survey-map"></div>
+    </section>
     <div class="campionamenti-empty" data-target="trees-empty">
       Seleziona un rilevamento per visualizzare gli alberi campionati.
     </div>

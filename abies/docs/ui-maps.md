@@ -157,6 +157,22 @@ asynchronously, and page controllers check that the owning view is still active
 before applying it. Controllers dispose their table bindings and tree-detail
 components together when changing context.
 
+### Survey maps and visible area filters
+
+Campionamenti places a titled, 600px map above its tree table. Free surveys
+use `TreeDetail`'s tree map in that external host, with points following the
+text filter. Structured surveys use `RilevamentiMap` in the same position:
+all grid areas remain visible, colored by visit progress, while the shared
+`TreeDetail` renders only the summary below the table.
+
+An area click writes full region/parcel/area terms to the ordinary table
+filter. It replaces earlier search terms and uses exact identifier matching;
+there is no external area predicate silently narrowing the results. Matching
+identity terms also supply the selected marker and manual tree-entry context,
+including for an unvisited area with no measurement rows. Clearing them clears
+that context. Table filters and summaries include all matching rows, across
+pagination pages. Area markers continue to show full survey progress.
+
 ## Geometry and i18n
 
 Pure geometry/label helpers live in `base/js/geo.js` with **no** Leaflet

@@ -83,7 +83,7 @@ rows by matching all whitespace-separated terms against the
 concatenation of all fields. Sort order is preserved.
 
 The shared `TableWrapper` defaults to 25 rows per page. A workspace can pass
-`rowsPerPage` (a positive integer) to choose another size.
+`rowsPerPage` (a positive integer) to choose another size; survey tables use 20.
 Sorting, filtering, summary calculations and exports operate on all retained
 rows, independently of the current page. The configured size survives data
 updates and table-schema rebuilds.
