@@ -319,7 +319,8 @@ Page coordinates use `72 / 0.0254 / scaleDenominator` points per ground meter.
 The smallest suitable A4–A0 sheet and its orientation are chosen without
 changing that factor, accounting for headers, margins and any callout columns.
 `PDFDocument` accepts a `size` in points; other operational PDFs retain A4.
-The printable map does not use Leaflet, tiles, contours, or raster images.
+The printable map does not use Leaflet, tiles, or raster images. Optional local
+road, water and contour vectors are described below.
 The layout is shared by the SVG preview and `base/js/pdf.js` PDF renderer;
 both use the PDF font metrics. An optional 8 pt legend is placed after the
 subtitle and participates in header wrapping and map-space calculations.
@@ -413,3 +414,67 @@ the unadorned parcel name. The legend explains forest types and unscheduled
 parcels below the heading; other maps explain missing data instead. The footer
 contains the export date. GeoJSON feature IDs are not database parcel IDs.
 Metric adapters supply text without changing the geometry or PDF renderer.
+
+### Local vector context
+
+`build_map_context` reads each compresa's parcel bounding box and adds a 500 m
+WGS84 buffer. It queries OSM roads/tracks, waterways and water multipolygons,
+including member geometries. Shapely assembles complete outer/inner rings,
+preserves islands, clips and simplifies vectors. Incomplete Overpass results
+and incomplete water rings fail the build. It reads the required public
+Copernicus GLO-30 COG windows with rasterio (WGS84, one arc-second cells), then
+uses ContourPy to interpolate 20 m isolines at pixel centers. Nodata cells
+never generate connecting contour segments. These are DSM surface heights,
+including canopy; they are not a terrain survey. The vertical reference
+remains the input elevation model's orthometric reference.
+
+Each `MAP_CONTEXT_DIR/<Compresa>/context.json.gz` is a complete, atomically
+published snapshot with source/build metadata and a parcel geometry hash.
+An unchanged build is reused; an explicit `--force` refreshes it. Errors leave
+the last complete snapshot untouched. `--dem` and `--osm-file` accept local
+WGS84 raster and Overpass inputs. The API checks schema, region identity and
+current parcel geometry before serving a snapshot with ETag/gzip. Unavailable
+or stale data is reported without making any external request on the server.
+
+`bosco-print-context.js` loads the local dataset through the shared conditional
+cache, provides consistent styles, and supplies projected vector paths and
+index elevation labels to both renderers. `bosco-print-ui.js` freezes that
+dataset once loaded. Switching checkboxes regenerates the same-scale layout;
+credits describe only selected sources. Background vectors do not influence
+the parcel extent or projection origin, but their source credits participate
+in footer height and paper sizing. Nearby context can fill spare map space.
+Paths are clipped to `layout.mapBox`, excluding the heading, footer and callout
+columns. Water fills use even/odd winding in both SVG and PDF. Index elevation
+labels avoid the parcel labels and page edges; parcel borders/labels draw last.
+
+Initialization, refresh and sync commands are documented in the README. Source
+formats and algorithms: [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL),
+[Copernicus COGs](https://copernicus-dem-30m.s3.amazonaws.com/readme.html),
+[ContourPy](https://contourpy.readthedocs.io/en/v1.4.0/api/contourpy/contour_generator.html).
+Printed attribution follows [OSM](https://www.openstreetmap.org/copyright) and
+the [Copernicus GLO-30 license](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/DEM/resources/license/License-COPDEM-30.pdf).
+
+### Print test coverage
+
+`make test-print-js-coverage` runs the three print suites with Node's built-in
+V8 coverage. The suites share staged source paths during this command so
+coverage merges across isolated processes; the staging directory is removed
+after reporting. Ordinary individual tests retain their separate temporary
+directories and clean them up themselves. No coverage package is required.
+
+For the Python builder, publication helpers, management command and the local
+context endpoint, run:
+
+```sh
+python -m pytest test/test_map_context.py --cov-branch \
+  --cov=apps.bosco.map_context --cov=apps.bosco.map_context_data \
+  --cov=apps.bosco.management.commands.build_map_context --cov-report=term-missing
+```
+
+These tests cover build reuse, atomic publication failures, malformed/partial
+OSM results, water islands and split polygons, elevation windows/CRS/nodata,
+contour interpolation, stale geometry, ETags, optional-layer failures, clipped
+labels, multipart rendering and SVG/PDF parity. They use local synthetic data
+and mock remote responses. Real-data checks on all three comprese complement
+them; executable-path coverage does not establish the quality of every OSM
+feature or DSM cell.

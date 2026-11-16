@@ -126,6 +126,38 @@ make sync-satellite-dev SATELLITE_DIR=data/satellite-build
 
 Use a fresh output directory when the geometry or raster-grid definition changes.
 
+Printable-map context is optional and initialized separately from satellite
+imagery. It requires no API account: roads and water come from OpenStreetMap,
+and contours come from public Copernicus GLO-30 surface-model COGs.
+
+```sh
+make map-context
+make map-context MAP_CONTEXT_ARGS='--region Capistrano --force'
+```
+
+Each compresa uses its parcel bounding box plus a 500 m buffer. The builder
+extracts contours every 20 m, clips and simplifies vectors, then atomically
+publishes `data/map-context/<Compresa>/context.json.gz`. Matching builds are
+reused; `--force` refreshes them. A failed refresh preserves the last complete
+snapshot. Copernicus is a DSM including vegetation, rather than bare terrain.
+Use `--dem path/to/wgs84-elevation.tif` for a local elevation source and
+`--osm-file response.json` for an existing Overpass JSON response.
+
+`MAP_CONTEXT_DIR`, `MAP_CONTEXT_GEOJSON` and `MAP_CONTEXT_ARGS` configure the
+Makefile. `ABIES_MAP_CONTEXT_DIR` configures the application's serving path.
+Publish generated files separately from deploying code:
+
+```sh
+make sync-map-context-dev
+make sync-map-context-prod
+```
+
+These targets use the standard dev/prod data directory. `sync-data` continues
+to sync canonical and satellite inputs; map context uses its explicit target.
+The browser loads the local snapshot when opening the print modal. Printing
+and scale changes make no requests to OSM or Copernicus. If data is missing or
+outdated for the parcel geometry, the modal offers the plain parcel map.
+
 To make the process completely non-interactive (e.g., during edit-debug cycles),
 set these in `compose/.env.local`:
 ```sh

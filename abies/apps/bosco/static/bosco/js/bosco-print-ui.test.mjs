@@ -1,19 +1,17 @@
-import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
+import { stagePrintModules } from '../../../../../test/js-static.mjs';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'abies-print-ui-'));
-for (const app of ['base', 'bosco']) {
-  fs.cpSync(path.resolve(here, `../../../../${app}/static/${app}/js`),
-    path.join(tmp, app, 'js'), { recursive: true });
-}
-copyGeodesicVendor(tmp);
-process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
-const { showMetricPrint } = await import(pathToFileURL(path.join(tmp, 'bosco/js/bosco-print-ui.js')));
+const tmp = stagePrintModules('abies-print-ui-');
+const { showMetricPrint: openMetricPrint } = await import(pathToFileURL(path.join(tmp, 'bosco/js/bosco-print-ui.js')));
+const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+const pdfHasText = (pdf, text) => pdf.includes(text) || pdf.toLowerCase().includes(Buffer.from(text, 'latin1').toString('hex'));
+const showMetricPrint = async options => {
+  Object.values(layers).forEach(control => { control.checked = false; control.disabled = true; });
+  openMetricPrint({ loadContext: async () => ({ available: false }), ...options });
+  await flush();
+};
 class Element {
   constructor() { this.children = []; this.listeners = {}; this.attrs = {}; this.textContent = ''; }
   setAttribute(key, value) { this.attrs[key] = value; }
@@ -27,6 +25,14 @@ class Element {
 const container = new Element(), preview = new Element(), download = new Element();
 const cancel = new Element(), error = new Element(), title = new Element();
 const scale = new Element(), dimensions = new Element(), paper = new Element();
+const contextStatus = new Element(), contourNote = new Element();
+const layers = Object.fromEntries(['roads', 'water', 'contours'].map(layer => {
+  const control = new Element();
+  control.dataset = { layer };
+  control.disabled = true;
+  control.checked = false;
+  return [layer, control];
+}));
 scale.value = '10000';
 const fragment = new Element();
 fragment.querySelector = selector => ({
@@ -37,6 +43,9 @@ fragment.querySelector = selector => ({
   '[data-role="print-scale"]': scale,
   '[data-field="print-dimensions"]': dimensions,
   '[data-field="print-paper"]': paper,
+  '[data-field="print-context-status"]': contextStatus,
+  '[data-field="print-contour-note"]': contourNote,
+  ...Object.fromEntries(Object.entries(layers).map(([layer, control]) => [`[data-layer="${layer}"]`, control])),
 })[selector];
 fragment.querySelectorAll = () => [cancel];
 let downloaded, blob;
@@ -60,7 +69,7 @@ const geometry = { type: 'Polygon', coordinates: [[[16, 38], [16.01, 38],
   [16.01, 38.01], [16, 38.01], [16, 38]]] };
 const data = { selected_plan: { id: 1, name: 'Piano di taglio Plan A', year_start: 2027, year_end: 2050 },
   calendar: [{ parcel_id: 1, years: [2027, 2040] }, { parcel_id: 2, years: [2027, 2050] }] };
-showMetricPrint({ metricId: '10', geojson: { features: [{ geometry,
+await showMetricPrint({ metricId: '10', geojson: { features: [{ geometry,
   properties: { layer: 'Forest', name: 'Forest-1' } }] },
 region: { id: 1, name: 'Forest' }, entries: [
   { id: 1, region: 'Forest', parcel: '1', coppice: false },
@@ -157,7 +166,7 @@ geometry.coordinates[0][1][0] = 16.01;
 scale.value = '10000';
 preview.replaceChildren();
 blob = undefined;
-showMetricPrint({ metricId: '1', geojson: { features: [{ geometry,
+await showMetricPrint({ metricId: '1', geojson: { features: [{ geometry,
   properties: { layer: 'Forest', name: 'Forest-1' } }] },
 region: { id: 1, name: 'Forest' }, entries: [
   { id: 1, region: 'Forest', parcel: '1', coppice: false, aveAge: 37 },
@@ -172,7 +181,7 @@ preview.replaceChildren();
 const historical = new Map([['Forest-1', 25.6]]);
 const harvestEntry = { id: 1, region: 'Forest', parcel: '1', key: 'Forest-1',
   coppice: false, displayAreaHa: 2 };
-showMetricPrint({ metricId: '4', geojson: { features: [{ geometry,
+await showMetricPrint({ metricId: '4', geojson: { features: [{ geometry,
   properties: { layer: 'Forest', name: 'Forest-1' } }] },
 region: { id: 1, name: 'Forest' }, entries: [harvestEntry],
 context: { historical, perHa: true }, useCadastralArea: true });
@@ -189,7 +198,7 @@ preview.replaceChildren();
 const future = new Map([[1, 25.6]]);
 const forecastData = { selected_plan: { id: 8, name: 'Selected plan', year_start: 2027, year_end: 2050 },
   calendar: [{ parcel_id: 1, years: [2027, 2040] }] };
-showMetricPrint({ metricId: '5', geojson: { features: [{ geometry,
+await showMetricPrint({ metricId: '5', geojson: { features: [{ geometry,
   properties: { layer: 'Forest', name: 'Forest-1' } }] },
 region: { id: 1, name: 'Forest' }, entries: [{ ...harvestEntry, displayAreaHa: 2 }],
 context: { future, perHa: true }, data: forecastData });
@@ -206,7 +215,7 @@ cancel.listeners.click();
 // can correct it without leaving the dialog or refreshing the page.
 preview.replaceChildren();
 scale.value = '10000';
-showMetricPrint({ metricId: '1', geojson: { features: [{
+await showMetricPrint({ metricId: '1', geojson: { features: [{
   geometry: { type: 'Polygon', coordinates: [[[16, 38], [16.1, 38],
     [16.1, 38.1], [16, 38.1], [16, 38]]] },
   properties: { layer: 'Forest', name: 'Forest-1' },
@@ -227,4 +236,69 @@ documentListeners.keydown({ key: 'Enter' });
 assert.equal(container.children.length, 1, 'ordinary keys do not dismiss the dialog');
 documentListeners.keydown({ key: 'Escape' });
 assert.equal(container.children.length, 0);
+
+const sourceContext = { available: true, schema_version: 1,
+  build: { dem_source: 'copernicus-glo-30', contour_interval_m: 20 }, features: [
+    { properties: { layer: 'roads', kind: 'track' }, geometry: { type: 'LineString',
+      coordinates: [[16, 38.005], [16.01, 38.005]] } },
+    { properties: { layer: 'contours', elevation: 100 }, geometry: { type: 'LineString',
+      coordinates: [[16, 38.008], [16.01, 38.008]] } },
+  ] };
+const metricOptions = { metricId: '1', geojson: { features: [{ geometry,
+  properties: { layer: 'Forest', name: 'Forest-1' } }] },
+region: { id: 1, name: 'Forest' }, entries: [
+  { id: 1, region: 'Forest', parcel: '1', coppice: false, aveAge: 37 },
+] };
+scale.value = '10000';
+await showMetricPrint({ ...metricOptions, loadContext: async () => sourceContext });
+assert.equal(layers.roads.disabled, false);
+assert.equal(layers.roads.checked, true);
+assert.equal(layers.water.disabled, true, 'unavailable layer controls stay disabled');
+assert.equal(layers.contours.checked, true);
+assert.match(contourNote.textContent, /DSM/);
+assert.equal(contextStatus.textContent, '');
+sourceContext.features[0].geometry.coordinates[0][0] = 17;
+download.listeners.click();
+assert.ok(pdfHasText(await blob.text(), 'OpenStreetMap'));
+layers.contours.checked = false;
+layers.contours.listeners.change();
+assert.equal(contourNote.textContent, '');
+download.listeners.click();
+assert.ok(!pdfHasText(await blob.text(), 'Copernicus'), 'source credits follow selected layers');
+layers.roads.checked = false;
+layers.roads.listeners.change();
+download.listeners.click();
+assert.ok(!pdfHasText(await blob.text(), 'OpenStreetMap'));
+cancel.listeners.click();
+
+await showMetricPrint({ ...metricOptions, loadContext: async () => { throw new Error('Offline'); } });
+assert.equal(download.disabled, false, 'missing context never prevents a plain parcel PDF');
+assert.match(contextStatus.textContent, /Impossibile/);
+cancel.listeners.click();
+let finishLoading;
+Object.values(layers).forEach(control => { control.checked = false; control.disabled = true; });
+openMetricPrint({ ...metricOptions, loadContext: () => new Promise(resolve => { finishLoading = resolve; }) });
+await flush();
+assert.equal(download.disabled, true, 'wait for the optional layer snapshot before enabling download');
+cancel.listeners.click();
+finishLoading(sourceContext);
+await flush();
+assert.equal(container.children.length, 0, 'late context results never reopen a closed modal');
+
+await showMetricPrint({ ...metricOptions, loadContext: async () => ({ available: false, stale: true }) });
+assert.equal(download.disabled, false);
+assert.match(contextStatus.textContent, /aggiornati/);
+cancel.listeners.click();
+await showMetricPrint({ ...metricOptions, loadContext: async () => ({ ...sourceContext,
+  build: { dem_source: 'local.tif', contour_interval_m: 25 } }) });
+assert.match(contourNote.textContent, /25 m/);
+assert.ok(!contourNote.textContent.includes('DSM'), 'a local terrain model is not described as Copernicus DSM');
+cancel.listeners.click();
+let failLoading;
+openMetricPrint({ ...metricOptions, loadContext: () => new Promise((resolve, reject) => { failLoading = reject; }) });
+await flush();
+cancel.listeners.click();
+failLoading(new Error('Late network failure'));
+await flush();
+assert.equal(container.children.length, 0, 'late failures do not reopen or replace the current modal');
 console.log('Print UI: fixed-scale snapshots, validation recovery, repeated downloads and close passed.');

@@ -1,18 +1,9 @@
-import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
+import { stagePrintModules } from '../../../../../test/js-static.mjs';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'abies-print-map-'));
-for (const app of ['base', 'bosco']) {
-  fs.cpSync(path.resolve(here, `../../../../${app}/static/${app}/js`),
-    path.join(tmp, app, 'js'), { recursive: true });
-}
-copyGeodesicVendor(tmp);
-process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
+const tmp = stagePrintModules('abies-print-map-');
 const M = await import(pathToFileURL(path.join(tmp, 'bosco/js/characteristic-print.js')));
 const C = await import(pathToFileURL(path.join(tmp, 'bosco/js/bosco-calendar-print.js')));
 const { pointInPolygon } = await import(pathToFileURL(path.join(tmp, 'base/js/geo.js')));

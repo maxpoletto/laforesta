@@ -85,6 +85,20 @@ export class PDFDocument {
     this.current.push(`q 1 g ${num(x)} ${num(this.height - y - h)} ${num(w)} ${num(h)} re f Q`);
   }
 
+  /** Context-map vectors, including even/odd polygon holes and dashed paths. */
+  shape(rings, { close = false, stroke = [0, 0, 0], fill = null, width = .6, dash = [] } = {}) {
+    const paths = rings.map(points => points.map(([x, y], i) =>
+      `${num(x)} ${num(this.height - y)} ${i ? 'l' : 'm'}`).join(' ') + (close ? ' h' : ''));
+    this.current.push(`q ${stroke.map(num).join(' ')} RG ${fill ? `${fill.map(num).join(' ')} rg ` : ''}`
+      + `${num(width)} w [${dash.map(num).join(' ')}] 0 d ${paths.join(' ')} ${fill ? 'B*' : 'S'} Q`);
+  }
+
+  clipRect(x, y, width, height) {
+    this.current.push(`q ${num(x)} ${num(this.height - y - height)} ${num(width)} ${num(height)} re W n`);
+  }
+
+  endClip() { this.current.push('Q'); }
+
   addJPEGImage({ dataBase64, width, height }) {
     const image = {
       name: `Im${this.nextImageId++}`,

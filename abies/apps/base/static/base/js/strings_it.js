@@ -403,6 +403,17 @@ export const BOSCO_NO_PLANNED_CUTS = 'Nessun taglio previsto';
 export const BOSCO_PRINT_GEOMETRY_ERROR = 'Impossibile preparare la mappa: controlla i confini delle particelle.';
 export const BOSCO_PRINT_LABEL_ERROR = 'Impossibile disporre tutte le etichette in modo leggibile. Prova una scala con denominatore minore.';
 export const BOSCO_PRINT_SCALE_ERROR = 'Inserisci un denominatore di scala intero maggiore di zero.';
+export const BOSCO_PRINT_CONTEXT_LOADING = 'Caricamento degli strati cartografici…';
+export const BOSCO_PRINT_CONTEXT_MISSING = 'Strati cartografici non ancora disponibili per questa compresa.';
+export const BOSCO_PRINT_CONTEXT_STALE = 'Gli strati cartografici devono essere aggiornati per i confini attuali.';
+export const BOSCO_PRINT_CONTEXT_ERROR = 'Impossibile caricare gli strati cartografici. Puoi scaricare la mappa delle particelle.';
+export const BOSCO_PRINT_CONTEXT_CONTOURS = interval => `Curve ogni ${interval} m; curve principali ogni 100 m.`;
+export const BOSCO_PRINT_DSM_NOTE = 'Curve ottenute da Copernicus GLO-30 (DSM, circa 30 m): includono la vegetazione e non rappresentano il terreno nudo.';
+export const BOSCO_PRINT_OSM_CREDIT = '© OpenStreetMap contributors · ODbL · www.openstreetmap.org/copyright';
+export const BOSCO_PRINT_DSM_DESCRIPTION = "Curve da Copernicus GLO-30 (DSM). Le organizzazioni responsabili del programma Copernicus non assumono responsabilità per l'uso del Copernicus WorldDEM-30.";
+export const BOSCO_PRINT_DSM_CREDIT = 'Produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.';
+export const BOSCO_PRINT_ELEVATION_CREDIT = 'Curve derivate dal modello di elevazione locale.';
+export const BOSCO_PRINT_ELEVATION = elevation => `${elevation} m`;
 export const BOSCO_PRINT_SIZE_ERROR = (width, height) =>
   `La mappa misura ${width} × ${height} cm e non entra in un foglio A0 con margini, intestazione ed etichette. Prova una scala con denominatore maggiore.`;
 export const BOSCO_PRINT_SCALE = denominator => `Scala 1 : ${denominator}`;

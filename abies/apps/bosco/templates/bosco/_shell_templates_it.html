@@ -66,7 +66,6 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
           <div class="bosco-legend" data-target="legend"></div>
           <div data-role="map-print-row" hidden>
             <button type="button" class="btn btn-export" data-action="print-map" disabled>Mappa stampabile…</button>
-            <p class="bosco-hint">PDF A4 dell’intera compresa selezionata.</p>
           </div>
         </section>
 
@@ -243,16 +242,14 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 <template id="tmpl-bosco-map-print">
   <div class="bosco-map-print form-card">
     <h2 data-field="print-title">Mappa stampabile</h2>
-    <p>Intera compresa. Le etichette riportano la particella, il governo e i dati
+    <p>Le etichette riportano la particella, il governo e i dati
       selezionati.</p>
-    <div class="form-group">
+    <div class="form-group bosco-print-scale">
       <label for="bosco-print-scale">Scala</label>
-      <div class="bosco-print-scale">
-        <span aria-hidden="true">1 :</span>
-        <input id="bosco-print-scale" data-role="print-scale" type="number"
-          min="1" step="1" value="10000" list="bosco-print-scales" required
-          aria-describedby="bosco-print-help bosco-print-error">
-      </div>
+      <span aria-hidden="true">1 :</span>
+      <input id="bosco-print-scale" data-role="print-scale" type="number"
+        min="1" step="1" value="10000" list="bosco-print-scales" required
+        aria-describedby="bosco-print-help bosco-print-error">
       <datalist id="bosco-print-scales">
         <option value="5000"></option>
         <option value="10000"></option>
@@ -261,6 +258,14 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
     </div>
     <p data-field="print-dimensions" aria-live="polite"></p>
     <p data-field="print-paper" aria-live="polite"></p>
+    <fieldset class="bosco-print-layers">
+      <legend>Strati cartografici</legend>
+      <label><input type="checkbox" data-layer="roads" disabled> Strade e sentieri</label>
+      <label><input type="checkbox" data-layer="water" disabled> Corsi e specchi d’acqua</label>
+      <label><input type="checkbox" data-layer="contours" disabled> Curve di livello</label>
+      <p data-field="print-context-status" aria-live="polite"></p>
+      <p data-field="print-contour-note"></p>
+    </fieldset>
     <p id="bosco-print-help">Per mantenere la scala, stampa sul formato consigliato
       al 100% (dimensioni effettive), senza adattare alla pagina.</p>
     <div data-target="print-preview"></div>

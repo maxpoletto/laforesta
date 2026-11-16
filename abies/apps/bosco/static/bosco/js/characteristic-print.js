@@ -3,6 +3,7 @@ import { PDFDocument, buildPDF } from '../../base/js/pdf.js';
 import { localProjection, pointInPolygon } from '../../base/js/geo.js';
 import { fmtDecimal1, fmtInt } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
+import { appendContextSVG, drawContextPDF, layoutPrintContext } from './bosco-print-context.js';
 
 const MARGIN = 24;
 const TOP = 70;
@@ -169,8 +170,12 @@ function layoutFor(map, paper, landscape, header, gutters) {
     }
   }
   const top = Math.max(TOP, headerY + 8);
+  const footerLines = [[header.footer, 8], ...header.credits.map(value => [value, 7])]
+    .flatMap(([value, size]) => wrap(value, width - 2 * MARGIN, { size }).map(text => ({ text, size })))
+    .map((line, i, lines) => ({ ...line, y: height - 15 - (lines.length - i - 1) * 9 }));
+  const bottomMargin = BOTTOM + Math.max(0, footerLines.length - 1) * 9;
   const mapBox = { x: MARGIN + gutters[0], y: top,
-    width: width - 2 * MARGIN - gutters[0] - gutters[1], height: height - top - BOTTOM };
+    width: width - 2 * MARGIN - gutters[0] - gutters[1], height: height - top - bottomMargin };
   if (map.width > mapBox.width || map.height > mapBox.height) return null;
   const offsetX = mapBox.x + (mapBox.width - map.width) / 2;
   const offsetY = mapBox.y + (mapBox.height - map.height) / 2;
@@ -198,7 +203,7 @@ function layoutFor(map, paper, landscape, header, gutters) {
       label.y = Math.max(bottom, label.anchor[1] - label.height / 2);
       bottom = label.y + label.height + GAP;
     }
-    bottom = height - BOTTOM;
+    bottom = height - bottomMargin;
     for (const label of [...column].reverse()) {
       label.y = Math.min(label.y, bottom - label.height);
       bottom = label.y - GAP;
@@ -214,7 +219,7 @@ function layoutFor(map, paper, landscape, header, gutters) {
     mapHeightCm: map.height / POINTS_PER_METER * 100,
     gutterWidth: gutters[0] + gutters[1],
     fit: Math.min(mapBox.width / map.width, mapBox.height / map.height),
-    parcels, labels, headerLines, ...header };
+    parcels, labels, headerLines, footerLines, mapBox, offsetX, offsetY, ...header };
 }
 
 function interiorLabels(parcels, width) {
@@ -250,7 +255,7 @@ function interiorLabels(parcels, width) {
 }
 
 export function buildPrintMapLayout({ items, scaleDenominator = 10000,
-  title = '', subtitle = '', legend = '', footer = '' }) {
+  title = '', subtitle = '', legend = '', footer = '', credits = [], contextFeatures = [] }) {
   if (!Number.isSafeInteger(scaleDenominator) || scaleDenominator <= 0) {
     throw new Error(S.BOSCO_PRINT_SCALE_ERROR);
   }
@@ -290,12 +295,19 @@ export function buildPrintMapLayout({ items, scaleDenominator = 10000,
     for (const landscape of [false, true]) {
       for (const gutters of gutterOptions) {
         try {
-          const layout = layoutFor(map, paper, landscape, { title, subtitle, legend, footer }, gutters);
+          const layout = layoutFor(map, paper, landscape, { title, subtitle, legend, footer, credits }, gutters);
           if (layout) layouts.push(layout);
         } catch (error) { lastError = error; }
       }
     }
-    if (layouts.length) return layouts.sort((a, b) => a.gutterWidth - b.gutterWidth || b.fit - a.fit)[0];
+    if (layouts.length) {
+      const layout = layouts.sort((a, b) => a.gutterWidth - b.gutterWidth || b.fit - a.fit)[0];
+      if (contextFeatures.length) layout.context = layoutPrintContext(contextFeatures, ([lon, lat]) => {
+        const { x, y } = plane.project(lat, lon);
+        return [layout.offsetX + (x - box.minX) * scale, layout.offsetY + (-y - box.minY) * scale];
+      }, layout.mapBox, layout.labels);
+      return layout;
+    }
   }
   throw lastError;
 }
@@ -303,7 +315,8 @@ export function buildPrintMapLayout({ items, scaleDenominator = 10000,
 function drawPDF(layout) {
   const doc = new PDFDocument({ size: layout });
   for (const line of layout.headerLines) doc.text(MARGIN, line.y, line.text, line);
-  doc.text(MARGIN, doc.height - 15, layout.footer, { size: 8 });
+  for (const line of layout.footerLines) doc.text(MARGIN, line.y, line.text, { size: line.size });
+  drawContextPDF(doc, layout.context);
   for (const parcel of layout.parcels) {
     for (const rings of polygons(parcel.geometry)) {
       for (const ring of rings) doc.path(ring, { close: true });
@@ -351,7 +364,8 @@ export function buildPrintMapPreview(layout) {
     textLength: measure.textWidth(value, { size, bold }), lengthAdjust: 'spacingAndGlyphs',
   }, value));
   for (const line of layout.headerLines) text(MARGIN, line.y, line.text, line.size, line.bold);
-  text(MARGIN, layout.height - 15, layout.footer, 8, false);
+  for (const line of layout.footerLines) text(MARGIN, line.y, line.text, line.size, false);
+  appendContextSVG(svg, layout.context, element);
   const path = (points, close, width) => svg.appendChild(element('path', {
     d: points.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ') + (close ? ' Z' : ''),
     fill: 'none', stroke: 'black', 'stroke-width': width,

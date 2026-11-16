@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import json
 import os
 import re
 from datetime import date as date_type
@@ -14,6 +15,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -87,6 +89,35 @@ FIELD_CUTTING_PLAN = 'cutting_plan'
 FIELD_HARVEST_MECHANISM = 'harvest_mechanism'
 FIELD_INTERVENTION_INTERVAL = 'intervention_interval'
 FIELD_STANDARDS_PER_HA = 'standards_per_ha'
+
+
+@login_required
+def map_context_data(request, region_id):
+    from apps.bosco.map_context_data import (
+        CONTEXT_FILE, SCHEMA_VERSION, MapContextError, read_context,
+        region_directory, region_geometry,
+    )
+    region = get_object_or_404(Region, pk=region_id)
+    def unavailable(*, stale=False):
+        response = JsonResponse({'available': False, **({'stale': True} if stale else {})})
+        apply_cache_control(response, CACHE_NO_CACHE)
+        return response
+
+    try:
+        path = region_directory(settings.MAP_CONTEXT_DIR, region.name) / CONTEXT_FILE
+        if not path.is_file():
+            return unavailable()
+        payload = read_context(path)
+        with open(Path(settings.GEO_DIR) / 'terreni.geojson') as stream:
+            fingerprint, _ = region_geometry(json.load(stream), region.name)
+        if (payload.get('schema_version') != SCHEMA_VERSION or payload.get('region') != region.name
+                or payload.get('build', {}).get('geometry_hash') != fingerprint):
+            return unavailable(stale=True)
+        return conditional_file_response(request, path, content_type='application/geo+json',
+                                         content_encoding='gzip', cache_control=CACHE_NO_CACHE,
+                                         use_etag=True)
+    except (MapContextError, OSError, ValueError, KeyError):
+        return unavailable(stale=True)
 
 PARCEL_METADATA_TEXT_FIELDS = {
     FIELD_LOCATION_NAME: (S.COL_LOCATION, 200),

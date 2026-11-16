@@ -64,6 +64,11 @@ and MIT license are copied by `bin/update-vendor` from the npm lock. The Python
 GeographicLib 2.1 package supplies the same WGS84 model for server calculations.
 Consult the locks for the complete package inventory.
 
+Printable-map context initialization uses ContourPy for interpolated contour
+lines and Shapely for water multipolygon assembly, clipping and simplification.
+Both are locked Python wheels. They add no browser dependency or external
+runtime map service. `bin/check-runtime` checks their native imports too.
+
 ## Initial installation
 
 Create a Python 3.14 virtual environment and install the locked tooling and app:

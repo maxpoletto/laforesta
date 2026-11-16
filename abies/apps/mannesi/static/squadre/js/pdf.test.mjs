@@ -64,5 +64,23 @@ check(imagePdf.includes('/Filter [/ASCIIHexDecode /DCTDecode]'),
 check(imagePdf.includes('/Im1 Do'), 'page content draws image XObject');
 check(imagePdf.includes('ffd8ffd9>'), 'image data is emitted as ASCII hex');
 
+const vectorDoc = new PDFDocument();
+vectorDoc.clipRect(10, 20, 100, 200);
+vectorDoc.shape([[[10, 20], [30, 40]]]);
+vectorDoc.shape([
+  [[10, 20], [60, 20], [60, 70], [10, 70]],
+  [[20, 30], [30, 30], [30, 40], [20, 40]],
+], { close: true, stroke: [.4, .5, .6], fill: [.1, .2, .3], width: 2, dash: [3, 2] });
+vectorDoc.endClip();
+vectorDoc.text(150, 250, 'Outside the context clip');
+const vectorPdf = buildPDF(vectorDoc.width, vectorDoc.height, vectorDoc.pages);
+check(vectorPdf.includes('q 10 621.89 100 200 re W n'), 'clip rectangle uses PDF bottom-left coordinates');
+check(vectorPdf.includes('q 0 0 0 RG 0.60 w [] 0 d 10 821.89 m 30 801.89 l S Q'),
+      'default open vectors use black strokes and preserve their point coordinates');
+check(vectorPdf.includes('0.40 0.50 0.60 RG 0.10 0.20 0.30 rg 2 w [3 2] 0 d'),
+      'filled vectors preserve their stroke, fill and dash styles');
+check(vectorPdf.includes(' h B* Q\nQ\nBT'),
+      'polygon holes use even/odd fill and clipping ends before subsequent text');
+
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

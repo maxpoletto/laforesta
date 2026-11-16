@@ -29,9 +29,12 @@ def main():
     import PIL
     import pillow_heif
     import rasterio
+    import contourpy
+    import shapely
     print(f'Production inventory matches {len(installed)} packages; no build/test tools.')
     print(f'Native imports: numpy {numpy.__version__}, rasterio {rasterio.__version__}, '
-          f'Pillow {PIL.__version__}, pillow-heif {pillow_heif.__version__}')
+          f'Pillow {PIL.__version__}, pillow-heif {pillow_heif.__version__}, '
+          f'ContourPy {contourpy.__version__}, Shapely {shapely.__version__}')
 
 
 if __name__ == '__main__':

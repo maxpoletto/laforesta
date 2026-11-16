@@ -44,6 +44,7 @@ def isolated_generated_data(settings, tmp_path):
     settings.RUNTIME_SNAPSHOT_LOCK_PATH = tmp_path / '.runtime-snapshot.lock'
     settings.GEO_DIR = tmp_path / 'geo'
     settings.SATELLITE_DIR = tmp_path / 'satellite'
+    settings.MAP_CONTEXT_DIR = tmp_path / 'map-context'
 
 
 @pytest.fixture

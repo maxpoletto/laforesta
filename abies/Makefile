@@ -2,6 +2,9 @@ PYTHON = python3
 CANONICAL_DIR ?= data/canonical
 SATELLITE_DIR ?= data/satellite
 SATELLITE_GEOJSON ?= data/geo/terreni.geojson
+MAP_CONTEXT_DIR ?= data/map-context
+MAP_CONTEXT_GEOJSON ?= data/geo/terreni.geojson
+MAP_CONTEXT_ARGS ?=
 SATELLITE_ENV_FILE ?= .env.satellite
 BRANDING_DIR ?= data/branding
 LOCAL_ENV_FILE ?= compose/.env.local
@@ -35,11 +38,12 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 .PHONY: help \
         check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev serve \
         satellite satellite-dates satellite-fetch satellite-precompute \
+        map-context sync-map-context sync-map-context-dev sync-map-context-prod \
         collectstatic minify \
         deploy-dev deploy-prod deploy-instance \
         sync-canonical sync-canonical-dev sync-canonical-prod sync-satellite sync-satellite-dev sync-satellite-prod sync-data sync-data-dev sync-data-prod \
         bootstrap-dev bootstrap-prod bootstrap-instance backup-dev backup-prod backup-instance mirror-prod-to-dev mirror-instance docker-prune \
-        test test-js \
+        test test-js test-print-js-coverage \
         clean reset-schema update-vendor check-vendor lock-dependencies upgrade-dependencies audit-dependencies
 
 help:
@@ -47,6 +51,7 @@ help:
 	@echo "  make dev                         reset local DB, load canonical data, create admin"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
+	@echo "  make test-print-js-coverage      report print renderer/modal JS coverage"
 	@echo "  make lock-dependencies           regenerate Python locks on Python 3.14"
 	@echo "  make upgrade-dependencies        upgrade Python locks within approved ranges"
 	@echo "  make audit-dependencies          audit locked Python dependencies"
@@ -54,6 +59,7 @@ help:
 	@echo "  make sync-branding                copy data/branding assets into static files"
 	@echo "  make satellite                    build satellite dates, rasters, and summaries"
 	@echo "  make satellite-precompute         rebuild satellite manifest/timeseries only"
+	@echo "  make map-context                  build printable-map roads, water and DSM contours"
 	@echo "  make collectstatic minify        collect static files, then minify collected JS"
 	@echo ""
 	@echo "Remote deployment:"
@@ -63,6 +69,8 @@ help:
 	@echo "  make sync-canonical-prod        rsync CANONICAL_DIR to prod data/canonical"
 	@echo "  make sync-satellite-dev         rsync generated SATELLITE_DIR to dev"
 	@echo "  make sync-satellite-prod        rsync generated SATELLITE_DIR to prod"
+	@echo "  make sync-map-context-dev       rsync generated MAP_CONTEXT_DIR to dev"
+	@echo "  make sync-map-context-prod      rsync generated MAP_CONTEXT_DIR to prod"
 	@echo "  make sync-data-dev              rsync canonical + satellite data to dev"
 	@echo "  make sync-data-prod             rsync canonical + satellite data to prod"
 	@echo "  make bootstrap-dev              sync canonical data, then bootstrap dev DB"
@@ -110,6 +118,9 @@ satellite-fetch:
 
 satellite-precompute:
 	$(SATELLITE_MANAGE) build_satellite precompute --geojson "$(SATELLITE_GEOJSON)" --output-dir "$(SATELLITE_DIR)"
+
+map-context:
+	$(MANAGE) build_map_context --geojson "$(MAP_CONTEXT_GEOJSON)" --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)
 
 stage-marks-uploads:
 	$(MANAGE) stage_marks_uploads $(CANONICAL_DIR)/marks
@@ -190,6 +201,20 @@ sync-satellite:
 	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/satellite"
 	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/satellite"
 
+sync-map-context-dev:
+	$(MAKE) sync-map-context INSTANCE=dev
+
+sync-map-context-prod:
+	$(MAKE) sync-map-context INSTANCE=prod
+
+sync-map-context:
+	@test -d "$(MAP_CONTEXT_DIR)" || { echo "error: MAP_CONTEXT_DIR='$(MAP_CONTEXT_DIR)' does not exist" >&2; exit 1; }
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-map-context INSTANCE=<dev|prod>" >&2; exit 1; }
+	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/map-context"
+	rsync -rlt --delete --rsync-path="sudo rsync" "$(MAP_CONTEXT_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/map-context/"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/map-context"
+	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/map-context"
+
 sync-data-dev:
 	$(MAKE) sync-data INSTANCE=dev
 
@@ -236,6 +261,9 @@ docker-prune:
 
 test: test-js
 	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) -m pytest --cov --cov-report=term-missing -q
+
+test-print-js-coverage:
+	node test/print-coverage.mjs
 
 # Pure-JS tests for shared client-side modules.
 test-js:
@@ -288,6 +316,7 @@ test-js:
 	node apps/bosco/static/bosco/js/characteristic-print.test.mjs
 	node apps/bosco/static/bosco/js/bosco-metric-print.test.mjs
 	node apps/bosco/static/bosco/js/bosco-print-ui.test.mjs
+	node apps/bosco/static/bosco/js/bosco-print-context.test.mjs
 	node apps/bosco/static/bosco/js/bosco-state.test.mjs
 	node apps/bosco/static/bosco/js/bosco-satellite.test.mjs
 	node apps/bosco/static/bosco/js/bosco-production.test.mjs

@@ -148,7 +148,7 @@ hosts (top to bottom):
   also changes the physical scale. The white page has
   black parcel boundaries and labels containing parcel name with a forest-type
   marker (`2a (C)` for ceduo, `1 (F)` for fustaia), followed by the selected
-  value. It contains no basemap, contours, or parcel fill colors. Calendar
+  value. It contains no raster basemap or parcel fill colors. Calendar
   labels show all planned years (`-` for unscheduled parcels). Plan subtitles
   use the plan's own name without an added "Piano di taglio:" prefix, followed
   by separate year ranges, for example
@@ -159,7 +159,7 @@ hosts (top to bottom):
   An 8 pt legend under the heading reads
   `(C) = Ceduo, (F) = Fustaia, (-) = Nessun taglio previsto.` for the calendar;
   other metrics use `(-) = Dato non disponibile.`
-  The footer contains only the export date.
+  The footer contains the export date and any selected-source attribution.
 
   Parcel names are 9 pt and values 8 pt. Labels fit inside parcel boundaries
   when possible, using wider value lines where space permits; narrow parcels
@@ -179,6 +179,28 @@ hosts (top to bottom):
 
   The modal stays open after downloading so another scale can be tried. Its
   action row contains **Chiudi** and the green **Scarica PDF** button.
+
+  The **Scala** label uses 16 px text and sits on the same line as `1 :` and
+  its input. The sidebar print action has no A4-only help text.
+
+  **Strati cartografici** offers **Strade e sentieri**, **Corsi e specchi
+  d’acqua**, and **Curve di livello**. Available layers start checked; empty
+  layers remain disabled. The modal waits for its local context snapshot
+  before enabling download, then freezes it with the parcel data. A missing,
+  stale or failed context load leaves the plain parcel PDF available and
+  explains the unavailable layers inline. Late results after dismissal are
+  discarded. Readers have the same context access as writers.
+
+  Roads are gray, tracks/paths dashed, water blue with pale blue polygon fills
+  preserving islands, and contours light brown with stronger 100 m index lines.
+  Index elevations use 8 pt labels where there is room without overlapping
+  parcel labels. Context paths are clipped to the map area, above which black
+  parcel boundaries and labels remain visible. Parcel geometry retains its
+  selected scale and extent; nearby downloaded context can occupy spare map
+  space. The footer adds attribution only for selected sources and participates
+  in paper sizing. Copernicus GLO-30 is explicitly described as a roughly 30 m
+  DSM including vegetation. It supplies 20 m contours by default, not a
+  bare-earth survey. The layer controls show the built contour interval.
 
 - **Evoluzione**
 
@@ -570,6 +592,18 @@ mode-switch.
   page-prelievi.md.
 
 ### Map data
+
+- **Printable-map context** — `/api/bosco/map-context/<region_id>/` serves the
+  local `MAP_CONTEXT_DIR/<Compresa>/context.json.gz` to authenticated readers,
+  using gzip, ETags and conditional GET. The GeoJSON FeatureCollection includes
+  `schema_version`, `available`, `region`, `bbox`, `parcel_bbox`, `build`,
+  `built_at`, `osm_timestamp` and `features`. Feature `properties.layer` is
+  `roads`, `water` or `contours`; roads/water have `kind`, contours `elevation`
+  in meters. The build metadata records the parcel-geometry hash, buffer,
+  contour interval and input sources. Missing data returns `available: false`;
+  incompatible schema or changed parcel geometry adds `stale: true`. There
+  is no database digest or lazy external regeneration. See the
+  [initialization commands](../README.md#local-development).
 
 - **`terreni.geojson`** — parcel polygons, as in Boscoscopio, enriched
   during `build_geo` with static parcel metadata such as

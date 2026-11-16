@@ -34,6 +34,9 @@ GEO_DIR = DATA_DIR / 'geo'
 SATELLITE_DIR = Path(os.environ.get(
     'ABIES_SATELLITE_DIR', str(DATA_DIR / 'satellite'),
 ))
+MAP_CONTEXT_DIR = Path(os.environ.get(
+    'ABIES_MAP_CONTEXT_DIR', str(DATA_DIR / 'map-context'),
+))
 IPSO_INBOX_DIR = Path(os.environ.get(
     'ABIES_IPSO_INBOX_DIR', str(DATA_DIR / 'ipso-inbox'),
 ))
