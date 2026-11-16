@@ -134,9 +134,18 @@ hosts (top to bottom):
   includes the plan's year range. Forecast printing requires a loaded plan
   snapshot.
 
-  The action opens an A4 preview of the entire selected compresa, independently
-  of map pan/zoom. **Scarica PDF** downloads that same snapshot. Orientation
-  is selected automatically for the largest legible map. The white page has
+  The action opens a modal for the entire selected compresa, independently of
+  map pan/zoom. A **Scala** input shows `1 :` and a positive integer denominator
+  (default `10000`, with suggestions `5000`, `10000`, `25000`). Changing it
+  updates the preview, the north-up bounding rectangle's dimensions in cm,
+  and the recommended sheet and orientation. The smallest suitable sheet from
+  A4, A3, A2, A1 and A0 includes margins, headings and any label callouts.
+  Geometry retains the requested physical scale; it is never resized to fit.
+  Invalid scales and layouts exceeding A0 show an inline error and disable
+  downloading. **Scarica PDF** downloads that same snapshot on the recommended
+  sheet. The PDF heading records the scale; print at 100% / actual size on that
+  paper to retain it. Resizing the PDF when embedding it in another document
+  also changes the physical scale. The white page has
   black parcel boundaries and labels containing parcel name with a forest-type
   marker (`2a (C)` for ceduo, `1 (F)` for fustaia), followed by the selected
   value. It contains no basemap, contours, or parcel fill colors. Calendar
@@ -153,7 +162,9 @@ hosts (top to bottom):
   The footer contains only the export date.
 
   Parcel names are 9 pt and values 8 pt. Labels fit inside parcel boundaries
-  when possible; narrow parcels use margin callouts. Split geometries are
+  when possible, using wider value lines where space permits; narrow parcels
+  use margin callouts. Callout columns are reserved only where needed and do
+  not reduce the map scale. Split geometries are
   combined into one parcel label. Missing/unmatched geometries and layouts
   that cannot fit legibly produce an explanatory error, rather than omitting
   parcels. Preview and download retain their data snapshot even if a
@@ -165,6 +176,9 @@ hosts (top to bottom):
   `\includegraphics[width=\linewidth]{calendario_taglio_Capistrano_2026-2040.pdf}`.
   Use `trim`/`clip` if the document needs tighter margins. Geometry and labels
   share one layout between preview and PDF; see [map architecture](ui-maps.md).
+
+  The modal stays open after downloading so another scale can be tried. Its
+  action row contains **Chiudi** and the green **Scarica PDF** button.
 
 - **Evoluzione**
 

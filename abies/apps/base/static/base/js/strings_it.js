@@ -401,7 +401,14 @@ export const BOSCO_METRIC_CUTTING_CALENDAR = 'Calendario di taglio';
 export const BOSCO_PLANNED_CUT_YEARS = 'Anni di taglio previsti';
 export const BOSCO_NO_PLANNED_CUTS = 'Nessun taglio previsto';
 export const BOSCO_PRINT_GEOMETRY_ERROR = 'Impossibile preparare la mappa: controlla i confini delle particelle.';
-export const BOSCO_PRINT_LABEL_ERROR = 'Impossibile disporre tutte le etichette in una pagina A4 leggibile.';
+export const BOSCO_PRINT_LABEL_ERROR = 'Impossibile disporre tutte le etichette in modo leggibile. Prova una scala con denominatore minore.';
+export const BOSCO_PRINT_SCALE_ERROR = 'Inserisci un denominatore di scala intero maggiore di zero.';
+export const BOSCO_PRINT_SIZE_ERROR = (width, height) =>
+  `La mappa misura ${width} × ${height} cm e non entra in un foglio A0 con margini, intestazione ed etichette. Prova una scala con denominatore maggiore.`;
+export const BOSCO_PRINT_SCALE = denominator => `Scala 1 : ${denominator}`;
+export const BOSCO_PRINT_DIMENSIONS = (width, height) => `Dimensioni della mappa: ${width} × ${height} cm.`;
+export const BOSCO_PRINT_PAPER = (paper, width, height, landscape) =>
+  `Formato consigliato: ${paper} ${landscape ? 'orizzontale' : 'verticale'} (${width} × ${height} cm).`;
 export const BOSCO_PRINT_PARCEL_MISMATCH = 'I confini e l’elenco delle particelle non corrispondono. Controlla i dati della compresa prima di esportare.';
 export const BOSCO_PRINT_SELECT_PLAN = 'Seleziona un piano di taglio e attendi il caricamento dei dati.';
 export const BOSCO_PRINT_DOWNLOAD_ERROR = 'Impossibile generare il PDF. Riprova.';

@@ -1,6 +1,7 @@
-/** A4 vector-map layout shared by the SVG preview and PDF export. */
+/** Fixed-scale vector-map layout shared by the SVG preview and PDF export. */
 import { PDFDocument, buildPDF } from '../../base/js/pdf.js';
-import { pointInPolygon } from '../../base/js/geo.js';
+import { localProjection, pointInPolygon } from '../../base/js/geo.js';
+import { fmtDecimal1, fmtInt } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
 const MARGIN = 24;
@@ -8,6 +9,14 @@ const TOP = 70;
 const BOTTOM = 32;
 const CALLOUT_WIDTH = 82;
 const GAP = 4;
+const POINTS_PER_METER = 72 / .0254;
+const PAPERS = [
+  ['A4', 210, 297], ['A3', 297, 420], ['A2', 420, 594],
+  ['A1', 594, 841], ['A0', 841, 1189],
+].map(([name, width, height]) => ({ name,
+  width: Math.round(width * 72 / 25.4 * 100) / 100,
+  height: Math.round(height * 72 / 25.4 * 100) / 100,
+}));
 const measure = new PDFDocument();
 
 function polygons(geometry) {
@@ -133,25 +142,26 @@ function wrap(value, width, opts) {
   return lines;
 }
 
-function labelFor(item) {
+function labelFor(item, maxWidth = CALLOUT_WIDTH) {
   const lines = [
-    ...wrap(item.name, CALLOUT_WIDTH - 8, { size: 9, bold: true })
+    ...wrap(item.name, maxWidth - 8, { size: 9, bold: true })
       .map(text => ({ text, size: 9, bold: true })),
-    ...item.lines.flatMap(value => wrap(value, CALLOUT_WIDTH - 8, { size: 8 }))
+    ...item.lines.flatMap(value => wrap(value, maxWidth - 8, { size: 8 }))
       .map(text => ({ text, size: 8, bold: false })),
   ];
   return { lines, width: Math.max(...lines.map(line => measure.textWidth(line.text, line))) + 6,
     height: lines.length * 10 + 4 };
 }
 
-function layoutFor(items, landscape, header) {
-  const doc = new PDFDocument({ landscape });
+function layoutFor(map, paper, landscape, header, gutters) {
+  const doc = new PDFDocument({ landscape, size: paper });
   const { width, height } = doc;
   const headerLines = [];
   let headerY = 30;
   for (const [value, size, bold, spacing] of [
     [header.title, 14, true, 18], [header.subtitle, 10, false, 13],
     [header.legend, 8, false, 11],
+    [S.BOSCO_PRINT_SCALE(fmtInt(map.scaleDenominator)), 8, false, 11],
   ]) {
     for (const text of wrap(value, width - 2 * MARGIN, { size, bold })) {
       headerLines.push({ text, size, bold, y: headerY });
@@ -159,44 +169,24 @@ function layoutFor(items, landscape, header) {
     }
   }
   const top = Math.max(TOP, headerY + 8);
-  const mapBox = { x: MARGIN + CALLOUT_WIDTH + GAP, y: top,
-    width: width - 2 * (MARGIN + CALLOUT_WIDTH + GAP), height: height - top - BOTTOM };
-  if (mapBox.height < 100) throw new Error(S.BOSCO_PRINT_LABEL_ERROR);
-  const projected = items.map(item => ({ ...item,
-    geometry: mapGeometry(item.geometry, ([lon, lat]) => [lon * Math.PI / 180,
-      -Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))]),
-  }));
-  const box = bounds(projected.flatMap(item => coordinates(item.geometry)));
-  const scale = Math.min(mapBox.width / (box.maxX - box.minX),
-    mapBox.height / (box.maxY - box.minY));
-  if (!Number.isFinite(scale)) throw new Error(S.BOSCO_PRINT_GEOMETRY_ERROR);
-  const transform = ([x, y]) => [
-    mapBox.x + mapBox.width / 2 + (x - (box.minX + box.maxX) / 2) * scale,
-    mapBox.y + mapBox.height / 2 + (y - (box.minY + box.maxY) / 2) * scale,
-  ];
-  const parcels = projected.map(item => ({ ...item, geometry: mapGeometry(item.geometry, transform) }));
-  const pending = parcels.map(item => ({ ...labelFor(item), name: item.name,
-    geometry: item.geometry, candidates: interiorCandidates(item.geometry) }));
-  // Give narrow parcels first choice of the limited interior space.
-  pending.sort((a, b) => a.candidates[0].distance - b.candidates[0].distance);
-  const labels = [], outside = [];
-  for (const label of pending) {
-    const candidate = label.candidates.slice(0, 80).find(({ point }) => {
-      const rect = { ...label, x: point[0] - label.width / 2, y: point[1] - label.height / 2 };
-      return !labels.some(other => overlaps(rect, other)) && rectangleInside(rect, label.geometry);
-    });
-    const anchor = (candidate || label.candidates[0]).point;
-    const result = { name: label.name, lines: label.lines, width: label.width,
-      height: label.height, anchor, x: anchor[0] - label.width / 2, y: anchor[1] - label.height / 2 };
-    if (candidate) labels.push(result);
-    else outside.push(result);
-  }
+  const mapBox = { x: MARGIN + gutters[0], y: top,
+    width: width - 2 * MARGIN - gutters[0] - gutters[1], height: height - top - BOTTOM };
+  if (map.width > mapBox.width || map.height > mapBox.height) return null;
+  const offsetX = mapBox.x + (mapBox.width - map.width) / 2;
+  const offsetY = mapBox.y + (mapBox.height - map.height) / 2;
+  const translate = ([x, y]) => [x + offsetX, y + offsetY];
+  const parcels = map.parcels.map(item => ({ ...item,
+    geometry: mapGeometry(item.geometry, translate) }));
+  const translatedLabel = label => ({ ...label, x: label.x + offsetX, y: label.y + offsetY,
+    anchor: translate(label.anchor) });
+  const labels = map.labels.map(translatedLabel);
   const columns = [[], []];
   const used = [0, 0];
-  for (const label of outside.sort((a, b) => b.height - a.height)) {
-    let side = label.anchor[0] < width / 2 ? 0 : 1;
-    if (used[side] + label.height + GAP > mapBox.height) side = 1 - side;
-    if (used[side] + label.height + GAP > mapBox.height) throw new Error(S.BOSCO_PRINT_LABEL_ERROR);
+  for (const label of map.outside.map(translatedLabel).sort((a, b) => b.height - a.height)) {
+    const fits = side => gutters[side] && used[side] + label.height <= mapBox.height;
+    let side = label.anchor[0] < offsetX + map.width / 2 ? 0 : 1;
+    if (!fits(side)) side = 1 - side;
+    if (!fits(side)) throw new Error(S.BOSCO_PRINT_LABEL_ERROR);
     columns[side].push(label);
     used[side] += label.height + GAP;
   }
@@ -218,27 +208,100 @@ function layoutFor(items, landscape, header) {
       labels.push(label);
     }
   });
-  return { width, height, landscape, scale, parcels, labels, headerLines, ...header };
+  return { width, height, landscape, paper: paper.name, scale: map.scale,
+    scaleDenominator: map.scaleDenominator,
+    mapWidthCm: map.width / POINTS_PER_METER * 100,
+    mapHeightCm: map.height / POINTS_PER_METER * 100,
+    gutterWidth: gutters[0] + gutters[1],
+    fit: Math.min(mapBox.width / map.width, mapBox.height / map.height),
+    parcels, labels, headerLines, ...header };
 }
 
-export function buildPrintMapLayout({ items, title = '', subtitle = '', legend = '', footer = '' }) {
+function interiorLabels(parcels, width) {
+  const pending = parcels.map(item => ({ item, candidates: interiorCandidates(item.geometry) }));
+  // Give narrow parcels first choice of the limited interior space.
+  pending.sort((a, b) => a.candidates[0].distance - b.candidates[0].distance);
+  const labels = [], outside = [];
+  for (const label of pending) {
+    let placed;
+    // At larger map scales a full value line can fit inside a parcel. Try it
+    // before wrapping to the narrower shape used by margin callouts.
+    const widest = Math.max(CALLOUT_WIDTH, width);
+    for (const maxWidth of new Set([widest, Math.min(widest, 2 * CALLOUT_WIDTH), CALLOUT_WIDTH])) {
+      const shape = labelFor(label.item, maxWidth);
+      for (const { point: anchor } of label.candidates) {
+        const rect = { ...shape, name: label.item.name, anchor,
+          x: anchor[0] - shape.width / 2, y: anchor[1] - shape.height / 2 };
+        if (!labels.some(other => overlaps(rect, other)) && rectangleInside(rect, label.item.geometry)) {
+          placed = rect;
+          break;
+        }
+      }
+      if (placed) break;
+    }
+    if (placed) labels.push(placed);
+    else {
+      const shape = labelFor(label.item), anchor = label.candidates[0].point;
+      outside.push({ ...shape, name: label.item.name, anchor,
+        x: anchor[0] - shape.width / 2, y: anchor[1] - shape.height / 2 });
+    }
+  }
+  return { labels, outside };
+}
+
+export function buildPrintMapLayout({ items, scaleDenominator = 10000,
+  title = '', subtitle = '', legend = '', footer = '' }) {
+  if (!Number.isSafeInteger(scaleDenominator) || scaleDenominator <= 0) {
+    throw new Error(S.BOSCO_PRINT_SCALE_ERROR);
+  }
   if (!items.length || items.some(item => !polygons(item.geometry).length
+      || polygons(item.geometry).some(rings => !rings.length || rings.some(ring => ring.length < 4))
       || coordinates(item.geometry).some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y)
         || Math.abs(x) > 180 || Math.abs(y) >= 85))) {
     throw new Error(S.BOSCO_PRINT_GEOMETRY_ERROR);
   }
-  const layouts = [];
-  let lastError;
-  for (const landscape of [false, true]) {
-    try { layouts.push(layoutFor(items, landscape, { title, subtitle, legend, footer })); }
-    catch (error) { lastError = error; }
+  const geographic = bounds(items.flatMap(item => coordinates(item.geometry)));
+  const plane = localProjection((geographic.minY + geographic.maxY) / 2,
+    (geographic.minX + geographic.maxX) / 2);
+  const projected = items.map(item => ({ ...item,
+    geometry: mapGeometry(item.geometry, ([lon, lat]) => {
+      const { x, y } = plane.project(lat, lon);
+      return [x, -y];
+    }),
+  }));
+  const box = bounds(projected.flatMap(item => coordinates(item.geometry)));
+  const scale = POINTS_PER_METER / scaleDenominator;
+  const width = (box.maxX - box.minX) * scale, height = (box.maxY - box.minY) * scale;
+  if (!(width > 0 && height > 0)) throw new Error(S.BOSCO_PRINT_GEOMETRY_ERROR);
+  const sizeError = new Error(S.BOSCO_PRINT_SIZE_ERROR(
+    fmtDecimal1(width / POINTS_PER_METER * 100), fmtDecimal1(height / POINTS_PER_METER * 100)));
+  const a0 = PAPERS.at(-1);
+  if (Math.min(width, height) > a0.width - 2 * MARGIN
+      || Math.max(width, height) > a0.height - 2 * MARGIN) throw sizeError;
+  const parcels = projected.map(item => ({ ...item,
+    geometry: mapGeometry(item.geometry, ([x, y]) => [(x - box.minX) * scale, (y - box.minY) * scale]),
+  }));
+  const map = { parcels, width, height, scale, scaleDenominator, ...interiorLabels(parcels, width) };
+  const gutter = CALLOUT_WIDTH + GAP;
+  const gutterOptions = map.outside.length ? [[gutter, 0], [0, gutter], [gutter, gutter]] : [[0, 0]];
+  let lastError = sizeError;
+  for (const paper of PAPERS) {
+    const layouts = [];
+    for (const landscape of [false, true]) {
+      for (const gutters of gutterOptions) {
+        try {
+          const layout = layoutFor(map, paper, landscape, { title, subtitle, legend, footer }, gutters);
+          if (layout) layouts.push(layout);
+        } catch (error) { lastError = error; }
+      }
+    }
+    if (layouts.length) return layouts.sort((a, b) => a.gutterWidth - b.gutterWidth || b.fit - a.fit)[0];
   }
-  if (!layouts.length) throw lastError;
-  return layouts.sort((a, b) => b.scale - a.scale)[0];
+  throw lastError;
 }
 
 function drawPDF(layout) {
-  const doc = new PDFDocument({ landscape: layout.landscape });
+  const doc = new PDFDocument({ size: layout });
   for (const line of layout.headerLines) doc.text(MARGIN, line.y, line.text, line);
   doc.text(MARGIN, doc.height - 15, layout.footer, { size: 8 });
   for (const parcel of layout.parcels) {

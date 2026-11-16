@@ -1,4 +1,4 @@
-import { localISODate } from '../../base/js/format.js';
+import { fmtDecimal1, localISODate } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { show, dismiss } from '../../base/js/modals.js';
 import { wireCancelButtons } from '../../base/js/ui-widgets.js';
@@ -9,17 +9,45 @@ import {
 } from './characteristic-print.js';
 
 export function showMetricPrint({ date = new Date(), ...options }) {
-  const content = buildMetricPrint(options);
-  const layout = buildPrintMapLayout({
-    ...content, footer: S.BOSCO_PRINT_MAP_FOOTER(localISODate(date)),
-  });
-  // The preview and download retain this snapshot even if the source is refreshed.
+  // Scale edits, preview and download all retain the same source snapshot.
+  const content = structuredClone(buildMetricPrint(options));
+  content.footer = S.BOSCO_PRINT_MAP_FOOTER(localISODate(date));
+  let layout = null;
   const filename = content.filename;
   const fragment = cloneTemplate('tmpl-bosco-map-print');
   fragment.querySelector('[data-field="print-title"]').textContent = S.BOSCO_PRINT_DIALOG_TITLE(content.metricLabel);
-  fragment.querySelector('[data-target="print-preview"]').appendChild(buildPrintMapPreview(layout));
+  const preview = fragment.querySelector('[data-target="print-preview"]');
+  const scale = fragment.querySelector('[data-role="print-scale"]');
+  const dimensions = fragment.querySelector('[data-field="print-dimensions"]');
+  const paper = fragment.querySelector('[data-field="print-paper"]');
   const error = fragment.querySelector('[data-target="print-error"]');
-  fragment.querySelector('[data-action="download-map"]').addEventListener('click', () => {
+  const download = fragment.querySelector('[data-action="download-map"]');
+  const update = () => {
+    layout = null;
+    preview.replaceChildren();
+    dimensions.textContent = '';
+    paper.textContent = '';
+    error.textContent = '';
+    download.disabled = true;
+    try {
+      const next = buildPrintMapLayout({ ...content, scaleDenominator: Number(scale.value) });
+      preview.appendChild(buildPrintMapPreview(next));
+      dimensions.textContent = S.BOSCO_PRINT_DIMENSIONS(fmtDecimal1(next.mapWidthCm), fmtDecimal1(next.mapHeightCm));
+      paper.textContent = S.BOSCO_PRINT_PAPER(next.paper, fmtDecimal1(next.width / 72 * 2.54),
+        fmtDecimal1(next.height / 72 * 2.54), next.landscape);
+      layout = next;
+      scale.setAttribute('aria-invalid', 'false');
+      download.disabled = false;
+      download.title = '';
+    } catch (failure) {
+      error.textContent = failure.message || S.BOSCO_PRINT_DOWNLOAD_ERROR;
+      scale.setAttribute('aria-invalid', 'true');
+      download.title = error.textContent;
+    }
+  };
+  scale.addEventListener('input', update);
+  download.addEventListener('click', () => {
+    if (!layout) return;
     try {
       downloadPrintMap(layout, filename);
       error.textContent = '';
@@ -28,5 +56,7 @@ export function showMetricPrint({ date = new Date(), ...options }) {
     }
   });
   wireCancelButtons(fragment, dismiss);
+  update();
   show(fragment);
+  scale.focus();
 }

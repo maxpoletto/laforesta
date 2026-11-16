@@ -29,9 +29,9 @@ const HELVETICA_BOLD_WIDTHS = {
 const FALLBACK_GLYPH_WIDTH = 556;
 
 export class PDFDocument {
-  constructor({ landscape = false } = {}) {
-    this.width = landscape ? A4.height : A4.width;
-    this.height = landscape ? A4.width : A4.height;
+  constructor({ landscape = false, size = A4 } = {}) {
+    this.width = landscape ? size.height : size.width;
+    this.height = landscape ? size.width : size.height;
     this.pages = [];
     this.current = null;
     this.images = [];

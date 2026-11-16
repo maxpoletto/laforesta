@@ -587,6 +587,16 @@
   color: #666;
 }
 
+.bosco-print-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bosco-print-scale input {
+  width: 120px;
+}
+
 .bosco-print-preview {
   display: block;
   width: 100%;

@@ -212,12 +212,12 @@ projection, matching their basemaps. Its spherical projection radius is the
 WGS84 semi-major axis, 6378137 m, as prescribed by EPSG:3857. This makes the
 east/west projection scale exact at the WGS84 equator. A mean Earth radius
 would define different projected coordinates, rather than improve EPSG:3857.
-Printable maps use the same formulas, with Y reversed for page coordinates;
-the radius cancels during page fitting. This
-display projection does not change the geographic coordinates of boundaries,
+Printable maps instead use the local WGS84 metric plane described below, with
+Y reversed for page coordinates, so the requested print scale refers to ground
+meters. Neither projection changes the geographic coordinates of boundaries,
 trees, observations or GPS fixes. Absolute alignment depends on the source
-datum, boundary survey, imagery and GPS accuracy. The approximately 28% scale
-enlargement around Calabria affects projected lengths, not coordinate placement.
+datum, boundary survey, imagery and GPS accuracy. Web Mercator's approximately
+28% scale enlargement around Calabria affects projected lengths, not coordinate placement.
 See [PROJ's Web Mercator definition](https://proj.org/en/stable/operations/projections/webmerc.html).
 
 All application point-to-point distances, the map ruler, and parcel polygon
@@ -307,10 +307,19 @@ are preserved. Python `parcel_key()` follows the same alias policy.
 
 ## Printable parcel maps
 
-`bosco/js/characteristic-print.js` creates a standalone A4 vector layout from
-parcel geometries and text labels. It uses a north-up Mercator projection,
-fits the entire supplied area, and chooses portrait or landscape for the
-largest legible map. It does not use Leaflet, tiles, contours, or raster images.
+`bosco/js/characteristic-print.js` creates a standalone vector layout from
+parcel geometries and text labels at a requested `scaleDenominator` (default
+10000). It projects WGS84 geometry into a local azimuthal-equidistant plane
+centered on the supplied geographic bounds, using `geo.localProjection()`.
+Axes are true north/east at that origin. The tight axis-aligned bounding
+rectangle stays north-up; parcel geometry is not rotated to reduce the extent.
+This local projection avoids Web Mercator's scale enlargement around Calabria;
+it is intended for local forestry extents, not constant-scale global mapping.
+Page coordinates use `72 / 0.0254 / scaleDenominator` points per ground meter.
+The smallest suitable A4–A0 sheet and its orientation are chosen without
+changing that factor, accounting for headers, margins and any callout columns.
+`PDFDocument` accepts a `size` in points; other operational PDFs retain A4.
+The printable map does not use Leaflet, tiles, contours, or raster images.
 The layout is shared by the SVG preview and `base/js/pdf.js` PDF renderer;
 both use the PDF font metrics. An optional 8 pt legend is placed after the
 subtitle and participates in header wrapping and map-space calculations.
@@ -322,8 +331,9 @@ whole label rectangle against polygon boundaries and holes, and avoids other
 labels. Narrow parcels use ordered margin callouts with leaders and marked
 interior anchors. Separate components retain all their outlines but receive
 one label per parcel. The renderer reports an error when its placement strategy
-cannot produce a complete, readable A4 layout; it never silently drops labels
-or shrinks the font.
+cannot produce a complete, readable layout on A0; it never silently drops
+labels, shrinks the font, or changes the requested scale. Oversize errors
+include the map's physical dimensions and suggest increasing the denominator.
 
 The layout uses a custom deterministic greedy heuristic, combining standard
 geometry and label-placement techniques:
@@ -332,18 +342,23 @@ geometry and label-placement techniques:
    polygon component's bounding box, plus points nudged inward from boundary
    edge midpoints to cover narrow polygons. Keep interior candidates and rank
    them by their distance from the nearest boundary, including holes.
-2. **Fit the actual label rectangle.** Try up to 80 candidates per parcel.
+2. **Fit the actual label rectangle.** Try the interior candidates per parcel,
+   first with wide value lines, then with intermediate and callout-width wrapping.
    Require the whole rectangle to stay inside the parcel, avoid holes and
    boundary crossings, and leave a gap from already placed labels.
 3. **Give constrained parcels first choice.** Process parcels with less
    maximum sampled interior clearance first, preserving their limited options.
-4. **Place remaining labels in the margins.** Prefer the side nearest the
+4. **Place remaining labels in the margins.** Reserve no callout columns when
+   all labels fit inside. Otherwise try a left, right, or both-side column
+   allocation without shrinking the geometry. Prefer the side nearest the
    interior anchor, switching sides if needed for capacity. Sort each column
    by anchor height, then pack labels with forward and backward passes to
    maintain separation and keep them within the page. Connect them to their
    interior anchors with leaders.
-5. **Compare page orientations.** Attempt both portrait and landscape, keeping
-   the successful layout with the largest map scale.
+5. **Compare sheets and orientations.** Try A4 through A0, attempting portrait
+   and landscape for each. Keep the first sheet with a complete layout,
+   preferring fewer callout columns and then the orientation with more spare
+   space around the fixed-scale map.
 
 The closest reference for the interior-point step is
 [Mapbox's polylabel](https://github.com/mapbox/polylabel), which finds a polygon's
@@ -365,8 +380,13 @@ Values use the same calculation and localized formatting as map tooltips, via
 `bosco-characteristics.js`; missing values become `-` and zero remains a value.
 Age, forest type, altitude, slope and historical harvest maps need no selected
 harvest plan. Forest type labels use the parcel digest's localized display
-value. `bosco-print-ui.js` freezes the content in one layout for preview and
-download, using a shared modal template.
+value. `bosco-print-ui.js` freezes a copy of the content, including geometry,
+before opening the shared modal. Scale edits regenerate the layout from that
+snapshot. The modal reports localized map dimensions in cm and the recommended
+paper/orientation; a scale line is included in the SVG/PDF heading. Invalid
+input or a failed layout clears the previous preview and disables downloading,
+so a previous scale cannot be downloaded by mistake. Printing instructions
+specify actual size / 100% on the recommended paper.
 
 Historical harvest printing waits for the harvest digest, then uses the map's
 per-parcel sums and optional per-hectare normalization. Totals use whole quintals;

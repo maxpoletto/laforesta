@@ -241,15 +241,33 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 </template>
 
 <template id="tmpl-bosco-map-print">
-  <div class="bosco-map-print">
+  <div class="bosco-map-print form-card">
     <h2 data-field="print-title">Mappa stampabile</h2>
-    <p>Intera compresa, formato A4. Le etichette riportano la particella, il
-      governo e i dati selezionati.</p>
+    <p>Intera compresa. Le etichette riportano la particella, il governo e i dati
+      selezionati.</p>
+    <div class="form-group">
+      <label for="bosco-print-scale">Scala</label>
+      <div class="bosco-print-scale">
+        <span aria-hidden="true">1 :</span>
+        <input id="bosco-print-scale" data-role="print-scale" type="number"
+          min="1" step="1" value="10000" list="bosco-print-scales" required
+          aria-describedby="bosco-print-help bosco-print-error">
+      </div>
+      <datalist id="bosco-print-scales">
+        <option value="5000"></option>
+        <option value="10000"></option>
+        <option value="25000"></option>
+      </datalist>
+    </div>
+    <p data-field="print-dimensions" aria-live="polite"></p>
+    <p data-field="print-paper" aria-live="polite"></p>
+    <p id="bosco-print-help">Per mantenere la scala, stampa sul formato consigliato
+      al 100% (dimensioni effettive), senza adattare alla pagina.</p>
     <div data-target="print-preview"></div>
-    <p class="form-error" data-target="print-error" role="alert"></p>
+    <p id="bosco-print-error" class="form-error" data-target="print-error" role="alert"></p>
     <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-      <button type="button" class="btn btn-export" data-action="download-map">Scarica PDF</button>
+      <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
+      <button type="button" class="btn btn-save" data-action="download-map">Scarica PDF</button>
     </div>
   </div>
 </template>

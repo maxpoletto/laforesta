@@ -26,6 +26,8 @@ const items = [
 ];
 const layout = M.buildPrintMapLayout({ items, title: 'Compresa',
   subtitle: 'Piano 2026-2040', footer: '2026-11-11' });
+assert.equal(layout.scaleDenominator, 10000);
+assert.ok(layout.headerLines.some(line => line.text === 'Scala 1 : 10000'));
 assert.equal(layout.labels.length, 3, 'every parcel is labelled once');
 assert.ok(layout.labels.some(label => label.leader), 'thin parcel gets a callout');
 for (const label of layout.labels) {
@@ -60,6 +62,127 @@ const multi = M.buildPrintMapLayout({ items: [{ name: 'multi', geometry: multipa
   lines: ['2030'] }], title: '', subtitle: '', footer: '' });
 assert.equal(multi.parcels[0].geometry.coordinates.length, 2, 'retain all polygon parts');
 assert.equal(multi.labels.length, 1, 'one label per parcel, including multipart parcels');
+// Independent Python GeographicLib reference from wgs84-geodesy.json: the
+// north/south edge from (38.5, 16.3) to (38.545, 16.3) is 4995.28740227767 m.
+const referenceItems = [{ name: '1 (F)', geometry: polygon(16.3, 38.5, .06, .045), lines: ['37 a'] }];
+const reference = M.buildPrintMapLayout({ items: referenceItems, scaleDenominator: 25000 });
+const ring = reference.parcels[0].geometry.coordinates[0];
+const printedEdgeCm = Math.hypot(ring[3][0] - ring[0][0], ring[3][1] - ring[0][1]) / 72 * 2.54;
+assert.ok(Math.abs(printedEdgeCm - 4995.28740227767 / 25000 * 100) < .00001,
+  'physical print scale uses WGS84 ground meters, without Mercator enlargement');
+assert.equal(reference.paper, 'A3');
+for (const [denominator, paper] of [[50000, 'A4'], [25000, 'A3'], [18000, 'A2'], [10000, 'A1'], [6500, 'A0']]) {
+  const fixed = M.buildPrintMapLayout({ items: referenceItems, scaleDenominator: denominator });
+  assert.equal(fixed.paper, paper, `smallest suitable paper at 1:${denominator}`);
+  assert.ok(Math.abs(fixed.mapWidthCm / reference.mapWidthCm - 25000 / denominator) < 1e-12);
+  assert.ok(Math.abs(fixed.mapHeightCm / reference.mapHeightCm - 25000 / denominator) < 1e-12);
+  assert.equal(fixed.gutterWidth, 0, 'no callout columns when all labels fit inside');
+  assert.ok(M.printMapPDF(fixed).includes(`/MediaBox [0 0 ${fixed.width} ${fixed.height}]`),
+    'PDF uses the recommended sheet dimensions');
+  for (const label of fixed.labels) {
+    assert.deepEqual(label.lines.map(({ size, bold }) => ({ size, bold })),
+      [{ size: 9, bold: true }, { size: 8, bold: false }],
+      'parcel names and values have identical point sizes on every paper size');
+  }
+  const pdf = M.printMapPDF(fixed);
+  assert.ok(pdf.split('\n').some(line => line.includes('/F2 9 Tf') && line.includes('(1 \\(F\\)) Tj')),
+    'PDF preserves 9 pt bold parcel names');
+  assert.match(pdf, /\/F1 8 Tf .*\(37 a\) Tj/, 'PDF preserves 8 pt values');
+}
+assert.throws(() => M.buildPrintMapLayout({ items: referenceItems, scaleDenominator: 4000 }), /A0/);
+for (const denominator of [0, -100, 5000.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+  assert.throws(() => M.buildPrintMapLayout({ items, scaleDenominator: denominator }), /scala/);
+}
+const landscape = M.buildPrintMapLayout({ items: [{ name: 'wide',
+  geometry: polygon(16, 38, .025, .002), lines: ['37 a'] }], scaleDenominator: 10000 });
+assert.equal(landscape.paper, 'A4');
+assert.equal(landscape.landscape, true, 'rotate paper to fit a wide north-up map');
+const smallParcel = [{ name: 'small', geometry: polygon(16, 38, .0015, .0015), lines: ['2030'] }];
+const zoomedOut = M.buildPrintMapLayout({ items: smallParcel, scaleDenominator: 25000 });
+const zoomedIn = M.buildPrintMapLayout({ items: smallParcel, scaleDenominator: 5000 });
+assert.ok(zoomedOut.labels[0].leader, 'small-scale parcel needs a callout');
+assert.ok(!zoomedIn.labels[0].leader, 'the same parcel fits its label at larger scale');
+assert.equal(zoomedIn.gutterWidth, 0);
+const manyYears = '2027, 2030, 2033, 2036, 2039, 2042';
+const wideLabels = M.buildPrintMapLayout({ items: [{ name: '1 (F)',
+  geometry: polygon(16, 38, .02, .003), lines: [manyYears] }], scaleDenominator: 10000 });
+assert.ok(!wideLabels.labels[0].leader);
+assert.equal(wideLabels.labels[0].lines.length, 2, 'use interior width for a full calendar line');
+assert.ok(wideLabels.labels[0].width > 82);
+const calloutItems = count => Array.from({ length: count }, (_, i) => ({
+  name: String(i + 1), geometry: polygon(16, 38, .0001, .0001), lines: ['37 a'],
+}));
+function assertCompleteLayout(result, count) {
+  assert.equal(result.labels.length, count, 'keep every parcel label');
+  for (const label of result.labels) {
+    assert.ok(label.x >= 24 && label.y >= 70);
+    assert.ok(label.x + label.width <= result.width - 24);
+    assert.ok(label.y + label.height <= result.height - 32);
+    for (const other of result.labels) {
+      if (label === other) continue;
+      assert.ok(label.x + label.width <= other.x || other.x + other.width <= label.x
+        || label.y + label.height <= other.y || other.y + other.height <= label.y,
+      'callout columns pack labels without overlap');
+    }
+  }
+}
+const twoColumns = M.buildPrintMapLayout({ items: calloutItems(45) });
+assert.equal(twoColumns.paper, 'A4');
+assert.equal(twoColumns.labels.filter(label => label.leader).length, 45);
+assert.equal(new Set(twoColumns.labels.map(label => label.x < twoColumns.width / 2)).size, 2,
+  'use both columns when one side cannot hold every label');
+assertCompleteLayout(twoColumns, 45);
+const promoted = M.buildPrintMapLayout({ items: calloutItems(60) });
+assert.equal(promoted.paper, 'A3', 'label capacity can require a larger sheet even for tiny maps');
+assertCompleteLayout(promoted, 60);
+assert.throws(() => M.buildPrintMapLayout({ items: calloutItems(300) }), /etichette/,
+  'report unreadable label capacity instead of dropping labels or shrinking fonts');
+const headerItems = [{ name: '1', geometry: polygon(16, 38, .02, .02), lines: ['37 a'] }];
+const shortHeader = M.buildPrintMapLayout({ items: headerItems, title: 'Compresa' });
+const crowdedHeader = M.buildPrintMapLayout({ items: headerItems, title: 'Compresa '.repeat(100) });
+assert.equal(shortHeader.paper, 'A4');
+assert.equal(crowdedHeader.paper, 'A3', 'reserve the real wrapped-header height before choosing paper');
+assert.equal(crowdedHeader.mapWidthCm, shortHeader.mapWidthCm);
+assert.equal(crowdedHeader.mapHeightCm, shortHeader.mapHeightCm);
+assertCompleteLayout(crowdedHeader, 1);
+const overlapping = M.buildPrintMapLayout({ items: Array.from({ length: 8 }, (_, i) => ({
+  name: String(i + 1), geometry: polygon(16, 38, .005, .005), lines: ['37 a'],
+})) });
+assert.ok(overlapping.labels.every(label => !label.leader));
+assertCompleteLayout(overlapping, 8);
+const tinyHole = polygon(16, 38, .005, .0012);
+tinyHole.coordinates.push(polygon(16.00248, 38.00058, .00004, .00004).coordinates[0]);
+const aroundHole = M.buildPrintMapLayout({ items: [{ name: '1', geometry: tinyHole,
+  lines: [manyYears] }], scaleDenominator: 5000 });
+const holeRing = aroundHole.parcels[0].geometry.coordinates[1];
+const holeCenter = [(holeRing[0][0] + holeRing[2][0]) / 2, (holeRing[0][1] + holeRing[2][1]) / 2];
+const holeLabel = aroundHole.labels[0];
+assert.ok(!holeLabel.leader);
+assert.ok(holeCenter[0] < holeLabel.x || holeCenter[0] > holeLabel.x + holeLabel.width
+  || holeCenter[1] < holeLabel.y || holeCenter[1] > holeLabel.y + holeLabel.height,
+'an interior label cannot cover a hole even when all four corners are inside the parcel');
+const repeatedVertex = polygon(16, 38, .005, .005);
+repeatedVertex.coordinates[0].splice(1, 0, [16, 38]);
+assertCompleteLayout(M.buildPrintMapLayout({ items: [{ name: '1', geometry: repeatedVertex,
+  lines: ['37 a'] }] }), 1);
+assert.throws(() => M.buildPrintMapLayout({ items: headerItems, title: 'W'.repeat(1000) }), /etichette/,
+  'reject text that cannot wrap even on A0');
+for (const geometry of [
+  { type: 'Polygon', coordinates: [] },
+  { type: 'Polygon', coordinates: [[]] },
+  { type: 'MultiPolygon', coordinates: [] },
+  { type: 'MultiPolygon', coordinates: [[]] },
+  polygon(16, 38, 0, 0),
+  polygon(NaN, 38, .01, .01),
+  polygon(16, Infinity, .01, .01),
+  polygon(181, 38, .01, .01),
+  polygon(16, 85, .01, .01),
+  { type: 'Polygon', coordinates: [[[16, 38], [16.002, 38.002], [16, 38],
+    [16.002, 38.002], [16, 38]]] },
+]) {
+  assert.throws(() => M.buildPrintMapLayout({ items: [{ name: 'bad', geometry, lines: [] }] }),
+    /confini/, 'reject unusable geometry before producing a PDF');
+}
 assert.throws(() => M.buildPrintMapLayout({ items: [], title: '' }));
 assert.throws(() => M.buildPrintMapLayout({ items: [{ name: 'bad',
   geometry: { type: 'Point', coordinates: [16, 38] }, lines: [] }] }));
@@ -114,4 +237,14 @@ assert.equal(preview.attrs.viewBox, `0 0 ${layout.width} ${layout.height}`);
 assert.equal(preview.children.filter(el => el.tag === 'text').length,
   layout.headerLines.length + 1 + layout.labels.reduce((n, label) => n + label.lines.length, 0));
 assert.ok(preview.children.every(el => el.innerHTML === undefined), 'preview never uses HTML interpolation');
-console.log('Print maps: complete labels, callouts, holes, multipart and vector PDF passed.');
+for (const scaleDenominator of [50000, 25000, 18000, 10000, 6500]) {
+  const result = M.buildPrintMapLayout({ items: referenceItems, scaleDenominator });
+  const svg = M.buildPrintMapPreview(result);
+  const name = svg.children.find(el => el.textContent === '1 (F)');
+  const value = svg.children.find(el => el.textContent === '37 a');
+  assert.equal(name.attrs['font-size'], 9);
+  assert.equal(name.attrs['font-weight'], 'bold');
+  assert.equal(value.attrs['font-size'], 8);
+  assert.equal(value.attrs['font-weight'], 'normal');
+}
+console.log('Print maps: A4–A0 sizing, fixed fonts, label capacity, holes and vector output passed.');
