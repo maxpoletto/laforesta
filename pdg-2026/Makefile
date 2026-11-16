@@ -3,7 +3,6 @@ CSV_DIR=../bosco/data
 .PHONY: \
 	equazioni clean-equazioni \
 	altvol clean-altvol \
-	html clean-html \
 	pdf clean-pdf \
     all clean \
 	test regenerate-golden
@@ -37,7 +36,6 @@ clean-equazioni:
 # Heights and volumes
 #
 
-
 altvol: $(CSV_DIR)/alberi-calcolati.csv
 
 $(CSV_DIR)/alberi-calcolati.csv: $(PDG_DEPS) $(CSV_DIR)/alberi.csv $(CSV_DIR)/equazioni_ipsometro.csv
@@ -60,23 +58,6 @@ $(CSV_DIR)/incrementi.csv: $(PDG_DEPS) $(CSV_DIR)/alberi-calcolati.csv
 #
 
 DATA_DEPS=$(FILES_EQUAZIONI) $(CSV_DIR)/alberi.csv $(CSV_DIR)/alberi-calcolati.csv $(CSV_DIR)/particelle.csv
-
-#
-# HTML output
-#
-
-FILES_HTML=html/index.html
-DEPS_HTML=$(DATA_DEPS) $(PDG_DEPS) template/html/style.css
-
-html: $(FILES_HTML)
-
-html/%.html: template/html/%.html $(DEPS_HTML)
-	mkdir -p html
-	cp -f template/html/style.css html/
-	./pdg.py $(EXTRA_FLAGS) --report --formato html --particelle $(CSV_DIR)/particelle.csv --dati $(CSV_DIR) --input template/html/$*.html --output-dir html/
-
-clean-html:
-	rm -f $(FILES_HTML)
 
 #
 # LaTeX / PDF output
