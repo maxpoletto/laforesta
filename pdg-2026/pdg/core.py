@@ -41,7 +41,7 @@ from pdg.ceduo import (
 from pdg.simulation import (
     COL_IP_MEDIO, COL_INCR_CORR, COL_DELTA_D,
     COL_YEAR, COL_HARVEST, COL_N_TREES, COL_VOLUME_BEFORE, COL_VOLUME_AFTER,
-    COL_SPECIES_SHARES, COL_WEIGHT,
+    COL_SPECIES_SHARES, COL_WEIGHT, COL_RECORDED,
     ORDINE_VOL_HA,
     ParcelHarvest, TreeSelectionFunc, select_from_bottom,
     growth_per_group, schedule_harvests, schedule_harvests_complete,
@@ -1052,11 +1052,15 @@ def _plan_kwargs(options: dict) -> dict:
     }
 
 
-def _apply_riduzione(df: pd.DataFrame, options: dict) -> None:
-    """Scale harvests by the riduzione percentage option, in place."""
+def _apply_riduzione(df: pd.DataFrame, options: dict,
+                     past_harvests: pd.DataFrame | None = None) -> None:
+    """Scale generated harvests by riduzione, leaving recorded volumes intact."""
     reduction = options.get(OPT_RIDUZIONE, 100.0)
     if reduction != 100.0:
-        df[COL_HARVEST] = df[COL_HARVEST] * reduction / 100
+        generated = pd.Series(True, index=df.index)
+        if past_harvests is not None and not past_harvests.empty:
+            generated = df[COL_YEAR] > past_harvests['Anno'].max()
+        df.loc[generated, COL_HARVEST] = df.loc[generated, COL_HARVEST] * reduction / 100
 
 
 # =============================================================================
@@ -1148,6 +1152,13 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
 
     events = plan_events(data, past_harvests, rules=rules,
                          **_plan_kwargs(options))
+    # Reduce before aggregating years: a parcel's total may contain both a
+    # recorded volume and generated volumes. Do not mutate the cached events.
+    reduction = options.get(OPT_RIDUZIONE, 100.0)
+    if reduction != 100.0:
+        events = [e if e.get(COL_RECORDED, False) else
+                  e | {COL_HARVEST: e[COL_HARVEST] * reduction / 100}
+                  for e in events]
     parcel_harvests = total_harvests(events)
     if comprese:
         parcel_harvests = {k: v for k, v in parcel_harvests.items()
@@ -1169,7 +1180,6 @@ def render_harvest_table(data: ParcelData, past_harvests: pd.DataFrame | None,
                            COL_HARVEST: pd.Series(dtype=float)})
         total_area = sum(data.parcels[k].area_ha for k in displayed)
     else:
-        _apply_riduzione(df, options)
         total_area = sum(data.parcels[k].area_ha for k in parcel_harvests)
     col_specs = [
         ColSpec('Area (ha)', 'r', COL_AREA_HA, lambda _: fmt_num(total_area, 1),
@@ -1290,7 +1300,7 @@ def render_harvest_plan(data: ParcelData, past_harvests: pd.DataFrame | None,
         volume_log=volume_log, **_plan_kwargs(options))
     if df.empty:
         return RenderResult(snippet='')
-    _apply_riduzione(df, options)
+    _apply_riduzione(df, options, past_harvests)
 
     per_parcel = COL_PARTICELLA in group_cols or len(data.parcels) == 1
 

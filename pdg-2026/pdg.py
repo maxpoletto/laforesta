@@ -262,8 +262,11 @@ def _load_coppice_schedule(
     last_harvests = (
         last_harvests_from_calendario(data_dir / calendario_path)
         if calendario_path else {})
+    past_harvests = (read_past_harvests(data_dir / calendario_path)
+                     if calendario_path else None)
     events = schedule_coppice(
-        parcels, adjacencies, last_harvests, (anno_inizio, anno_fine))
+        parcels, adjacencies, last_harvests, (anno_inizio, anno_fine),
+        past_harvests=past_harvests)
     return parcels, events, (anno_inizio, anno_fine)
 
 def process_template(template_text: str, data_dir: Path,

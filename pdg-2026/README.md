@@ -159,6 +159,23 @@ Note: the `genere` filter is not allowed — use `per_genere=si` to group by spe
 | `col_pp_max` | `si`, `no` | Show PP_max % (default: `si`) | No |
 | `col_prima_dopo` | `si`, `no` | Show before/after volumes (default: `si`, requires `per_particella=si`) | No |
 
+The first year of the planned calendar can coincide with the last year of the
+historical `calendario`, giving an overlap of exactly one year. The overlapping
+year includes exactly the recorded harvests; no extra harvests are added. Every
+fustaia row in that year must have a positive `Prelievo totale (m3)` value;
+ceduo and older rows may leave this column blank. Duplicate parcel/year records
+are rejected.
+
+For fustaia, `alberi` must describe the inventory before the early-year cuts.
+Trees are selected in the usual order (smallest mature trees first); the last
+sampled group can be partly removed to match the recorded volume exactly.
+A cut exceeding the available mature stock is an error. Growth and mortality
+apply to the remaining inventory, which is then used for future planning.
+`@@prelievi` includes these same recorded volumes.
+
+Both ceduo directives use the same early-year rule; see
+[coppice scheduling](docs/ceduo.md) for sub-interventions and adjacency errors.
+
 ## File Formats
 
 - **Equation files** (CSV): Regression coefficients for height-diameter relationships

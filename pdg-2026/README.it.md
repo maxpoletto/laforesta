@@ -161,6 +161,25 @@ Nota: il filtro `genere` non è ammesso — usare `per_genere=si` per raggruppar
 | `col_pp_max` | `si`, `no` | Mostra PP_max % (default: `si`) | No |
 | `col_prima_dopo` | `si`, `no` | Mostra volumi prima/dopo (default: `si`, richiede `per_particella=si`) | No |
 
+Il primo anno del calendario pianificato può coincidere con l'ultimo anno del
+`calendario` storico, con una sovrapposizione di un solo anno. Nell'anno di
+sovrapposizione si eseguono esattamente gli interventi registrati. Ogni riga di
+fustaia del calendario in tale anno deve avere un valore positivo nella colonna
+`Prelievo totale (m3)`; le righe di ceduo e quelle precedenti possono lasciarla
+vuota. Le righe duplicate per particella/anno sono un errore.
+
+Per la fustaia, `alberi` deve descrivere l'inventario prima dei tagli
+dell'anno iniziale. La selezione segue l'ordine consueto (prima gli alberi
+maturi più piccoli); l'ultimo gruppo
+campionato può essere rimosso parzialmente per rispettare il volume esatto.
+Un prelievo superiore al volume maturo disponibile è un errore.
+Accrescimento e mortalità si applicano all'inventario residuo, che alimenta
+la pianificazione futura. `@@prelievi` include gli stessi volumi registrati.
+
+Le due direttive del ceduo seguono la stessa regola per l'anno iniziale;
+vedere [calendario del ceduo](docs/ceduo-it.md) per sub-interventi e conflitti
+di adiacenza.
+
 ## Formati File
 
 - **File equazioni** (CSV): Coefficienti di regressione per le relazioni altezza-diametro

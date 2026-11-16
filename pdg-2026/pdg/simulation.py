@@ -12,11 +12,12 @@ import pandas as pd
 from natsort import natsort_keygen
 
 from pdg.harvest_rules import HarvestRulesFunc, max_harvest
+from pdg.io import COL_CALENDAR_YEAR, COL_RECORDED_VOLUME, early_calendar
 from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_AREA_SAGGIO,
     COL_GENERE, COL_D_CM, COL_V_M3, COL_CD_CM, COL_SCALE,
     COL_PRESSLER, COL_L10_MM,
-    GOV_FUSTAIA, MATURE_FILTER,
+    COL_GOVERNO, GOV_FUSTAIA, MATURE_FILTER,
     ParcelData, ParcelStats,
     basal_area_m2, calculate_area_and_volume, diameter_class,
 )
@@ -37,6 +38,7 @@ class HarvestResult:
     n_trees: float          # estimated number of trees harvested (scaled)
     species_shares: dict[str, float]  # fraction of mature volume per species
     harvested_indices: list  # DataFrame indices of harvested trees
+    partial_weights: dict = field(default_factory=dict)  # retained weights of partly cut rows
 from pdg.formatters import fmt_num
 
 # Internal column names for simulation state
@@ -60,6 +62,7 @@ COL_N_TREES = 'n_trees'
 COL_VOLUME_BEFORE = 'volume_before'
 COL_VOLUME_AFTER = 'volume_after'
 COL_SPECIES_SHARES = '_species_shares'
+COL_RECORDED = '_recorded'
 
 # Type: takes mature harvestable trees, returns their indices in harvest order
 TreeSelectionFunc = Callable[[pd.DataFrame], pd.Index]
@@ -306,6 +309,47 @@ def harvest_parcel(trees: pd.DataFrame, stats: ParcelStats,
     return HarvestResult(vol_mature, cum_vol, cum_n, species_shares, harvested)  # type: ignore[reportGeneralTypeIssues]
 
 
+def harvest_recorded(trees: pd.DataFrame, volume: float,
+                     selection_fn: TreeSelectionFunc) -> HarvestResult:
+    """Select an exact recorded volume, without applying planning limits.
+
+    As in harvest_parcel, only mature trees are selected. A sampled row
+    represents many trees: partially cutting its weight lets the last row
+    supply exactly the remaining recorded volume.
+    """
+    mature = trees[MATURE_FILTER(trees)]
+    tree_n = mature[COL_WEIGHT] * mature[COL_SCALE]
+    tree_vol = mature[COL_V_M3] * tree_n
+    available = float(tree_vol.sum())
+    if volume > available:
+        raise ValueError(
+            f"prelievo registrato {fmt_num(volume, 3)} m³ superiore al volume "
+            f"maturo disponibile ({fmt_num(available, 3)} m³)")
+    harvested = []
+    partial_weights = {}
+    remaining = volume
+    n_trees = 0.0
+    for idx in selection_fn(mature):
+        if remaining <= 0:
+            break
+        tv = float(tree_vol[idx])
+        if tv <= 0:
+            continue
+        take = min(remaining, tv)
+        fraction = take / tv
+        n_trees += float(tree_n[idx]) * fraction
+        if take == tv:
+            harvested.append(idx)
+        else:
+            partial_weights[idx] = float(mature.at[idx, COL_WEIGHT]) * (1 - fraction)
+        remaining -= take
+    if not np.isclose(remaining, 0, atol=1e-9):
+        raise ValueError("la selezione degli alberi non copre il prelievo registrato")
+    shares = {genere: float(tree_vol[group.index].sum()) / available
+              for genere, group in mature.groupby(COL_GENERE)}
+    return HarvestResult(available, volume, n_trees, shares, harvested, partial_weights)
+
+
 def schedule_harvests(
     data: ParcelData,
     past_harvests: pd.DataFrame | None,
@@ -328,6 +372,8 @@ def schedule_harvests(
     """Schedule harvests using a greedy algorithm with year-by-year growth simulation.
 
     Only considers parcels where governo == Fustaia.
+    At most one year may overlap the calendar. In that year only recorded
+    cuts are applied, using their exact volumes without planning limits.
 
     Args:
         ordine: Parcel priority within each year. 'vol_ha' = highest mature
@@ -355,6 +401,7 @@ def schedule_harvests(
     """
     trees = data.trees
     parcels = data.parcels
+    calendar_end, early = early_calendar(past_harvests, year_range)
 
     # Identify fustaia parcels only
     fustaia_keys = [(r, p) for (r, p), s in parcels.items()
@@ -384,7 +431,7 @@ def schedule_harvests(
     if past_harvests is not None and not past_harvests.empty:
         for _, row in past_harvests.iterrows():
             key = (row[COL_COMPRESA], row[COL_PARTICELLA])
-            if key in fustaia_set:
+            if key in fustaia_set and int(row[COL_CALENDAR_YEAR]) < year_range[0]:
                 last_harvest[key] = max(last_harvest.get(key, 0), int(row['Anno']))  # type: ignore[reportGeneralTypeIssues]
 
     first_year, last_year = year_range
@@ -406,8 +453,11 @@ def schedule_harvests(
                               tree_selection, weight=trees[COL_WEIGHT],  # type: ignore[reportGeneralTypeIssues]
                               prudence=prudence)
 
-    def commit(region: str, parcel: str, result: HarvestResult, year: int) -> None:
+    def commit(region: str, parcel: str, result: HarvestResult, year: int,
+               recorded: bool = False) -> None:
         """Remove the harvested trees and record the plan event."""
+        for idx, weight in result.partial_weights.items():
+            sim.at[idx, COL_WEIGHT] = weight
         sim.drop(result.harvested_indices, inplace=True)  # type: ignore[reportGeneralTypeIssues]
         events.append({
             COL_YEAR: year,
@@ -418,6 +468,7 @@ def schedule_harvests(
             COL_VOLUME_BEFORE: result.volume_before,
             COL_VOLUME_AFTER: result.volume_before - result.harvest,
             COL_SPECIES_SHARES: result.species_shares,
+            COL_RECORDED: recorded,
         })
         last_harvest[(region, parcel)] = year
 
@@ -425,77 +476,93 @@ def schedule_harvests(
         if volume_log is not None:
             volume_log[y] = snapshot_volumes(sim)
 
-        # Compute mature vol/ha for each fustaia parcel and build priority list.
-        parcel_vols = {}
-        for region, parcel in fustaia_keys:
-            vol_ha = _mature_vol_per_ha(sim, region, parcel, sim_parcels[(region, parcel)])  # type: ignore[reportGeneralTypeIssues]
-            parcel_vols[(region, parcel)] = vol_ha
+        if calendar_end is not None and y <= calendar_end:
+            # Calendar years are fixed: neither the ordinary loop nor recovery
+            # harvests may add a parcel, change a volume, or emit a shortfall.
+            for _, row in early.iterrows():
+                region, parcel = row[COL_COMPRESA], row[COL_PARTICELLA]
+                if ((region, parcel) not in fustaia_set
+                        or row.get(COL_GOVERNO, GOV_FUSTAIA) != GOV_FUSTAIA):
+                    continue
+                mask = (sim[COL_COMPRESA] == region) & (sim[COL_PARTICELLA] == parcel)
+                try:
+                    result = harvest_recorded(
+                        sim[mask], float(row[COL_RECORDED_VOLUME]), tree_selection)
+                except ValueError as exc:
+                    raise ValueError(f"Calendario {region}/{parcel}, anno {y}: {exc}") from exc
+                commit(region, parcel, result, y, recorded=True)
+        else:
+            # Compute mature vol/ha for each fustaia parcel and build priority list.
+            parcel_vols = {}
+            for region, parcel in fustaia_keys:
+                vol_ha = _mature_vol_per_ha(sim, region, parcel, sim_parcels[(region, parcel)])  # type: ignore[reportGeneralTypeIssues]
+                parcel_vols[(region, parcel)] = vol_ha
 
-        if ordine == ORDINE_VOL_TOT:
-            parcel_priority = [
-                (-vol_ha * sim_parcels[(r, p)].area_ha, r, p)
-                for (r, p), vol_ha in parcel_vols.items()]
-        elif ordine == ORDINE_DATA:
-            parcel_priority = [
-                (last_harvest.get((r, p), 0), -vol_ha, r, p)
-                for (r, p), vol_ha in parcel_vols.items()]
-        else:  # ORDINE_VOL_HA (default)
-            parcel_priority = [
-                (-vol_ha, r, p)
-                for (r, p), vol_ha in parcel_vols.items()]
-        parcel_priority.sort()
+            if ordine == ORDINE_VOL_TOT:
+                parcel_priority = [
+                    (-vol_ha * sim_parcels[(r, p)].area_ha, r, p)
+                    for (r, p), vol_ha in parcel_vols.items()]
+            elif ordine == ORDINE_DATA:
+                parcel_priority = [
+                    (last_harvest.get((r, p), 0), -vol_ha, r, p)
+                    for (r, p), vol_ha in parcel_vols.items()]
+            else:  # ORDINE_VOL_HA (default)
+                parcel_priority = [
+                    (-vol_ha, r, p)
+                    for (r, p), vol_ha in parcel_vols.items()]
+            parcel_priority.sort()
 
-        # Min-gap threshold for this year (per-year override takes precedence)
-        effective_gap = gap_overrides.get(y, min_gap) if gap_overrides else min_gap
-        year_total = 0.0
-        year_parcels = 0
-        n_gap_skip = 0
-        n_no_harvest = 0
-        target_met = False
-        for *_, region, parcel in parcel_priority:
-            if last_harvest.get((region, parcel), 0) > y - effective_gap:
-                n_gap_skip += 1
-                continue
+            # Min-gap threshold for this year (per-year override takes precedence)
+            effective_gap = gap_overrides.get(y, min_gap) if gap_overrides else min_gap
+            year_total = 0.0
+            year_parcels = 0
+            n_gap_skip = 0
+            n_no_harvest = 0
+            target_met = False
+            for *_, region, parcel in parcel_priority:
+                if last_harvest.get((region, parcel), 0) > y - effective_gap:
+                    n_gap_skip += 1
+                    continue
 
-            result = try_harvest(region, parcel)
-            if result is None or result.harvest == 0:
-                n_no_harvest += 1
-                continue
+                result = try_harvest(region, parcel)
+                if result is None or result.harvest == 0:
+                    n_no_harvest += 1
+                    continue
 
-            if eligibility is not None:
-                eligibility.setdefault((region, parcel), {})[y] = result.harvest
-            if target_met:
-                continue
+                if eligibility is not None:
+                    eligibility.setdefault((region, parcel), {})[y] = result.harvest
+                if target_met:
+                    continue
 
-            commit(region, parcel, result, y)
-            year_total += result.harvest
-            year_parcels += 1
-            if year_total >= target_volume and year_parcels >= particelle_min:
-                target_met = True
-                if eligibility is None:
-                    break
-
-        # Recovery harvests (prelievo_completo).  Excluded from year_total, so
-        # the ordinary loop above is unaffected by them, and applied before the
-        # growth step so the removed trees do not grow.
-        for region, parcel in (forced or {}).get(y, ()):
-            if last_harvest.get((region, parcel), 0) > y - effective_gap:
-                continue
-            result = try_harvest(region, parcel)
-            if result is not None and result.harvest > 0:
                 commit(region, parcel, result, y)
+                year_total += result.harvest
+                year_parcels += 1
+                if year_total >= target_volume and year_parcels >= particelle_min:
+                    target_met = True
+                    if eligibility is None:
+                        break
 
-        n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
-        n_total = len(parcel_priority)
-        if year_total < target_volume:
-            msg = (f"  @@piano_di_taglio anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
-                   f"raggiunto {fmt_num(year_total, 0)} m³ "
-                   f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
-                   f"{n_no_harvest} non idonee, {n_total} totali)")
-            if diagnostics is None:
-                print(msg)
-            else:
-                diagnostics.append(msg)
+            # Recovery harvests (prelievo_completo).  Excluded from year_total, so
+            # the ordinary loop above is unaffected by them, and applied before the
+            # growth step so the removed trees do not grow.
+            for region, parcel in (forced or {}).get(y, ()):
+                if last_harvest.get((region, parcel), 0) > y - effective_gap:
+                    continue
+                result = try_harvest(region, parcel)
+                if result is not None and result.harvest > 0:
+                    commit(region, parcel, result, y)
+
+            n_harvested = sum(1 for e in events if e[COL_YEAR] == y)
+            n_total = len(parcel_priority)
+            if year_total < target_volume:
+                msg = (f"  @@piano_di_taglio anno {y}: obiettivo {fmt_num(target_volume, 0)} m³, "
+                       f"raggiunto {fmt_num(year_total, 0)} m³ "
+                       f"({n_harvested} tagliate, {n_gap_skip} in pausa, "
+                       f"{n_no_harvest} non idonee, {n_total} totali)")
+                if diagnostics is None:
+                    print(msg)
+                else:
+                    diagnostics.append(msg)
 
         # Growth step
         weight = sim[COL_WEIGHT].values.copy()  # type: ignore[reportGeneralTypeIssues]

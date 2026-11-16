@@ -25,6 +25,39 @@ The algorithm uses a priority queue:
 
 Past harvest dates come from calendario-mannesi.csv. Parcels with no harvest history get last_harvest = 0, making them eligible immediately. To break ties in the priority queue, non-adjacent parcels in the same compresa are chosen in lexicographic order, then parcels in different comprese.
 
+## Recorded early year
+
+The first year of the planned calendar can coincide with the last year of the
+historical `calendario`, giving an overlap of exactly one year.  In this early
+year only recorded interventions appear. Ceduo rows do not need a `Prelievo
+totale (m3)` value, since coppice scheduling only uses areas.
+
+A recorded intervention covers the whole parcel if its area is at most 10 ha.
+The optional calendar column `Intervento completo` can contain `si` to record
+a completed whole-parcel intervention even above 10 ha. Such an event uses the
+full parcel area, has no continuation sub-interventions, and is eligible for a
+new cycle only after the full rotation interval. For example, a 13.5 ha parcel
+completed in 2026 with an 18-year rotation next becomes eligible in 2044;
+the new cycle follows the usual subdivision rule (6.75 ha per sub-intervention).
+Gantt charts label the completed recorded cycle as a single intervention.
+
+If the column is absent, blank, or `no`, larger parcels retain the default:
+the record is the first sub-intervention of a new cycle, covering
+`area / ceil(area / 10)` hectares. The scheduler completes the remaining
+sub-interventions at least two years apart, preserving the recorded cycle
+start in table notes and Gantt bars. The next cycle is eligible at the recorded
+start plus the parcel's rotation interval. For example, a 25 ha parcel recorded
+in 2026 with a 12-year rotation is cut in 2026, 2028, 2030, then 2038, 2040, 2042,
+subject to adjacency delays and the requested end year.
+
+All recorded ceduo dates, including those before the displayed period, constrain
+future adjacency. Recorded dates remain fixed; new interventions are scheduled
+in the earliest valid year around both recorded and generated events. A
+conflicting candidate date is postponed, not treated as a scheduling error.
+If an early recorded intervention itself conflicts with another recorded
+intervention, scheduling halts with an error naming both parcels and years,
+since neither date can move.
+
 ## Examples
 
 * A standalone parcel of 8 ha with parametro=12 was last harvested in 2015. It can be harvested in 2027 and then again in 2039.

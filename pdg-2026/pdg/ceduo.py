@@ -12,7 +12,7 @@ from pdg.computation import (
     COL_COMPRESA, COL_PARTICELLA, COL_GOVERNO, COL_AREA_PARCEL, GOV_CEDUO,
     COL_INTERVALLO_CEDUO,
 )
-from pdg.io import load_parcels
+from pdg.io import early_calendar, load_parcels, read_past_harvests
 
 # Domain constants
 MAX_HARVEST_AREA_HA = 10   # Maximum area per sub-harvest
@@ -29,6 +29,7 @@ COL_CYCLE_START = 'cycle_start'
 # Column names in input CSVs
 COL_MATRICINE = 'Matricine'
 COL_ANNO = 'Anno'
+COL_INTERVENTO_COMPLETO = 'Intervento completo'
 COL_ADJ_A = 'A'
 COL_ADJ_B = 'B'
 
@@ -63,7 +64,7 @@ class CoppiceBar:
     lane: int                 # 0..n_lanes-1 within the parcel row
     cycle_idx: int            # 1-based index of the harvest cycle on this parcel
     sub_idx: int              # 1-based sub-harvest index within the cycle
-    n_sub: int                # sub-harvests per cycle for this parcel (1 if ≤ 10 ha)
+    n_sub: int                # sub-harvests in this cycle (1 for a whole-parcel record)
 
 
 @dataclass
@@ -117,8 +118,7 @@ def load_adjacencies(adiacenze_path: Path) -> Adjacencies:
 
 def last_harvests_from_calendario(calendario_path: Path) -> dict[ParcelKey, int]:
     """Extract most recent harvest year per Ceduo parcel from calendario CSV."""
-    df = pd.read_csv(calendario_path, comment='#')
-    df[COL_PARTICELLA] = df[COL_PARTICELLA].astype(str)
+    df = read_past_harvests(calendario_path)
     if COL_GOVERNO in df.columns:
         df = df[df[COL_GOVERNO] == GOV_CEDUO]
     result: dict[ParcelKey, int] = {}
@@ -132,11 +132,12 @@ def last_harvests_from_calendario(calendario_path: Path) -> dict[ParcelKey, int]
 # SCHEDULING
 # =============================================================================
 
-def _has_adjacency_conflict(key: ParcelKey, year: int,
-                            adjacencies: Adjacencies,
-                            scheduled_years: dict[ParcelKey, list[int]]) -> bool:
-    """Check if scheduling key in year conflicts with any adjacent parcel."""
-    for a, b in adjacencies:
+def _adjacency_conflict(key: ParcelKey, year: int,
+                       adjacencies: Adjacencies,
+                       scheduled_years: dict[ParcelKey, list[int]],
+                       ) -> tuple[ParcelKey, int] | None:
+    """Find a conflicting parcel/year, deterministically for error messages."""
+    for a, b in sorted(adjacencies):
         if a == key:
             other = b
         elif b == key:
@@ -145,8 +146,8 @@ def _has_adjacency_conflict(key: ParcelKey, year: int,
             continue
         for adj_year in scheduled_years.get(other, []):
             if abs(year - adj_year) < MIN_ADJACENCY_GAP:
-                return True
-    return False
+                return other, adj_year
+    return None
 
 
 def _schedule_one_cycle(
@@ -154,16 +155,16 @@ def _schedule_one_cycle(
     eligible: int, last_year: int,
     adjacencies: Adjacencies,
     scheduled_years: dict[ParcelKey, list[int]],
+    cycle_start: int | None = None,
+    completed: int = 0,
 ) -> list[CoppiceEvent]:
-    """Schedule one harvest cycle (possibly multiple sub-harvests) for a parcel."""
+    """Schedule a new cycle, or finish one whose first event was recorded."""
     n_harvests = math.ceil(parcel.area_ha / MAX_HARVEST_AREA_HA)
     chunk = parcel.area_ha / n_harvests
     year = eligible
     cycle_events: list[CoppiceEvent] = []
-    cycle_start: int | None = None
-
-    while len(cycle_events) < n_harvests and year <= last_year:
-        if _has_adjacency_conflict(key, year, adjacencies, scheduled_years):
+    while completed + len(cycle_events) < n_harvests and year <= last_year:
+        if _adjacency_conflict(key, year, adjacencies, scheduled_years):
             year += 1
             continue
 
@@ -183,6 +184,8 @@ def schedule_coppice(
     adjacencies: Adjacencies,
     last_harvests: dict[ParcelKey, int],
     year_range: tuple[int, int],
+    *,
+    past_harvests: pd.DataFrame | None = None,
 ) -> list[CoppiceEvent]:
     """Schedule coppice harvests using a priority queue.
 
@@ -191,32 +194,89 @@ def schedule_coppice(
         adjacencies: Set of sorted (parcel_key_a, parcel_key_b) pairs, a < b.
         last_harvests: Most recent harvest year per parcel (0 if unknown).
         year_range: (first_year, last_year) inclusive planning window.
+        past_harvests: Full calendar, retaining its global final year and early
+            records. An early record starts a cycle; Intervento completo=si
+            completes the whole parcel, regardless of its area.
 
     Returns:
         List of CoppiceEvent sorted by (year, compresa, particella).
     """
     first_year, last_year = year_range
     natsort_key = natsort_keygen()
+    calendar_end, early = early_calendar(past_harvests, year_range, validate_volumes=False)
+    future_first = max(first_year, calendar_end + 1) if calendar_end is not None else first_year
+    parcel_by_key = {(p.compresa, p.particella): p for p in parcels}
 
-    # Priority queue: (eligible_year, compresa, sort_key, particella, parcel)
-    heap: list[tuple[int, str, object, str, CoppiceParcel]] = []
-    for p in parcels:
-        last = last_harvests.get((p.compresa, p.particella), 0)
-        eligible = max(first_year, last + p.intervallo)
-        heapq.heappush(heap, (eligible, p.compresa, natsort_key(p.particella),
-                               p.particella, p))
+    # Seed the search with every recorded date, including dates preceding the
+    # displayed window. New interventions must find a year around these cuts.
+    recorded_years: dict[ParcelKey, list[int]] = {}
+    if past_harvests is not None:
+        for _, row in past_harvests.iterrows():
+            key = (row[COL_COMPRESA], row[COL_PARTICELLA])
+            if row.get(COL_GOVERNO, GOV_CEDUO) == GOV_CEDUO:
+                recorded_years.setdefault(key, []).append(int(row[COL_ANNO]))
+    else:
+        recorded_years = {key: [year] for key, year in last_harvests.items()}
 
-    scheduled_years: dict[ParcelKey, list[int]] = {}
     events: list[CoppiceEvent] = []
+    early_starts: dict[ParcelKey, int] = {}
+    complete_cycles: set[ParcelKey] = set()
+    for _, row in early.iterrows():
+        key = (row[COL_COMPRESA], row[COL_PARTICELLA])
+        if key not in parcel_by_key or row.get(COL_GOVERNO, GOV_CEDUO) != GOV_CEDUO:
+            continue
+        p = parcel_by_key[key]
+        year = int(row[COL_ANNO])
+        value = row.get(COL_INTERVENTO_COMPLETO)
+        complete = '' if pd.isna(value) else str(value).strip().lower()
+        if complete not in ('', 'no', 'si', 'sì'):
+            raise ValueError(
+                f"Ceduo: '{COL_INTERVENTO_COMPLETO}' non valido per "
+                f"{key[0]}/{key[1]} nel {year}: usare si, no o lasciare vuoto")
+        if complete in ('si', 'sì'):
+            complete_cycles.add(key)
+        # Recorded dates cannot move. An inconsistency between fixed records
+        # cannot be resolved by the scheduling search.
+        conflict = _adjacency_conflict(key, year, adjacencies, recorded_years)
+        if conflict is not None:
+            other, recorded_year = conflict
+            raise ValueError(
+                f"Ceduo: intervento registrato {key[0]}/{key[1]} nel {year} "
+                f"in conflitto con intervento registrato "
+                f"{other[0]}/{other[1]} nel {recorded_year}")
+        early_starts[key] = year
+        chunk = (p.area_ha if key in complete_cycles else
+                 p.area_ha / math.ceil(p.area_ha / MAX_HARVEST_AREA_HA))
+        events.append(CoppiceEvent(
+            year, p.compresa, p.particella, chunk, p.area_ha, p.intervallo, year))
+
+    # The last two queue fields describe a partially recorded cycle, if any.
+    heap: list[tuple[int, str, object, str, CoppiceParcel, int | None, int]] = []
+    for p in parcels:
+        key = (p.compresa, p.particella)
+        cycle_start = early_starts.get(key)
+        if (cycle_start is not None and p.area_ha > MAX_HARVEST_AREA_HA
+                and key not in complete_cycles):
+            eligible = cycle_start + SUB_HARVEST_GAP
+            completed = 1
+        else:
+            last = early_starts.get(key, last_harvests.get(key, 0))
+            eligible = max(future_first, last + p.intervallo)
+            cycle_start, completed = None, 0
+        heapq.heappush(heap, (eligible, p.compresa, natsort_key(p.particella),
+                               p.particella, p, cycle_start, completed))
+
+    scheduled_years = {key: list(years) for key, years in recorded_years.items()}
 
     while heap:
-        eligible, _, _, _, parcel = heapq.heappop(heap)
+        eligible, _, _, _, parcel, cycle_start, completed = heapq.heappop(heap)
         if eligible > last_year:
             continue
 
         key = (parcel.compresa, parcel.particella)
         cycle_events = _schedule_one_cycle(
-            parcel, key, eligible, last_year, adjacencies, scheduled_years)
+            parcel, key, eligible, last_year, adjacencies, scheduled_years,
+            cycle_start, completed)
 
         if not cycle_events:
             continue
@@ -225,11 +285,11 @@ def schedule_coppice(
         scheduled_years.setdefault(key, []).extend(e.year for e in cycle_events)
 
         # Re-insert for next cycle: intervallo years after first sub-harvest
-        next_eligible = cycle_events[0].year + parcel.intervallo
+        next_eligible = cycle_events[0].cycle_start + parcel.intervallo
         if next_eligible <= last_year:
             heapq.heappush(heap, (
                 next_eligible, parcel.compresa,
-                natsort_key(parcel.particella), parcel.particella, parcel))
+                natsort_key(parcel.particella), parcel.particella, parcel, None, 0))
 
     events.sort(key=lambda e: (e.year, e.compresa, natsort_key(e.particella)))
     return events
@@ -291,7 +351,7 @@ def coppice_gantt_bars(
                     lane=lane,
                     cycle_idx=cycle_idx0 + 1,
                     sub_idx=sub_idx0 + 1,
-                    n_sub=n_sub,
+                    n_sub=1 if e.area_ha == p.area_ha else n_sub,
                 ))
 
         rows.append(CoppiceRow(

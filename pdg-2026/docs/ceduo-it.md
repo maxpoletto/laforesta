@@ -25,6 +25,43 @@ L'algoritmo utilizza una coda di priorita':
 
 Le date degli ultimi interventi provengono da calendario-mannesi.csv. Le particelle senza storico hanno ultimo_taglio = 0, e risultano quindi immediatamente ammissibili. Per lo spareggio nella coda di priorita', si scelgono prima le particelle non adiacenti nella stessa compresa in ordine lessicografico, poi quelle in comprese diverse.
 
+## Anno iniziale registrato
+
+Il primo anno del calendario pianificato può coincidere con l'ultimo anno del
+`calendario` storico, con una sovrapposizione di un solo anno. In questo anno
+iniziale compaiono solo gli interventi registrati. Le righe di ceduo non
+richiedono un valore nella colonna `Prelievo totale (m3)` perché la
+pianificazione del ceduo usa solo le superfici.
+
+Un intervento registrato copre l'intera particella se la superficie è al massimo
+10 ha. La colonna facoltativa `Intervento completo` può contenere `si` per
+registrare un intervento completo anche oltre i 10 ha. In tal caso si usa
+l'intera superficie della particella, senza sub-interventi di continuazione, e
+il ciclo successivo diventa ammissibile solo dopo l'intero turno. Ad esempio,
+una particella di 13,5 ha completata nel 2026 con turno di 18 anni torna
+ammissibile nel 2044; il nuovo ciclo segue la suddivisione ordinaria (6,75 ha
+per sub-intervento). Il diagramma Gantt indica il ciclo registrato completo come
+un unico intervento.
+
+Se la colonna è assente, vuota o contiene `no`, per le particelle più grandi
+resta la regola ordinaria: il record è il primo sub-intervento di un
+nuovo ciclo, con superficie `area / ceil(area / 10)`. Il programma completa i
+sub-interventi rimanenti a distanza di almeno due anni, mantenendo l'anno di
+inizio registrato nelle note e nel Gantt. Il ciclo successivo è ammissibile
+dall'anno registrato più il turno della particella. Ad esempio, una particella
+di 25 ha registrata nel 2026 con turno di 12 anni viene utilizzata nel 2026,
+2028, 2030, poi 2038, 2040, 2042, salvo rinvii per adiacenza e il limite
+dell'anno finale richiesto.
+
+Tutte le date registrate del ceduo, anche precedenti al periodo visualizzato,
+vincolano le adiacenze future. Le date registrate restano fisse; i nuovi
+interventi sono programmati nel primo anno valido rispetto agli interventi
+registrati e generati. Una data candidata in conflitto viene rinviata e non
+causa un errore di pianificazione. Se invece un intervento registrato
+nell'anno iniziale è in conflitto con un altro intervento registrato,
+l'elaborazione si interrompe con un errore che identifica particelle e anni,
+poiché nessuna delle due date può essere spostata.
+
 ## Esempi
 
 * Una particella isolata di 8 ha con parametro=12, ultimo taglio nel 2015. Viene utilizzata nel 2027 e poi nel 2039.
