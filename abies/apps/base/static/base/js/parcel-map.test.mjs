@@ -142,7 +142,20 @@ function parcel(layer, name, props = {}) {
   };
 }
 
-const { ParcelMap } = await import('./parcel-map.js');
+const { ParcelMap, PARCEL_STYLE, parcelBoundaryStyle } = await import('./parcel-map.js');
+
+for (const [basemap, color] of [
+  ['satellite', '#ffff00'], ['osm', '#006400'], ['topo', '#ff0000'],
+]) {
+  const style = parcelBoundaryStyle(basemap);
+  check(style.fillOpacity === 0, 'boundary-only polygons have fully transparent interiors');
+  check(style.fill !== false, 'transparent interiors retain parcel hover targets');
+  check(style.color === color,
+        'boundary color contrasts with the active basemap');
+  check(style.weight === PARCEL_STYLE.weight && style.opacity === 1,
+        'boundary-only outlines retain their readable width and full opacity');
+}
+check(PARCEL_STYLE.fillOpacity > 0, 'boundary-only styling does not mutate the shared parcel style');
 
 function newMap(opts = {}) {
   return new ParcelMap({

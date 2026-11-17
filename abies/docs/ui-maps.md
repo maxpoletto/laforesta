@@ -112,6 +112,12 @@ DB-backed metadata such as `properties.coppice`. After fetching, sort with
 `sortFeaturesByArea(geojson)` (`geo.js`) so smaller polygons render — and
 tooltip — on top of the larger ones that contain them.
 
+`parcelBoundaryStyle(basemap)` opts into fully transparent parcel interiors
+with bright-yellow Satellite outlines, red Topo outlines, or dark-green OSM
+outlines. It keeps the shared border width and transparent polygon hit targets.
+Bosco's **Solo confini** characteristic reapplies this style on basemap changes;
+other characteristic styles restore their own fill opacity when selected.
+
 `ParcelMap` styles every polygon with the shared `PARCEL_STYLE` and binds the
 hover tooltip automatically. `parcelLabel(feature)` (`geo.js`) stays pure and
 returns `{title, type}` label data; `parcelTooltipContent(feature)`

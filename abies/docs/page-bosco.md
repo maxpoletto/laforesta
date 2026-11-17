@@ -64,6 +64,7 @@ hosts (top to bottom):
   Pull-down with a subset of the features from the "Visualizza caratteristiche"
   part of Boscoscopio:
   - Caratteristiche
+    - Solo confini
     - Età media (a)
     - Governo
     - Alt. media (m)
@@ -79,6 +80,16 @@ hosts (top to bottom):
 
   Below the pullodown, a checkbox for "Aree catastali" (default unchecked, uses
   computed surface area from parcel geometries).
+
+  **Solo confini** (`q=0`) shows parcel outlines without a visible fill, using
+  bright yellow (`#ffff00`) on Satellite, red (`#ff0000`) on Topo, and dark
+  green (`#006400`) on OSM.
+  Changing the basemap updates the outlines. Hover details and parcel clicks
+  remain available; tooltips show parcel type/area without a metric value, and
+  there is no value legend or satellite overlay. Existing links/defaults keep
+  their metric IDs; Età media remains the default. Its printable map labels
+  parcel names and forest type without a characteristic value, under the
+  heading **Confini**.
 
   If harvest volume ("prelievo") is shown, then we also display another checkbox,
   "Valori per ettaro" (default unchecked) to display normalized per-hectare
@@ -425,9 +436,9 @@ Cross-mode summary:
 
 #### Caratteristiche (`m=1`)
 
-- `q=1`–`10` — metric id (`10` = cutting calendar), matching the entries in the
-  "caratteristica" pulldown (parcel-level metadata + satellite-derived
-  metrics; same set as Boscoscopio).
+- `q=0`–`10` — metric id (`0` = boundaries only, `10` = cutting calendar),
+  matching the entries in the "caratteristica" pulldown (parcel-level metadata +
+  satellite-derived metrics; same set as Boscoscopio).
 - `fc=1` — "aree catastali" checked.
 - `fh=1` — "valori per ettaro" checked for harvest metrics (Caratteristiche) or `q=4` Prelievo (Evoluzione).
 - `fa=1` — "media per particella" checked for satellite metrics. Unchecked satellite metrics render raster pixels; checked metrics render parcel averages from `timeseries.json`.

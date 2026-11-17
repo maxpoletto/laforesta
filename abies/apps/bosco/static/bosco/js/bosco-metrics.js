@@ -1,6 +1,7 @@
 // Shared Bosco metric ids and flags.  Keep dependency-free: URL-state parsing
 // imports this before the full characteristic digest helpers are needed.
 
+export const Q_BOUNDARIES = '0';
 export const Q_AGE = '1';
 export const Q_TYPE = '2';
 export const Q_ALTITUDE = '3';
@@ -18,6 +19,7 @@ export const E_EVI = '3';
 export const E_HARVEST = '4';
 
 export const CHARACTERISTIC_METRICS = {
+  [Q_BOUNDARIES]: { kind: 'boundaries' },
   [Q_AGE]: { kind: 'continuous', unit: 'a' },
   [Q_TYPE]: { kind: 'type' },
   [Q_ALTITUDE]: { kind: 'continuous', unit: 'm' },

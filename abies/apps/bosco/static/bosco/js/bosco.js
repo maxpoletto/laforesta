@@ -31,7 +31,7 @@ import {
 } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelIdentity } from '../../base/js/geo.js';
-import { PARCEL_STYLE, ParcelMap, parcelTooltipContent } from '../../base/js/parcel-map.js';
+import { PARCEL_STYLE, ParcelMap, parcelBoundaryStyle, parcelTooltipContent } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import {
   deleteRowWithVersion, fetchModalForm, formSubmitControls, interceptSubmit,
@@ -91,7 +91,7 @@ import {
   productionDeltaByParcel, productionYears,
 } from './bosco-production.js';
 import {
-  E_HARVEST, Q_AGE, Q_ALTITUDE, Q_AVG_GRADE, Q_EVI, Q_NDMI, Q_NDVI,
+  E_HARVEST, Q_AGE, Q_ALTITUDE, Q_AVG_GRADE, Q_BOUNDARIES, Q_EVI, Q_NDMI, Q_NDVI,
 } from './bosco-metrics.js';
 import {
   attributeObservationParcels, buildObservationCategories, buildObservations,
@@ -964,6 +964,12 @@ function refreshCharacteristicLayer() {
   }
 
   updateCharacteristicControls(currentState);
+  if (currentState.q === Q_BOUNDARIES) {
+    clearSatelliteRasterOverlay();
+    resetParcelStyles(parcelBoundaryStyle(currentState.basemap));
+    clearLegend();
+    return;
+  }
   if (usesPlanSource(currentState.q) && !futureData) {
     clearSatelliteRasterOverlay();
     resetParcelStyles();
@@ -1512,10 +1518,10 @@ function canonicalizeEvolutionDates(state, date1, date2) {
   if (changed) navigateWithParams(PAGE_PATH, params, true);
 }
 
-function resetParcelStyles() {
+function resetParcelStyles(style = PARCEL_STYLE) {
   if (!map?.parcelLayer) return;
   map.parcelLayer.eachLayer(layer => {
-    layer.setStyle(PARCEL_STYLE);
+    layer.setStyle(style);
     if (!layer.feature) return;
     const entry = entryForFeature(layer.feature);
     setLayerTooltip(layer, entry ? buildTooltip(entry) : parcelTooltipContent(layer.feature));

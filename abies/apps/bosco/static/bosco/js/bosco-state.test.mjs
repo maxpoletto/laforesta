@@ -127,6 +127,11 @@ assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha allowed on histor
 state = readBoscoParams({ m: '1', q: '1', fh: '1' }, [7, 8]);
 assertEqual(state.harvestPerHa, false, 'readBoscoParams: per-ha ignored on non-harvest characteristic');
 
+state = readBoscoParams(new URLSearchParams('m=1&q=0&fa=1&fh=1'), [7, 8]);
+assertEqual(state.q, '0', 'readBoscoParams: preserve the boundaries-only URL value');
+assertEqual(state.parcelAverage, false, 'readBoscoParams: no satellite average for parcel boundaries');
+assertEqual(state.harvestPerHa, false, 'readBoscoParams: no per-hectare normalization for parcel boundaries');
+
 state = readBoscoParams({ m: '2', q: '4', fh: '1' }, [7, 8]);
 assertEqual(state.harvestPerHa, true, 'readBoscoParams: per-ha allowed on evolution harvest');
 

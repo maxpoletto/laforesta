@@ -26,6 +26,14 @@ const geojson = { features: entries.map((entry, i) => ({
   geometry: polygon(16 + i * .02), properties: { layer: entry.region, name: `${entry.region}-${entry.parcel}` },
 })) };
 const options = { geojson, region: { id: 1, name: 'Forest' }, entries };
+const boundaries = P.buildMetricPrint({ ...options, metricId: '0' });
+assert.equal(boundaries.title, 'Confini - Forest');
+assert.equal(boundaries.filename, 'confini_Forest.pdf');
+assert.deepEqual(boundaries.items.map(item => item.name), ['1 (F)', '2b (C)', '10 (F)']);
+assert.ok(boundaries.items.every(item => item.lines.length === 0), 'a boundary map has no metric value or missing-data placeholders');
+assert.equal(boundaries.legend, '(C) = Ceduo, (F) = Fustaia.');
+assert.equal(P.printAvailability('0', { hasRegion: true }).disabled, false,
+  'boundary printing does not require a plan or harvest data');
 const age = P.buildMetricPrint({ ...options, metricId: '1' });
 assert.equal(age.title, 'Età media - Forest');
 assert.deepEqual(age.items.map(item => item.name), ['1 (F)', '2b (C)', '10 (F)']);

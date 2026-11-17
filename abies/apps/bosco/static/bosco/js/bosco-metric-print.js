@@ -2,7 +2,7 @@
 import { FIELD_SELECTED_PLAN } from '../../base/js/constants.js';
 import * as S from '../../base/js/strings.js';
 import {
-  Q_AGE, Q_TYPE, Q_ALTITUDE, Q_AVG_GRADE, Q_HISTORICAL_HARVEST, Q_FUTURE_HARVEST,
+  Q_AGE, Q_TYPE, Q_ALTITUDE, Q_AVG_GRADE, Q_BOUNDARIES, Q_HISTORICAL_HARVEST, Q_FUTURE_HARVEST,
   Q_CUTTING_CALENDAR, isHarvestMetric, usesPlanSource,
 } from './bosco-metrics.js';
 import { formatMetricValue, metricLabel, metricValue } from './bosco-characteristics.js';
@@ -10,6 +10,7 @@ import { calendarPlanSubtitle, calendarPrintItems } from './bosco-calendar-print
 import { parcelPrintItems } from './bosco-parcel-print.js';
 
 const PRINT_FIELDS = new Map([
+  [Q_BOUNDARIES, S.BOSCO_PRINT_BOUNDARIES_FILE],
   [Q_AGE, S.BOSCO_PRINT_AGE_FILE], [Q_TYPE, S.BOSCO_PRINT_TYPE_FILE],
   [Q_ALTITUDE, S.BOSCO_PRINT_ALTITUDE_FILE],
   [Q_AVG_GRADE, S.BOSCO_PRINT_SLOPE_FILE],
@@ -50,13 +51,17 @@ export function buildMetricPrint({ geojson, region, entries, metricId, data,
   const perHa = isHarvestMetric(metricId) && Boolean(context.perHa);
   return {
     items: parcelPrintItems(geojson, region.name, entries, entry => {
+      if (metricId === Q_BOUNDARIES) return [];
       const value = metricValue(entry, metricId, context);
       const missing = value == null || value === '' || (typeof value === 'number' && !Number.isFinite(value));
       return [missing ? '-' : formatMetricValue(metricId, value, context)];
     }),
-    title: S.BOSCO_PRINT_METRIC_TITLE(label, region.name),
+    title: metricId === Q_BOUNDARIES
+      ? S.BOSCO_PRINT_BOUNDARIES_TITLE(region.name)
+      : S.BOSCO_PRINT_METRIC_TITLE(label, region.name),
     subtitle: plan ? calendarPlanSubtitle(planEntries, data) : '',
-    legend: [S.BOSCO_PRINT_METRIC_LEGEND, perHa && S.BOSCO_PRINT_PER_HA_NOTE(useCadastralArea)]
+    legend: [metricId === Q_BOUNDARIES ? S.BOSCO_PRINT_BOUNDARIES_LEGEND : S.BOSCO_PRINT_METRIC_LEGEND,
+      perHa && S.BOSCO_PRINT_PER_HA_NOTE(useCadastralArea)]
       .filter(Boolean).join(' '),
     filename: S.BOSCO_PRINT_METRIC_FILENAME(stem, region.name, { perHa, plan }), metricLabel: label,
   };

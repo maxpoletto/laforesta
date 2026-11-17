@@ -11,6 +11,7 @@ import {
   Q_AGE,
   Q_ALTITUDE,
   Q_AVG_GRADE,
+  Q_BOUNDARIES,
   Q_FUTURE_HARVEST,
   Q_HISTORICAL_HARVEST,
   Q_TYPE,
@@ -23,6 +24,7 @@ export {
   Q_AGE,
   Q_ALTITUDE,
   Q_AVG_GRADE,
+  Q_BOUNDARIES,
   Q_FUTURE_HARVEST,
   Q_HISTORICAL_HARVEST,
   Q_TYPE,
@@ -136,6 +138,7 @@ export function formatMetricValue(metricId, value, { perHa = false } = {}) {
 
 export function metricLabel(metricId) {
   return {
+    [Q_BOUNDARIES]: S.BOSCO_METRIC_BOUNDARIES,
     [Q_AGE]: S.BOSCO_METRIC_AGE, [Q_TYPE]: S.BOSCO_METRIC_TYPE,
     [Q_ALTITUDE]: S.BOSCO_METRIC_ALTITUDE, [Q_AVG_GRADE]: S.BOSCO_METRIC_AVG_GRADE,
     [Q_HISTORICAL_HARVEST]: S.BOSCO_METRIC_HISTORICAL_HARVEST,

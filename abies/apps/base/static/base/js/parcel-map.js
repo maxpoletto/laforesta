@@ -32,6 +32,13 @@ export const PARCEL_STYLE = {
   color: '#ffd54f', weight: 2, opacity: 0.9, fillColor: '#fff', fillOpacity: 0.04,
 };
 
+/** Transparent parcel interiors retain hover/click targets on every basemap. */
+export function parcelBoundaryStyle(basemap) {
+  const color = basemap === 'satellite' ? '#ffff00'
+    : basemap === 'topo' ? '#ff0000' : '#006400';
+  return { ...PARCEL_STYLE, color, opacity: 1, fillOpacity: 0 };
+}
+
 export function parcelTooltipContent(feature) {
   const label = parcelLabel(feature);
   if (!label) return null;
