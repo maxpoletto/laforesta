@@ -78,9 +78,10 @@ assertEqual(state.observationYearTo, null, 'readBoscoParams: default observation
 state = readBoscoParams({
   c: '8', m: '3', mt: 't', mc: '38,16', mz: '12', q: '5', fc: '1', fh: '1',
   v: '1', pa: '42', vo: 'dmx', ds: '3,5,3,bad', pp: '7,8', ps: '',
-  oc: '11,12,bad', oy1: '2025', oy2: '2026',
+  ns: '3,7,3,0', oc: '11,12,bad', oy1: '2025', oy2: '2026',
 }, [7, 8]);
 assertEqual(state.regionId, 8, 'readBoscoParams: valid region');
+assertEqual(state.hiddenRoadTypes, [3, 7], 'readBoscoParams: distinct hidden road types');
 assertEqual(state.mode, '3', 'readBoscoParams: valid mode');
 assertEqual(state.basemap, 'topo', 'readBoscoParams: basemap');
 assertEqual(state.center, [38, 16], 'readBoscoParams: restored center');

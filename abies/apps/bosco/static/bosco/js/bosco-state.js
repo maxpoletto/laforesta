@@ -1,3 +1,5 @@
+import { MAP_TYPE_TOKENS, mapTypeName } from '../../base/js/map-common.js';
+export { MAP_TYPE_BY_NAME, MAP_TYPE_TOKENS, mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import {
   DEFAULT_EVOLUTION_METRIC, characteristicSatelliteLayer, evolutionMetricId, normalizeDateParam,
 } from './bosco-satellite.js';
@@ -19,9 +21,6 @@ const DEFAULT_DETAIL_SECTIONS = ['m', 'd', 'p'];
 const VALID_DETAIL_SECTIONS = new Set(['m', 'd', 'p']);
 const VALID_CHARACTERISTICS = new Set(CHARACTERISTIC_METRIC_IDS);
 
-export const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
-export const MAP_TYPE_BY_NAME = { osm: 'o', topo: 't', satellite: 's' };
-
 function paramValue(params, key) {
   return params instanceof URLSearchParams ? params.get(key) : params[key];
 }
@@ -40,14 +39,6 @@ function intParam(params, key) {
 function yearParam(params, key) {
   const n = intParam(params, key);
   return Number.isInteger(n) && n >= 1900 && n <= 2100 ? n : null;
-}
-
-export function mapTypeName(token) {
-  return MAP_TYPE_TOKENS[token] || MAP_TYPE_TOKENS[DEFAULT_MAP_TYPE_TOKEN];
-}
-
-export function mapTypeToken(name) {
-  return MAP_TYPE_BY_NAME[name] || DEFAULT_MAP_TYPE_TOKEN;
 }
 
 export function parseCenter(raw) {
@@ -107,6 +98,7 @@ export function readBoscoParams(params, regionIds = []) {
     detailSpeciesIds: parseOptionalIdList(paramValue(params, 'ds')),
     paiParcelIds: parseOptionalIdList(paramValue(params, 'pp')),
     paiSpeciesIds: parseOptionalIdList(paramValue(params, 'ps')),
+    hiddenRoadTypes: parseIdList(paramValue(params, 'ns')),
     observationCategoryIds: parseOptionalIdList(paramValue(params, 'oc')),
     observationYearFrom: yearParam(params, 'oy1'),
     observationYearTo: yearParam(params, 'oy2'),

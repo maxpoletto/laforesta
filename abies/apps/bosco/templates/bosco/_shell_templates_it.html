@@ -4,10 +4,10 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 {% endcomment %}
 
 <template id="tmpl-bosco-page">
-  <div class="bosco-page">
-    <div class="bosco-map-host" id="bosco-map-host" data-target="map"></div>
+  <div class="bosco-page map-workspace">
+    <div class="bosco-map-host map-workspace-host" id="bosco-map-host" data-target="map"></div>
 
-    <aside class="bosco-sidebar" id="bosco-sidebar" aria-label="Controlli Bosco">
+    <aside class="bosco-sidebar map-workspace-sidebar" id="bosco-sidebar" aria-label="Controlli Bosco">
       <div class="bosco-sidebar-inner">
         <section class="bosco-sidebar-section">
           <div class="bosco-status" data-role="status">Caricamento...</div>
@@ -28,6 +28,11 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
             <label><input type="radio" name="bosco-mode" value="3"> Piante ad accrescimento indefinito</label>
             <label><input type="radio" name="bosco-mode" value="4"> Osservazioni</label>
           </fieldset>
+        </section>
+
+        <section class="bosco-sidebar-section" data-role="roads" hidden>
+          <h2>Viabilità</h2>
+          <div data-target="road-types"></div>
         </section>
 
         <section class="bosco-sidebar-section" data-mode-panel="1">

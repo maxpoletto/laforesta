@@ -31,7 +31,8 @@ import {
 } from '../../base/js/format.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { findContainingParcel, sortFeaturesByArea, parcelIdentity } from '../../base/js/geo.js';
-import { PARCEL_STYLE, ParcelMap, parcelBoundaryStyle, parcelTooltipContent } from '../../base/js/parcel-map.js';
+import { BoscoRoads } from './bosco-roads.js';
+import { FIT_PADDING, PARCEL_STYLE, ParcelMap, parcelBoundaryStyle, parcelTooltipContent } from '../../base/js/parcel-map.js';
 import { createPage, navigateWithParams } from '../../base/js/page-sync.js';
 import {
   deleteRowWithVersion, fetchModalForm, formSubmitControls, interceptSubmit,
@@ -131,6 +132,9 @@ const PAI_SAVE_URL = '/api/bosco/pai/save/';
 const PAI_DELETE_URL = '/api/bosco/pai/delete/';
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
+const ROADS_ID = 'roads';
+let roadFeatures = [];
+let roadOverlay = null;
 const TERRENI_ID = 'terreni';
 const TERRENI_GEOJSON_URL = '/api/geo/map.geojson';
 
@@ -188,6 +192,7 @@ cache.register(DENDROMETRY_POINTS_ID, DENDROMETRY_POINTS_URL);
 cache.register(PRESERVED_ID, PRESERVED_URL);
 cache.register(OBSERVATIONS_ID, OBSERVATIONS_URL);
 cache.register(PRELIEVI_ID, PRELIEVI_URL);
+cache.register(ROADS_ID, '/api/geo/roads.geojson');
 cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 
 let root = null;
@@ -297,6 +302,7 @@ const page = createPage({
   onQueryChange: applyParams,
   onUpdate: [
     [PARCELS_ID, onParcelsUpdate],
+    [ROADS_ID, onRoadsUpdate],
     [FUTURE_ID, onFutureUpdate],
     [SPECIES_ID, onSpeciesUpdate],
     [DENDROMETRY_ID, onDendrometryUpdate],
@@ -307,7 +313,7 @@ const page = createPage({
   ],
   visibleIds: [
     PARCELS_ID, FUTURE_ID, SPECIES_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
-    PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID,
+    PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID, ROADS_ID,
   ],
 });
 
@@ -329,11 +335,12 @@ function makeLoader(dataId, assign) {
 }
 
 async function loadPageData() {
-  const [parcels, future, species] = await Promise.all([
+  const [parcels, future, species, geo, roads] = await Promise.all([
     cache.load(PARCELS_ID),
     cache.load(FUTURE_ID),
     cache.load(SPECIES_ID),
     cache.load(TERRENI_ID),
+    cache.load(ROADS_ID),
   ]);
   parcelsData = parcels;
   futureData = future;
@@ -342,7 +349,8 @@ async function loadPageData() {
   dendrometryData = cache.get(DENDROMETRY_ID);
   dendrometryPointsData = cache.get(DENDROMETRY_POINTS_ID);
   preservedData = cache.get(PRESERVED_ID);
-  parcelsGeo = sortFeaturesByArea(cache.get(TERRENI_ID));
+  parcelsGeo = sortFeaturesByArea(geo);
+  roadFeatures = roads.features;
   rebuildRegionIndex();
 }
 
@@ -465,6 +473,12 @@ function destroyPage() {
   evolutionRenderSeq++;
 }
 
+function onRoadsUpdate(data) {
+  roadFeatures = data?.features || [];
+  destroyMap();
+  onParcelsUpdate(parcelsData);
+}
+
 function onParcelsUpdate(data) {
   parcelsData = data;
   rebuildRegionIndex();
@@ -527,6 +541,9 @@ function rebuildRegionIndex() {
     const id = row[idxRegionId];
     if (id == null || byId.has(id)) continue;
     byId.set(id, { id, name: row[idxRegion] });
+  }
+  for (const {properties} of roadFeatures) {
+    byId.set(properties.region_id, {id: properties.region_id, name: properties.region});
   }
   regions = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, S.LOCALE));
   regionById = new Map(regions.map(r => [r.id, r]));
@@ -719,6 +736,7 @@ function applyParams(params) {
     updateSidebarTitle(state);
     refreshCharacteristicLayer();
   }
+  roadOverlay?.apply(state.hiddenRoadTypes);
   if (state.mode === MODE_EVOLUTION) renderEvolutionMode();
   else clearEvolutionLegend();
   syncDetailOverlay(state);
@@ -848,7 +866,9 @@ function renderMap(state) {
   }
 
   const features = parcelsGeo.features.filter(f => parcelIdentity(f).regionName === region.name);
-  if (!features.length) {
+  const roads = roadFeatures.filter(f => f.properties.region_id === region.id);
+  root.querySelector('[data-role="roads"]').hidden = !roads.length;
+  if (!features.length && !roads.length) {
     setStatus(S.BOSCO_NO_GEOMETRY(region.name));
     return;
   }
@@ -856,7 +876,7 @@ function renderMap(state) {
   suppressViewSync = true;
   map = new ParcelMap({
     container: mapHost,
-    className: 'bosco-map',
+    className: 'bosco-map map-workspace-canvas',
     geojson: { type: 'FeatureCollection', features },
     basemap: state.basemap,
     tools: {
@@ -868,6 +888,19 @@ function renderMap(state) {
     onViewChange: onMapViewChange,
     onMapClick: onMapClick,
   });
+  roadOverlay = new BoscoRoads(map.leaflet, roads, root.querySelector('[data-role="roads"]'), (id, visible) => {
+    const hidden = new Set(currentState.hiddenRoadTypes);
+    if (visible) hidden.delete(id);
+    else hidden.add(id);
+    const params = new URLSearchParams(location.search);
+    if (hidden.size) params.set('ns', [...hidden].join(','));
+    else params.delete('ns');
+    navigateWithParams(PAGE_PATH, params);
+  });
+  if (!features.length) {
+    setStatus(region.name);
+    if (!state.center) map.leaflet.fitBounds(L.geoJSON(roads).getBounds(), {padding: FIT_PADDING, maxZoom: 19});
+  }
   mapRegionId = state.regionId;
   map.leaflet.on('basemapchange', (e) => onBasemapChange(e.name));
   setTimeout(() => { suppressViewSync = false; }, 0);
@@ -928,6 +961,7 @@ function displayAreaHa(entry, state) {
 }
 
 function destroyMap() {
+  roadOverlay = null;
   if (map) {
     clearSatelliteRasterOverlay();
     clearPaiMarkers();
