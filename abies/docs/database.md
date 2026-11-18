@@ -89,6 +89,20 @@ as empty compatibility tables for upstream migrations and token foreign keys.
 Abies never consults them for provider configuration. `SocialAccount` identity
 links and the token table retain their normal schema and cleanup behavior.
 
+## Parcel map
+
+- `base_mapcollection` keeps the GeoJSON collection members (such as its name
+  and source bounding box) under primary key 1. The features array is assembled
+  on read. An installation without a map returns an empty FeatureCollection.
+- `base_mapfeature` stores one Polygon or MultiPolygon per row, its GeoJSON
+  geometry and remaining feature members, and an optional protected parcel FK.
+  The primary key is independent of the source feature ID. Primary-key order
+  preserves import order. A parcel may have several independently versioned
+  pieces. Unmatched features retain their source properties.
+- `base_historicalmapfeature` stores complete revisions of the affected feature.
+  The import establishes a baseline. Parcel metadata edits do not copy the
+  geometry. Controllo identifies geometry edits by feature, parcel and version.
+
 ## Ipso staging
 
 These tables, including their audit history, live in the Abies server database.

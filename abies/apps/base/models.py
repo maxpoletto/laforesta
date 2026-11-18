@@ -608,6 +608,26 @@ class Parcel(TimestampedModel):
         return f'{self.region.name}-{self.name}'
 
 
+class MapCollection(models.Model):
+    """Original collection-level GeoJSON members, without the features array."""
+    members = models.JSONField(default=dict)
+
+
+class MapFeature(TimestampedModel):
+    """One independently versioned piece of the parcel map, in import order."""
+    parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT, null=True,
+                               blank=True, related_name='map_features')
+    geometry = models.JSONField()
+    members = models.JSONField(default=dict)
+    history = HistoricalRecords(verbose_name=S.MAP_FEATURE_REVISION,
+                                verbose_name_plural=S.MAP_FEATURE_REVISIONS)
+
+    class Meta:
+        ordering = ['pk']
+        verbose_name = S.MAP_FEATURE
+        verbose_name_plural = S.MAP_FEATURES
+
+
 class HarvestPlanItemState(models.IntegerChoices):
     """State machine for HarvestPlanItem.
 

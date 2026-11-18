@@ -584,7 +584,7 @@ def test_terreni_geojson_has_empty_fallback(db):
     )
 
     assert resp.status_code == 200
-    assert resp['Vary'] == 'Authorization'
+    assert 'Authorization' in resp['Vary']
     assert 'no-store' in resp['Cache-Control']
     assert resp['Content-Type'] == 'application/geo+json'
     assert resp.json() == {'type': 'FeatureCollection', 'features': []}
@@ -2856,10 +2856,10 @@ def test_samples_import_rejects_area_outside_selected_survey_grid(
 @override_settings(IPSO_SECRET='test-token')
 def test_samples_import_warns_before_unmeasured_or_mismatched_rows(
         writer_client, parcels, species, settings, tmp_path,
-        write_terreni_geojson):
+        import_parcel_map):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey, area = _sample_survey(parcels[0], name='Ipso warning survey')
-    centers = write_terreni_geojson(parcels[0], parcels[1])
+    centers = import_parcel_map(parcels[0], parcels[1])
     gps = centers[parcels[1].id]
     payload = _upload_payload(
         parcels, species, mode=IPSO_MODE_SAMPLES,
@@ -3296,10 +3296,10 @@ def test_free_survey_import_rejects_structured_survey(
 @override_settings(IPSO_SECRET='test-token')
 def test_free_survey_import_warns_before_parcel_mismatch(
         writer_client, parcels, species, settings, tmp_path,
-        write_terreni_geojson):
+        import_parcel_map):
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     survey = Survey.objects.create(name='Ipso free warning target')
-    centers = write_terreni_geojson(parcels[0], parcels[1])
+    centers = import_parcel_map(parcels[0], parcels[1])
     gps = centers[parcels[1].id]
     payload = _upload_payload(
         parcels, species, mode=IPSO_MODE_FREE_SURVEY,

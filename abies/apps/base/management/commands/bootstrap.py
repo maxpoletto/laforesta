@@ -18,18 +18,21 @@ and harvests.
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
-from django.db import OperationalError, ProgrammingError, transaction
+from django.db import DEFAULT_DB_ALIAS, OperationalError, ProgrammingError, transaction
 
 from apps.base import (
     csv_containers as cc, csv_io, csv_parcels, csv_reference, hypsometry, refdata,
 )
 from apps.base.models import (
     Crew, Eclass, HarvestDetail, HarvestPlan, HarvestPlanItem,
-    HypsoParamSet, HypsoParamSource, Parcel, Product, Region, Sample,
+    HypsoParamSet, HypsoParamSource, MapFeature, Parcel, Product, Region, Sample,
     SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreeMark,
     TreeSample,
 )
+from apps.base.map_data import link_imported_parcels
+from apps.base.map_import_v1 import import_initial_map, initial_map_path
 from apps.campionamenti import csv_grid, csv_trees
 from apps.base.species import ensure_other_species
 from apps.campionamenti import csv_preserved
@@ -97,6 +100,8 @@ class Command(BaseCommand):
                         report.loaded += ensure_other_species()
                     reports.append(report)
                 reports.append(self._load_parcels(data_dir))
+                link_imported_parcels()
+                reports.append(self._load_map(data_dir))
                 reports.append(self._load_reftable(data_dir, cc.SAMPLE_GRIDS, required=False))
                 reports.append(self._load_reftable(data_dir, cc.HARVEST_PLANS, required=False))
                 reports.append(self._load_surveys(data_dir, survey_dates))
@@ -223,6 +228,20 @@ class Command(BaseCommand):
             return report
         parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
         self._apply_validated(report, parsed, errors, csv_parcels.apply)
+        return report
+
+    def _load_map(self, data_dir):
+        path = initial_map_path(data_dir)
+        report = FileReport(name=path.name if path else 'map.geojson', required=False)
+        if path is None:
+            report.note = S.BOOTSTRAP_OPTIONAL_SKIPPED
+            return report
+        report.present = True
+        try:
+            if import_initial_map(apps, DEFAULT_DB_ALIAS, path):
+                report.loaded = MapFeature.objects.count()
+        except (OSError, ValueError) as exc:
+            report.errors.append(str(exc))
         return report
 
     # --- surveys ------------------------------------------------------------

@@ -1,9 +1,6 @@
 """Base views — login, logout, shell, geo file serving."""
 
-from pathlib import Path
-
 from axes.decorators import axes_dispatch
-from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpRequest, HttpResponse
@@ -17,19 +14,12 @@ from django.views.decorators.http import require_POST
 
 from apps.base.digests import serve_digest
 from apps.base.landing import user_landing_page
-from apps.base.http import CACHE_NO_CACHE, conditional_file_response
+from apps.base.map_data import map_response
 from apps.base.models import LoginMethod
 from apps.base.oauth import microsoft_oauth_app
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
 from config.constants import FIELD_SPECIES
-
-# Whitelist of geo files we serve via `geo_view`.  Anything else 404s,
-# even if it exists under `settings.GEO_DIR`.
-ALLOWED_GEO_FILES = {
-    'terreni.geojson',
-}
-
 
 @login_required
 def home_view(request: HttpRequest) -> HttpResponse:
@@ -102,23 +92,6 @@ def species_data(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def geo_view(request: HttpRequest, filename: str) -> HttpResponse:
-    """Serve a whitelisted geo file with conditional-GET.
-
-    The geo directory is bind-mounted on prod and lives at
-    `settings.GEO_DIR` in dev.  We don't go through Django's
-    static files because geo data is data, not asset.
-    """
-    if filename not in ALLOWED_GEO_FILES:
+    if filename not in {'map.geojson', 'terreni.geojson'}:
         raise Http404
-    path = Path(settings.GEO_DIR) / filename
-    if not path.is_file():
-        raise Http404
-    # Geo data is large and effectively immutable, but can change on deploy:
-    # `no-cache` lets the browser keep a copy yet revalidate via
-    # If-Modified-Since (304, no re-transfer), so it never serves stale data.
-    return conditional_file_response(
-        request,
-        path,
-        content_type='application/geo+json',
-        cache_control=CACHE_NO_CACHE,
-    )
+    return map_response(request)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from apps.base.parcel_geometry import parcel_key
+from apps.base.map_import_v1 import parcel_key
 
 
 def test_geometry_name_aliases_match_without_coercing_parcel_labels():
@@ -18,10 +18,13 @@ def test_geometry_name_aliases_match_without_coercing_parcel_labels():
         {'Compresa': 'R', 'Particella': 'R-10b'},
         {'layer': 'Preferred', 'compresa': 'Other', 'name': 'R-1', 'particella': '2'},
         {'layer': '', 'compresa': 'R', 'particella': '01'},
+        {'layer': 'Costa-Nord', 'name': 'Costa-Nord-01-a'},
+        {'layer': 'R', 'name': 17},
         {},
     ]
     features = [{'properties': p} for p in props]
-    expected = [['R', '01'], ['R', '1b'], ['R', '10b'], ['Preferred', '1'], ['R', '01'], ['', '']]
+    expected = [['R', '01'], ['R', '1b'], ['R', '10b'], ['Preferred', '1'],
+                ['R', '01'], ['Costa-Nord', '01-a'], ['', ''], ['', '']]
     assert [list(parcel_key(f)) for f in features] == expected
     module = Path('apps/base/static/base/js/geo.js').resolve().as_uri()
     script = f'''

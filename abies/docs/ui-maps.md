@@ -104,11 +104,11 @@ filter updates incur no palette work. Do not use it for categorical colors
 
 ## Parcel polygons
 
-Source: `data/geo/terreni.geojson`. Each polygon feature carries
+Source: the SQLite map exposed at `/api/geo/map.geojson`. Each linked feature carries
 `properties.layer = "<Compresa>"` (e.g. `"Capistrano"`) and
 `properties.name = "<Compresa>-<particella>"` (e.g. `"Capistrano-10a"`).
-`build_geo` enriches those features after parcels are loaded, with static
-DB-backed metadata such as `properties.coppice`. After fetching, sort with
+The server derives these labels and `properties.coppice` from the linked parcel
+on read. Separate pieces of one parcel remain separate features. After fetching, sort with
 `sortFeaturesByArea(geojson)` (`geo.js`) so smaller polygons render — and
 tooltip — on top of the larger ones that contain them.
 

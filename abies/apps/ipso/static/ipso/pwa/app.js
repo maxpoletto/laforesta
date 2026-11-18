@@ -14,7 +14,7 @@ const OBSERVATION_CAMERA_INPUT_ID = 'in-observation-photos-camera';
 const State = {
   mode: null,         // current IpsoModes entry
   reference: null,    // parsed reference.json
-  parcelFeatures: null, // parsed terreni.geojson features array (all regions)
+  parcelFeatures: null, // parsed parcel features for all regions
   bearerToken: '',    // non-public bearer from authenticated Abies bootstrap
   db: null,           // open IDBDatabase
   session: null,      // current session row (null until pre_session submits)
@@ -497,7 +497,7 @@ async function fetchReference() {
 }
 
 async function fetchParcelFeatures() {
-  const r = await fetch('terreni.geojson', {
+  const r = await fetch('map.geojson', {
     cache: 'reload',
     headers: bearerHeaders(),
   });
@@ -1275,22 +1275,13 @@ function formatParcelText(feature) {
   return [label.title, label.type].filter((v) => v).join(' · ');
 }
 
-// Extract the bare particella portion of `feature.properties.name`
-// (which has the form "Compresa-Particella" by terreni.geojson
-// convention). Returns '' for malformed features.
-function parcelName(feature) {
-  const name = (feature && feature.properties && feature.properties.name) || '';
-  const dash = name.indexOf('-');
-  return dash >= 0 ? name.slice(dash + 1) : name;
-}
-
 function currentAutoParcelName() {
   if (isSamplesMode()) {
     const area = currentAutoSampleArea();
     return area ? area.particella : '';
   }
   if (!State.locator) return '';
-  return parcelName(State.locator.getCommitted());
+  return parcelIdentity(State.locator.getCommitted()).parcelName;
 }
 
 function currentParcelName() {

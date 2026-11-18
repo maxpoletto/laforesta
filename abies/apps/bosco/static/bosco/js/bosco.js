@@ -132,7 +132,7 @@ const PAI_DELETE_URL = '/api/bosco/pai/delete/';
 const PRELIEVI_ID = 'prelievi';
 const PRELIEVI_URL = '/api/prelievi/data/';
 const TERRENI_ID = 'terreni';
-const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
+const TERRENI_GEOJSON_URL = '/api/geo/map.geojson';
 
 const VALID_MODES = BOSCO_MODES;
 const VALID_MAP_TYPES = ['o', 't', 's'];
@@ -333,7 +333,7 @@ async function loadPageData() {
     cache.load(PARCELS_ID),
     cache.load(FUTURE_ID),
     cache.load(SPECIES_ID),
-    cache.get(TERRENI_ID) ? Promise.resolve(cache.get(TERRENI_ID)) : cache.load(TERRENI_ID),
+    cache.load(TERRENI_ID),
   ]);
   parcelsData = parcels;
   futureData = future;

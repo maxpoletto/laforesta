@@ -49,7 +49,7 @@ import {
 const DATA_ID = DATA_ID_IPSO_UPLOADS;
 const TERRENI_ID = 'terreni';
 const DATA_URL = '/api/ipso/inbox/';
-const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
+const TERRENI_GEOJSON_URL = '/api/geo/map.geojson';
 const PAGE_PATH = '/importazione';
 const CSS_URL = '/static/ipso/css/importazione.css';
 const DEFAULT_SORT = { column: S.IPSO_COL_RECEIVED, ascending: false };
@@ -328,7 +328,7 @@ function destroyDetailTable() {
 
 async function ensureParcelsGeo() {
   if (parcelsGeo) return parcelsGeo;
-  const geojson = cache.get(TERRENI_ID) || await cache.load(TERRENI_ID);
+  const geojson = await cache.load(TERRENI_ID);
   parcelsGeo = sortFeaturesByArea(geojson);
   return parcelsGeo;
 }

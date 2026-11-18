@@ -7,7 +7,9 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.base.map_data import map_geojson
 from apps.bosco import satellite
+from apps.bosco.map_context_data import MapContextError, region_directory
 
 
 class Command(BaseCommand):
@@ -34,8 +36,7 @@ class Command(BaseCommand):
     def _add_common_args(self, parser):
         parser.add_argument(
             '--geojson', type=Path,
-            default=Path(settings.GEO_DIR) / 'terreni.geojson',
-            help="Parcel GeoJSON (default: settings.GEO_DIR/terreni.geojson).",
+            help='Optional parcel GeoJSON file. Defaults to the database map.',
         )
         parser.add_argument(
             '--output-dir', type=Path, default=Path(settings.SATELLITE_DIR),
@@ -58,11 +59,13 @@ class Command(BaseCommand):
         try:
             geojson = options['geojson']
             output_dir = options['output_dir']
-            if not geojson.is_file():
+            if geojson is None:
+                geojson = map_geojson()
+            elif not geojson.is_file():
                 raise satellite.SatelliteError(f'{geojson} not found')
             regions = options['region'] or satellite.regions_from_geojson(geojson)
             if not regions:
-                raise satellite.SatelliteError(f'no regions found in {geojson}')
+                raise satellite.SatelliteError('no regions found in parcel map')
 
             action = options['action']
             if action in {'dates', 'all'}:
@@ -71,7 +74,7 @@ class Command(BaseCommand):
                 self._fetch(geojson, output_dir, regions, options)
             if action in {'precompute', 'all'}:
                 self._precompute(geojson, output_dir, regions)
-        except satellite.SatelliteError as exc:
+        except (satellite.SatelliteError, MapContextError) as exc:
             raise CommandError(str(exc)) from exc
 
     def _build_dates(self, geojson, output_dir, regions, options):
@@ -88,7 +91,7 @@ class Command(BaseCommand):
             ),
         ]
         for region in regions:
-            region_dir = output_dir / region
+            region_dir = region_directory(output_dir, region)
             all_dates = set()
             for label, months, max_cloud in windows:
                 dates = satellite.find_region_dates(
@@ -106,7 +109,7 @@ class Command(BaseCommand):
 
     def _fetch(self, geojson, output_dir, regions, options):
         for region in regions:
-            region_dir = output_dir / region
+            region_dir = region_directory(output_dir, region)
             dates = options['date'] or satellite.read_dates_file(region_dir / 'dates.txt')
             fetched, skipped = satellite.fetch_region(
                 geojson, region_dir, region, dates, force=options['force'],
@@ -118,6 +121,6 @@ class Command(BaseCommand):
 
     def _precompute(self, geojson, output_dir, regions):
         for region in regions:
-            region_dir = output_dir / region
+            region_dir = region_directory(output_dir, region)
             count = satellite.precompute_region(geojson, region_dir, region)
             self.stdout.write(f'{region}: precomputed {count} date(s)')

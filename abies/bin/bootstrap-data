@@ -49,6 +49,6 @@ x test -d "$canonical_dir" || {
   exit 1
 }
 
-x bin/load-canonical-data "$canonical_dir" --geo-output-dir /app/data/geo
+x bin/load-canonical-data "$canonical_dir"
 
 echo "==> done."

@@ -71,7 +71,7 @@ const PLANS_URL = '/api/piano-di-taglio/plans/data/';
 const ITEMS_URL = '/api/piano-di-taglio/items/data/';
 const HYPSO_PARAMS_URL = '/api/impostazioni/hypso-params/data/';
 const SPECIES_URL = '/api/species/data/';
-const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
+const TERRENI_GEOJSON_URL = '/api/geo/map.geojson';
 const PLAN_SAVE_URL = '/api/piano-di-taglio/plan/save/';
 const PLAN_IMPORT_CSV_URL = '/api/piano-di-taglio/plan/import-csv/';
 const PLAN_DELETE_URL = '/api/piano-di-taglio/plan/delete/';
@@ -1069,7 +1069,7 @@ function destroyItemTables() {
 
 async function ensureParcelsGeo() {
   if (parcelsGeo) return parcelsGeo;
-  const geojson = cache.get(TERRENI_ID) || await cache.load(TERRENI_ID);
+  const geojson = await cache.load(TERRENI_ID);
   parcelsGeo = sortFeaturesByArea(geojson);
   return parcelsGeo;
 }

@@ -2,8 +2,16 @@
 
 ## Overview
 
-At present, parcel maps and metadata are imported from GeoJSON files at Abies
-install/configuration time.
+Parcel boundaries now live in SQLite and are imported once from an optional
+GeoJSON file. The current La Foresta map has 99 polygon features for 85 parcels.
+Each feature has its own version and history, so the editor can update both
+sides of a shared boundary in one transaction and leave other features alone.
+At this scale the median compact geometry is 1,412 bytes. Per-vertex identity
+would additionally require ring membership, ordering and rules for shared
+edges. Revisit database topology when shared-edge validation or indexed
+spatial queries become a significant server workload.
+
+Installation and the map file format are described in [INSTALL.md](../INSTALL.md).
 
 We want to extend Abies to (a) support dynamically adding features, including
 regions (i.e., it should be possible to do an Abies "cold start" with no
@@ -51,9 +59,13 @@ possibly reachable from the settings page.
 
 ### Operations on regions
 
-Regions can be created or deleted. Creating a new region requires providing a
-name and a GeoJSON file (like the current terreni.geojson) describing at least
-one parcel.
+Regions can be created or deleted. The planned editor should support a named region drawn by hand or
+initialized from GeoJSON, including a cold start without cadastral data.
+
+The region editor should queue background generation of the satellite layers
+and printable map context when a region first has boundaries or those
+boundaries change. A fresh install that imports a map should use the same
+backend job. The region should be usable while the layers are being built.
 
 A region may be deleted only if it is not used in any harvest plan (including
 marks and harvests) or survey.

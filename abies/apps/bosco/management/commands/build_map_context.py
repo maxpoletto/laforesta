@@ -5,15 +5,16 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.base.map_data import map_geojson
 from apps.bosco.map_context import OVERPASS_URL, build_region
-from apps.bosco.map_context_data import MapContextError
+from apps.bosco.map_context_data import MapContextError, region_names
 
 
 class Command(BaseCommand):
     help = 'Build local roads, water and DSM contour vectors for printable Bosco maps.'
 
     def add_arguments(self, parser):
-        parser.add_argument('--geojson', type=Path, default=Path(settings.GEO_DIR) / 'terreni.geojson')
+        parser.add_argument('--geojson', type=Path, help='Optional map file. Defaults to the database map.')
         parser.add_argument('--output-dir', type=Path, default=Path(settings.MAP_CONTEXT_DIR))
         parser.add_argument('--region', action='append', default=[])
         parser.add_argument('--buffer-m', type=float, default=500)
@@ -25,8 +26,9 @@ class Command(BaseCommand):
 
     def handle(self, **options):
         try:
-            geojson = json.loads(options['geojson'].read_text())
-            regions = options['region'] or sorted({f['properties']['layer'] for f in geojson['features']})
+            path = options['geojson']
+            geojson = json.loads(path.read_text(encoding='utf-8')) if path else map_geojson()
+            regions = options['region'] or region_names(geojson)
             for region in regions:
                 self.stdout.write(f'{region}: preparing roads, water and contours…', ending='\n')
                 payload, changed = build_region(

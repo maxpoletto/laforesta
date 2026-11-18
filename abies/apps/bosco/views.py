@@ -2,7 +2,6 @@
 
 import base64
 import hashlib
-import json
 import os
 import re
 from datetime import date as date_type
@@ -34,6 +33,7 @@ from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response, not_modified_response,
 )
+from apps.base.map_data import map_geojson
 from apps.base.models import (
     Eclass, Observation, ObservationCategory, ObservationPhoto, Parcel,
     Region, Sample, Species, Tree, TreeSample,
@@ -108,8 +108,7 @@ def map_context_data(request, region_id):
         if not path.is_file():
             return unavailable()
         payload = read_context(path)
-        with open(Path(settings.GEO_DIR) / 'terreni.geojson') as stream:
-            fingerprint, _ = region_geometry(json.load(stream), region.name)
+        fingerprint, _ = region_geometry(map_geojson(), region.name)
         if (payload.get('schema_version') != SCHEMA_VERSION or payload.get('region') != region.name
                 or payload.get('build', {}).get('geometry_hash') != fingerprint):
             return unavailable(stale=True)

@@ -747,7 +747,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (url === '/api/piano-di-taglio/items/data/') return response(itemsDigest);
   if (url === '/api/impostazioni/hypso-params/data/') return response({ columns: [], rows: [] });
   if (url === '/api/species/data/') return response(speciesDigest);
-  if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
+  if (url === '/api/geo/map.geojson') return response(terreniGeojson());
   if (options.method === 'POST' && (
     String(url).includes('/plan/delete/') || String(url).includes('/item/delete/')
   )) {

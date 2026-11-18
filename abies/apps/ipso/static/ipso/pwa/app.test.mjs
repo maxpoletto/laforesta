@@ -817,13 +817,15 @@ const session = {
   const terreni = [{ type: 'Feature', properties: { particella: '2' } }];
   app.State.db = {};
   app.State.bearerToken = 'test-token';
-  context.fetch = async (url) => ({
-    ok: true,
-    json: async () => url === 'reference.json'
-      ? reference
-      : { type: 'FeatureCollection', features: terreni },
-  });
+  const resources = { 'reference.json': reference, 'map.geojson': { type: 'FeatureCollection', features: terreni } };
+  const requests = new Map();
+  context.fetch = async (url, options) => {
+    requests.set(url, options);
+    return { ok: Object.hasOwn(resources, url), json: async () => resources[url] };
+  };
   const result = await app.refreshBootResources();
+  eq(requests.get('map.geojson')?.headers.Authorization, 'Bearer test-token',
+     'Ipso requests the database map with the operator token');
   eq(result, { reference: true, terreni: true }, 'online refresh reports both resources fresh');
   eq(app.State.reference, reference, 'online refresh adopts the fresh reference');
   eq(app.State.parcelFeatures, terreni, 'online refresh adopts fresh parcel geometry');

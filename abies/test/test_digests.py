@@ -25,7 +25,7 @@ from apps.base.digests import (
 )
 from apps.base.models import (
     Crew, DigestStatus, HarvestPlan, HarvestPlanItem, HarvestPlanItemState,
-    HypsoParamSet, HypsoParamSource, Observation, ObservationCategory,
+    HypsoParamSet, HypsoParamSource, MapFeature, Observation, ObservationCategory,
     ObservationCategoryAssignment, ObservationPhoto, Parcel, Role, Sample,
     SampleArea, SampleGrid, Survey, Tree, TreeMark, TreeSample, User,
 )
@@ -802,6 +802,24 @@ class TestGenerateBoscoDigests:
 # ---------------------------------------------------------------------------
 
 class TestGenerateAudit:
+    def test_first_map_edit_uses_imported_baseline(self, parcels, writer_user, import_parcel_map):
+        import_parcel_map(*parcels)
+        feature = MapFeature.objects.get(parcel=parcels[0])
+        feature.geometry['coordinates'][0].reverse()
+        feature.version += 1
+        feature._history_user = writer_user
+        feature.save()
+
+        generate_audit()
+        with gzip.open(settings.DIGEST_DIR / 'audit.json.gz', 'rt') as stream:
+            changes = [r for r in json.load(stream)[ROWS] if r[3] == S.MAP_FEATURE.capitalize()]
+        row, = changes
+        assert row[2] == (writer_user.get_full_name() or writer_user.username)
+        assert row[4] == S.AUDIT_UPDATE
+        for value, version in zip(row[5:7], (1, 2)):
+            assert f'{S.COL_PARCEL}: {parcels[0]}' in value
+            assert f'{S.COL_MAP_REVISION}: {version}' in value
+
     def test_user_with_name(self, db):
         user = User.objects.create_user(
             username='jdoe', password='testpass123!',

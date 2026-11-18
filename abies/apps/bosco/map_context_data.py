@@ -14,9 +14,14 @@ class MapContextError(Exception):
     """Invalid map input, incomplete remote data, or an unsuccessful build."""
 
 
+def region_names(geojson):
+    layers = ((feature.get('properties') or {}).get('layer') for feature in geojson['features'])
+    return sorted({name for name in layers if isinstance(name, str) and name})
+
+
 def region_geometry(geojson, region):
     features = [f for f in geojson.get('features', [])
-                if f.get('properties', {}).get('layer') == region]
+                if (f.get('properties') or {}).get('layer') == region]
     if not features:
         raise MapContextError(f'No parcel geometry for {region}')
     geometries = [f['geometry'] for f in features]

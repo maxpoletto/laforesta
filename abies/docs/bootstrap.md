@@ -22,8 +22,8 @@ make dev
 
 That target resets the local database, runs the shared canonical-data load
 sequence, creates the local admin user, and links templates. The shared
-sequence migrates, runs `bootstrap`, stages converted mark uploads if present,
-builds geodata, and generates digests. `make bootstrap` runs only the bootstrap
+sequence migrates, bootstraps the catalog and optional parcel map, stages
+converted mark uploads if present, and generates digests. `make bootstrap` runs only the bootstrap
 command against `$(CANONICAL_DIR)`.
 
 ## Contract
@@ -56,8 +56,10 @@ Bootstrap has a deliberately narrow contract.
   as a non-selectable reference row. A present but empty species CSV still
   intentionally leaves the table empty. Built-in defaults retain historical
   Altro alongside both new catch-alls.
-- `terreni.geojson` is part of the full data bundle, but it is not loaded by
-  `bootstrap`. Geodata is built afterward by the geodata step.
+- Bootstrap imports optional `map.geojson` (legacy name `terreni.geojson`)
+  after creating parcels, in the same transaction. Invalid geometry rolls back
+  the catalog, and `--check` validates both. Previously imported outlines are
+  linked to newly created parcels. For a map-only install use `build_geo`.
 
 ## Load Order
 
@@ -65,7 +67,7 @@ The command loads files in dependency order:
 
 1. Reference tables: `regions.csv`, `eclasses.csv`, optional `crews.csv`,
    optional `tractors.csv`, optional `species.csv`, optional `products.csv`.
-2. Parcels: `particelle.csv`.
+2. Parcels: `particelle.csv` and the optional parcel map.
 3. Containers: `sample_grids.csv`, `harvest_plans.csv`, `surveys.csv`.
 4. Sample areas: `sample_areas.csv`.
 5. Sampled trees: `sampled-trees.csv`.
@@ -74,7 +76,7 @@ The command loads files in dependency order:
 8. Preserved trees: `preserved-trees.csv`.
 9. Harvest rows: `harvests.csv`.
 
-After bootstrap, run the mark-staging, geodata, and digest steps, usually
+After bootstrap, run the mark-staging and digest steps, usually
 through `bin/load-canonical-data` or the broader `make dev` target.
 
 ## Updating parcels in a live instance
@@ -115,7 +117,7 @@ A complete application data bundle usually also includes:
 - `preserved-trees.csv`
 - `harvests.csv`
 - `hypso_params.csv`
-- `terreni.geojson`
+- `map.geojson` (optional parcel polygons)
 
 Optional missing files are skipped, except species and products, which fall back
 to built-in defaults.

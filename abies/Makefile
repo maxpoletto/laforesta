@@ -1,9 +1,10 @@
 PYTHON = python3
 CANONICAL_DIR ?= data/canonical
 SATELLITE_DIR ?= data/satellite
-SATELLITE_GEOJSON ?= data/geo/terreni.geojson
+MAP_GEOJSON ?= $(CANONICAL_DIR)
+SATELLITE_GEOJSON ?=
 MAP_CONTEXT_DIR ?= data/map-context
-MAP_CONTEXT_GEOJSON ?= data/geo/terreni.geojson
+MAP_CONTEXT_GEOJSON ?=
 MAP_CONTEXT_ARGS ?=
 SATELLITE_ENV_FILE ?= .env.satellite
 BRANDING_DIR ?= data/branding
@@ -57,6 +58,7 @@ help:
 	@echo "  make audit-dependencies          audit locked Python dependencies"
 	@echo "  make update-vendor check-vendor  copy/check locked browser assets"
 	@echo "  make sync-branding                copy data/branding assets into static files"
+	@echo "  make geo [MAP_GEOJSON=path]       import an initial parcel map into SQLite"
 	@echo "  make satellite                    build satellite dates, rasters, and summaries"
 	@echo "  make satellite-precompute         rebuild satellite manifest/timeseries only"
 	@echo "  make map-context                  build printable-map roads, water and DSM contours"
@@ -104,23 +106,22 @@ bootstrap:
 	$(MANAGE) bootstrap $(CANONICAL_DIR)
 
 geo:
-	mkdir -p data/geo
-	$(MANAGE) build_geo $(CANONICAL_DIR)
+	$(MANAGE) build_geo "$(MAP_GEOJSON)"
 
 satellite:
-	$(SATELLITE_MANAGE) build_satellite all --geojson "$(SATELLITE_GEOJSON)" --output-dir "$(SATELLITE_DIR)"
+	$(SATELLITE_MANAGE) build_satellite all $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
 
 satellite-dates:
-	$(SATELLITE_MANAGE) build_satellite dates --geojson "$(SATELLITE_GEOJSON)" --output-dir "$(SATELLITE_DIR)"
+	$(SATELLITE_MANAGE) build_satellite dates $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
 
 satellite-fetch:
-	$(SATELLITE_MANAGE) build_satellite fetch --geojson "$(SATELLITE_GEOJSON)" --output-dir "$(SATELLITE_DIR)"
+	$(SATELLITE_MANAGE) build_satellite fetch $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
 
 satellite-precompute:
-	$(SATELLITE_MANAGE) build_satellite precompute --geojson "$(SATELLITE_GEOJSON)" --output-dir "$(SATELLITE_DIR)"
+	$(SATELLITE_MANAGE) build_satellite precompute $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
 
 map-context:
-	$(MANAGE) build_map_context --geojson "$(MAP_CONTEXT_GEOJSON)" --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)
+	$(MANAGE) build_map_context $(if $(MAP_CONTEXT_GEOJSON),--geojson "$(MAP_CONTEXT_GEOJSON)") --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)
 
 stage-marks-uploads:
 	$(MANAGE) stage_marks_uploads $(CANONICAL_DIR)/marks
@@ -143,6 +144,7 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
+dev: export ABIES_LEGACY_GEO_DIR =
 dev: sync-branding reset-db load-canonical-data admin link-templates
 
 serve:

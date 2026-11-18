@@ -616,13 +616,12 @@ mode-switch.
   is no database digest or lazy external regeneration. See the
   [initialization commands](../README.md#local-development).
 
-- **`terreni.geojson`** — parcel polygons, as in Boscoscopio, enriched
-  during `build_geo` with static parcel metadata such as
-  `properties.coppice`.  Eager-loaded.  Updated only on geometry-data refresh
-  (rare).
+- **`/api/geo/map.geojson`** serves versioned parcel boundaries from SQLite,
+  including the current forest type of each linked parcel. The map revalidates
+  with an ETag on navigation.
 - **Satellite data** — per-compresa `manifest.json`, `timeseries.json`,
   raw index rasters, and `parcel-mask.tif`, served from `SATELLITE_DIR` via
-  `/api/bosco/satellite/<region_id>/...`.  Built from `terreni.geojson` with
+  `/api/bosco/satellite/<region_id>/...`.  Built from the database map with
   `manage.py build_satellite`; satellite metrics in both Caratteristiche and
   Evoluzione render raster pixels by default and use the precomputed per-parcel
   means in `timeseries.json` when `fa=1`. Raster-mode overlays and

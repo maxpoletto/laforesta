@@ -470,7 +470,7 @@ const payloads = new Map([
     [ROW_ID, S.COL_NAME],
     [[1, 'Abete bianco'], [2, 'Faggio']],
   )],
-  ['/api/geo/terreni.geojson', { type: 'FeatureCollection', features: [] }],
+  ['/api/geo/map.geojson', { type: 'FeatureCollection', features: [] }],
   ['/api/campionamenti/grid/form/', { html: '<div id=\"campionamenti-grid-modal\"></div>' }],
   ['/api/campionamenti/tree/form/201/', {
     html: '<form data-test-tree-row-id=\"\"></form>',

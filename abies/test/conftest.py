@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from django.conf import settings as django_settings
 
-from config.constants import IPSO_TERRENI_GEOJSON
+from django.core.management import call_command
 
 from apps.base.models import (
     Crew, Eclass, Parcel, Product, Region, Role, Sample, SampleArea,
@@ -113,9 +113,8 @@ def parcels(db, regions, eclasses):
 
 
 @pytest.fixture
-def write_terreni_geojson(settings):
+def import_parcel_map(tmp_path):
     def _write(*parcels):
-        Path(settings.GEO_DIR).mkdir(parents=True, exist_ok=True)
         centers = {}
         features = []
         for index, parcel in enumerate(parcels):
@@ -138,11 +137,12 @@ def write_terreni_geojson(settings):
                 },
                 'geometry': {'type': 'Polygon', 'coordinates': [ring]},
             })
-        path = Path(settings.GEO_DIR) / IPSO_TERRENI_GEOJSON
+        path = tmp_path / 'map.geojson'
         path.write_text(json.dumps({
             'type': 'FeatureCollection',
             'features': features,
         }), encoding='utf-8')
+        call_command('build_geo', path)
         return centers
     return _write
 

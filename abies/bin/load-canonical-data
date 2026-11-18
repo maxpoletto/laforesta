@@ -2,8 +2,8 @@
 # bin/load-canonical-data <canonical_dir> [--geo-output-dir <dir>]
 #
 # Shared initialization sequence for a fresh Abies database. Runs migrations,
-# loads canonical CSVs, stages converted mark uploads into the Ipso inbox,
-# builds geodata, and regenerates digests.
+# loads the canonical CSVs and optional map together, stages converted mark
+# uploads into the Ipso inbox, and regenerates digests.
 
 set -euo pipefail
 
@@ -53,11 +53,9 @@ echo "==> bootstrap canonical data into the (empty) instance"
 echo "==> stage converted mark uploads into Ipso inbox"
 "$python_bin" manage.py stage_marks_uploads "$canonical_dir/marks"
 
-echo "==> build geojson"
 if [[ -n "$geo_output_dir" ]]; then
+  echo "==> export legacy GeoJSON"
   "$python_bin" manage.py build_geo "$canonical_dir" --output-dir "$geo_output_dir"
-else
-  "$python_bin" manage.py build_geo "$canonical_dir"
 fi
 
 echo "==> regenerate digests"

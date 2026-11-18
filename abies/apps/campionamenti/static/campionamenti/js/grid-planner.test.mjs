@@ -1,4 +1,5 @@
 import { copyGeodesicVendor } from '../../../../../test/js-static.mjs';
+import { installDOM } from '../../../../../test/js-dom.mjs';
 // Regression tests for the automatic grid planner.
 // Run with: node apps/campionamenti/static/campionamenti/js/grid-planner.test.mjs
 
@@ -80,6 +81,24 @@ eq(posted.body, {
   [FIELD_NONCE]: 'grid-planner-nonce',
 }, 'planner save body uses shared wire constants and includes a nonce');
 eq(created, { rowId: 42, data: { row_id: 42 } }, 'planner calls onCreated after save');
+
+// Newly imported maps can use standard GeoJSON without exporter-specific properties.
+const mapHost = installDOM();
+const { default: mapCommon } = await import(staticModule('base/js/map-common.js'));
+mapCommon.create = () => ({ getLeafletMap: () => ({ on() {} }) });
+const layer = { addTo() { return this; }, getBounds: () => ({ isValid: () => false }) };
+globalThis.L = { geoJSON: () => layer, layerGroup: () => layer };
+const ring = [[16, 38], [16.1, 38], [16, 38.1], [16, 38]];
+const single = { type: 'Feature', properties: { layer: 'Costa-Nord', name: 'Costa-Nord-01' },
+  geometry: { type: 'Polygon', coordinates: [ring] } };
+const multi = { type: 'Feature', properties: { Compresa: 'Serra', Particella: '1' },
+  geometry: { type: 'MultiPolygon', coordinates: [[ring]] } };
+const polygonPlanner = new GridPlanner({ host: mapHost,
+  geojson: { type: 'FeatureCollection', features: [single, multi] } });
+await polygonPlanner.init();
+eq(polygonPlanner.regionListEl.querySelectorAll('input').map(input => input.value),
+   ['Costa-Nord', 'Serra'], 'the planner offers regions from standard Polygon and MultiPolygon features');
+eq(polygonPlanner.parcelMap.geojson.features, [single, multi], 'both outlines reach the map');
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

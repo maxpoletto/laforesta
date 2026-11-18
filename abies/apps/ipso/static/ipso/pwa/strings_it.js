@@ -229,7 +229,7 @@ const S = {
   TOAST_REFERENCE_LOAD_ERROR: (detail) =>
     `Errore caricamento reference.json: ${detail}`,
   TOAST_TERRENI_LOAD_ERROR: (detail) =>
-    `Errore caricamento terreni.geojson: ${detail}`,
+    `Errore caricamento mappa: ${detail}`,
   TOAST_DB_OPEN_ERROR: (detail) => `Errore apertura database: ${detail}`,
   TOAST_BOOT_CACHE_ERROR: (detail) =>
     `Errore dati offline: ${detail}`,

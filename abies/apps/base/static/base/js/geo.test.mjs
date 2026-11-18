@@ -182,7 +182,7 @@ assertEqual(geo.geoJSONFeatureArea({ geometry: null }), 0,
 
 // sortFeaturesByArea: largest-first, annotating each feature with _areaM2.
 const big   = { properties: {}, geometry: { type: 'Polygon', coordinates: [outerRing] } };
-const small = { properties: {}, geometry: { type: 'Polygon', coordinates: [holeRing] } };
+const small = { properties: null, geometry: { type: 'Polygon', coordinates: [holeRing] } };
 const sorted = geo.sortFeaturesByArea({ type: 'FeatureCollection', features: [small, big] });
 assertEqual(sorted.features[0] === big, true,
             'sortFeaturesByArea: largest feature first');

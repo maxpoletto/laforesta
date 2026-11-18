@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
 
-from django.conf import settings
-
-from apps.base.models import Parcel
-from config.constants import IPSO_TERRENI_GEOJSON
+from apps.base.models import MapFeature, Parcel
 
 
 @dataclass(frozen=True)
@@ -20,14 +15,13 @@ class ParcelFeature:
 
 
 class ParcelGeometryIndex:
-    """Resolve lat/lon points to DB Parcel rows using terreni.geojson.
+    """Resolve lat/lon points to DB Parcel rows using the current map features.
 
     Missing or stale geometry is non-fatal: callers get ``None`` and can skip
     geometry-derived checks instead of blocking imports.
     """
 
-    def __init__(self, path: Path | None = None):
-        self.path = path or Path(settings.GEO_DIR) / IPSO_TERRENI_GEOJSON
+    def __init__(self):
         self.features = self._load_features()
 
     def parcel_at(self, lat, lon) -> Parcel | None:
@@ -46,38 +40,15 @@ class ParcelGeometryIndex:
         return None
 
     def _load_features(self) -> list[ParcelFeature]:
-        try:
-            with open(self.path, encoding='utf-8') as f:
-                data = json.load(f)
-        except (OSError, json.JSONDecodeError):
-            return []
-
-        parcels = {
-            (p.region.name, p.name): p
-            for p in Parcel.objects.select_related('region')
-        }
         features = []
-        for feature in data.get('features') or []:
-            key = parcel_key(feature)
-            parcel = parcels.get(key)
-            bbox = feature_bbox(feature.get('geometry'))
-            if parcel is None or bbox is None:
-                continue
-            features.append(ParcelFeature(parcel, feature.get('geometry') or {}, bbox))
+        for row in MapFeature.objects.filter(parcel__isnull=False).select_related('parcel__region'):
+            bbox = feature_bbox(row.geometry)
+            if bbox is not None:
+                features.append(ParcelFeature(row.parcel, row.geometry, bbox))
 
         # Prefer the most specific match if geometries overlap.
         features.sort(key=lambda f: _bbox_area(f.bbox))
         return features
-
-
-def parcel_key(feature: dict) -> tuple[str, str]:
-    """Return (region name, parcel name), matching geo.parcelIdentity()."""
-    props = feature.get('properties') or {}
-    region = props.get('layer') or props.get('compresa') or props.get('Compresa') or ''
-    full_name = props.get('name') or props.get('particella') or props.get('Particella') or ''
-    dash = full_name.find('-')
-    parcel = full_name[dash + 1:] if dash >= 0 else full_name
-    return region, parcel
 
 
 def feature_bbox(geometry: dict | None) -> tuple[float, float, float, float] | None:

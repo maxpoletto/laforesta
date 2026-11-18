@@ -4,7 +4,8 @@ Abies runtime backups cover the state that cannot be rebuilt from the repository
 or canonical data bundle:
 
 - `data/db.sqlite3`, copied with SQLite's online backup API and verified with
-  `PRAGMA integrity_check` before archiving;
+  `PRAGMA integrity_check` before archiving, including current map features and
+  their revision history;
 - `data/observation-media`, the filesystem-backed photos attached to
   observations;
 - `data/ipso-inbox`, included by default as operational evidence for staged

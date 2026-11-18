@@ -96,12 +96,7 @@ const GRID_FORM_URL = '/api/campionamenti/grid/form/';
 const GRID_SAVE_URL = '/api/campionamenti/grid/save/';
 const SURVEY_FORM_URL = '/api/campionamenti/survey/form/';
 const SURVEY_SAVE_URL = '/api/campionamenti/survey/save/';
-// terreni.geojson carries the per-particella polygons with stable
-// feature names: `properties.name = "<Compresa>-<particella>"` and
-// `properties.layer = "<Compresa>"` — the shape `parcelLabel` expects.
-// build_geo enriches those features with static parcel metadata such as
-// `properties.coppice` after parcels have been imported into the DB.
-const TERRENI_GEOJSON_URL = '/api/geo/terreni.geojson';
+const TERRENI_GEOJSON_URL = '/api/geo/map.geojson';
 const TERRENI_ID = 'terreni';
 const PAGE_PATH = '/rilevamenti';
 const TREE_TABLE_KEYS = tableParamKeys('t');
@@ -217,9 +212,7 @@ async function loadPageData() {
     cache.load(SAMPLE_AREAS_ID),
     cache.load(SAMPLES_ID),
     cache.load(SPECIES_ID),
-    // terreni.geojson is effectively immutable: load it once per session,
-    // then reuse the cached, area-sorted copy (no request on re-navigation).
-    cache.get(TERRENI_ID) || cache.load(TERRENI_ID),
+    cache.load(TERRENI_ID),
   ]);
   surveysData = s;
   gridsData = g;

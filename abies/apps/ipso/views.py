@@ -42,6 +42,7 @@ from apps.base.http import (
     conditional_file_response,
 )
 from apps.base.digests import mark_stale
+from apps.base.map_data import map_response
 from apps.base.models import (
     HYPSO_FUNC_LN, HarvestPlanItem, HarvestPlanItemState, HypsoParam,
     HypsoParamSet, Observation, ObservationCategory,
@@ -644,21 +645,10 @@ def _reference_version(payload: dict) -> str:
 
 
 @require_GET
-def terreni_geojson(request: HttpRequest) -> HttpResponse:
+def device_map(request: HttpRequest) -> HttpResponse:
     if not _upload_authorized(request):
         return _auth_error()
-    path = Path(settings.GEO_DIR) / IPSO_TERRENI_GEOJSON
-    if path.is_file():
-        response = conditional_file_response(
-            request, path, content_type='application/geo+json',
-            cache_control=CACHE_NO_STORE,
-        )
-        return _authorized_data_response(response)
-    response = _json_response(
-        {'type': 'FeatureCollection', 'features': []},
-        content_type='application/geo+json', cache_control=CACHE_NO_STORE,
-    )
-    return _authorized_data_response(response)
+    return _authorized_data_response(map_response(request, CACHE_NO_STORE))
 
 
 IPSO_INBOX_STATE_COL = '_ipso_state'

@@ -146,9 +146,9 @@ def test_context_reader_access_conditional_get_and_stale_geometry(client, reader
     from django.urls import reverse
     region = regions[0]
     geojson = {'features': [{'properties': {'layer': region.name}, 'geometry': polygon()}]}
-    settings.GEO_DIR.mkdir(parents=True)
-    geo = settings.GEO_DIR / 'terreni.geojson'
-    geo.write_text(json.dumps(geojson))
+    from apps.base.models import MapFeature
+    feature = MapFeature.objects.create(members={'type': 'Feature', 'properties': {'layer': region.name}},
+                                        geometry=polygon())
     target = settings.MAP_CONTEXT_DIR / region.name / CONTEXT_FILE
     fingerprint = region_geometry(geojson, region.name)[0]
     publish_context(target, {'available': True, 'schema_version': 1, 'region': region.name,
@@ -161,8 +161,8 @@ def test_context_reader_access_conditional_get_and_stale_geometry(client, reader
     assert response['Content-Encoding'] == 'gzip'
     assert json.loads(gzip.decompress(b''.join(response.streaming_content)))['available']
     assert client.get(url, HTTP_IF_NONE_MATCH=response['ETag']).status_code == 304
-    geojson['features'][0]['geometry'] = polygon(east=16.02)
-    geo.write_text(json.dumps(geojson))
+    feature.geometry = polygon(east=16.02)
+    feature.save()
     assert client.get(url).json() == {'available': False, 'stale': True}
     target.unlink()
     assert client.get(url).json() == {'available': False}

@@ -528,7 +528,7 @@ def _audit_configs() -> list:
     """
     from apps.base.models import (
         Crew, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
-        Observation, ObservationCategory, Parcel, RoadType, SampleArea, SampleGrid,
+        MapFeature, Observation, ObservationCategory, Parcel, RoadType, SampleArea, SampleGrid,
         SiteSettings, Species, Survey,
         Tractor, User, VolumeEquation,
     )
@@ -583,6 +583,9 @@ def _audit_configs() -> list:
             'name': S.LABEL_NAME,
             'sort_order': S.CSV_COL_SORT_ORDER,
             'active': S.COL_ACTIVE,
+        }),
+        (MapFeature, S.MAP_FEATURE.capitalize(), {
+            'id': 'ID', 'parcel_id': S.COL_PARCEL, 'version': S.COL_MAP_REVISION,
         }),
         (RoadType, S.TABLE_ROAD_TYPE, {
             'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,
@@ -696,7 +699,11 @@ def generate_audit() -> None:
 
     events = []
     for model, table_label, field_labels in configs:
-        _audit_rows(model, model.history, table_label, field_labels, events)
+        history = model.history
+        if model._meta.label_lower == 'base.mapfeature':
+            # The audit table shows the revision; only map history readers need coordinates.
+            history = history.defer('geometry', 'members')
+        _audit_rows(model, history, table_label, field_labels, events)
 
     events.sort(key=lambda event: event[:3], reverse=True)
     rows = [event[3] for event in events]

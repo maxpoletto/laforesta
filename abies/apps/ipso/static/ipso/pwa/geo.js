@@ -5,6 +5,7 @@ const SHARED_GEO_GLOBALS = [
   'pointInRing',
   'pointInPolygon',
   'findContainingParcel',
+  'parcelIdentity',
   'parcelLabel',
   'distanceMeters',
   'geodesicArea',

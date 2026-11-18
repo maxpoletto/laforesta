@@ -97,7 +97,7 @@ The same rules apply to trees and observations.
 Protected data endpoints require the shared bearer:
 
 - `/ipso/reference.json`
-- `/ipso/terreni.geojson`
+- `/ipso/map.geojson` (legacy alias `/ipso/terreni.geojson`)
 - `/api/ipso/history/<mark|survey>/<id>/`
 
 `reference.json` contains the current Abies reference bundle used by Ipso:
@@ -119,7 +119,7 @@ The history metadata is deliberately excluded from `reference_version` because
 it is read-only orientation data, not field-session recording configuration.
 Tree coordinates and measurements are never included in `reference.json`.
 
-`terreni.geojson` contains parcel geometry for GPS-driven orientation and parcel
+`map.geojson` contains database-backed parcel geometry for GPS-driven orientation and parcel
 selection in the mobile app.
 
 Ipso and Abies use the same vendored GeographicLib WGS84 ellipsoid for distances
@@ -518,7 +518,7 @@ checks the same snapshot before marking an open session exported.
 Device endpoints using the shared bearer:
 
 - `GET /ipso/reference.json`
-- `GET /ipso/terreni.geojson`
+- `GET /ipso/map.geojson` (legacy alias `/ipso/terreni.geojson`)
 - `GET /api/ipso/history/<mark|survey>/<id>/`
 - `POST /api/ipso/uploads/`
 - `POST /api/ipso/uploads/pages/`

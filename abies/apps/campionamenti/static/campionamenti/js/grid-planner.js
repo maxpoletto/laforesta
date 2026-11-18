@@ -10,7 +10,7 @@
 
 import { ParcelMap } from '../../base/js/parcel-map.js';
 import {
-  featureArea, planGridForTarget, sortFeaturesByArea,
+  featureArea, parcelIdentity, planGridForTarget, sortFeaturesByArea,
 } from '../../base/js/geo.js';
 import { fetchJSON, postJSON } from '../../base/js/api.js';
 import { showError } from '../../base/js/modals.js';
@@ -22,7 +22,7 @@ import {
   FIELD_R_M, M2_PER_HA, MESSAGE, ROW_ID,
 } from '../../base/js/constants.js';
 
-const TERRENI_URL = '/api/geo/terreni.geojson';
+const TERRENI_URL = '/api/geo/map.geojson';
 const SAVE_URL = '/api/campionamenti/grid/save-auto/';
 
 const POINT_STYLE = {
@@ -44,7 +44,7 @@ export class GridPlanner {
     this.host = opts.host;
     this.onCreated = opts.onCreated;
     this.basemap = opts.basemap || 'satellite';
-    // Caller may hand us the already-loaded terreni.geojson (the
+    // Caller may hand us the already-loaded parcel map (the
     // campionamenti page keeps it cached); fall back to fetching otherwise.
     this.geojson = opts.geojson || null;
     this.featuresByRegion = {};   // region → [GeoJSON features]
@@ -180,12 +180,11 @@ export class GridPlanner {
 
   _loadFeatures(geojson) {
     const polys = (geojson.features || []).filter(
-      f => f.properties && f.properties.type === 'polygon'
-        && f.geometry && f.geometry.type === 'Polygon',
+      f => f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon',
     );
-    this.featuresByRegion = {};
+    this.featuresByRegion = Object.create(null);
     for (const f of polys) {
-      const name = f.properties.layer;
+      const { regionName: name } = parcelIdentity(f);
       if (!name) continue;
       if (!this.featuresByRegion[name]) this.featuresByRegion[name] = [];
       this.featuresByRegion[name].push(f);

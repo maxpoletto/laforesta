@@ -3334,7 +3334,7 @@ class TestTreeCsvImport:
         ]) == 2
 
     def test_structured_import_warns_before_unmeasured_or_mismatched_rows(
-            self, writer_client, sample_setup, species, write_terreni_geojson,
+            self, writer_client, sample_setup, species, import_parcel_map,
     ):
         from apps.base.models import Parcel, Survey, TreeSample
         s = sample_setup
@@ -3346,7 +3346,7 @@ class TestTreeCsvImport:
         target = Survey.objects.create(
             name='CSV warning target', sample_grid=s['grid'],
         )
-        centers = write_terreni_geojson(provided, other)
+        centers = import_parcel_map(provided, other)
         gps = centers[other.id]
         region_name = provided.region.name
         parcel_name = provided.name
@@ -3381,11 +3381,11 @@ class TestTreeCsvImport:
         assert row.h_measured is False
 
     def test_unstructured_import_warns_before_parcel_mismatch(
-            self, writer_client, parcels, species, write_terreni_geojson,
+            self, writer_client, parcels, species, import_parcel_map,
     ):
         from apps.base.models import Survey, TreeSample
         survey = Survey.objects.create(name='CSV free warning target')
-        centers = write_terreni_geojson(parcels[0], parcels[1])
+        centers = import_parcel_map(parcels[0], parcels[1])
         gps = centers[parcels[1].id]
         csv_text = (
             'Compresa,Particella,Albero,Pollone,Matricina,'

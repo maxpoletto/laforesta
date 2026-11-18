@@ -96,6 +96,7 @@ export function geoJSONFeatureArea(feature) {
  */
 export function sortFeaturesByArea(geojson) {
   geojson.features.forEach(f => {
+    f.properties ??= {};
     f.properties._areaM2 = geoJSONFeatureArea(f);
   });
   geojson.features.sort((a, b) => b.properties._areaM2 - a.properties._areaM2);
@@ -175,6 +176,12 @@ export function parcelIdentity(feature) {
   const p = (feature && feature.properties) || {};
   const regionName = p.layer || p.compresa || p.Compresa || '';
   const fullName = p.name || p.particella || p.Particella || '';
+  if (typeof regionName !== 'string' || typeof fullName !== 'string') {
+    return { regionName: '', parcelName: '' };
+  }
+  if (regionName && fullName.startsWith(regionName + '-')) {
+    return { regionName, parcelName: fullName.slice(regionName.length + 1) };
+  }
   const dash = fullName.indexOf('-');
   const parcelName = dash >= 0 ? fullName.slice(dash + 1) : fullName;
   return { regionName, parcelName };
@@ -194,7 +201,7 @@ export function parcelTypeLabel(feature) {
 }
 
 /**
- * Return display data for a parcel feature. Enriched terreni.geojson features
+ * Return display data for a parcel feature. Catalog-linked features
  * include forest type; raw geometries only carry the parcel title. Returns
  * null for non-parcel features.
  */

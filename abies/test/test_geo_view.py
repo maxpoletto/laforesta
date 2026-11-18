@@ -1,64 +1,85 @@
-"""Tests for the geo file serving view."""
+"""Map delivery must work offline of the input file and revalidate actual content."""
+import gzip
+import json
 
 import pytest
-from django.test import Client
+from django.test import Client, override_settings
+
+from apps.base.models import MapFeature
 
 
-@pytest.fixture
-def writer_client(writer_user):
-    c = Client()
-    c.force_login(writer_user)
-    return c
+@pytest.mark.django_db
+@override_settings(IPSO_SECRET='field-secret')
+def test_map_routes_enforce_existing_access(reader_user):
+    client = Client()
+    for name in ('terreni.geojson', 'map.geojson'):
+        assert client.get('/api/geo/' + name).status_code == 302
+        assert client.get('/ipso/' + name).status_code == 401
+    client.force_login(reader_user)
+    for name in ('terreni.geojson', 'map.geojson'):
+        response = client.get('/api/geo/' + name)
+        assert response.json() == {'type': 'FeatureCollection', 'features': []}
+        assert 'no-cache' in response['Cache-Control']
+        field = client.get('/ipso/' + name, HTTP_AUTHORIZATION='Bearer field-secret')
+        assert field.json() == response.json()
+        assert 'no-store' in field['Cache-Control'] and 'Authorization' in field['Vary']
+    assert client.get('/api/geo/secret.txt').status_code == 404
 
 
-class TestGeoView:
-    def test_unknown_file_404s(self, writer_client, tmp_path, settings):
-        settings.GEO_DIR = tmp_path
-        resp = writer_client.get('/api/geo/secret.txt')
-        assert resp.status_code == 404
+def test_revalidate_geometry_and_parcel_metadata(reader_user, parcels, import_parcel_map):
+    parcel = parcels[0]
+    import_parcel_map(*parcels)
+    client = Client()
+    client.force_login(reader_user)
+    url = '/api/geo/map.geojson'
+    first = client.get(url)
+    assert first['Content-Type'] == 'application/geo+json'
+    assert client.get(url, HTTP_IF_NONE_MATCH=first['ETag']).status_code == 304
+    part = MapFeature.objects.get(parcel=parcel)
+    part.geometry['coordinates'][0].reverse()
+    part.version += 1
+    part.save()
+    changed = client.get(url, HTTP_IF_NONE_MATCH=first['ETag'])
+    assert changed.status_code == 200 and changed['ETag'] != first['ETag']
+    parcel.name = '01b'
+    parcel.save()
+    renamed = client.get(url, HTTP_IF_NONE_MATCH=changed['ETag'], HTTP_ACCEPT_ENCODING='gzip')
+    assert renamed.status_code == 200 and renamed['Content-Encoding'] == 'gzip'
+    assert json.loads(gzip.decompress(renamed.content))['features'][0]['properties']['name'].endswith('-01b')
+    cached = client.get(url, HTTP_IF_NONE_MATCH=renamed['ETag'], HTTP_ACCEPT_ENCODING='gzip')
+    assert cached.status_code == 304 and cached['ETag'] == renamed['ETag']
+    assert 'Accept-Encoding' in cached['Vary']
 
-    def test_whitelisted_missing_file_404s(self, writer_client, tmp_path,
-                                           settings):
-        """A whitelisted name with no file on disk still 404s."""
-        settings.GEO_DIR = tmp_path
-        resp = writer_client.get('/api/geo/terreni.geojson')
-        assert resp.status_code == 404
 
-    def test_serves_whitelisted_file(self, writer_client, tmp_path, settings):
-        settings.GEO_DIR = tmp_path
-        (tmp_path / 'terreni.geojson').write_text(
-            '{"type": "FeatureCollection", "features": []}'
-        )
-        resp = writer_client.get('/api/geo/terreni.geojson')
-        assert resp.status_code == 200
-        assert resp['Content-Type'] == 'application/geo+json'
+@override_settings(IPSO_SECRET='field-secret')
+def test_populated_map_revalidates_across_desktop_and_ipso(reader_user, parcels, eclasses, import_parcel_map):
+    import_parcel_map(*parcels)
+    desktop, ipso = Client(), Client()
+    desktop.force_login(reader_user)
+    url = '/api/geo/map.geojson'
+    token = {'HTTP_AUTHORIZATION': 'Bearer field-secret'}
+    original = desktop.get(url)
+    for name in ('map.geojson', 'terreni.geojson'):
+        mobile = ipso.get('/ipso/' + name, **token)
+        assert mobile.content == original.content
+        assert mobile['ETag'] == original['ETag']
 
-    def test_path_traversal_blocked(self, writer_client, settings):
-        """Whitelist rejects path-traversal attempts."""
-        resp = writer_client.get('/api/geo/..%2F..%2Fetc%2Fpasswd')
-        assert resp.status_code == 404
+    cached = {'HTTP_IF_NONE_MATCH': original['ETag']}
+    response = ipso.get('/ipso/map.geojson', **token, **cached)
+    assert response.status_code == 304 and 'no-store' in response['Cache-Control']
+    assert 'Authorization' in response['Vary']
+    assert ipso.get('/ipso/map.geojson', **cached).status_code == 401
 
-    def test_requires_auth(self, db):
-        resp = Client().get('/api/geo/terreni.geojson')
-        assert resp.status_code == 302
-
-    def test_sets_no_cache(self, writer_client, tmp_path, settings):
-        """Geo files are browser-cacheable but must revalidate: a reload
-        picks up a changed file, while an unchanged one 304s (below)."""
-        settings.GEO_DIR = tmp_path
-        (tmp_path / 'terreni.geojson').write_text(
-            '{"type": "FeatureCollection", "features": []}')
-        resp = writer_client.get('/api/geo/terreni.geojson')
-        assert resp.status_code == 200
-        assert 'no-cache' in resp['Cache-Control']
-
-    def test_unchanged_file_revalidates_to_304(self, writer_client, tmp_path,
-                                               settings):
-        """An unchanged geo file revalidates to 304 — no re-transfer."""
-        settings.GEO_DIR = tmp_path
-        (tmp_path / 'terreni.geojson').write_text(
-            '{"type": "FeatureCollection", "features": []}')
-        r1 = writer_client.get('/api/geo/terreni.geojson')
-        r2 = writer_client.get('/api/geo/terreni.geojson',
-                               HTTP_IF_MODIFIED_SINCE=r1['Last-Modified'])
-        assert r2.status_code == 304
+    region = parcels[0].region
+    region.name = 'Costa-Nord'
+    region.save()
+    parcels[0].eclass = eclasses[2]
+    parcels[0].intervention_interval = 18
+    parcels[0].standards_per_ha = 75
+    parcels[0].save()
+    updated = ipso.get('/ipso/map.geojson', **token, **cached)
+    assert updated.status_code == 200 and updated['ETag'] != original['ETag']
+    assert desktop.get(url, **cached).content == updated.content
+    labels = [(f['properties']['name'], f['properties']['coppice']) for f in updated.json()['features']]
+    assert labels == [('Costa-Nord-1', True), ('Costa-Nord-2', False), ('Fabrizia-1', False)]
+    assert MapFeature.history.count() == len(parcels)

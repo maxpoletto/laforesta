@@ -597,7 +597,7 @@ globalThis.fetch = async (url, opts = {}) => {
     };
   }
   if (url === '/api/ipso/inbox/') return response(inboxDigest());
-  if (url === '/api/geo/terreni.geojson') return response(terreniGeojson());
+  if (url === '/api/geo/map.geojson') return response(terreniGeojson());
   if (details.has(url)) return response(details.get(url));
   throw new Error(`unexpected fetch ${url}`);
 };

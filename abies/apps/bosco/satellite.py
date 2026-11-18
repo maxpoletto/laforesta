@@ -16,6 +16,7 @@ from rasterio.features import rasterize
 from rasterio.transform import from_bounds
 
 from apps.base.geodesy import distance_m
+from apps.bosco.map_context_data import region_names
 
 
 CATALOG_URL = 'https://catalogue.dataspace.copernicus.eu/odata/v1/Products'
@@ -38,26 +39,26 @@ class SatelliteError(Exception):
     """Raised when satellite build input or remote data is invalid."""
 
 
-def regions_from_geojson(path: Path) -> list[str]:
+def _geojson_data(source):
+    if isinstance(source, dict):
+        return source
+    with open(source, encoding='utf-8') as stream:
+        return json.load(stream)
+
+
+def regions_from_geojson(path: Path | dict) -> list[str]:
     """Return sorted region names from GeoJSON feature properties.layer."""
-    with open(path, encoding='utf-8') as f:
-        data = json.load(f)
-    regions = {
-        feature.get('properties', {}).get('layer')
-        for feature in data.get('features') or []
-    }
-    return sorted(r for r in regions if r)
+    return region_names(_geojson_data(path))
 
 
-def bbox_from_geojson(path: Path, region: str | None = None) -> list[float]:
+def bbox_from_geojson(path: Path | dict, region: str | None = None) -> list[float]:
     """Return [west, south, east, north] bbox, optionally for one region."""
-    with open(path, encoding='utf-8') as f:
-        data = json.load(f)
+    data = _geojson_data(path)
     features = data.get('features') or []
     if region:
         features = [
             f for f in features
-            if f.get('properties', {}).get('layer') == region
+            if (f.get('properties') or {}).get('layer') == region
         ]
         if not features:
             raise SatelliteError(f"no features for region '{region}'")
@@ -186,7 +187,7 @@ def get_access_token() -> str:
 
 
 def find_region_dates(
-        geojson_path: Path, region: str, months: set[int], max_cloud: float,
+        geojson_path: Path | dict, region: str, months: set[int], max_cloud: float,
         year_start: int = FIRST_YEAR, year_end: int | None = None) -> list[str]:
     """Find one lowest-cloud scene per year for a region and month window."""
     bbox = bbox_from_geojson(geojson_path, region)
@@ -380,7 +381,7 @@ def fetch_one_date(
 
 
 def fetch_region(
-        geojson_path: Path, output_dir: Path, region: str, dates: list[str],
+        geojson_path: Path | dict, output_dir: Path, region: str, dates: list[str],
         force: bool = False, log=None) -> tuple[int, int]:
     """Fetch missing dates for a region. Returns (fetched, skipped)."""
     log = log or (lambda message: None)
@@ -409,10 +410,9 @@ def fetch_region(
 
 
 def rasterize_parcels(
-        geojson_path: Path, bbox: list[float], width: int, height: int,
+        geojson_path: Path | dict, bbox: list[float], width: int, height: int,
         region: str | None = None) -> tuple[np.ndarray, list[str]]:
-    with open(geojson_path, encoding='utf-8') as f:
-        data = json.load(f)
+    data = _geojson_data(geojson_path)
 
     west, south, east, north = bbox
     transform = from_bounds(west, south, east, north, width, height)
@@ -420,21 +420,17 @@ def rasterize_parcels(
     if region:
         features = [
             f for f in features
-            if f.get('properties', {}).get('layer') == region
+            if (f.get('properties') or {}).get('layer') == region
         ]
-    features = sorted(features, key=lambda f: f.get('properties', {}).get('name') or '')
-    parcel_names = sorted({
-        f.get('properties', {}).get('name')
-        for f in features
-        if f.get('properties', {}).get('name')
-    })
+    named_shapes = []
+    for feature in features:
+        name = (feature.get('properties') or {}).get('name')
+        if isinstance(name, str) and name and feature.get('geometry'):
+            named_shapes.append((name, feature['geometry']))
+    named_shapes.sort(key=lambda item: item[0])
+    parcel_names = sorted({name for name, geometry in named_shapes})
     name_to_idx = {name: idx for idx, name in enumerate(parcel_names, start=1)}
-    shapes = [
-        (feature['geometry'], name_to_idx[feature['properties']['name']])
-        for feature in features
-        if feature.get('geometry')
-        and feature.get('properties', {}).get('name') in name_to_idx
-    ]
+    shapes = [(geometry, name_to_idx[name]) for name, geometry in named_shapes]
     mask = rasterize(
         shapes, out_shape=(height, width), transform=transform, fill=0,
         dtype=np.uint8,
@@ -480,7 +476,7 @@ def compute_timeseries(
     }
 
 
-def precompute_region(geojson_path: Path, output_dir: Path, region: str) -> int:
+def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str) -> int:
     dates = discover_dates(output_dir)
     if not dates:
         raise SatelliteError(f'no complete date directories found in {output_dir}')

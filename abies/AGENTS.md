@@ -124,7 +124,8 @@ versions, automated audits, dependency updates and GitHub setup.
 # Storage
 
 SQLite (WAL mode). Digests are compressed JSON on the filesystem
-(see `docs/data-architecture.md`). GeoTIFF and GeoJSON on disk.
+(see `docs/data-architecture.md`). Parcel map features and their history live
+in SQLite. Satellite rasters and printable map context remain on disk.
 
 Row-level optimistic locking uses an edit `version`: accepted domain edits
 advance it once under the write lock. Derived-only parent totals leave that
@@ -269,7 +270,7 @@ landscape).  Page-specific mobile adaptations are covered in each page's doc
     ├── data/                           # host-mounted runtime dir (gitignored)
     │   ├── db.sqlite3
     │   ├── digests/                    # pre-computed JSON files
-    │   ├── geo/                        # GeoJSON, satellite imagery
+    │   ├── geo/                        # legacy parcel-map upgrade input
     │   └── ipso-inbox/                 # staged Ipso uploads
     ├── docs/
     ├── test/
@@ -341,6 +342,6 @@ virtualenv, matching production and CI. Install with
 - `make dev`: zero-to-working in one command (reset DB + migrate + bootstrap + geo + digest + admin + template links).
 - `make migrate`: run Django migrations.
 - `make bootstrap`: load canonical CSVs from `CANONICAL_DIR` into an empty DB.
-- `make geo`: build geo data into `data/geo/`.
+- `make geo`: import an optional initial parcel map into SQLite (see `INSTALL.md`).
 - `make digest`: precompute all JSON digests via `apps/base/digests.py`.
 - `make admin`: create initial admin user.

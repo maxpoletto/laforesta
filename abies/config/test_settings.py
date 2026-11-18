@@ -13,3 +13,6 @@ os.environ.setdefault('ABIES_BRAND_NAME', 'Test')
 os.environ.setdefault('ABIES_SITE_TITLE', 'Abies test')
 
 from config.settings import *  # noqa: F401,F403
+
+# Schema setup must never import the developer's installed parcel map.
+GEO_DIR = None
