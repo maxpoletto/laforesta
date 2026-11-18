@@ -137,7 +137,15 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
     raw records. Pending pages retain their validated records, CSV slice and
     optional photos. Finishing a session publishes one `IpsoUpload`, links
     its receipts and clears their binary bodies in the same transaction.
-    Deleting the completed upload also removes its receipts.
+    During repair a linked receipt temporarily holds its verified page again.
+    Abandoned repair bodies expire after 30 days of inactivity. Deleting
+    the completed upload also removes its receipts.
+
+- ipso_ipsopendingidentifier: (id:int, page_id:int, session_id:string,
+  kind:string, value:string)
+  - The unique (session_id, kind, value) reserves a record or photo ID
+    within an unfinished transfer. A rejected page rolls back its reservations.
+    Publication or expiry releases them.
 
 ## Geographic concepts
 

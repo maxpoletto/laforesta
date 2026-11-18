@@ -326,6 +326,19 @@ slice of records and CSV. On retry, an acknowledged page returns the next
 missing offset. Abies publishes one inbox item only after receiving every
 page. The staged CSV reconstructs the phone export byte for byte.
 
+Each accepted page reserves its record and photo IDs for that session.
+A repeated ID rejects the entire new page and leaves the previously
+acknowledged offset available for retry. An identical replay is idempotent.
+If publication is interrupted after the inbox files are written, the phone
+can retry the final page once storage is available.
+
+When the phone replays a completed session, Abies checks the server's staged
+JSON, checksum, ready marker, CSV and expected photo files. If files are
+missing, Abies requests the missing pages from the phone's saved copy and
+rebuilds the inbox directory. Repair preserves the upload's identity,
+reviewed mode and import or rejection history. Abies discards the temporary
+page bodies once the files are restored.
+
 Every tree save in `martellate`, `samples`, and `free_survey` requires a fresh
 device GPS fix. Ipso stores and uploads that fix's latitude, longitude, and
 browser-reported `acc_m`, rounded to whole meters. The Abies accuracy fields

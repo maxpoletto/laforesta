@@ -85,7 +85,7 @@ class IpsoUpload(models.Model):
 
 
 class IpsoUploadPage(models.Model):
-    """Durable transport receipt. Only unfinished sessions retain page bodies."""
+    """Durable transport receipt. Bodies are temporary during upload or repair."""
     session_id = models.CharField(max_length=64)
     offset = models.PositiveBigIntegerField()
     end = models.PositiveBigIntegerField()
@@ -98,4 +98,18 @@ class IpsoUploadPage(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=['session_id', 'offset'], name='ipso_page_offset'),
+        ]
+
+
+class IpsoPendingIdentifier(models.Model):
+    """Reserve record and photo IDs until all pages of a session are accepted."""
+
+    page = models.ForeignKey(IpsoUploadPage, on_delete=models.CASCADE)
+    session_id = models.CharField(max_length=64)
+    kind = models.CharField(max_length=6)
+    value = models.TextField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['session_id', 'kind', 'value'], name='ipso_pending_identifier'),
         ]

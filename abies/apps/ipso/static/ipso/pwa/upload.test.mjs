@@ -502,6 +502,36 @@ check(
   }
 }
 
+// A repair can discover that an earlier page is missing while the phone is
+// already sending a later one. Replay only at a boundary of the frozen plan.
+{
+  const payload = { session: observationPayload.session, records: [{}, {}, {}, {}], page_ends: [2, 3, 4] };
+  const args = { sessionId: payload.session.session_id, payload };
+  const realFetch = globalThis.fetch;
+  try {
+    for (const [replies, expected, success] of [
+      [[{next_offset: 2}, {next_offset: 0, recovering: true}, {next_offset: 3}, {next_offset: 4}],
+        [0, 2, 0, 3], true],
+      [[{next_offset: 2}, {next_offset: 0}], [0, 2], false],
+      [[{next_offset: 2}, {next_offset: 1, recovering: true}], [0, 2], false],
+      [[{next_offset: 0, recovering: true}], [0], false],
+    ]) {
+      const offsets = [];
+      globalThis.fetch = async (_url, request) => {
+        offsets.push(JSON.parse(request.body).offset);
+        const reply = replies[offsets.length - 1];
+        return {status: 200, json: async () => reply};
+      };
+      if (success) await upload.uploadSession(args);
+      else await assert.rejects(upload.uploadSession(args), error => error.klass === 'hard:conflict');
+      assert.deepEqual(offsets, expected);
+      pass++;
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);

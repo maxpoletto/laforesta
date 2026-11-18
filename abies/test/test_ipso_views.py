@@ -2,16 +2,23 @@
 
 import gzip
 import hashlib
+import importlib
 import io
 import json
+import shutil
+import sqlite3
+import threading
 import zipfile
-from datetime import date, datetime, timezone as dt_timezone
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from django.apps import apps
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
+from django.db import IntegrityError, OperationalError, connection, connections
 from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
 
@@ -24,8 +31,9 @@ from apps.base.models import (
 )
 from apps.base.tabacchi import tabacchi_volume_m3
 from apps.ipso import staging as ipso_staging
+from apps.ipso import upload_pages
 from apps.ipso import views as ipso_views
-from apps.ipso.models import IpsoUpload, IpsoUploadState
+from apps.ipso.models import IpsoPendingIdentifier, IpsoUpload, IpsoUploadPage, IpsoUploadState
 from config import strings as S
 from config.constants import (
     COLUMNS, DETAIL, DUPLICATE, ERROR, FIELD_ACC_M, FIELD_CATEGORIES,
@@ -3471,8 +3479,6 @@ def test_import_rejects_reader(reader_client, parcels, species, settings, tmp_pa
 @pytest.mark.django_db
 @override_settings(IPSO_SECRET='test-token')
 def test_paged_point_survey_replays_and_previews_contiguous_segments(settings, tmp_path, writer_client):
-    from apps.ipso.models import IpsoUploadPage
-
     settings.IPSO_INBOX_DIR = tmp_path
     session_id = 'c766fb79-575d-471c-82d5-7bd7408ff9bf'
     session = {
@@ -3573,3 +3579,212 @@ def test_paged_observations_preserve_photos(settings, tmp_path, parcels, writer_
                                   {}, content_type='application/json')
     assert response.status_code == 200, response.content
     assert ObservationPhoto.objects.filter(observation__upload_session_id=upload.session_id).count() == 2
+
+
+@pytest.fixture
+def send_photo_page(parcels, settings, tmp_path):
+    settings.IPSO_SECRET = 'test-token'
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    category = ObservationCategory.objects.create(name='Paged upload test')
+    payload = _observation_payload(parcels[0], category)
+
+    def send(offset, *, record_id=None, photo_id=None, session_id=None):
+        photo_id = photo_id or f'photo-{offset}'
+        record = dict(payload[RECORDS][0], client_record_id=record_id or str(offset),
+                      photos=[{FIELD_CLIENT_PHOTO_ID: photo_id}])
+        session = dict(payload[SESSION], session_id=session_id) if session_id else payload[SESSION]
+        page = dict(payload, session=session, offset=offset, total=3, transfer='c' * 64,
+                    records=[record], csv_text=f'{offset};viabilità\r\n')
+        files = {'photo:' + photo_id: SimpleUploadedFile('campo.jpg', JPEG_BYTES, 'image/jpeg')}
+        return _post_multipart_upload(Client(), page, files, route='ipso-upload-page')
+
+    return send
+
+
+def _assert_complete_photo_upload(upload):
+    root = Path(upload.inbox_path)
+    payload, error = ipso_staging.read_staged_payload(upload)
+    assert not error
+    assert [row[FIELD_CLIENT_RECORD_ID] for row in payload[RECORDS]] == ['0', '1', '2']
+    assert (root / 'export.csv').read_bytes() == ''.join(f'{i};viabilità\r\n' for i in range(3)).encode()
+    assert (root / IPSO_UPLOAD_FILE_READY).read_text().strip() == upload.checksum
+    for i in range(3):
+        assert (root / 'photos' / f'photo-{i}').read_bytes() == JPEG_BYTES
+
+
+def test_duplicate_identifiers_reject_the_intermediate_page_before_ack(send_photo_page):
+    assert send_photo_page(0).json()['next_offset'] == 1
+    for changes in ({'record_id': '0'}, {'photo_id': 'photo-0'}):
+        assert send_photo_page(1, **changes).status_code == 409
+        assert list(IpsoUploadPage.objects.values_list('offset', flat=True)) == [0]
+        assert IpsoPendingIdentifier.objects.count() == 2
+        assert send_photo_page(0).json()['next_offset'] == 1
+    assert send_photo_page(1).json()['next_offset'] == 2
+    assert send_photo_page(2).json()['next_offset'] == 3
+    _assert_complete_photo_upload(IpsoUpload.objects.get())
+    assert not IpsoPendingIdentifier.objects.exists()
+
+
+@pytest.mark.parametrize('missing', ['upload.json', 'upload.sha256', 'upload.ready', 'export.csv',
+                                     'photos/photo-1', 'whole directory', 'corrupt JSON', 'empty marker'])
+def test_replay_repairs_files_and_preserves_review(send_photo_page, missing, admin_client):
+    for i in range(3):
+        assert send_photo_page(i).status_code == 200
+    upload = IpsoUpload.objects.get()
+    assert admin_client.post(reverse('ipso-upload-mode', args=[upload.pk]), {
+        FIELD_MODE: IPSO_MODE_FREE_SURVEY,
+    }, content_type='application/json').status_code == 200
+    upload.refresh_from_db()
+    original_state = IpsoUpload.objects.values().get()
+    history_count = upload.history.count()
+    root = Path(upload.inbox_path)
+    if missing == 'whole directory':
+        shutil.rmtree(root)
+    elif missing == 'corrupt JSON':
+        (root / 'upload.json').write_bytes(b'{}')
+    elif missing == 'empty marker':
+        (root / IPSO_UPLOAD_FILE_READY).write_bytes(b'')
+    else:
+        (root / missing).unlink()
+    # A matching receipt already established that the references were valid.
+    ObservationCategory.objects.get(name='Paged upload test').delete()
+    for offset, expected in [(2, 0), (0, 1), (0, 1), (1, 3)]:
+        response = send_photo_page(offset)
+        assert response.status_code == 200, response.content
+        assert response.json()['next_offset'] == expected
+        if expected < 3:
+            assert response.json()['recovering']
+            assert 'duplicate' not in response.json()
+    assert response.json()['duplicate']
+    assert not IpsoUploadPage.objects.filter(body__isnull=False).exists()
+    assert IpsoUpload.objects.values().get() == original_state
+    assert upload.history.count() == history_count
+    _assert_complete_photo_upload(upload)
+    assert send_photo_page(0).json()['next_offset'] == 3
+
+
+def test_repair_after_import_keeps_domain_rows_and_import_history(send_photo_page, writer_client, settings, tmp_path):
+    settings.OBSERVATION_MEDIA_DIR = tmp_path / 'media'
+    for offset in range(3):
+        assert send_photo_page(offset).status_code == 200
+    upload = IpsoUpload.objects.get()
+    response = writer_client.post(reverse('ipso-upload-import-observations', args=[upload.pk]),
+                                  {}, content_type='application/json')
+    assert response.status_code == 200, response.content
+    upload.refresh_from_db()
+    assert upload.state == IpsoUploadState.IMPORTED
+    history = upload.history.count()
+    imported = list(Observation.objects.filter(upload_session_id=upload.session_id)
+                    .order_by('pk').values_list('pk', flat=True))
+    assert len(imported) == 3
+    (Path(upload.inbox_path) / 'photos' / 'photo-2').unlink()
+    for offset in range(3):
+        assert send_photo_page(offset).json()['next_offset'] == offset + 1
+    upload.refresh_from_db()
+    _assert_complete_photo_upload(upload)
+    assert upload.state == IpsoUploadState.IMPORTED
+    assert upload.history.count() == history
+    assert list(Observation.objects.filter(upload_session_id=upload.session_id)
+                .order_by('pk').values_list('pk', flat=True)) == imported
+
+
+@pytest.mark.django_db(transaction=True)
+def test_final_commit_failure_after_rename_is_recoverable(send_photo_page, monkeypatch, settings):
+    for i in range(2):
+        assert send_photo_page(i).status_code == 200
+
+    def fail_commit():
+        assert list(settings.IPSO_INBOX_DIR.rglob(IPSO_UPLOAD_FILE_READY))
+        raise OperationalError('final commit unavailable')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(connection, '_commit', fail_commit)
+        with pytest.raises(OperationalError, match='final commit unavailable'):
+            send_photo_page(2)
+    assert not IpsoUpload.objects.exists()
+    assert list(IpsoUploadPage.objects.order_by('offset').values_list('offset', flat=True)) == [0, 1]
+    assert IpsoPendingIdentifier.objects.count() == 4
+    assert send_photo_page(0).json()['next_offset'] == 2
+    assert send_photo_page(2).json()['duplicate'] is False
+    _assert_complete_photo_upload(IpsoUpload.objects.get())
+    assert not IpsoPendingIdentifier.objects.exists()
+    assert not IpsoUploadPage.objects.filter(body__isnull=False).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_overlapping_final_pages_publish_one_session(send_photo_page, tmp_path, monkeypatch):
+    for offset in (0, 1):
+        assert send_photo_page(offset).status_code == 200
+    database = tmp_path / 'page-concurrency.sqlite3'
+    with closing(sqlite3.connect(database)) as snapshot:
+        connection.connection.backup(snapshot)
+    monkeypatch.setitem(connections.databases, 'default', {**connection.settings_dict, 'NAME': str(database)})
+
+    first_assembling = threading.Event()
+    second_inserting = threading.Event()
+    assemble = upload_pages._assemble
+
+    def wait_for_retry(*args):
+        first_assembling.set()
+        assert second_inserting.wait(10)
+        return assemble(*args)
+
+    monkeypatch.setattr(upload_pages, '_assemble', wait_for_retry)
+
+    def send_final(second=False):
+        def observe(execute, sql, params, many, context):
+            if second and sql.startswith('INSERT INTO "ipso_ipsouploadpage"'):
+                second_inserting.set()
+            return execute(sql, params, many, context)
+        try:
+            with connections['default'].execute_wrapper(observe):
+                response = send_photo_page(2)
+                assert response.status_code == 200, response.content
+                upload = IpsoUpload.objects.get()
+                _assert_complete_photo_upload(upload)
+                assert upload.history.count() == 1
+                assert IpsoUploadPage.objects.filter(upload=upload, body=None).count() == 3
+                return response.json()
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(send_final)
+        assert first_assembling.wait(10)
+        second = pool.submit(send_final, True)
+        created, replay = first.result(10), second.result(10)
+    assert created['duplicate'] is False
+    assert replay == {**created, 'duplicate': True}
+    assert replay['next_offset'] == 3
+
+
+def test_upgrade_reserves_ids_from_preexisting_page_bodies(send_photo_page):
+    assert send_photo_page(0).status_code == 200
+    IpsoPendingIdentifier.objects.all().delete()  # state before migration 0007
+    migration = importlib.import_module('apps.ipso.migrations.0007_pending_identifiers')
+    migration.index_pending_pages(apps, connection.schema_editor())
+    assert set(IpsoPendingIdentifier.objects.values_list('kind', 'value')) == {
+        ('record', '0'), ('photo', 'photo-0'),
+    }
+    assert send_photo_page(1, photo_id='photo-0').status_code == 409
+    assert send_photo_page(1).json()['next_offset'] == 2
+
+
+def test_expired_repair_and_incomplete_upload_release_temporary_data(send_photo_page):
+    for i in range(3):
+        assert send_photo_page(i).status_code == 200
+    upload = IpsoUpload.objects.get()
+    (Path(upload.inbox_path) / 'export.csv').unlink()
+    assert send_photo_page(0).json()['recovering']
+    abandoned = '90000000-0000-4000-8000-000000000001'
+    active = '90000000-0000-4000-8000-000000000002'
+    assert send_photo_page(0, session_id=abandoned).status_code == 200
+    IpsoUploadPage.objects.all().update(received_at=datetime.now(dt_timezone.utc) - timedelta(days=31))
+    assert send_photo_page(0, session_id=active).status_code == 200
+    assert not IpsoUploadPage.objects.filter(session_id=abandoned).exists()
+    assert not IpsoPendingIdentifier.objects.filter(session_id=abandoned).exists()
+    assert IpsoUploadPage.objects.filter(upload=upload, body=None).count() == 3
+    assert IpsoPendingIdentifier.objects.filter(session_id=active).count() == 2
+    for i in range(3):
+        assert send_photo_page(i).json()['next_offset'] == i + 1
+    _assert_complete_photo_upload(upload)

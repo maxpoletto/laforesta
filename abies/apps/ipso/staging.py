@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -14,6 +15,7 @@ from django.utils import timezone as django_timezone
 
 from apps.base.file_io import fsync_directory as _fsync_dir
 
+from config import strings as S
 from config.constants import (
     FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
@@ -30,8 +32,43 @@ def payload_checksum(payload: dict) -> str:
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def upload_inbox_path(session_id: str) -> Path:
-    now = django_timezone.now().astimezone(timezone.utc)
+def read_staged_payload(upload, *, require_ready=False) -> tuple[dict, str]:
+    root = Path(upload.inbox_path)
+    path = root / IPSO_UPLOAD_FILE_JSON
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        return {}, S.IPSO_ERR_UPLOAD_JSON_MISSING
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return {}, S.IPSO_ERR_UPLOAD_JSON_INVALID
+    try:
+        staged_checksum = (
+            root / IPSO_UPLOAD_FILE_SHA256
+        ).read_text(encoding='utf-8').strip()
+    except FileNotFoundError:
+        return {}, S.IPSO_ERR_UPLOAD_SHA_MISSING
+    except UnicodeDecodeError:
+        return {}, S.IPSO_ERR_UPLOAD_SHA_INVALID
+    if not re.fullmatch(r'[0-9a-f]{64}', staged_checksum):
+        return {}, S.IPSO_ERR_UPLOAD_SHA_INVALID
+    checksum = payload_checksum(payload)
+    if not hmac.compare_digest(staged_checksum, checksum):
+        return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    if not hmac.compare_digest(upload.checksum, checksum):
+        return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    ready_path = root / IPSO_UPLOAD_FILE_READY
+    if require_ready or ready_path.is_file():
+        try:
+            ready_checksum = ready_path.read_text(encoding='utf-8').strip()
+        except (FileNotFoundError, UnicodeDecodeError):
+            return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+        if (require_ready or ready_checksum) and ready_checksum != checksum:
+            return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
+    return payload, ''
+
+
+def upload_inbox_path(session_id: str, received_at=None) -> Path:
+    now = (received_at or django_timezone.now()).astimezone(timezone.utc)
     return Path(settings.IPSO_INBOX_DIR) / f'{now.year:04d}' / f'{now.month:02d}' / session_id
 
 

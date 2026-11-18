@@ -65,6 +65,7 @@ from apps.base.responses import (
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging, upload_pages
+from apps.ipso.staging import read_staged_payload as _read_staged_payload
 from apps.ipso.import_validation import RowErrors, record_id
 from apps.ipso.import_review import (
     EXPORT_SALT, TreeImportReview, read_review_token, recovery_csv,
@@ -125,7 +126,7 @@ from config.constants import (
     IPSO_WORK_PACKAGE_HARVEST_PREFIX,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY, IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IPSO_UPLOAD_CONFIG_JS, IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON,
-    IPSO_UPLOAD_FILE_PHOTOS_DIR, IPSO_UPLOAD_FILE_READY,
+    IPSO_UPLOAD_FILE_PHOTOS_DIR,
     IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_MODES,
     IPSO_UPLOAD_MULTIPART_PAYLOAD_FIELD,
     IPSO_UPLOAD_MULTIPART_PHOTO_PREFIX, MESSAGE,
@@ -1082,9 +1083,10 @@ def upload_session(request: HttpRequest, paged=False) -> JsonResponse:
                         raise UploadValidationError(S.IPSO_ERR_UPLOAD_PAGE)
                     seen_photos.add(key)
             result = upload_pages.receive_page(
-                normalized, csv_text, staged_photo_files, offset, total, transfer,
+                normalized, csv_text, staged_photo_files, offset, total, transfer, _validate_reference_ids,
             )
             return _api_json({OK: True, **result})
+        _validate_reference_ids(normalized[SESSION][FIELD_MODE], normalized[RECORDS])
     except upload_pages.PageConflict:
         return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT, DETAIL: S.IPSO_ERR_UPLOAD_PAGE}, status=409)
     except PhotoError as e:
@@ -1349,36 +1351,6 @@ def _reference_label(reference_version: str) -> str:
 
 def _upload_record_date(upload: IpsoUpload) -> str:
     return upload.record_date or ''
-
-
-def _read_staged_payload(upload: IpsoUpload) -> tuple[dict, str]:
-    root = Path(upload.inbox_path)
-    path = root / IPSO_UPLOAD_FILE_JSON
-    try:
-        payload = json.loads(path.read_text(encoding='utf-8'))
-    except FileNotFoundError:
-        return {}, S.IPSO_ERR_UPLOAD_JSON_MISSING
-    except json.JSONDecodeError:
-        return {}, S.IPSO_ERR_UPLOAD_JSON_INVALID
-    try:
-        staged_checksum = (
-            root / IPSO_UPLOAD_FILE_SHA256
-        ).read_text(encoding='utf-8').strip()
-    except FileNotFoundError:
-        return {}, S.IPSO_ERR_UPLOAD_SHA_MISSING
-    if not _SHA256_RE.match(staged_checksum):
-        return {}, S.IPSO_ERR_UPLOAD_SHA_INVALID
-    checksum = _payload_checksum(payload)
-    if not hmac.compare_digest(staged_checksum, checksum):
-        return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
-    if not hmac.compare_digest(upload.checksum, checksum):
-        return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
-    ready_path = root / IPSO_UPLOAD_FILE_READY
-    if ready_path.is_file():
-        ready_checksum = ready_path.read_text(encoding='utf-8').strip()
-        if ready_checksum and not hmac.compare_digest(ready_checksum, checksum):
-            return {}, S.IPSO_ERR_UPLOAD_CHECKSUM_MISMATCH
-    return payload, ''
 
 
 def _preview_sequence(value, fallback: int):
@@ -2170,7 +2142,6 @@ def _validate_upload_payload(
     staged_photo_files = _attach_photo_files(
         normalized_records, photo_files or {},
     )
-    _validate_record_ids(normalized_session[FIELD_MODE], normalized_records)
     return (
         {SESSION: normalized_session, RECORDS: normalized_records},
         csv_text,
@@ -2462,7 +2433,7 @@ def _validate_observation_category_ids(records: list[dict]) -> None:
         )
 
 
-def _validate_record_ids(mode: str, records: list[dict]) -> None:
+def _validate_reference_ids(mode: str, records: list[dict]) -> None:
     if mode == IPSO_MODE_POINTS:
         return
     if mode == IPSO_MODE_OBSERVATIONS:

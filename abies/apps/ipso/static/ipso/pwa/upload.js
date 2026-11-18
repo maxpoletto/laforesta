@@ -564,21 +564,29 @@ async function uploadSession(args) {
     throw new UploadError('hard:too_large', error.message);
   }
   if (ends.length <= 1) return postUpload(args, '/api/ipso/uploads/');
-  const boundaries = new Set(ends);
+  const starts = [0, ...ends.slice(0, -1)];
+  const endByStart = new Map(starts.map((start, i) => [start, ends[i]]));
   const transfer = await transferDigest(payload);
+  const total = payload.records.length;
+  let rewound = false;
   let offset = 0;
   let result;
-  for (const end of ends) {
-    if (end <= offset) continue;
-    args.onProgress?.(offset, payload.records.length);
+  while (offset < total) {
+    const end = endByStart.get(offset);
+    args.onProgress?.(offset, total);
     result = await postUpload({
       ...args, payload: uploadPage(payload, offset, end, transfer),
     }, '/api/ipso/uploads/pages/');
-    if (!Number.isSafeInteger(result.nextOffset) || result.nextOffset < end ||
-        result.nextOffset > payload.records.length || !boundaries.has(result.nextOffset)) {
+    const next = result.nextOffset;
+    if (next !== total && !endByStart.has(next)) {
       throw new UploadError('hard:conflict');
     }
-    offset = result.nextOffset;
+    if (next < end) {
+      // Staged files can disappear even after this phone has sent earlier pages.
+      if (!result.recovering || next === offset || rewound) throw new UploadError('hard:conflict');
+      rewound = true;
+    }
+    offset = next;
   }
   return result;
 }
@@ -617,6 +625,7 @@ async function postUpload(args, url) {
       duplicate: !!responsePayload.duplicate,
       storedAs: responsePayload.stored_as,
       nextOffset: responsePayload.next_offset,
+      recovering: responsePayload.recovering === true,
     };
   }
   let detail = '';
