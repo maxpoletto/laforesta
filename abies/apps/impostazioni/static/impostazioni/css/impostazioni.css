@@ -1,8 +1,32 @@
-/* Impostazioni page — collapsible sections for password, reference tables,
-   production/dendrometry settings, hypsometry, and users. */
+/* The form panels retain their reading width. The map uses the full content area. */
+.settings-forms { max-width: 870px; }
+.settings-forms input[type="password"] { width: 300px; max-width: 100%; }
+.settings-cluster + .settings-cluster { padding-top: 16px; }
 
-#content { max-width: 950px; }
-#content input[type="password"] { width: 300px; }
+.settings-nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #ccc;
+}
+.settings-nav a {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-bottom: 3px solid transparent;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #444;
+}
+.settings-nav a:hover { background: var(--color-bosco-green-muted); }
+.settings-nav a[aria-current="page"] {
+  color: var(--color-bosco-green);
+  border-bottom-color: currentColor;
+}
+@media (max-width: 700px) {
+  .settings-nav a { flex: 1; padding-inline: 4px; }
+}
 
 .species-type-cell select { width: 120px; max-width: 100%; }
 

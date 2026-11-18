@@ -1,16 +1,8 @@
 /**
  * Impostazioni (settings) page.
  *
- * Collapsible sections based on user role:
- *   - Password change (all password-login users)
- *   - Landing page (all users; site default admins only)
- *   - Tractors, Species (writers and admins)
- *   - Dendrometric data (writers and admins)
- *   - Hypsometric parameters (writers and admins)
- *   - Observation categories and app users (admins only)
- *
- * Entity tables lazy-load data when the section is first opened.
- * Forms open in modals.
+ * The shell renders the panels available to the current user.
+ * Tables load when their section opens. Switching panels preserves form and table state.
  */
 
 import { postJSON } from '../../base/js/api.js';
@@ -23,6 +15,7 @@ import {
   showLoadingIn, wireActions,
   wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
+import { navigate } from '../../base/js/router.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { PROTECTED_SPECIES_NAMES, speciesTypeColumns } from './species-types.js';
@@ -36,9 +29,9 @@ import {
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE,
   FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
-  FIELD_USE_FOR_HEIGHT_PLOTS, LOGIN_METHOD_PASSWORD,
+  FIELD_USE_FOR_HEIGHT_PLOTS,
   IPSO_REF_OBSERVATION_CATEGORIES,
-  DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN, ROLE_WRITER,
+  DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN,
   FIELD_VOLUME_COEFFICIENTS,
 } from '../../base/js/constants.js';
 import {
@@ -65,7 +58,8 @@ const ENTITY_SECTIONS = {
     dataUrl: `${API}tractors/data/`,
     formUrl: `${API}tractors/form/`,
     saveUrl: `${API}tractors/save/`,
-    csvFilename: S.CSV_TRACTORS,
+    csvFilename: S.CSV_VEHICLES,
+    labels: { ...S.TABLE_LABELS, add: S.NEW_VEHICLE_LABEL },
     columnDefs: { [S.COL_ACTIVE]: ACTIVE_COL_DEF },
   },
   species: {
@@ -117,57 +111,35 @@ const ENTITY_SECTIONS = {
   },
 };
 
-const SECTION_CONFIGS = {
-  password: {
-    visible: ({ loginMethod }) => loginMethod === LOGIN_METHOD_PASSWORD,
-    wire: wirePasswordSection,
-  },
-  'landing-page': { wire: (root, { role }) => wireLandingPageSection(root, role) },
-  tractors: {
-    minRole: ROLE_WRITER,
-    wire: root => wireEntitySection(root, ENTITY_SECTIONS.tractors),
-  },
-  species: {
-    minRole: ROLE_WRITER,
-    wire: root => wireEntitySection(root, ENTITY_SECTIONS.species),
-  },
-  'observation-categories': {
-    minRole: ROLE_ADMIN,
-    wire: root => wireEntitySection(root, ENTITY_SECTIONS.observationCategories),
-  },
-  dendrometry: { minRole: ROLE_WRITER, wire: wireDendrometrySection },
-  'diameter-classes': { minRole: ROLE_WRITER, wire: wireDiameterClassesSection },
-  users: {
-    minRole: ROLE_ADMIN,
-    wire: root => wireEntitySection(root, ENTITY_SECTIONS.users),
-  },
+const wireSection = {
+  password: wirePasswordSection,
+  'landing-page': root => wireLandingPageSection(root, document.body.dataset.role),
+  tractors: root => wireEntitySection(root, ENTITY_SECTIONS.tractors),
+  species: root => wireEntitySection(root, ENTITY_SECTIONS.species),
+  'observation-categories': root => wireEntitySection(root, ENTITY_SECTIONS.observationCategories),
+  'road-types': root => wireCollapsibleToggle(
+    root.querySelector('.collapsible-header'), root.querySelector('.collapsible-body'),
+  ),
+  dendrometry: wireDendrometrySection,
+  'diameter-classes': wireDiameterClassesSection,
+  users: root => wireEntitySection(root, ENTITY_SECTIONS.users),
 };
 
-// ---------------------------------------------------------------------------
-// Page lifecycle
-// ---------------------------------------------------------------------------
-
-export function mount() {
+export function mount(params) {
   loadCSS(CSS_URL);
-  const el = document.getElementById('content');
-  el.replaceChildren();
-
-  const context = {
-    role: document.body.dataset.role,
-    loginMethod: document.body.dataset.loginMethod,
-  };
   const frag = cloneTemplate('tmpl-impostazioni-page');
-
-  for (const sectionEl of [...frag.querySelectorAll('[data-settings-section]')]) {
-    const cfg = SECTION_CONFIGS[sectionEl.dataset.settingsSection];
-    if (!cfg || !sectionVisible(cfg, context)) {
-      sectionEl.remove();
-      continue;
-    }
-    cfg.wire(sectionEl, context);
+  for (const section of frag.querySelectorAll('[data-settings-section]')) {
+    wireSection[section.dataset.settingsSection](section);
   }
-
-  el.appendChild(frag);
+  for (const link of frag.querySelectorAll('.settings-nav a')) {
+    link.addEventListener('click', event => {
+      if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigate(link.href);
+    });
+  }
+  document.getElementById('content').replaceChildren(frag);
+  onQueryChange(params);
 }
 
 export function unmount() {
@@ -180,17 +152,24 @@ export function unmount() {
   for (const key of Object.keys(sections)) delete sections[key];
 }
 
-export function onQueryChange() {}
+export function onQueryChange(params = {}) {
+  const panels = document.querySelectorAll('#content [data-settings-panel]');
+  const activeId = 'settings-' + (params.scheda || 'generali');
+  const active = Array.from(panels).find(panel => panel.id === activeId);
+  if (params.scheda !== undefined && (!active || activeId === 'settings-generali')) {
+    navigate('/impostazioni', true);
+    return;
+  }
+  for (const panel of panels) panel.hidden = panel !== active;
+  for (const link of document.querySelectorAll('#content .settings-nav a')) {
+    if (link.getAttribute('aria-controls') === activeId) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Password section
 // ---------------------------------------------------------------------------
-
-function sectionVisible(cfg, context) {
-  if (cfg.visible) return cfg.visible(context);
-  if (cfg.minRole) return hasMinRole(context.role, cfg.minRole);
-  return true;
-}
 
 function wirePasswordSection(root) {
   wireCollapsibleToggle(
@@ -371,7 +350,7 @@ async function loadEntityData(cfg, state, container) {
       onAdd: () => openForm(cfg, state, null),
     },
     csvFilename: cfg.csvFilename,
-    labels: S.TABLE_LABELS,
+    labels: cfg.labels || S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });
 
@@ -743,14 +722,4 @@ async function postOrError(promise) {
   }
   cache.applyResponseChanges(result.data);
   return result.data;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function hasMinRole(role, minRole) {
-  if (minRole === ROLE_ADMIN) return role === ROLE_ADMIN;
-  if (minRole === ROLE_WRITER) return role === ROLE_ADMIN || role === ROLE_WRITER;
-  return true;
 }

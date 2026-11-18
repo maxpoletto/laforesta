@@ -116,13 +116,15 @@ def resolve_columns(table: RefTable, fieldnames):
     """Map model field -> actual header for every present column.
 
     Returns ``(found, missing)``; ``missing`` lists the canonical headers of
-    absent *required* columns.  No aliasing — these are new canonical files.
+    absent *required* columns. Vehicle names also accept the Settings export header.
     """
     found, missing = {}, []
     available = set(fieldnames)
     for col in table.columns:
         if col.header in available:
             found[col.field] = col.header
+        elif table is TRACTORS and col is table.key and S.LABEL_VEHICLE in available:
+            found[col.field] = S.LABEL_VEHICLE
         elif col.required:
             missing.append(col.header)
     return found, missing

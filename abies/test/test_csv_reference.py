@@ -225,9 +225,10 @@ def test_apply_update_bumps_version_on_timestamped():
 # --- tractors ---------------------------------------------------------------
 
 @pytest.mark.django_db
-def test_tractors_minimal_key_only():
-    """Tractor with only the required Trattore column; optional fields use model defaults."""
-    reader = _reader(f'{S.CSV_COL_TRACTOR_NAME}\nFiat 110-90\n')
+@pytest.mark.parametrize('header', [S.CSV_COL_TRACTOR_NAME, S.LABEL_VEHICLE])
+def test_tractors_minimal_key_only(header):
+    """The canonical CSV and the Mezzi export identify the same vehicle."""
+    reader = _reader(f'{header}\nFiat 110-90\n')
     cols, missing = ref.resolve_columns(ref.TRACTORS, reader.fieldnames)
     assert missing == []
     parsed, errors = ref.validate_rows(ref.TRACTORS, reader, cols)

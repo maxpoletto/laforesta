@@ -4,185 +4,212 @@ S (string constants) provided by the shell's render context.
 {% endcomment %}
 
 <template id="tmpl-impostazioni-page">
-  <section data-settings-section="password">
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Cambio password" %}
-    <div class="collapsible-body">
-      <form data-role="password-form">
-        <div class="form-group">
-          <label for="id_current_pw">{{ S.PASSWORD_CURRENT }}</label>
-          <input type="password" id="id_current_pw"
-                 name="current_password" required>
-        </div>
-        <div class="form-group">
-          <label for="id_pw1">{{ S.PASSWORD_NEW }}</label>
-          <input type="password" id="id_pw1" name="password1" required>
-        </div>
-        <div class="form-group">
-          <label for="id_pw2">{{ S.PASSWORD_REPEAT }}</label>
-          <input type="password" id="id_pw2" name="password2" required>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-        </div>
-      </form>
-      <p class="mt-1" data-role="password-msg"></p>
-    </div>
-  </section>
+  {% if user.can_modify %}
+    <nav class="settings-nav" aria-label="Impostazioni">
+      <a href="/impostazioni" aria-controls="settings-generali">Generali</a>
+      <a href="/impostazioni?scheda=dati-di-base" aria-controls="settings-dati-di-base">Dati di base</a>
+      <a href="/impostazioni?scheda=cartografia" aria-controls="settings-cartografia">Cartografia</a>
+    </nav>
+  {% endif %}
 
-  <section data-settings-section="landing-page">
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Pagina iniziale" %}
-    <div class="collapsible-body">
-      <form class="settings-source-form"
-            data-role="landing-page-form"
-            data-success-label="{{ S.LANDING_PAGE_SAVED }}">
-        <div class="form-group">
-          <label for="id_landing_page">{{ S.LABEL_LANDING_PAGE }}</label>
-          <input type="text" id="id_landing_page" name="landing_page"
-                 data-role="landing-page" placeholder="/prelievi"
-                 autocomplete="off">
+  <div id="settings-generali" class="settings-forms" data-settings-panel>
+    {% if user.login_method == LOGIN_METHOD_PASSWORD %}
+      <section data-settings-section="password">
+        {% include "base/_partials/_collapsible_header.html" with section="" title="Password" %}
+        <div class="collapsible-body">
+          <form data-role="password-form">
+            <div class="form-group">
+              <label for="id_current_pw">{{ S.PASSWORD_CURRENT }}</label>
+              <input type="password" id="id_current_pw"
+                     name="current_password" required>
+            </div>
+            <div class="form-group">
+              <label for="id_pw1">{{ S.PASSWORD_NEW }}</label>
+              <input type="password" id="id_pw1" name="password1" required>
+            </div>
+            <div class="form-group">
+              <label for="id_pw2">{{ S.PASSWORD_REPEAT }}</label>
+              <input type="password" id="id_pw2" name="password2" required>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+            </div>
+          </form>
+          <p class="mt-1" data-role="password-msg"></p>
         </div>
-        <div class="form-group" data-role="default-landing-page-row" hidden>
-          <label for="id_default_landing_page">Pagina default</label>
-          <input type="text" id="id_default_landing_page"
-                 name="default_landing_page"
-                 data-role="default-landing-page" placeholder="/prelievi"
-                 autocomplete="off">
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-        </div>
-      </form>
-      <p class="mt-1" data-role="landing-page-msg"></p>
-    </div>
-  </section>
-
-  <section data-settings-section="tractors" data-settings-entity>
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Trattori" %}
-    <div class="collapsible-body">
-      <div class="table-toolbar">
-        <label class="active-toggle ms-auto">
-          <input type="checkbox" data-role="active-toggle" checked>
-          Solo attivi
-        </label>
-      </div>
-      <div data-target="table-host"></div>
-    </div>
-  </section>
-
-  <section data-settings-section="species" data-settings-entity>
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Specie" %}
-    <div class="collapsible-body">
-      <div class="table-toolbar" data-role="equation-toolbar">
-        <div class="equation-transfer-actions">
-          <div class="equation-transfer-row" role="group" aria-labelledby="species-equation-import-label">
-            <span id="species-equation-import-label">{{ S.EQUATION_IMPORT_LABEL }}</span>
-            <button type="button" class="btn btn-import" data-action="import-height">{{ S.EQUATION_KIND_HEIGHT }}</button>
-            <button type="button" class="btn btn-import" data-action="import-volume">{{ S.EQUATION_KIND_VOLUME }}</button>
+      </section>
+    {% endif %}
+    {% if user.role == ROLE_ADMIN %}
+      <section data-settings-section="users" data-settings-entity>
+        {% include "base/_partials/_collapsible_header.html" with section="" title="Utenti" %}
+        <div class="collapsible-body">
+          <div class="table-toolbar">
+            <label class="active-toggle ms-auto">
+              <input type="checkbox" data-role="active-toggle" checked>
+              Solo attivi
+            </label>
           </div>
-          <div class="equation-transfer-row" role="group" aria-labelledby="species-equation-export-label">
-            <span id="species-equation-export-label">{{ S.EQUATION_EXPORT_LABEL }}</span>
-            <button type="button" class="btn btn-export" data-action="export-height">{{ S.EQUATION_KIND_HEIGHT }}</button>
-            <button type="button" class="btn btn-export" data-action="export-volume">{{ S.EQUATION_KIND_VOLUME }}</button>
+          <div data-target="table-host"></div>
+        </div>
+      </section>
+    {% endif %}
+    <section data-settings-section="landing-page">
+      {% include "base/_partials/_collapsible_header.html" with section="" title="Pagina iniziale" %}
+      <div class="collapsible-body">
+        <form class="settings-source-form"
+              data-role="landing-page-form"
+              data-success-label="{{ S.LANDING_PAGE_SAVED }}">
+          <div class="form-group">
+            <label for="id_landing_page">{{ S.LABEL_LANDING_PAGE }}</label>
+            <input type="text" id="id_landing_page" name="landing_page"
+                   data-role="landing-page" placeholder="/prelievi"
+                   autocomplete="off">
           </div>
-        </div>
-        <input type="file" accept=".csv" data-role="equation-import-file" hidden>
-        <label class="active-toggle ms-auto">
-          <input type="checkbox" data-role="active-toggle" checked>
-          Solo attivi
-        </label>
+          <div class="form-group" data-role="default-landing-page-row" hidden>
+            <label for="id_default_landing_page">Pagina default</label>
+            <input type="text" id="id_default_landing_page"
+                   name="default_landing_page"
+                   data-role="default-landing-page" placeholder="/prelievi"
+                   autocomplete="off">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+          </div>
+        </form>
+        <p class="mt-1" data-role="landing-page-msg"></p>
       </div>
-      <div data-target="table-host"></div>
-      {% include "impostazioni/_species_equation_tools.html" %}
-    </div>
-  </section>
+    </section>
 
-  <section data-settings-section="observation-categories" data-settings-entity>
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Categorie di osservazioni" %}
-    <div class="collapsible-body">
-      <div class="table-toolbar">
-        <label class="active-toggle ms-auto">
-          <input type="checkbox" data-role="active-toggle" checked>
-          Solo attivi
-        </label>
+    {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
+      <p class="settings-version text-muted">Versione software: <code>{{ ABIES_VERSION }}</code></p>
+    {% endif %}
+  </div>
+
+  {% if user.can_modify %}
+    <div id="settings-dati-di-base" class="settings-forms" data-settings-panel hidden>
+      {% if user.role == ROLE_ADMIN %}
+        <div class="settings-cluster">
+          <section data-settings-section="observation-categories" data-settings-entity>
+            {% include "base/_partials/_collapsible_header.html" with section="" title="Categorie di osservazioni" %}
+            <div class="collapsible-body">
+              <div class="table-toolbar">
+                <label class="active-toggle ms-auto">
+                  <input type="checkbox" data-role="active-toggle" checked>
+                  Solo attivi
+                </label>
+              </div>
+              <div data-target="table-host"></div>
+            </div>
+          </section>
+
+          <section data-settings-section="road-types">
+            {% include "base/_partials/_collapsible_header.html" with section="" title="Tipi di viabilità" %}
+            <div class="collapsible-body"></div>
+          </section>
+        </div>
+      {% endif %}
+      <div class="settings-cluster">
+        <section data-settings-section="species" data-settings-entity>
+          {% include "base/_partials/_collapsible_header.html" with section="" title="Specie" %}
+          <div class="collapsible-body">
+            <div class="table-toolbar" data-role="equation-toolbar">
+              <div class="equation-transfer-actions">
+                <div class="equation-transfer-row" role="group" aria-labelledby="species-equation-import-label">
+                  <span id="species-equation-import-label">{{ S.EQUATION_IMPORT_LABEL }}</span>
+                  <button type="button" class="btn btn-import" data-action="import-height">{{ S.EQUATION_KIND_HEIGHT }}</button>
+                  <button type="button" class="btn btn-import" data-action="import-volume">{{ S.EQUATION_KIND_VOLUME }}</button>
+                </div>
+                <div class="equation-transfer-row" role="group" aria-labelledby="species-equation-export-label">
+                  <span id="species-equation-export-label">{{ S.EQUATION_EXPORT_LABEL }}</span>
+                  <button type="button" class="btn btn-export" data-action="export-height">{{ S.EQUATION_KIND_HEIGHT }}</button>
+                  <button type="button" class="btn btn-export" data-action="export-volume">{{ S.EQUATION_KIND_VOLUME }}</button>
+                </div>
+              </div>
+              <input type="file" accept=".csv" data-role="equation-import-file" hidden>
+              <label class="active-toggle ms-auto">
+                <input type="checkbox" data-role="active-toggle" checked>
+                Solo attivi
+              </label>
+            </div>
+            <div data-target="table-host"></div>
+            {% include "impostazioni/_species_equation_tools.html" %}
+          </div>
+        </section>
+
+        <section data-settings-section="dendrometry">
+          {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri dendrometrici" %}
+          <div class="collapsible-body">
+            <p class="settings-summary" data-role="dendrometry-counts">
+              N. alberi: <span data-field="trees">0</span> ·
+              Comprese: <span data-field="regions">0</span> ·
+              Particelle: <span data-field="parcels">0</span>
+            </p>
+            <form class="settings-source-form"
+                  data-role="dendrometry-form"
+                  data-success-label="Impostazioni aggiornate.">
+              <div class="form-group">
+                <label for="dendrometry-surveys">Rilevamenti</label>
+                <select id="dendrometry-surveys"
+                        multiple
+                        size="6"
+                        data-role="dendrometry-surveys"
+                        data-loading-label="Caricamento..."
+                        data-empty-label="Nessun rilevamento disponibile."></select>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+              </div>
+            </form>
+            <p class="mt-1" data-role="dendrometry-msg"></p>
+          </div>
+        </section>
+
+        <section data-settings-section="diameter-classes">
+          {% include "base/_partials/_collapsible_header.html" with section="" title="Classi diametriche" %}
+          <div class="collapsible-body">
+            <p class="settings-summary">Le classi diametriche sono:</p>
+            <form class="settings-source-form"
+                  data-role="diameter-classes-form"
+                  data-success-label="Classi diametriche aggiornate.">
+              <div class="settings-radio-list">
+                <label class="settings-radio-option">
+                  <input type="radio" name="diameter_class_mode" value="centered">
+                  <span>centrate: la classe 20 comprende i diametri 18–22 cm.</span>
+                </label>
+                <label class="settings-radio-option">
+                  <input type="radio" name="diameter_class_mode" value="shifted_up">
+                  <span>spostate verso l’alto: la classe 20 comprende i diametri 20–24 cm.</span>
+                </label>
+                <label class="settings-radio-option">
+                  <input type="radio" name="diameter_class_mode" value="shifted_down">
+                  <span>spostate verso il basso: la classe 20 comprende i diametri 16–20 cm.</span>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+              </div>
+            </form>
+            <p class="mt-1" data-role="diameter-classes-msg"></p>
+          </div>
+        </section>
       </div>
-      <div data-target="table-host"></div>
-    </div>
-  </section>
-
-  <section data-settings-section="dendrometry">
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Parametri dendrometrici" %}
-    <div class="collapsible-body">
-      <p class="settings-summary" data-role="dendrometry-counts">
-        N. alberi: <span data-field="trees">0</span> ·
-        Comprese: <span data-field="regions">0</span> ·
-        Particelle: <span data-field="parcels">0</span>
-      </p>
-      <form class="settings-source-form"
-            data-role="dendrometry-form"
-            data-success-label="Impostazioni aggiornate.">
-        <div class="form-group">
-          <label for="dendrometry-surveys">Rilevamenti</label>
-          <select id="dendrometry-surveys"
-                  multiple
-                  size="6"
-                  data-role="dendrometry-surveys"
-                  data-loading-label="Caricamento..."
-                  data-empty-label="Nessun rilevamento disponibile."></select>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-        </div>
-      </form>
-      <p class="mt-1" data-role="dendrometry-msg"></p>
-    </div>
-  </section>
-
-
-
-  <section data-settings-section="diameter-classes">
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Classi diametriche" %}
-    <div class="collapsible-body">
-      <p class="settings-summary">Le classi diametriche sono:</p>
-      <form class="settings-source-form"
-            data-role="diameter-classes-form"
-            data-success-label="Classi diametriche aggiornate.">
-        <div class="settings-radio-list">
-          <label class="settings-radio-option">
-            <input type="radio" name="diameter_class_mode" value="centered">
-            <span>centrate: la classe 20 comprende i diametri 18–22 cm.</span>
-          </label>
-          <label class="settings-radio-option">
-            <input type="radio" name="diameter_class_mode" value="shifted_up">
-            <span>spostate verso l’alto: la classe 20 comprende i diametri 20–24 cm.</span>
-          </label>
-          <label class="settings-radio-option">
-            <input type="radio" name="diameter_class_mode" value="shifted_down">
-            <span>spostate verso il basso: la classe 20 comprende i diametri 16–20 cm.</span>
-          </label>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-        </div>
-      </form>
-      <p class="mt-1" data-role="diameter-classes-msg"></p>
-    </div>
-  </section>
-
-  <section data-settings-section="users" data-settings-entity>
-    {% include "base/_partials/_collapsible_header.html" with section="" title="Utenti" %}
-    <div class="collapsible-body">
-      <div class="table-toolbar">
-        <label class="active-toggle ms-auto">
-          <input type="checkbox" data-role="active-toggle" checked>
-          Solo attivi
-        </label>
+      <div class="settings-cluster">
+        <section data-settings-section="tractors" data-settings-entity>
+          {% include "base/_partials/_collapsible_header.html" with section="" title="Mezzi" %}
+          <div class="collapsible-body">
+            <div class="table-toolbar">
+              <label class="active-toggle ms-auto">
+                <input type="checkbox" data-role="active-toggle" checked>
+                Solo attivi
+              </label>
+            </div>
+            <div data-target="table-host"></div>
+          </div>
+        </section>
       </div>
-      <div data-target="table-host"></div>
     </div>
-  </section>
 
-  {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
-    <p class="settings-version text-muted">Versione software: <code>{{ ABIES_VERSION }}</code></p>
+    <div id="settings-cartografia" data-settings-panel hidden></div>
   {% endif %}
 </template>
 

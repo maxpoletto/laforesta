@@ -49,8 +49,8 @@ def test_settings_page_places_localized_radio_section_below_species_equations(
     species = html.index('data-settings-section="species"')
     hypso = html.index('data-role="equation-compute"')
     diameter = html.index('data-settings-section="diameter-classes"')
-    users = html.index('data-settings-section="users"')
-    assert species < hypso < diameter < users
+    vehicles = html.index('data-settings-section="tractors"')
+    assert species < hypso < diameter < vehicles
     assert 'Le classi diametriche sono:' in html
     for value, label in (
         (

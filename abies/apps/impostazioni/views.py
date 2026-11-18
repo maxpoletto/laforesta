@@ -100,7 +100,7 @@ def password_view(request):
 # Tractors
 # ---------------------------------------------------------------------------
 
-TRACTOR_COLS = [ROW_ID, S.LABEL_TRACTOR_NAME, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
+TRACTOR_COLS = [ROW_ID, S.LABEL_VEHICLE, S.LABEL_MANUFACTURER, S.LABEL_MODEL,
                 S.COL_YEAR, S.COL_ACTIVE]
 
 

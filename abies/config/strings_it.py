@@ -242,6 +242,7 @@ LABEL_NOTES = 'Note'
 LABEL_MANUFACTURER = 'Marca'
 LABEL_MODEL = 'Modello'
 LABEL_TRACTOR_NAME = 'Trattore'
+LABEL_VEHICLE = 'Mezzo'
 LABEL_DENSITY = 'Densità (q/m³)'
 LABEL_FIRST_NAME = 'Nome'
 LABEL_LAST_NAME = 'Cognome'
@@ -337,7 +338,7 @@ ERR_TREE_NUMBER_DUPLICATE = 'Numero albero {} già utilizzato in questo campione
 ERR_TREE_ALREADY_IN_SAMPLE = (
     'Albero n.{} già presente in questo campione. Modifica la riga esistente.'
 )
-ERR_TRACTOR_NAME_DUPLICATE = 'Esiste già un trattore con questo nome.'
+ERR_TRACTOR_NAME_DUPLICATE = 'Esiste già un mezzo con questo nome.'
 ERR_GRID_NAME_REQUIRED = 'Nome griglia obbligatorio.'
 ERR_GRID_NAME_DUPLICATE = 'Esiste già una griglia con questo nome.'
 ERR_SURVEY_NAME_REQUIRED = 'Nome rilevamento obbligatorio.'

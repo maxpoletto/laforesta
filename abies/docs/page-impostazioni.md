@@ -1,18 +1,27 @@
 # Settings page ("Impostazioni")
 
-Path: /impostazioni
+The default URL is `/impostazioni`. Writers and admins see three local
+navigation links below the header on desktop and mobile.
 
-Collapsible sections are collapsed by default. Sections not visible to the
-current user's role are hidden entirely. The tab is visible to every
-authenticated user because every user can configure a landing page.
+| Tab | URL | Sections in display order |
+| --- | --- | --- |
+| Generali | `/impostazioni` | Password, Utenti, Pagina iniziale |
+| Dati di base | `/impostazioni?scheda=dati-di-base` | Categorie di osservazioni and Tipi di viabilità, then Specie, Parametri dendrometrici and Classi diametriche, then Mezzi |
+| Cartografia | `/impostazioni?scheda=cartografia` | Full-width space reserved for the map editor, currently blank |
+
+Readers enter Generali directly. An unavailable or unknown tab returns to
+the default URL. Switching tabs adds a history entry and preserves open
+sections and form input while Impostazioni remains mounted. Sections start
+collapsed on entry. The two category sections are available to admins.
+Tipi di viabilità currently opens an empty section.
 
 The plan used for projected production and the cutting calendar is selected
 directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
 
 ## Personal settings
 
-Password-auth users see `Cambio password`, with two fields: new password and
-repeat new password. OAuth users do not see the password section.
+Password-auth users see `Password` with fields for the current password,
+the new password and its confirmation. Admins also see `Utenti`.
 
 Every user sees `Pagina iniziale`. `Pagina personale` accepts a blank value or
 a same-site app URL, such as `/prelievi`, `/bosco`, or
@@ -31,7 +40,9 @@ Tables support add and edit but not delete; entities are deactivated via the
 `active` flag. The `Solo attivi` checkbox is checked by default and filters the
 table.
 
-- Trattori: manufacturer, model, year, active flag.
+- `Mezzi` lists the vehicle name, manufacturer, model, year and active flag.
+  The reference CSV importer accepts both the `Mezzo` column from the settings
+  export and the existing `Trattore` column.
 - Specie: common name, Latin name, density (q/m³; see `database.md`; used to
   derive per-tree mass for samples and marks), default Pressler coefficient,
   `Minore` flag, active flag, and one **Tipo** column with a

@@ -3,10 +3,10 @@
     <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
 
-    <h2>{% if obj %}Modifica trattore{% else %}Nuovo trattore{% endif %}</h2>
+    <h2>{% if obj %}Modifica mezzo{% else %}Nuovo mezzo{% endif %}</h2>
 
     <div class="form-group">
-      <label for="id_name">Trattore</label>
+      <label for="id_name">{{ S.LABEL_VEHICLE }}</label>
       <input type="text" id="id_name" name="name"
              value="{{ obj.name|default:'' }}">
     </div>

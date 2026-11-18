@@ -91,6 +91,25 @@ def test_settings_page_hides_version_from_non_admin(writer_client):
     assert 'abies-test-version' not in html
 
 
+@pytest.mark.parametrize(('role', 'login_method', 'sections'), [
+    (Role.READER, LoginMethod.OAUTH, ['landing-page']),
+    (Role.READER, LoginMethod.PASSWORD, ['password', 'landing-page']),
+    (Role.WRITER, LoginMethod.PASSWORD, ['password', 'landing-page', 'species',
+                                       'dendrometry', 'diameter-classes', 'tractors']),
+    (Role.ADMIN, LoginMethod.PASSWORD, ['password', 'users', 'landing-page',
+                                      'observation-categories', 'road-types', 'species',
+                                      'dendrometry', 'diameter-classes', 'tractors']),
+])
+def test_settings_navigation_respects_role_and_login(db, role, login_method, sections):
+    user = User.objects.create_user(username='settings', role=role, login_method=login_method)
+    client = Client()
+    client.force_login(user)
+    html = client.get('/impostazioni?scheda=cartografia').content.decode()
+    assert re.findall(r'data-settings-section="([^"]+)"', html) == sections
+    assert ('class="settings-nav"' in html) == user.can_modify
+    assert ('id="settings-cartografia"' in html) == user.can_modify
+
+
 @pytest.fixture
 def reader_client(reader_user):
     c = Client()

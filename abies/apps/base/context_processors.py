@@ -2,7 +2,7 @@
 
 from django.conf import settings
 
-from apps.base.models import Role
+from apps.base.models import LoginMethod, Role
 from config import strings as S
 from config.constants import (
     FIELD_MODE, IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE,
@@ -33,6 +33,7 @@ def strings(request):
         'FIELD_MODE': FIELD_MODE,
         'IPSO_UPLOAD_MODE_OPTIONS': IPSO_UPLOAD_MODE_OPTIONS,
         'ROLE_ADMIN': Role.ADMIN,
+        'LOGIN_METHOD_PASSWORD': LoginMethod.PASSWORD,
         'ABIES_APP_NAME': settings.ABIES_APP_NAME,
         'ABIES_BRAND_FAVICON_STATIC': settings.ABIES_BRAND_FAVICON_STATIC,
         'ABIES_BRAND_LOGO_STATIC': settings.ABIES_BRAND_LOGO_STATIC,
