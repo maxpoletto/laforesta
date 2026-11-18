@@ -44,6 +44,11 @@ urlpatterns = [
     path('observation-categories/save/', views.observation_categories_save,
          name='impostazioni-observation-categories-save'),
 
+    # Road types
+    path('road-types/data/', views.road_types_data, name='impostazioni-road-types-data'),
+    path('road-types/form/', views.road_types_form, name='impostazioni-road-types-form-add'),
+    path('road-types/form/<int:obj_id>/', views.road_types_form, name='impostazioni-road-types-form-edit'),
+    path('road-types/save/', views.road_types_save, name='impostazioni-road-types-save'),
 
     # Bosco source settings (writer+)
     path('dendrometry/data/', views.dendrometry_data,

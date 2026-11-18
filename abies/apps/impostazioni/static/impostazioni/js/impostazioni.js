@@ -31,7 +31,7 @@ import {
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS,
   IPSO_REF_OBSERVATION_CATEGORIES,
-  DATA_ID, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN,
+  DATA_ID, DATA_ID_ROAD_TYPES, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN,
   FIELD_VOLUME_COEFFICIENTS,
 } from '../../base/js/constants.js';
 import {
@@ -95,6 +95,20 @@ const ENTITY_SECTIONS = {
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
   },
+  roadTypes: {
+    key: DATA_ID_ROAD_TYPES,
+    dataUrl: `${API}road-types/data/`,
+    formUrl: `${API}road-types/form/`,
+    saveUrl: `${API}road-types/save/`,
+    csvFilename: S.CSV_ROAD_TYPES,
+    labels: { ...S.TABLE_LABELS, add: S.NEW_ROAD_TYPE_LABEL },
+    sort: { column: S.COL_PRIORITY, ascending: true },
+    columnDefs: {
+      [S.COL_NAME]: { className: 'road-type-name' },
+      [S.COL_PRIORITY]: { type: 'number', width: '80px', formatter: fmtInt },
+      [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+    },
+  },
   users: {
     key: 'users',
     dataUrl: `${API}users/data/`,
@@ -117,9 +131,7 @@ const wireSection = {
   tractors: root => wireEntitySection(root, ENTITY_SECTIONS.tractors),
   species: root => wireEntitySection(root, ENTITY_SECTIONS.species),
   'observation-categories': root => wireEntitySection(root, ENTITY_SECTIONS.observationCategories),
-  'road-types': root => wireCollapsibleToggle(
-    root.querySelector('.collapsible-header'), root.querySelector('.collapsible-body'),
-  ),
+  'road-types': root => wireEntitySection(root, ENTITY_SECTIONS.roadTypes),
   dendrometry: wireDendrometrySection,
   'diameter-classes': wireDiameterClassesSection,
   users: root => wireEntitySection(root, ENTITY_SECTIONS.users),
@@ -350,6 +362,7 @@ async function loadEntityData(cfg, state, container) {
       onAdd: () => openForm(cfg, state, null),
     },
     csvFilename: cfg.csvFilename,
+    sort: cfg.sort,
     labels: cfg.labels || S.TABLE_LABELS,
     csvFormat: S.TABLE_CSV_FORMAT,
   });

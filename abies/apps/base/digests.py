@@ -528,7 +528,7 @@ def _audit_configs() -> list:
     """
     from apps.base.models import (
         Crew, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
-        Observation, ObservationCategory, Parcel, SampleArea, SampleGrid,
+        Observation, ObservationCategory, Parcel, RoadType, SampleArea, SampleGrid,
         SiteSettings, Species, Survey,
         Tractor, User, VolumeEquation,
     )
@@ -583,6 +583,10 @@ def _audit_configs() -> list:
             'name': S.LABEL_NAME,
             'sort_order': S.CSV_COL_SORT_ORDER,
             'active': S.COL_ACTIVE,
+        }),
+        (RoadType, S.TABLE_ROAD_TYPE, {
+            'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,
+            'sort_order': S.COL_PRIORITY, 'active': S.COL_ACTIVE,
         }),
         (Observation, S.TABLE_OBSERVATION, {
             'date': S.COL_DATE,

@@ -778,3 +778,11 @@ Most of these are configurable in the Settings section.
   - `sort_order` controls display order in settings and Ipso reference data.
   - Rows are deactivated rather than deleted so future observations can keep
     stable category IDs.
+
+- road_type: (id:int, name:string, description:text, sort_order:int, active:bool)
+  - Site-wide road and trail classification managed in Impostazioni. Names are
+    unique. The optional description explains the classification.
+  - `sort_order` is displayed as `Priorità`, lowest first. Types may share a
+    priority. Deactivating or renaming a type preserves its ID.
+  - Versioned and audited. [Settings](page-impostazioni.md#reference-tables)
+    lists the four initial types.

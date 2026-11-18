@@ -1,7 +1,8 @@
 # Settings page ("Impostazioni")
 
 The default URL is `/impostazioni`. Writers and admins see three local
-navigation links below the header on desktop and mobile.
+navigation links below the header on desktop and mobile. Each tab uses the
+full content width.
 
 | Tab | URL | Sections in display order |
 | --- | --- | --- |
@@ -13,7 +14,6 @@ Readers enter Generali directly. An unavailable or unknown tab returns to
 the default URL. Switching tabs adds a history entry and preserves open
 sections and form input while Impostazioni remains mounted. Sections start
 collapsed on entry. The two category sections are available to admins.
-Tipi di viabilità currently opens an empty section.
 
 The plan used for projected production and the cutting calendar is selected
 directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
@@ -34,8 +34,8 @@ default, then `/prelievi`.
 
 ## Reference tables
 
-Tractors and species are visible to writers. Observation categories are
-visible only to admins. The collapsible sub-sections have sortable tables.
+Tractors and species are visible to writers. Admins also manage observation
+categories and road types. The collapsible sub-sections have sortable tables.
 Tables support add and edit but not delete; entities are deactivated via the
 `active` flag. The `Solo attivi` checkbox is checked by default and filters the
 table.
@@ -70,6 +70,16 @@ table.
 - Categorie di osservazioni: name, sort order, and active flag. Active
   categories are sent to Ipso in `reference.json`. The default rows are `fitosanitario`, `viabilità`,
   and `rifiuti`.
+- `Tipi di viabilità` lists the site-wide road and trail types. Admins can
+  edit the name, optional description, integer priority and active flag.
+  Lower priorities appear first. The migration seeds these editable defaults.
+
+  | Nome | Descrizione | Priorità |
+  | --- | --- | ---: |
+  | Strada di 1° livello | Strada forestale camionabile | 10 |
+  | Strada di 2° livello | Strada forestale adatta a macchine operatrici e automezzi 4x4 | 20 |
+  | Pista | Pista da esbosco per trattori e macchine forestali | 30 |
+  | Sentiero | Percorso per pedoni o animali | 40 |
 
 ### Species equation editor
 

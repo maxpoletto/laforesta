@@ -302,6 +302,7 @@ TREE_H_QUANTUM = Decimal('0.01')
 
 # Ipso integration identifiers.
 DATA_ID_IPSO_UPLOADS = 'ipso_uploads'
+DATA_ID_ROAD_TYPES = 'road_types'
 IPSO_REFERENCE_JSON = 'reference.json'
 IPSO_REFERENCE_LEGACY_CONVERTED = 'legacy-converted'
 IPSO_TERRENI_GEOJSON = 'terreni.geojson'

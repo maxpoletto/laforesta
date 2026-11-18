@@ -82,6 +82,7 @@ dropping it from the config.
 | `base.Observation` | `base_observation` | `base_historicalobservation` | `Osservazione` | Field observations. |
 | `base.ObservationCategory` | `base_observationcategory` | `base_historicalobservationcategory` | `Categoria di osservazioni` | Observation reference table. |
 | `base.Parcel` | `base_parcel` | `base_historicalparcel` | `Particella` | Parcel metadata. |
+| `base.RoadType` | `base_roadtype` | `base_historicalroadtype` | `Tipo di viabilità` | Road and trail classification. |
 | `base.SampleArea` | `base_samplearea` | `base_historicalsamplearea` | `Area di saggio` | Sample plot metadata. |
 | `base.SampleGrid` | `base_samplegrid` | `base_historicalsamplegrid` | `Griglia di campionamento` | Grid metadata. |
 | `base.SiteSettings` | `base_sitesettings` | `base_historicalsitesettings` | `Impostazioni sito` | Site landing-page default and diameter-class convention. |

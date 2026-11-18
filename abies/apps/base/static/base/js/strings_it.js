@@ -207,9 +207,11 @@ export const PDF_SQUADRE_REPORTS = (month) => `rendiconti-squadre-${month}.pdf`;
 export const CSV_CREWS = 'squadre.csv';
 export const CSV_VEHICLES = 'mezzi.csv';
 export const NEW_VEHICLE_LABEL = 'Nuovo mezzo';
+export const NEW_ROAD_TYPE_LABEL = 'Nuovo tipo di viabilità';
 export const CSV_SPECIES = 'specie.csv';
 export const CSV_USERS = 'utenti.csv';
 export const CSV_OBSERVATION_CATEGORIES = 'categorie-osservazioni.csv';
+export const CSV_ROAD_TYPES = 'tipi-di-viabilita.csv';
 export const CSV_AUDIT = 'controllo.csv';
 export const CSV_SAMPLED_TREES = 'alberi-campionati.csv';
 
@@ -471,6 +473,7 @@ export const BOSCO_REGRESSION = (name, r2, n) => `${name} regressione (R² ${r2}
 export const COL_NAME            = 'Nome';
 export const COL_REGION          = 'Compresa';
 export const COL_DESCRIPTION     = 'Descrizione';
+export const COL_PRIORITY        = 'Priorità';
 export const COL_N_AREAS         = 'N. aree';
 export const COL_REGIONS         = 'Comprese';
 export const COL_N_SURVEYS       = 'N. rilevamenti';

@@ -384,6 +384,23 @@ class ObservationCategory(TimestampedModel):
         return self.name
 
 
+class RoadType(TimestampedModel):
+    """Site-wide classification for forest roads and trails."""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    sort_order = models.IntegerField()
+    active = models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = S.ROAD_TYPE
+        verbose_name_plural = S.ROAD_TYPES
+        ordering = ['sort_order', 'name', 'id']
+
+    def __str__(self):
+        return self.name
+
+
 class Observation(TimestampedModel):
     """A geo-referenced field observation."""
     date = models.DateField()

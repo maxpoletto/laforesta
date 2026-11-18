@@ -1,7 +1,6 @@
-/* The form panels retain their reading width. The map uses the full content area. */
-.settings-forms { max-width: 870px; }
 .settings-forms input[type="password"] { width: 300px; max-width: 100%; }
 .settings-cluster + .settings-cluster { padding-top: 16px; }
+.road-type-name { width: min(170px, 20vw); }
 
 .settings-nav {
   display: flex;

@@ -66,6 +66,9 @@ def save_model_response(
     if row_id is None and raw_row_id not in (None, ''):
         return validation_error([S.ERR_ROW_ID_INVALID])
 
+    # A racing retry must receive its saved response even if the first request
+    # has already created the row with this name.
+    begin_nonce_write(request)
     if unique_error and unique_field and unique_value is not None:
         lookup = f'{unique_field}__iexact' if unique_case_insensitive else unique_field
         dup = model.objects.filter(**{lookup: unique_value})
@@ -74,7 +77,6 @@ def save_model_response(
         if dup.exists():
             return validation_error([unique_error])
 
-    begin_nonce_write(request)
     with transaction.atomic():
         if row_id is not None:
             obj = model.objects.select_for_update().filter(id=row_id).first()

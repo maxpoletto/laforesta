@@ -40,18 +40,7 @@ S (string constants) provided by the shell's render context.
       </section>
     {% endif %}
     {% if user.role == ROLE_ADMIN %}
-      <section data-settings-section="users" data-settings-entity>
-        {% include "base/_partials/_collapsible_header.html" with section="" title="Utenti" %}
-        <div class="collapsible-body">
-          <div class="table-toolbar">
-            <label class="active-toggle ms-auto">
-              <input type="checkbox" data-role="active-toggle" checked>
-              Solo attivi
-            </label>
-          </div>
-          <div data-target="table-host"></div>
-        </div>
-      </section>
+      {% include "impostazioni/_entity_section.html" with key="users" title="Utenti" %}
     {% endif %}
     <section data-settings-section="landing-page">
       {% include "base/_partials/_collapsible_header.html" with section="" title="Pagina iniziale" %}
@@ -89,23 +78,8 @@ S (string constants) provided by the shell's render context.
     <div id="settings-dati-di-base" class="settings-forms" data-settings-panel hidden>
       {% if user.role == ROLE_ADMIN %}
         <div class="settings-cluster">
-          <section data-settings-section="observation-categories" data-settings-entity>
-            {% include "base/_partials/_collapsible_header.html" with section="" title="Categorie di osservazioni" %}
-            <div class="collapsible-body">
-              <div class="table-toolbar">
-                <label class="active-toggle ms-auto">
-                  <input type="checkbox" data-role="active-toggle" checked>
-                  Solo attivi
-                </label>
-              </div>
-              <div data-target="table-host"></div>
-            </div>
-          </section>
-
-          <section data-settings-section="road-types">
-            {% include "base/_partials/_collapsible_header.html" with section="" title="Tipi di viabilità" %}
-            <div class="collapsible-body"></div>
-          </section>
+          {% include "impostazioni/_entity_section.html" with key="observation-categories" title="Categorie di osservazioni" %}
+          {% include "impostazioni/_entity_section.html" with key="road-types" title="Tipi di viabilità" %}
         </div>
       {% endif %}
       <div class="settings-cluster">
@@ -194,18 +168,7 @@ S (string constants) provided by the shell's render context.
         </section>
       </div>
       <div class="settings-cluster">
-        <section data-settings-section="tractors" data-settings-entity>
-          {% include "base/_partials/_collapsible_header.html" with section="" title="Mezzi" %}
-          <div class="collapsible-body">
-            <div class="table-toolbar">
-              <label class="active-toggle ms-auto">
-                <input type="checkbox" data-role="active-toggle" checked>
-                Solo attivi
-              </label>
-            </div>
-            <div data-target="table-host"></div>
-          </div>
-        </section>
+        {% include "impostazioni/_entity_section.html" with key="tractors" title="Mezzi" %}
       </div>
     </div>
 

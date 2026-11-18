@@ -32,20 +32,20 @@ from apps.base.selectors import (
 )
 from apps.base.models import (
     HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
-    LoginMethod, ObservationCategory, Role, SiteSettings, Species, SpeciesType, Survey,
+    LoginMethod, ObservationCategory, RoadType, Role, SiteSettings, Species, SpeciesType, Survey,
     Tractor, TreeSample, User,
 )
 from apps.base.species import OTHER_SPECIES_TYPES, PROTECTED_SPECIES_NAMES
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
-    DIAMETER_CLASS_MODES,
+    DATA_ID_ROAD_TYPES, DIAMETER_CLASS_MODES,
     DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
     DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME,
     FIELD_COUNTS,
-    FIELD_DATA_IDS, FIELD_DIAMETER_CLASS_MODE,
+    FIELD_DATA_IDS, FIELD_DESCRIPTION, FIELD_DIAMETER_CLASS_MODE,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_DEFAULT_LANDING_PAGE,
@@ -331,6 +331,67 @@ def observation_categories_save(request):
         unique_case_insensitive=True,
     )
 
+
+
+# ---------------------------------------------------------------------------
+# Road types
+# ---------------------------------------------------------------------------
+
+ROAD_TYPE_FORM = 'impostazioni/_road_type_form.html'
+ROAD_TYPE_COLS = [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.COL_PRIORITY, S.COL_ACTIVE]
+
+
+def _road_type_row(road_type):
+    return [road_type.pk, road_type.name, road_type.description,
+            road_type.sort_order, road_type.active]
+
+
+@login_required
+@require_admin
+def road_types_data(request):
+    rows = [_road_type_row(road_type) for road_type in RoadType.objects.all()]
+    return JsonResponse({COLUMNS: ROAD_TYPE_COLS, ROWS: rows})
+
+
+@login_required
+@require_admin
+def road_types_form(request, obj_id=None):
+    return _form(ROAD_TYPE_FORM, RoadType, obj_id, request)
+
+
+@login_required
+@require_admin
+@require_POST
+def road_types_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    name = body.get(FIELD_NAME, '').strip()
+    if not name:
+        return _error(S.ERR_NAME_REQUIRED)
+    max_length = RoadType._meta.get_field(FIELD_NAME).max_length
+    if len(name) > max_length:
+        return _error(S.ERR_NAME_MAX_LENGTH.format(max_length))
+    priority = int_or_none(body.get(FIELD_SORT_ORDER))
+    if priority is None:
+        return _error(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_PRIORITY))
+
+    def conflict(obj):
+        return conflict_response(
+            data_id=DATA_ID_ROAD_TYPES, row_id=obj.pk, record=_road_type_row(obj),
+            html=render_to_string(ROAD_TYPE_FORM, {'obj': obj}, request=request),
+        )
+
+    return save_model_response(
+        request, body, model=RoadType, data_id=DATA_ID_ROAD_TYPES,
+        values={
+            FIELD_NAME: name, FIELD_DESCRIPTION: body.get(FIELD_DESCRIPTION, '').strip(),
+            FIELD_SORT_ORDER: priority, FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
+        },
+        row_fn=_road_type_row, stale=('audit',), conflict_fn=conflict,
+        unique_field=FIELD_NAME, unique_value=name, unique_case_insensitive=True,
+        unique_error=S.ERR_ROAD_TYPE_NAME_DUPLICATE,
+    )
 
 
 # ---------------------------------------------------------------------------

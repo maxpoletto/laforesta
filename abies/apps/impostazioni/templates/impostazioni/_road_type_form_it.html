@@ -1,0 +1,37 @@
+{% load l10n %}
+<div class="form-card">
+  <form id="settings-form">
+    <input type="hidden" name="row_id" value="{{ obj.id|unlocalize }}">
+    <input type="hidden" name="version" value="{{ obj.version|default:1|unlocalize }}">
+    <h2>{% if obj %}Modifica tipo di viabilità{% else %}Nuovo tipo di viabilità{% endif %}</h2>
+
+    <div class="form-group">
+      <label for="id_road_type_name">{{ S.LABEL_NAME }}</label>
+      <input type="text" id="id_road_type_name" name="name" maxlength="100" required
+             value="{{ obj.name }}">
+    </div>
+    <div class="form-group">
+      <label for="id_road_type_description">{{ S.COL_DESCRIPTION }}</label>
+      <textarea id="id_road_type_description" name="description" rows="2">{{ obj.description }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group narrow">
+        <label for="id_road_type_priority">{{ S.COL_PRIORITY }}</label>
+        <input type="number" id="id_road_type_priority" name="sort_order"
+               value="{{ obj.sort_order|unlocalize }}" aria-describedby="road-type-order-hint" required>
+      </div>
+    </div>
+    <p class="text-muted" id="road-type-order-hint">I valori più bassi vengono mostrati per primi.</p>
+    <div class="form-group">
+      <label>
+        <input type="hidden" name="active" value="false">
+        <input type="checkbox" name="active" value="true" {% if obj.active or not obj %}checked{% endif %}>
+        {{ S.COL_ACTIVE }}
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
+</div>

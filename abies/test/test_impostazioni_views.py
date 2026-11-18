@@ -8,19 +8,20 @@ from decimal import Decimal
 import pytest
 from django.test import Client, override_settings
 
+from apps.base.idempotency import NonceWrite
 from apps.base.models import (
-    DigestStatus, HarvestPlan, LoginMethod, ObservationCategory, Role, Sample,
+    DigestStatus, HarvestPlan, LoginMethod, ObservationCategory, RoadType, Role, Sample,
     SampleArea, SampleGrid, SiteSettings, Species, Survey, Tractor, Tree,
     TreeSample, User,
 )
 from apps.impostazioni.views import SPECIES_COLS
 from config import strings as S
 from config.constants import (
-    COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
+    COLUMNS, DATA_ID, DATA_ID_ROAD_TYPES, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CURRENT_PASSWORD,
-    FIELD_DEFAULT_LANDING_PAGE, FIELD_DENSITY, FIELD_EMAIL, FIELD_FIRST_NAME,
+    FIELD_DEFAULT_LANDING_PAGE, FIELD_DENSITY, FIELD_DESCRIPTION, FIELD_EMAIL, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID,
     FIELD_IS_ACTIVE, FIELD_LANDING_PAGE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
@@ -697,6 +698,79 @@ class TestObservationCategories:
             FIELD_SORT_ORDER: '40',
             FIELD_ACTIVE: 'true',
         }).status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Road types
+# ---------------------------------------------------------------------------
+
+class TestRoadTypes:
+    DATA_URL = '/api/impostazioni/road-types/data/'
+    FORM_URL = '/api/impostazioni/road-types/form/'
+    SAVE_URL = '/api/impostazioni/road-types/save/'
+
+    def test_seeded_types(self, admin_client):
+        data = admin_client.get(self.DATA_URL).json()
+        assert data[COLUMNS] == [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.COL_PRIORITY, S.COL_ACTIVE]
+        assert [row[1:] for row in data[ROWS]] == [
+            ['Strada di 1° livello', 'Strada forestale camionabile', 10, True],
+            ['Strada di 2° livello', 'Strada forestale adatta a macchine operatrici e automezzi 4x4', 20, True],
+            ['Pista', 'Pista da esbosco per trattori e macchine forestali', 30, True],
+            ['Sentiero', 'Percorso per pedoni o animali', 40, True],
+        ]
+
+    def test_create_and_replay(self, admin_client, monkeypatch):
+        payload = {FIELD_NAME: '  Pista temporanea ', FIELD_SORT_ORDER: '25',
+                   FIELD_ACTIVE: 'true', FIELD_NONCE: 'create-road-type'}
+        response = _post(admin_client, self.SAVE_URL, payload)
+        assert response.status_code == 200, response.content
+        # Model a concurrent retry whose middleware lookup preceded the first commit.
+        monkeypatch.setattr(NonceWrite, 'cached_response', lambda self: None)
+        assert _post(admin_client, self.SAVE_URL, payload).json() == response.json()
+        obj = RoadType.objects.get(name='Pista temporanea')
+        patch, = response.json()[PATCHES]
+        assert patch[DATA_ID] == DATA_ID_ROAD_TYPES
+        assert patch[RECORD] == [obj.pk, obj.name, '', 25, True]
+        assert admin_client.get(self.DATA_URL).json()[ROWS][2] == patch[RECORD]
+        assert obj.history.count() == 1
+
+    def test_edit_seeded_type_and_recover_stale_form(self, admin_client, admin_user):
+        obj = RoadType.objects.get(name='Pista')
+        payload = {ROW_ID: obj.pk, VERSION: obj.version, FIELD_NAME: 'Pista secondaria',
+                   FIELD_DESCRIPTION: 'Tratto ripido', FIELD_SORT_ORDER: '50', FIELD_ACTIVE: False}
+        response = _post(admin_client, self.SAVE_URL, payload)
+        assert response.status_code == 200, response.content
+        saved_row = [obj.pk, 'Pista secondaria', 'Tratto ripido', 50, False]
+        assert admin_client.get(self.DATA_URL).json()[ROWS][-1] == saved_row
+        latest, baseline = obj.history.all()
+        assert latest.version == obj.version + 1
+        assert latest.history_user == admin_user
+        assert baseline.name == 'Pista'
+        assert baseline.history_change_reason == 'initial-audit-baseline'
+        assert DigestStatus.objects.get(name='audit').stale
+
+        response = _post(admin_client, self.SAVE_URL, {**payload, FIELD_NAME: 'Stale edit'})
+        assert response.status_code == 400
+        conflict = response.json()
+        assert conflict[STATUS] == STATUS_CONFLICT
+        assert conflict[RECORD] == saved_row
+        assert conflict[HTML] == admin_client.get(f'{self.FORM_URL}{obj.pk}/').json()[HTML]
+        assert f'name="version" value="{latest.version}"' in conflict[HTML]
+        assert obj.history.count() == 2
+
+    @pytest.mark.parametrize(('name', 'priority'), [
+        (' sentiero ', 20), (' ', 20), ('x' * 101, 20), ('Nuovo', '1.5'), ('Nuovo', ''),
+    ])
+    def test_invalid_type(self, admin_client, name, priority):
+        response = _post(admin_client, self.SAVE_URL, {FIELD_NAME: name, FIELD_SORT_ORDER: priority})
+        assert response.status_code == 400
+        assert response.json()[STATUS] == STATUS_VALIDATION_ERROR
+        assert RoadType.objects.count() == 4
+
+    def test_writer_forbidden(self, writer_client):
+        assert writer_client.get(self.DATA_URL).status_code == 403
+        assert writer_client.get(self.FORM_URL).status_code == 403
+        assert _post(writer_client, self.SAVE_URL, {}).status_code == 403
 
 
 # ---------------------------------------------------------------------------
