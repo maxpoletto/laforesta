@@ -618,7 +618,11 @@ class MapCollection(models.Model):
 
 
 class MapFeature(TimestampedModel):
-    """One independently versioned piece of the parcel map, in import order."""
+    """One independently versioned parcel outline or classified forest road."""
+    published = models.BooleanField(default=True)
+    region = models.ForeignKey(Region, on_delete=models.PROTECT, null=True, blank=True)
+    road_type = models.ForeignKey(RoadType, on_delete=models.PROTECT, null=True, blank=True)
+    name = models.CharField(max_length=100, blank=True)
     parcel = models.ForeignKey(Parcel, on_delete=models.PROTECT, null=True,
                                blank=True, related_name='map_features')
     geometry = models.JSONField()
@@ -628,6 +632,11 @@ class MapFeature(TimestampedModel):
 
     class Meta:
         ordering = ['pk']
+        constraints = [models.CheckConstraint(
+            condition=(models.Q(road_type__isnull=True, region__isnull=True)
+                       | models.Q(road_type__isnull=False, region__isnull=False, parcel__isnull=True)),
+            name='map_feature_parcel_or_road',
+        )]
         verbose_name = S.MAP_FEATURE
         verbose_name_plural = S.MAP_FEATURES
 

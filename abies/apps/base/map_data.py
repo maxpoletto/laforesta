@@ -15,7 +15,7 @@ from apps.base.models import MapCollection, MapFeature, Parcel
 
 def link_imported_parcels():
     """Bind a map-only installation to the parcel catalog during CSV bootstrap."""
-    unlinked = list(MapFeature.objects.filter(parcel__isnull=True))
+    unlinked = list(MapFeature.objects.filter(parcel__isnull=True, road_type__isnull=True))
     if not unlinked:
         return
     parcels = {(r, n): pk for r, n, pk in Parcel.objects.values_list('region__name', 'name', 'pk')}
@@ -36,7 +36,7 @@ def link_imported_parcels():
 def map_geojson():
     collection = MapCollection.objects.filter(pk=1).values_list('members', flat=True).first()
     features = []
-    for row in MapFeature.objects.values_list(
+    for row in MapFeature.objects.filter(published=True, road_type__isnull=True).values_list(
             'members', 'geometry', 'parcel__region__name', 'parcel__name', 'parcel__eclass__coppice'):
         members, geometry, region, parcel, coppice = row
         if parcel is not None:
@@ -46,9 +46,22 @@ def map_geojson():
     return {**(collection or {'type': 'FeatureCollection'}), 'features': features}
 
 
+def road_geojson():
+    roads = MapFeature.objects.filter(published=True, road_type__isnull=False).select_related('region', 'road_type')
+    features = [{
+        'type': 'Feature', 'id': road.pk, 'geometry': road.geometry,
+        'properties': {
+            'name': road.name, 'region_id': road.region_id, 'region': road.region.name,
+            'road_type_id': road.road_type_id, 'road_type': road.road_type.name,
+            'sort_order': road.road_type.sort_order,
+        },
+    } for road in roads]
+    return {'type': 'FeatureCollection', 'features': features}
+
+
 @gzip_page
-def map_response(request, cache_control=CACHE_NO_CACHE):
-    raw = json.dumps(map_geojson(), ensure_ascii=False, separators=(',', ':')).encode()
+def map_response(request, cache_control=CACHE_NO_CACHE, *, roads=False):
+    raw = json.dumps(road_geojson() if roads else map_geojson(), ensure_ascii=False, separators=(',', ':')).encode()
     etag = 'W/"' + hashlib.sha256(raw).hexdigest() + '"'
     response = HttpResponse(raw, content_type='application/geo+json')
     response['ETag'] = etag

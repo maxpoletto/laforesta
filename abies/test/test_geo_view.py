@@ -83,3 +83,27 @@ def test_populated_map_revalidates_across_desktop_and_ipso(reader_user, parcels,
     labels = [(f['properties']['name'], f['properties']['coppice']) for f in updated.json()['features']]
     assert labels == [('Costa-Nord-1', True), ('Costa-Nord-2', False), ('Fabrizia-1', False)]
     assert MapFeature.history.count() == len(parcels)
+
+
+def test_public_roads_are_separate_from_parcel_outlines(reader_user, regions):
+    from apps.base.models import RoadType
+
+    client = Client()
+    client.force_login(reader_user)
+    kind = RoadType.objects.first()
+    road = MapFeature.objects.create(
+        region=regions[0], road_type=kind, name='Pista est', published=False,
+        geometry={'type': 'LineString', 'coordinates': [[16, 38], [16.1, 38.1]]},
+    )
+    url = '/api/geo/roads.geojson'
+    assert client.get(url).json()['features'] == []
+    road.published = True
+    road.save()
+    feature, = client.get(url).json()['features']
+    assert feature['id'] == road.pk
+    assert feature['properties'] == {
+        'name': road.name, 'region_id': regions[0].pk, 'region': regions[0].name,
+        'road_type_id': kind.pk, 'road_type': kind.name, 'sort_order': kind.sort_order,
+    }
+    assert feature['geometry'] == road.geometry
+    assert client.get('/api/geo/map.geojson').json()['features'] == []

@@ -363,9 +363,9 @@ ROAD_TYPE_COLS = [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.CSV_COL_SORT_ORDER,
 
 
 def _road_type_row(road_type):
-    # Cartographic features do not yet have a road-type foreign key.
+    reason = S.ROAD_TYPE_IN_USE if road_type.mapfeature_set.exists() else ''
     return [road_type.pk, road_type.name, road_type.description,
-            road_type.sort_order, road_type.active, road_type.version, '']
+            road_type.sort_order, road_type.active, road_type.version, reason]
 
 
 @login_required

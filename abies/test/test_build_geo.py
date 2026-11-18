@@ -161,6 +161,7 @@ def test_upgrade_rolls_back_invalid_map_then_migrates_and_serves_it(settings, mo
         MigrationExecutor(connection).migrate([target])
         assert json.loads(path.read_text()) == source
         path.unlink()
+        MigrationExecutor(connection).migrate(latest)
         assert map_geojson() == source
         pieces = list(MapFeature.objects.all())
         assert [p.parcel_id for p in pieces] == [parcel.pk, None]

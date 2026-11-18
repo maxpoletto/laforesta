@@ -92,6 +92,6 @@ def species_data(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def geo_view(request: HttpRequest, filename: str) -> HttpResponse:
-    if filename not in {'map.geojson', 'terreni.geojson'}:
+    if filename not in {'map.geojson', 'terreni.geojson', 'roads.geojson'}:
         raise Http404
-    return map_response(request)
+    return map_response(request, roads=filename == 'roads.geojson')
