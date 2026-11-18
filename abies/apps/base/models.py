@@ -641,6 +641,30 @@ class MapFeature(TimestampedModel):
         verbose_name_plural = S.MAP_FEATURES
 
 
+class MapPointSet(models.Model):
+    """Original Ipso measurements, retained independently of the inbox."""
+    region = models.ForeignKey(Region, on_delete=models.PROTECT)
+    session_id = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=100)
+    operator = models.CharField(max_length=100, blank=True)
+    date = models.CharField(max_length=10, blank=True)
+    records = models.JSONField()
+
+
+class MapDrawing(TimestampedModel):
+    """Editable working copy of one contiguous trace or manual point."""
+    region = models.ForeignKey(Region, on_delete=models.PROTECT)
+    source = models.ForeignKey(MapPointSet, on_delete=models.SET_NULL, null=True)
+    name = models.CharField(max_length=100)
+    sequence = models.PositiveIntegerField()
+    geometry = models.JSONField()
+    fixes = models.JSONField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['source', 'sequence'], name='map_drawing_source_sequence')]
+        ordering = ['id']
+
+
 class HarvestPlanItemState(models.IntegerChoices):
     """State machine for HarvestPlanItem.
 

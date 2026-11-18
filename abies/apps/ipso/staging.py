@@ -133,6 +133,7 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
     session = payload[SESSION]
     return {
         FIELD_SESSION_ID: session[FIELD_SESSION_ID],
+        'point_region_id': session.get('region_id') if session[FIELD_MODE] == IpsoUploadMode.POINTS else None,
         FIELD_MODE: session[FIELD_MODE],
         FIELD_SCHEMA_VERSION: session[FIELD_SCHEMA_VERSION],
         FIELD_REFERENCE_VERSION: session.get(FIELD_REFERENCE_VERSION, ''),
@@ -193,3 +194,24 @@ def _atomic_write_bytes(path: Path, content: bytes) -> None:
         os.fsync(f.fileno())
     tmp.replace(path)
     _fsync_dir(path.parent)
+
+
+def claim_upload_import(
+        upload: IpsoUpload, user, target_type: str, target_id: int | None,
+) -> bool:
+    imported_at = django_timezone.now()
+    if upload.state != IpsoUploadState.RECEIVED:
+        return False
+    upload.state = IpsoUploadState.IMPORTED
+    upload.imported_at = imported_at
+    upload.imported_by = user
+    upload.target_type = target_type
+    upload.target_id = target_id
+    upload.error_summary = (S.IPSO_IMPORT_PARTIAL_SUMMARY.format(
+        upload.import_result['imported'], upload.import_result['excluded_count'],
+    ) if upload.import_result.get('excluded_count') else '')
+    upload.save(update_fields=[
+        'state', 'imported_at', 'imported_by', 'target_type', 'target_id',
+        'error_summary', 'import_result',
+    ])
+    return True

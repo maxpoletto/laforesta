@@ -33,6 +33,7 @@ class IpsoUploadTargetType(models.TextChoices):
     HARVEST_PLAN_ITEM = IPSO_TARGET_HARVEST_PLAN_ITEM, S.TABLE_HARVEST_PLAN_ITEM
     SURVEY = IPSO_TARGET_SURVEY, S.TABLE_SURVEY
     OBSERVATIONS = IPSO_TARGET_OBSERVATIONS, S.IPSO_MODE_OBSERVATIONS_LABEL
+    POINT_SET = 'point_set', S.IPSO_MODE_POINTS_LABEL
 
 
 class IpsoUpload(models.Model):
@@ -40,6 +41,7 @@ class IpsoUpload(models.Model):
 
     session_id = models.CharField(max_length=64, unique=True)
     mode = models.CharField(max_length=32, choices=IpsoUploadMode.choices)
+    point_region_id = models.BigIntegerField(null=True, db_index=True)
     schema_version = models.IntegerField()
     reference_version = models.CharField(max_length=100, blank=True)
     work_package_id = models.CharField(max_length=100, blank=True)
@@ -71,7 +73,7 @@ class IpsoUpload(models.Model):
     import_result = models.JSONField(default=dict, blank=True)
     # Distinct IDs let Settings protect pending observations without opening photos or upload files.
     category_ids = models.JSONField(null=True)
-    history = HistoricalRecords(excluded_fields=['category_ids'])
+    history = HistoricalRecords(excluded_fields=['category_ids', 'point_region_id'])
 
     class Meta:
         ordering = ['-received_at']

@@ -807,3 +807,15 @@ Most of these are configurable in the Settings section.
     the same value. Deactivating or renaming a type preserves its ID.
   - Versioned and audited. [Settings](page-impostazioni.md#reference-tables)
     lists the four initial types.
+
+### Cartography workspace
+
+A classified road is a `MapFeature` with a region, road type, name and
+LineString geometry. The parcel map and road overlay are delivered separately.
+The road overlay includes only published rows.
+
+`MapPointSet` stores a named, immutable copy of the normalized Ipso records
+from one accepted session. Its unique session ID survives inbox deletion.
+`MapDrawing` holds a region's editable geometry, per-fix accuracy and notes,
+and an edit version. The pair of source ID and sequence is unique so restoring
+a set adds only missing drawings. Deleting the source detaches working copies.

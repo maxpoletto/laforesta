@@ -66,6 +66,7 @@ from apps.base.responses import (
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging, upload_pages
+from apps.ipso.staging import claim_upload_import as _claim_upload_import
 from apps.ipso.staging import read_staged_payload as _read_staged_payload
 from apps.ipso.import_validation import RowErrors, record_id
 from apps.ipso.import_review import (
@@ -74,7 +75,7 @@ from apps.ipso.import_review import (
 from apps.ipso.importers import (
     _int_ids, free_survey_import_rows, record_measurements, sample_import_rows,
 )
-from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadPage, IpsoUploadState
+from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadPage, IpsoUploadState, IpsoUploadTargetType
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
     mark_number_duplicate_errors, mark_parcel_matches_item,
@@ -1325,6 +1326,8 @@ def _target_label(upload: IpsoUpload, labels: dict | None = None) -> str:
         survey = Survey.objects.select_related('sample_grid').filter(id=upload.target_id).first()
         if survey is not None:
             return _survey_label(survey)
+    if upload.target_type == IpsoUploadTargetType.POINT_SET:
+        return upload.work_package_id
     if upload.target_type and upload.target_id:
         return f'{upload.target_type}:{upload.target_id}'
     return ''
@@ -1605,27 +1608,6 @@ def _upload_validation_error(
 def _rollback_upload_not_received_response() -> JsonResponse:
     transaction.set_rollback(True)
     return validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-
-
-def _claim_upload_import(
-        upload: IpsoUpload, user, target_type: str, target_id: int | None,
-) -> bool:
-    imported_at = django_timezone.now()
-    if upload.state != IpsoUploadState.RECEIVED:
-        return False
-    upload.state = IpsoUploadState.IMPORTED
-    upload.imported_at = imported_at
-    upload.imported_by = user
-    upload.target_type = target_type
-    upload.target_id = target_id
-    upload.error_summary = (S.IPSO_IMPORT_PARTIAL_SUMMARY.format(
-        upload.import_result['imported'], upload.import_result['excluded_count'],
-    ) if upload.import_result.get('excluded_count') else '')
-    upload.save(update_fields=[
-        'state', 'imported_at', 'imported_by', 'target_type', 'target_id',
-        'error_summary', 'import_result',
-    ])
-    return True
 
 
 def _staged_mark_number(record: dict, index: int) -> tuple[int | None, str | None]:

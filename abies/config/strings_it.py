@@ -1106,3 +1106,7 @@ CSV_RULE_EXTRA_CELLS = 'più valori delle colonne dichiarate; controlla separato
 CSV_RULE_CHOICES = 'usa uno dei valori consentiti: {}'
 CSV_RULE_PROXY_COEFFICIENTS = 'scegli una specie di riferimento oppure inserisci i coefficienti, senza combinarli'
 ERR_CSV_FIELD_VALUE = '{} (valore «{}»): {}'
+
+CARTOGRAPHY_GEOMETRY_INVALID = 'Le coordinate del disegno non sono valide.'
+CARTOGRAPHY_WRONG_REGION = 'Il rilievo non appartiene alla compresa selezionata.'
+CARTOGRAPHY_STALE = 'La cartografia è cambiata. Ricarica i dati e riprova.'
