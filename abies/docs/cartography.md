@@ -133,3 +133,33 @@ road layer", and it would make it natural to map, e.g., each different
 characteristic onto a different layer. On the other hand, it is an additional
 concept or abstraction that is not domain-specific and that operators would need
 to learn.
+
+## Cartography editor sketch
+
+The page has a layout like the Bosco, with map on the left and a sidebar on the
+right.
+
+Map:
+- Map controls are as in Bosco, with the addition of line and polygon tool as in
+  laforesta/bosco/ep.
+- We may consider a bounded undo/redo feature in the future.
+
+Sidebar:
+- A region selector similar to Bosco's, but with an affordance to add a new
+  region, rename a region, or delete a region (as long as it has no data).
+- Lists of parcels and roads for the currently selected region.
+- An affordance (file selector and import button?) to import data (GeoJSON, GPX,
+  DXF). When data is imported, it appears as simple lines or polygons on the
+  map. If the coordinates are off the current view port, the map zooms out
+  appropriately.
+- An affordance to promote the currently selected line or polygon to road or
+  parcel, respectively, and to delete the current line or polygon.
+- An affordance to clear this parcel's map of all lines or polygons that are not
+  roads or parcels.
+- An affordance to edit the currently selected road (name, type) or parcel
+  (name, economic class, cadastral area), and to delete roads and parcels (as
+  long as they have no associated data).
+- An affordance to "publish" the current region. This fetches satellite data and
+  map context (and, in the future, DTM) for every parcel in the region and makes
+  it available in Bosco. A region can of course be published multiple times,
+  after any change.
