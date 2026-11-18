@@ -117,12 +117,15 @@ def test_walk_to_published_road(client, walk, regions):
 def test_publish_empty_region_for_field_device(client, writer_user, settings):
     settings.IPSO_SECRET = 'field-token'
     client.force_login(writer_user)
+    auth = {'HTTP_AUTHORIZATION': 'Bearer field-token'}
+    original = client.get('/ipso/reference.json', **auth).json()
     response = client.post(ROOT + 'regions/', {'name': 'Costa nuova', 'nonce': str(uuid.uuid4())},
                            content_type='application/json')
     assert response.status_code == 200
     region = {'id': response.json()['region_id'], 'name': 'Costa nuova'}
     assert region in client.get(ROOT).json()['regions']
     ref = client.get('/ipso/reference.json', HTTP_AUTHORIZATION='Bearer field-token').json()
+    assert ref['reference_version'] != original['reference_version']
     assert region in ref['regions']
     assert ref['parcels'] == []
 

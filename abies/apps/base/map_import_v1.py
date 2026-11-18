@@ -96,7 +96,7 @@ def _same_features(rows, existing):
     )
 
 
-def import_initial_map(apps, alias, path):
+def import_initial_map(apps, alias, path, *, existing_filter=None):
     """Import once, preserving order, IDs, holes, disconnected pieces and foreign members."""
     data = read_collection(path)
     features = data.pop('features')
@@ -114,9 +114,10 @@ def import_initial_map(apps, alias, path):
             parcel_id = ids.get(parcel_key(feature))
             rows.append(Feature(parcel_id=parcel_id, geometry=feature['geometry'],
                                 members=_members(feature, parcel_id is not None)))
-        if exists or Feature.objects.using(alias).exists():
+        existing = Feature.objects.using(alias).filter(**(existing_filter or {}))
+        if exists or existing.exists():
             members = collections.filter(pk=1).values_list('members', flat=True).first()
-            if _same_json(members, data) and _same_features(rows, list(Feature.objects.using(alias).order_by('pk'))):
+            if _same_json(members, data) and _same_features(rows, list(existing.order_by('pk'))):
                 return False
             raise ValueError('The database already contains a different map. Initial import cannot replace it.')
         collections.create(pk=1, members=data)

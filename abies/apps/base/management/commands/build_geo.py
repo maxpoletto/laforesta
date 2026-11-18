@@ -4,12 +4,10 @@ import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
-from django.db import DEFAULT_DB_ALIAS
 
-from apps.base.map_data import map_geojson
-from apps.base.map_import_v1 import import_initial_map, initial_map_path
+from apps.base.map_data import import_parcel_map, map_geojson
+from apps.base.map_import_v1 import initial_map_path
 from apps.base.models import MapFeature, Parcel
 
 
@@ -29,7 +27,7 @@ class Command(BaseCommand):
                 if path is None:
                     self.stdout.write('No initial map supplied.')
                     return
-            imported = import_initial_map(apps, DEFAULT_DB_ALIAS, path)
+            imported = import_parcel_map(path)
             if output_dir:
                 output_dir.mkdir(parents=True, exist_ok=True)
                 with NamedTemporaryFile(dir=output_dir, delete=False, mode='w', encoding='utf-8') as stream:

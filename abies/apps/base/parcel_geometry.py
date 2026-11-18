@@ -41,7 +41,7 @@ class ParcelGeometryIndex:
 
     def _load_features(self) -> list[ParcelFeature]:
         features = []
-        for row in MapFeature.objects.filter(parcel__isnull=False).select_related('parcel__region'):
+        for row in MapFeature.objects.filter(published=True, parcel__isnull=False).select_related('parcel__region'):
             bbox = feature_bbox(row.geometry)
             if bbox is not None:
                 features.append(ParcelFeature(row.parcel, row.geometry, bbox))

@@ -350,6 +350,9 @@ function validateReference(value) {
   if (!isObject(value) ||
       !Array.isArray(value[IPSO_REF_SPECIES]) ||
       !Array.isArray(value[IPSO_REF_PARCELS]) ||
+      (value[FIELD_REGIONS] != null && (!Array.isArray(value[FIELD_REGIONS]) ||
+        !value[FIELD_REGIONS].every(r => isObject(r) && Number.isSafeInteger(r.id) && r.id > 0 &&
+          typeof r.name === 'string' && r.name.trim()))) ||
       !isObject(value[IPSO_REF_HYPSOMETRY]) ||
       !isObject(sampling) ||
       !Array.isArray(sampling[IPSO_REF_SURVEYS]) ||
@@ -563,8 +566,8 @@ function formatYMD(d) {
 }
 
 function sessionRegions() {
-  if (currentMode().id === IpsoModes.POINTS && Array.isArray(State.reference?.regions)) {
-    return State.reference.regions;
+  if (currentMode().id === IpsoModes.POINTS && Array.isArray(State.reference?.[FIELD_REGIONS])) {
+    return State.reference[FIELD_REGIONS];
   }
   // Older offline references and parcel-based modes derive their regions from parcels.
   return (State.reference?.[IPSO_REF_PARCELS] || []).map(p => ({id: p[FIELD_REGION_ID], name: p.compresa}));

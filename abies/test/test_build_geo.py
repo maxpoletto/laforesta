@@ -299,3 +299,25 @@ def test_canonical_bootstrap_commits_map_and_catalog_together(tmp_path, db):
     assert not Parcel.objects.exists() and not MapCollection.objects.exists()
     call_command('bootstrap', folder)
     assert MapFeature.objects.get().parcel == Parcel.objects.get(name='1')
+
+
+def test_initial_parcel_import_can_follow_road_publication(tmp_path, parcels):
+    from apps.base.models import RoadType
+
+    road = MapFeature.objects.create(region=parcels[0].region, road_type=RoadType.objects.first(),
+                                     name='Accesso', published=True,
+                                     geometry={'type': 'LineString', 'coordinates': [[1, 2], [2, 3]]})
+    path = tmp_path / 'map.geojson'
+    path.write_text(json.dumps({'type': 'FeatureCollection', 'features': [feature('1')]}))
+    call_command('build_geo', path)
+    call_command('build_geo', path)
+    assert MapFeature.objects.filter(pk=road.pk, published=True).exists()
+    assert len(map_geojson()['features']) == 1
+
+
+def test_parcel_lookup_uses_only_published_geometry(parcels, import_parcel_map):
+    import_parcel_map(parcels[0])
+    part = MapFeature.objects.get(parcel=parcels[0])
+    part.published = False
+    part.save()
+    assert ParcelGeometryIndex().features == []

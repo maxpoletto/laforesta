@@ -236,6 +236,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     IPSO_SECRET_HASH_PARAM: 'secret',
     IPSO_REF_SPECIES: 'species',
     IPSO_REF_PARCELS: 'parcels',
+    FIELD_REGIONS: 'regions',
     IPSO_REF_HYPSOMETRY: 'ipsometrica',
     IPSO_REF_SAMPLING: 'sampling',
     IPSO_REF_SURVEYS: 'surveys',
@@ -489,6 +490,10 @@ const session = {
   const points = elements.get('btn-mode-points');
   check(points.textContent === 'Rilevamento punti', 'point survey landing label');
   await points.click();
+  let invalid = false;
+  try { app.validateReference({...referenceFixture(), regions: [{id: null, name: 'Serra'}]}); }
+  catch { invalid = true; }
+  check(invalid, 'malformed region catalog is rejected before replacing the offline reference');
   check(!elements.get('field-point-name').hidden && elements.get('in-point-name').required,
         'point surveys ask for a name');
 }

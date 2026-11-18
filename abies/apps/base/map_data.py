@@ -3,14 +3,19 @@
 import hashlib
 import json
 
-from django.db import transaction
+from django.apps import apps
+from django.db import DEFAULT_DB_ALIAS, transaction
 from django.http import HttpResponse
 from django.utils.cache import get_conditional_response, patch_vary_headers
 from django.views.decorators.gzip import gzip_page
 
 from apps.base.http import CACHE_NO_CACHE, apply_cache_control
-from apps.base.map_import_v1 import parcel_key
+from apps.base.map_import_v1 import import_initial_map, parcel_key
 from apps.base.models import MapCollection, MapFeature, Parcel
+
+
+def import_parcel_map(path):
+    return import_initial_map(apps, DEFAULT_DB_ALIAS, path, existing_filter={'road_type__isnull': True})
 
 
 def link_imported_parcels():

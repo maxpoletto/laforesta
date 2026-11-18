@@ -18,9 +18,8 @@ and harvests.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
-from django.db import DEFAULT_DB_ALIAS, OperationalError, ProgrammingError, transaction
+from django.db import OperationalError, ProgrammingError, transaction
 
 from apps.base import (
     csv_containers as cc, csv_io, csv_parcels, csv_reference, hypsometry, refdata,
@@ -31,8 +30,8 @@ from apps.base.models import (
     SampleArea, SampleGrid, Species, Survey, Tractor, Tree, TreeMark,
     TreeSample,
 )
-from apps.base.map_data import link_imported_parcels
-from apps.base.map_import_v1 import import_initial_map, initial_map_path
+from apps.base.map_data import import_parcel_map, link_imported_parcels
+from apps.base.map_import_v1 import initial_map_path
 from apps.campionamenti import csv_grid, csv_trees
 from apps.base.species import ensure_other_species
 from apps.campionamenti import csv_preserved
@@ -252,8 +251,8 @@ class Command(BaseCommand):
             return report
         report.present = True
         try:
-            if import_initial_map(apps, DEFAULT_DB_ALIAS, path):
-                report.loaded = MapFeature.objects.count()
+            if import_parcel_map(path):
+                report.loaded = MapFeature.objects.filter(road_type__isnull=True).count()
         except (OSError, ValueError) as exc:
             report.errors.append(str(exc))
         return report

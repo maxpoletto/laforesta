@@ -26,6 +26,7 @@ const IPSO_REF_PAI = 'pai';
 const IPSO_REF_PRESERVED_TREES = 'preserved_trees';
 const IPSO_REF_SPECIES = 'species';
 const IPSO_REF_PARCELS = 'parcels';
+const FIELD_REGIONS = 'regions';
 const IPSO_REF_HYPSOMETRY = 'ipsometrica';
 const IPSO_REF_HYPSOMETRY_IDS = 'hypsometry_by_id';
 const IPSO_REF_OBSERVATION_CATEGORIES = 'observation_categories';
@@ -142,7 +143,7 @@ if (typeof module !== 'undefined') {
     IPSO_REF_PAI,
     IPSO_REF_PRESERVED_TREES,
     IPSO_REF_SPECIES,
-    IPSO_REF_PARCELS,
+    IPSO_REF_PARCELS, FIELD_REGIONS,
     IPSO_REF_HYPSOMETRY,
     IPSO_REF_HYPSOMETRY_IDS,
     IPSO_REF_OBSERVATION_CATEGORIES,
