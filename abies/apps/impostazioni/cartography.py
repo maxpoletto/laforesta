@@ -15,7 +15,7 @@ from apps.base.models import MapDrawing, MapFeature, MapPointSet, Region, RoadTy
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
-from apps.ipso.staging import claim_upload_import, read_staged_payload
+from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
 from config import strings as S
 from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES
 
@@ -107,7 +107,7 @@ def restore_drawings(source):
     return len(drawings)
 
 
-def import_points(region_id, body, user):
+def prepare_point_import(region_id, body):
     upload = get_object_or_404(IpsoUpload, pk=int_or_none(body.get('upload_id')))
     if upload.mode != IpsoUploadMode.POINTS or upload.state != IpsoUploadState.RECEIVED:
         raise ValueError(S.IPSO_ERR_UPLOAD_NOT_RECEIVED)
@@ -117,6 +117,11 @@ def import_points(region_id, body, user):
     session = payload['session']
     if session.get('region_id') != region_id:
         raise ValueError(S.CARTOGRAPHY_WRONG_REGION)
+    return upload, payload
+
+
+def import_points(region_id, upload, payload, user):
+    session = payload['session']
     source, _ = MapPointSet.objects.get_or_create(session_id=upload.session_id, defaults={
         'region_id': region_id, 'name': session['name'], 'date': upload.record_date,
         'operator': upload.operator, 'records': payload['records'],
@@ -146,9 +151,7 @@ def check_selection(rows, selected):
         raise ValueError(S.CARTOGRAPHY_STALE)
 
 
-def edit_workspace(region_id, action, body, user):
-    if action == 'import':
-        return import_points(region_id, body, user)
+def edit_workspace(region_id, action, body):
     if action in ('restore', 'forget'):
         source = get_object_or_404(MapPointSet, region_id=region_id, pk=int_or_none(body.get('source_id')))
         if action == 'restore':
@@ -202,13 +205,21 @@ def change(request, region_id, action):
     body, error = parse_json_body(request)
     if error:
         return error
-    begin_nonce_write(request)
     try:
+        if action == 'import':
+            prepared, payload = prepare_point_import(region_id, body)
+        begin_nonce_write(request)
         with transaction.atomic():
             # Reserve the SQLite writer before checking the editor's snapshot.
             if not Region.objects.filter(pk=region_id).update(name=F('name')):
                 raise Http404
-            extra = edit_workspace(region_id, action, body, request.user)
+            if action == 'import':
+                upload, error = lock_prepared_upload(prepared)
+                if error:
+                    return error
+                extra = import_points(region_id, upload, payload, request.user)
+            else:
+                extra = edit_workspace(region_id, action, body)
             invalidations = {'import': [DATA_ID_IPSO_UPLOADS, 'audit'],
                              'publish': ['roads', 'audit'], 'road': [DATA_ID_ROAD_TYPES, 'audit']}
             return success_response(request, body, extra=extra,

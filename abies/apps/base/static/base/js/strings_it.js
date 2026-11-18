@@ -718,4 +718,4 @@ export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${na
 export const CARTOGRAPHY_PUBLISH = names => `Pubblicare le seguenti strade? ${names.join(', ')}`;
 export const CARTOGRAPHY_PUBLISH_LABEL = 'Pubblica';
 export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
-export const CARTOGRAPHY_OPEN = 'Apri in Cartografia';
+export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';

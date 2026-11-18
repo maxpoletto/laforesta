@@ -125,3 +125,23 @@ def test_publish_empty_region_for_field_device(client, writer_user, settings):
     ref = client.get('/ipso/reference.json', HTTP_AUTHORIZATION='Bearer field-token').json()
     assert region in ref['regions']
     assert ref['parcels'] == []
+
+
+@pytest.mark.django_db(transaction=True)
+def test_point_import_checks_staged_file_before_reserving_writer(client, regions, walk, monkeypatch):
+    from django.db import connection
+    from apps.impostazioni import cartography
+
+    read = cartography.read_staged_payload
+
+    def read_without_lock(upload):
+        assert not connection.in_atomic_block
+        return read(upload)
+
+    monkeypatch.setattr(cartography, 'read_staged_payload', read_without_lock)
+    body = {'nonce': str(uuid.uuid4()), 'upload_id': walk.pk}
+    url = f'{ROOT}{regions[0].pk}/import/'
+    first = client.post(url, body, content_type='application/json')
+    assert first.status_code == 200
+    assert client.post(url, body, content_type='application/json').json() == first.json()
+    assert len(workspace(client, regions[0])['drawings']) == 3

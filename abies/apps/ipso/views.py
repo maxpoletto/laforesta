@@ -66,6 +66,7 @@ from apps.base.responses import (
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
 from apps.ipso import staging as ipso_staging, upload_pages
+from apps.ipso.staging import lock_prepared_upload as _lock_prepared_upload
 from apps.ipso.staging import claim_upload_import as _claim_upload_import
 from apps.ipso.staging import read_staged_payload as _read_staged_payload
 from apps.ipso.import_validation import RowErrors, record_id
@@ -1573,16 +1574,6 @@ def _source_survey_grid_id(work_package_id: str) -> int | None:
             .filter(id=survey_id)
             .values_list('sample_grid_id', flat=True)
             .first())
-
-
-def _lock_prepared_upload(upload):
-    """Recheck the parsed snapshot after acquiring the request's write lock."""
-    current = _get_upload(upload.pk, for_update=True)
-    if current.state != IpsoUploadState.RECEIVED:
-        return current, validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
-    if current.mode != upload.mode or current.checksum != upload.checksum:
-        return current, validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
-    return current, None
 
 
 def _upload_validation_error(

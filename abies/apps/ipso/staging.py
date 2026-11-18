@@ -1,4 +1,4 @@
-"""Filesystem helpers for Ipso staged uploads."""
+"""Storage and import state of Ipso uploads."""
 
 from __future__ import annotations
 
@@ -13,8 +13,10 @@ from datetime import timezone
 from pathlib import Path
 
 from django.conf import settings
+from django.shortcuts import get_object_or_404
 from django.utils import timezone as django_timezone
 
+from apps.base.validation import validation_error
 from apps.base.file_io import fsync_directory as _fsync_dir
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadPage, IpsoUploadState
 
@@ -215,3 +217,13 @@ def claim_upload_import(
         'error_summary', 'import_result',
     ])
     return True
+
+
+def lock_prepared_upload(upload):
+    """Recheck the parsed snapshot after acquiring the request's write lock."""
+    current = get_object_or_404(IpsoUpload.objects.select_for_update(), pk=upload.pk)
+    if current.state != IpsoUploadState.RECEIVED:
+        return current, validation_error([S.IPSO_ERR_UPLOAD_NOT_RECEIVED])
+    if current.mode != upload.mode or current.checksum != upload.checksum:
+        return current, validation_error([S.IPSO_ERR_IMPORT_CONTEXT_CHANGED])
+    return current, None
