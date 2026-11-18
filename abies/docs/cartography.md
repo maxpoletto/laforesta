@@ -1,165 +1,214 @@
-# Abies cartography extensions
+# Cartography in Abies
 
-## Overview
+A new Abies instance should also be able to start with an empty map and record
+its first parcel and region (compresa) through the UI.
 
-Parcel boundaries now live in SQLite and are imported once from an optional
-GeoJSON file. The current La Foresta map has 99 polygon features for 85 parcels.
-Each feature has its own version and history, so the editor can update both
-sides of a shared boundary in one transaction and leave other features alone.
-At this scale the median compact geometry is 1,412 bytes. Per-vertex identity
-would additionally require ring membership, ordering and rules for shared
-edges. Revisit database topology when shared-edge validation or indexed
-spatial queries become a significant server workload.
+Additionally, operators must be able to edit parcel boundaries and maintain maps
+of forest roads and trails.
 
-Installation and the map file format are described in [INSTALL.md](../INSTALL.md).
+Parcel outlines already live in SQLite. Bosco, Ipso and map builders read them
+as GeoJSON. Road types and economic classes are configurable in **Impostazioni →
+Dati di base**. The editor described below is proposed for **Impostazioni →
+Cartografia**. See the [installation guide](../INSTALL.md) for what can be
+imported today.
 
-We want to extend Abies to (a) support dynamically adding features, including
-regions (i.e., it should be possible to do an Abies "cold start" with no
-preconfigured regions), parcels, and roads and paths; (b) allow editing of
-existing features; (c) allow import of data from GeoJSON, GPX, and georeferenced
-DXF (*); (d) allow manual tracing over data from those formats, as well as over
-geolocated samples inside Abies.
+## General layout and concepts
 
-Additionally, we want to support a 1-m resolution LiDAR DTM base layer.
+The cartography editor has a layout similar to the Bosco page, with a map on the
+left and a sidebar on the right. On a phone, the sidebar can open as a panel and
+keep the current selection when the operator returns to the map.
 
-(*) It may be acceptable to provide utilities to convert GPX and DXF to GeoJSON.
+Users can edit existing parcels (particelle) and roads (strade). They can also
+import points, lines, and polygons from various sources. These we call drawings
+(disegni). They may be edited, and upgraded to parcels and roads that are then
+"published" and made visible to the rest of the app.
 
-## Viewing
+## Opening a region (compresa)
 
-Current Bosco features will continue to exist, but we want to be able to display
-the DTM base layer as well. An initial implementation might display DTM
-elevations using colors, as a heat map. A more advanced implementation would
-provide a rotatable/zoomable 3D map, e.g., using Deck.gl tile-3D layers. It
-would be especially compelling to overlay features like roads and boundaries
-onto this 3D view. If we implement the 3D view, it might make sense to migrate
-Abies entirely to Deck.gl, while keeping Leaflet for Ipso.
+The region selector is at the top of the sidebar and also support create, rename
+and delete operations. Only unused regions (ones not referenced in a harvest
+plan or survey) can be deleted.
 
-Additionally, given the added presence of roads, we want all Bosco views to be
-able to hide or display roads. There are likely to be several different kinds of
-roads: for example, primary roads, secondary roads, logging trails, and
-footpaths. The set of road types should be configurable, similarly to the set of
-observation types today, and it should be possible to hide or display the
-different kinds independently.
+A region needs a name. Its parcels may be non-contiguous. Each parcel has its
+own outline, but a region has no boundary polygon. Opening a region fits all its
+parcels, roads, and/or drawings. On an empty map the operator can navigate to
+the site or import coordinates.
 
-## Abstractions
+An operator can publish a compresa with just its name. Its ID and name are
+included in  Ipso reference data so it appears in the selector after the next
+sync. The operator can then walk the first parcel boundary with the phone.
+Imagery and terrain update jobs can wait until a published road or parcel
+establishes an extent.
 
-A tentative proposal for useful absractions:
+## Drawing and selecting
 
-* Points: an object with a lat/lon, e.g., an observation, or a sampled tree.
-* Polylines: naturally map to roads or GPX tracks.
-* Polygons: closed polylines, naturally map to parcels.
-* Layers: especially useful for imports: for instance, we want to be able to
-  import one or more GPX tracks onto one layer, and then trace a road by hand in
-  another layer using those tracks as guidance.
+The sidebar lists **Particelle**, **Strade** and **Disegni** for the selected
+compresa. Clicking an object on the map selects its entry in the sidebar and
+vice versa. Drawings can be points, lines or polygons. Drawings are grouped by
+source so that an operator can hide a dense survey or show it again while
+tracing. New drawings always appear under **Disegni**. There is no layer order
+to manage.
 
-## Editing
+Three conversion buttons remain visible in place. Each is clearly disabled
+whenever the selection cannot be used for that action.
 
-Editing cartographic information will not happen in Bosco, but on its own page,
-possibly reachable from the settings page.
+| Selected drawing | Actions enabled |
+| --- | --- |
+| One line | **Crea strada** |
+| One polygon | **Crea particella**, **Aggiungi a particella esistente** |
+| A point, several objects, an existing road or parcel, or nothing | None |
 
-### Operations on regions
+**Crea strada** asks for the road name and type. **Crea particella** asks for
+the parcel name and economic class, which determines whether it is coppice.
+Cadastral area should be optional. The map also shows an area calculated from
+geometry, clearly labeled as such. **Aggiungi a particella esistente** asks
+which parcel owns the additional piece and is disabled until the compresa has a
+parcel to choose. These actions create draft edits ready for publication.
 
-Regions can be created or deleted. The planned editor should support a named region drawn by hand or
-initialized from GeoJSON, including a cold start without cadastral data.
+The operator can delete an individual drawing. **Elimina disegni** clears all
+remaining drawings in the selected compresa. Its confirmation names the
+compresa and gives the count. Both draft and published roads and parcels are
+kept, as are the original field measurements.
 
-The region editor should queue background generation of the satellite layers
-and printable map context when a region first has boundaries or those
-boundaries change. A fresh install that imports a map should use the same
-backend job. The region should be usable while the layers are being built.
+### Working with vertices
 
-A region may be deleted only if it is not used in any harvest plan (including
-marks and harvests) or survey.
+The [parcel editor prototype](../../bosco/ep/) is the design starting point. The
+operator can place vertices by hand, snap to measured points, or trace a run of
+vertices along an existing line or parcel edge. While drawing, offer undo last
+point, finish and cancel. Full undo and redo can wait.
 
-### Operations on parcels
+A drawing can be reshaped by moving vertices, split at a vertex, or joined to
+another line at an endpoint. Closing a line makes a polygon. Opening a polygon
+makes a line. Keep disconnected pieces and interior holes when editing parcels.
 
-All operations on parcels happen within the scope of a region.
+When correcting a shared boundary,  the operator can select the common edge and
+show both affected parcels. Moving or inserting a vertex changes both outlines
+together. Both polygons are validated and changed in one transaction, so a strip
+of land cannot accidentally disappear between them. Where surveyed edges are
+close but do not coincide, the operator can choose the edge to follow.
 
-Parcels may be created, removed, or have their borders changed.
+An ordinary boundary correction keeps the parcel identity and its records.
+Renaming or splitting a management parcel needs a separate step to review its
+history. For a rename, the user is prompted to confirm that the records follow
+the same parcel under its new name. For a split, the user is shown the affected
+surveys, plans and harvests and asked where they belong before publishing.
+Deletion of parcels or roads with dependent records is not allowed.
 
-A parcel may only be removed if it does not appear in any harvest plan
-(including marks or harvests) or survey.
+## Importing drawings
 
-A parcel may be created by importing GeoJSON or DXF data, or it may be drawn by
-hand. If it directly borders other parcels, it may share vertices along the
-bordering edge (no gaps).
+The **Importa** menu offers three ways to add drawings to the current compresa.
+After an import, the editor reports how many objects it added and brings them
+into view if they were offscreen. The operator can inspect or clear the drawings
+before using them. A separate import preview is a possible later addition.
 
-Parcel borders may be edited by hand. (A parcel is a polygon; see below.)
+- **Da file** opens a file picker for GeoJSON, GPX or georeferenced DXF.
+  Waypoints appear as points, each track segment appears as a separate line,
+  and the rings of a polygon stay together. If the coordinate system of a DXF
+  file is unknown, the editor asks for it before placing the drawing.
+- **Da Ipso** opens on new uploads for this compresa. Previously imported point
+  sets are available under **Già importati**. Each session appears once, with
+  its name, date and operator. An import from the Ipso inbox can open the same
+  drawings directly. Drawings appear in the order they were recorded. A trace
+  interrupted by a manual point appears as a line, a point and a second line.
+  Hovering over a point shows its reported accuracy and any note. On a phone,
+  tapping the point opens the same tooltip.
+- **Da rilevamento** offers a dropdown of existing tree surveys with mappable
+  data in this compresa. Each entry shows the survey name, whether it is free
+  or structured, and how many positions are available. The editor identifies
+  measurements by their recorded parcel or sample area. A position just outside
+  an incorrect boundary is therefore still available to help correct it.
 
-### Operations on roads and road types
+For a free survey, the editor imports individual tree positions and reports how
+many measurements lack coordinates. A structured survey contributes one point
+at the center of each visited plot, labeled with the sample area number. In
+either case the operator chooses which points to connect and in what order
+when tracing. Both survey types are described on the
+[survey page](page-campionamenti.md).
 
-All operations on roads happen within the scope of a region.
+On the first import of an Ipso point set, Abies saves the original fixes,
+segments, notes and accuracy under the session ID. The operator can then delete
+the processed upload from the inbox, along with its staging files. The saved
+set remains available in **Da Ipso**. An upload discarded before import leaves
+no saved set.
 
-Road types may be created, removed, or renamed. Roads types have an editable
-sort order attribute (similar to observation types) that can be used to govern
-their display (by convention, more important roads have lower sort order). A
-road type may only be removed if it is not in use.
+**Elimina disegni** clears the working copies from the map and sidebar.
+Choosing the set again in **Da Ipso** restores missing drawings and preserves
+any edits to drawings still present. When the operator no longer needs the
+saved source, a separate delete action in the picker removes just that source.
+Survey imports can likewise identify previously imported points by their survey
+and measurement or plot IDs. The [Ipso guide](ipso-abies.md) describes how
+point sets are recorded and uploaded.
 
-Roads may be created, removed, or edited. A road may be created by importing
-GeoJSON, DXF, or GPX data, or it may be drawn by hand.
+## Publishing a map
 
-Roads may be edited by hand. (A road is a polyline; see below.)
+**Pubblica** applies the pending road and parcel edits for one compresa. It is
+an explicit action even for a single moved road vertex. The operator can leave
+the editor and return to the draft. Before publication, the editor lists the
+roads and parcels that will be added, changed or removed. Raw drawings can
+stay alongside them for the next visit.
 
-### General operations on polylines and polygons
+While an edit or deletion is pending, other maps display the last published
+version. For example, if an operator moves and renames a road, Bosco continues
+to show it in its original position under its original name until **Pubblica**
+succeeds.
 
-See laforesta/bosco/ep/ for an early prototype of a parcel editor that was used to
-generate the base data for the La Foresta s.r.l. production instance of Abies.
-Many of the ideas in this section are based on that prototype.
+Each `MapFeature` has a `published` flag. The migration marks existing features
+as published, including outlines imported before their parcel catalog. The
+shared GeoJSON reader serves only published features to Bosco, Ipso and the
+other maps.
 
-Roads are represented as polylines, parcels as polygons. Imported GPX tracks are
-converted to polylines. GeoJSON and DXF objects are converted to polylines or
-polygons depending on their geometry.
+A draft holds both geometry and catalog changes. At publication, Abies checks
+that the versions the operator edited are still current and applies the changes
+in one transaction. SQLite stores geometry per feature, so a correction to a
+shared edge updates only the affected pieces.
 
-Operations on polylines and polygons:
-* move any vertex of a polyline or polygon;
-* split a polyline into two polylines by deleting a vertex;
-* merge two polylines into one by connecting two endpoints;
-* break a polygon into a polyline by removing a vertex;
-* convert a polyline into a polygon by joining two endpoints;
-* create a new polygon or polyline based on contiguous sequences of vertices of
-  one or more polygons or polylines.
+### Map coverage and background work
 
-A new "raw" polygon or polyline needs to be explicitly converted to a road (with
-a name and type) or parcel (with a name and management type (coppice or high forest)).
+Bosco opens on the parcels. Imagery and terrain also cover the roads leading
+to them. The required coverage for a compresa is the bounding box of all its
+published parcels and roads, plus a margin. An access road can therefore
+extend coverage without changing Bosco’s opening view. A viabilità print of
+the whole compresa includes the road all the way to its endpoint.
 
-### Role of layers
+- Changing a road name or type updates the road overlay and its print labels
+  or legend. The same elevation and satellite data can be reused.
+- Correcting a parcel edge updates the affected parcel masks and satellite
+  statistics, even if the imagery already covers the corrected parcel.
+- Extending a road beyond the parcel bounds grows the required coverage.
+  Abies checks the coverage already stored for each imagery date and terrain
+  source. If it covers the new extent, no download is needed. If only the
+  eastern edge extends beyond it, Abies downloads one strip. An expansion can
+  require up to four rectangles. The north and south strips span the new width.
+  The west and east strips cover the remaining height, so each corner is fetched
+  once. Abies regenerates affected contours across the joins from the assembled
+  terrain.
 
-Users can create new temporary layers, particularly  for tracing. It probably
-makes sense to allow layers to be reordered. Only the topmost (highest z-index)
-layer is editable.
+These jobs run in the background after publication and after a new installation
+imports its initial map. The published vector map is usable while they run.
+The operator can see their progress and retry a failed job without publishing
+again.
 
-It is not obvious whether the explicit concept of layers should be exposed when
-viewing data (i.e., in Bosco). On the one hand, it is natural to say "hide the
-road layer", and it would make it natural to map, e.g., each different
-characteristic onto a different layer. On the other hand, it is an additional
-concept or abstraction that is not domain-specific and that operators would need
-to learn.
+## Bosco and printed maps
 
-## Cartography editor sketch
+In Bosco, operators can show or hide each configured road type independently.
+Forestry staff maintain these roads inside Abies, including logging trails
+absent from OSM. Road markings that are part of a raster basemap remain
+visible when an Abies road type is hidden. A plain terrain basemap appears in
+the upper-right selector when one is available. The viabilità print can show
+every Abies road and trail together with labeled contours derived from a
+1 m digital terrain model (DTM) (future work).
 
-The page has a layout like the Bosco, with map on the left and a sidebar on the
-right.
+Hillshade from that terrain model would also help staff read the terrain on
+screen. Elevation coloring and a rotatable 3D view with roads and parcels
+overlaid are later possibilities. The first print map can use the existing
+[contour rendering and label placement](ui-maps.md#local-vector-context).
 
-Map:
-- Map controls are as in Bosco, with the addition of line and polygon tool as in
-  laforesta/bosco/ep.
-- We may consider a bounded undo/redo feature in the future.
+## First end-to-end test
 
-Sidebar:
-- A region selector similar to Bosco's, but with an affordance to add a new
-  region, rename a region, or delete a region (as long as it has no data).
-- Lists of parcels and roads for the currently selected region.
-- An affordance (file selector and import button?) to import data (GeoJSON, GPX,
-  DXF). When data is imported, it appears as simple lines or polygons on the
-  map. If the coordinates are off the current view port, the map zooms out
-  appropriately.
-- An affordance to promote the currently selected line or polygon to road or
-  parcel, respectively, and to delete the current line or polygon.
-- An affordance to clear this parcel's map of all lines or polygons that are not
-  roads or parcels.
-- An affordance to edit the currently selected road (name, type) or parcel
-  (name, economic class, cadastral area), and to delete roads and parcels (as
-  long as they have no associated data).
-- An affordance to "publish" the current region. This fetches satellite data and
-  map context (and, in the future, DTM) for every parcel in the region and makes
-  it available in Bosco. A region can of course be published multiple times,
-  after any change.
+In the first test, an operator walks a road while recording a trace in Ipso.
+In the editor, the operator imports the point set, adjusts the line, chooses
+**Crea strada**, assigns the road type and publishes the road. The road then
+appears in Bosco and can be hidden with the filter for its type. Back in the
+editor, the operator clears the drawings and recovers the original walk from
+**Da Ipso**. Survey import and shared parcel boundary corrections are also
+part of the first version.
