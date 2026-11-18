@@ -148,3 +148,25 @@ def test_point_import_checks_staged_file_before_reserving_writer(client, regions
     assert first.status_code == 200
     assert client.post(url, body, content_type='application/json').json() == first.json()
     assert len(workspace(client, regions[0])['drawings']) == 3
+
+
+def test_discard_one_working_copy_or_road_draft(client, regions, walk):
+    from apps.base.models import MapFeature, RoadType
+
+    region = regions[0]
+    kind = RoadType.objects.create(name='Test road', sort_order=10)
+    write(client, region, 'import', upload_id=walk.pk)
+    state = workspace(client, region)
+    line, point, _ = state['drawings']
+    assert write(client, region, 'remove-drawing', id=point['id'], version=2).status_code == 400
+    assert write(client, region, 'remove-drawing', id=point['id'], version=1).status_code == 200
+    assert write(client, region, 'restore', source_id=state['sources'][0]['id']).json()['added'] == 1
+    assert [d['sequence'] for d in workspace(client, region)['drawings']] == [1, 2, 3]
+    road_id = write(client, region, 'road', id=line['id'], version=1,
+                    name='Prova', road_type_id=kind.id).json()['road_id']
+    assert write(client, region, 'discard-road', id=road_id, version=1).status_code == 200
+    assert not MapFeature.objects.filter(pk=road_id).exists()
+    public = MapFeature.objects.create(region=region, road_type=kind, published=True,
+                                       geometry=line['geometry'], name='Strada')
+    assert write(client, region, 'discard-road', id=public.pk, version=1).status_code == 400
+    assert MapFeature.objects.filter(pk=public.pk, published=True).exists()

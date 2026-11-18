@@ -129,6 +129,8 @@ export class CartographyEditor {
     b.save.hidden = b.cancel.hidden = !this.editing;
     b.save.disabled = b.cancel.disabled = !!this.busy;
     b.road.disabled = locked || drawing?.geometry?.type !== 'LineString' || !this.catalog?.road_types.length;
+    b['remove-drawing'].disabled = locked || !drawing;
+    b['discard-road'].disabled = locked || this.kind !== 'road' || !this.selected || this.selected.published;
     b.clear.disabled = locked || !this.state?.drawings.length;
     b.publish.disabled = locked || !this.state?.roads.some(r => !r.published);
     b.import.disabled = locked || !this.state?.uploads.length;
@@ -189,6 +191,12 @@ export class CartographyEditor {
       case 'road':
         this.form('tmpl-cartography-road', body => this.write(action, {...body, id: row.id, version: row.version}));
         break;
+      case 'remove-drawing':
+      case 'discard-road': {
+        const label = action === 'remove-drawing' ? this.drawings.selectedOptions[0].textContent : row.name;
+        showConfirmModal(S.DELETE_REFERENCE_CONFIRM(label), () => this.write(action, {id: row.id, version: row.version}));
+        break;
+      }
       case 'clear': {
         const snapshot = versions(this.state.drawings);
         const name = this.region.selectedOptions[0].textContent;

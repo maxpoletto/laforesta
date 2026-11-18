@@ -172,10 +172,20 @@ def edit_workspace(region_id, action, body):
             road.save(update_fields=['published', 'version'])
         mark_stale('audit')
         return {}
-    if action in ('adjust', 'road'):
+    if action == 'discard-road':
+        road = get_object_or_404(MapFeature, pk=int_or_none(body.get('id')), region_id=region_id)
+        if road.published or road.version != int_or_none(body.get('version')):
+            raise ValueError(S.CARTOGRAPHY_STALE)
+        road.delete()
+        mark_stale('audit')
+        return {}
+    if action in ('adjust', 'road', 'remove-drawing'):
         drawing = get_object_or_404(drawings, pk=int_or_none(body.get('id')))
         if drawing.version != int_or_none(body.get('version')):
             raise ValueError(S.CARTOGRAPHY_STALE)
+        if action == 'remove-drawing':
+            drawing.delete()
+            return {}
         if action == 'road':
             if (drawing.geometry['type'] != 'LineString'
                     or len(set(map(tuple, drawing.geometry['coordinates']))) < 2):
@@ -221,7 +231,8 @@ def change(request, region_id, action):
             else:
                 extra = edit_workspace(region_id, action, body)
             invalidations = {'import': [DATA_ID_IPSO_UPLOADS, 'audit'],
-                             'publish': ['roads', 'audit'], 'road': [DATA_ID_ROAD_TYPES, 'audit']}
+                             'publish': ['roads', 'audit'], 'road': [DATA_ID_ROAD_TYPES, 'audit'],
+                             'discard-road': [DATA_ID_ROAD_TYPES, 'audit']}
             return success_response(request, body, extra=extra,
                                     invalidates={'data_ids': invalidations.get(action, [])})
     except ValueError as exc:

@@ -207,10 +207,12 @@ S (string constants) provided by the shell's render context.
             <button class="btn" data-action="road" disabled>Crea strada</button>
             <button class="btn" disabled>Crea particella</button>
             <button class="btn" disabled>Aggiungi a particella esistente</button>
+            <button class="btn btn-delete" data-action="remove-drawing" disabled>Elimina disegno selezionato</button>
             <button class="btn btn-delete" data-action="clear" disabled>Elimina disegni</button>
           </div>
           <label for="cartography-roads">Strade</label>
           <select id="cartography-roads" size="3"></select>
+          <button class="btn btn-delete" data-action="discard-road" disabled>Scarta bozza</button>
           <button class="btn btn-save" data-action="publish" disabled>Pubblica</button>
         </aside>
       </div>
