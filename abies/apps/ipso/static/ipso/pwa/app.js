@@ -562,6 +562,14 @@ function formatYMD(d) {
     String(d.getDate()).padStart(2, '0');
 }
 
+function sessionRegions() {
+  if (currentMode().id === IpsoModes.POINTS && Array.isArray(State.reference?.regions)) {
+    return State.reference.regions;
+  }
+  // Older offline references and parcel-based modes derive their regions from parcels.
+  return (State.reference?.[IPSO_REF_PARCELS] || []).map(p => ({id: p[FIELD_REGION_ID], name: p.compresa}));
+}
+
 function populateRegionOptions() {
   const sel = document.getElementById('in-compresa');
   const keep = sel.value;
@@ -570,7 +578,7 @@ function populateRegionOptions() {
     appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
     return;
   }
-  const regionNames = [...new Set(State.reference[IPSO_REF_PARCELS].map((p) => p.compresa))].sort();
+  const regionNames = [...new Set(sessionRegions().map(region => region.name))].sort();
   appendOption(sel, '', S.PRE_PICK_COMPRESA, true);
   for (const c of regionNames) appendOption(sel, c, c);
   if (keep && Array.from(sel.options).some((opt) => opt.value === keep)) {
@@ -832,6 +840,7 @@ function enterPreSession(modeId) {
   document.getElementById('in-point-name').value = '';
   document.getElementById('in-sample-survey').value = '';
   populateSampleSurveyOptions();
+  populateRegionOptions();
   showScreen('screen-pre');
 }
 
@@ -951,9 +960,7 @@ function wirePreSession() {
     localStorage.setItem(IPSO_OPERATOR_STORAGE_KEY, operator);
 
     try {
-      const region = State.reference[IPSO_REF_PARCELS].find((parcel) =>
-        parcel && parcel.compresa === regionName
-      );
+      const region = sessionRegions().find(row => row.name === regionName);
       const sess = await Store.startSession(State.db, {
         mode: modeId,
         point_set_name: points ? pointName : undefined,
@@ -961,8 +968,7 @@ function wirePreSession() {
         work_package_id: modeId === IpsoModes.SAMPLES
           ? IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX + sampleSurveyId
           : '',
-        [FIELD_REGION_ID]: region && Number.isInteger(region[FIELD_REGION_ID])
-          ? region[FIELD_REGION_ID] : null,
+        [FIELD_REGION_ID]: Number.isInteger(region?.id) ? region.id : null,
         [FIELD_SURVEY_ID]: modeId === IpsoModes.SAMPLES ? sampleSurveyId : null,
         // Keep the existing stored-session shape at this boundary.
         data: date,

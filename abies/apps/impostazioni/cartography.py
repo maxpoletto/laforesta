@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.base.auth import require_writer
+from apps.base.digests import mark_stale
 from apps.base.idempotency import begin_nonce_write
 from apps.base.models import MapDrawing, MapFeature, MapPointSet, Region, RoadType
 from apps.base.numparse import int_or_none
@@ -16,6 +17,7 @@ from apps.base.responses import parse_json_body, success_response, validation_er
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, read_staged_payload
 from config import strings as S
+from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES
 
 
 @login_required
@@ -24,6 +26,34 @@ from config import strings as S
 def catalog(request):
     return JsonResponse({'regions': list(Region.objects.order_by('name').values('id', 'name')),
                          'road_types': list(RoadType.objects.filter(active=True).values('id', 'name'))})
+
+
+def required_name(body):
+    name = body.get('name')
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(S.ERR_NAME_REQUIRED)
+    if len(name.strip()) > 100:
+        raise ValueError(S.ERR_NAME_MAX_LENGTH.format(100))
+    return name.strip()
+
+
+@login_required
+@require_writer
+@require_POST
+def publish_region(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    try:
+        name = required_name(body)
+    except ValueError as exc:
+        return validation_error([str(exc)])
+    begin_nonce_write(request)
+    with transaction.atomic():
+        region, created = Region.objects.get_or_create(name=name)
+        if not created:
+            return validation_error([S.CARTOGRAPHY_REGION_EXISTS])
+        return success_response(request, body, extra={'region_id': region.pk})
 
 
 def pending_uploads(region_id):
@@ -109,7 +139,8 @@ def valid_edit(drawing, geometry):
 
 def check_selection(rows, selected):
     versions = [list(pair) for pair in rows.order_by('pk').values_list('pk', 'version')]
-    if selected != versions or not versions:
+    if (not isinstance(selected, list) or not versions or selected != versions
+            or any(type(value) is not int for pair in selected for value in pair)):
         raise ValueError(S.CARTOGRAPHY_STALE)
 
 
@@ -127,10 +158,31 @@ def edit_workspace(region_id, action, body, user):
         check_selection(drawings, body.get('versions'))
         drawings.delete()
         return {}
-    if action == 'adjust':
+    if action == 'publish':
+        drafts = MapFeature.objects.filter(region_id=region_id, published=False)
+        check_selection(drafts, body.get('versions'))
+        for road in drafts:
+            road.published = True
+            road.version += 1
+            road.save(update_fields=['published', 'version'])
+        mark_stale('audit')
+        return {}
+    if action in ('adjust', 'road'):
         drawing = get_object_or_404(drawings, pk=int_or_none(body.get('id')))
         if drawing.version != int_or_none(body.get('version')):
             raise ValueError(S.CARTOGRAPHY_STALE)
+        if action == 'road':
+            if (drawing.geometry['type'] != 'LineString'
+                    or len(set(map(tuple, drawing.geometry['coordinates']))) < 2):
+                raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
+            kind = RoadType.objects.filter(pk=int_or_none(body.get('road_type_id')), active=True).first()
+            if kind is None:
+                raise ValueError(S.CARTOGRAPHY_ROAD_TYPE_REQUIRED)
+            road = MapFeature.objects.create(region_id=region_id, road_type=kind, name=required_name(body),
+                                             geometry=drawing.geometry, published=False)
+            drawing.delete()
+            mark_stale('audit')
+            return {'road_id': road.pk}
         geometry = body.get('geometry')
         if not valid_edit(drawing, geometry):
             raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
@@ -155,6 +207,9 @@ def change(request, region_id, action):
             if not Region.objects.filter(pk=region_id).update(name=F('name')):
                 raise Http404
             extra = edit_workspace(region_id, action, body, request.user)
-            return success_response(request, body, extra=extra)
+            invalidations = {'import': [DATA_ID_IPSO_UPLOADS, 'audit'],
+                             'publish': ['roads', 'audit'], 'road': [DATA_ID_ROAD_TYPES, 'audit']}
+            return success_response(request, body, extra=extra,
+                                    invalidates={'data_ids': invalidations.get(action, [])})
     except ValueError as exc:
         return validation_error([str(exc)])

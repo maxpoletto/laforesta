@@ -587,6 +587,8 @@ def _audit_configs() -> list:
         }),
         (MapFeature, S.MAP_FEATURE.capitalize(), {
             'id': 'ID', 'parcel_id': S.COL_PARCEL, 'version': S.COL_MAP_REVISION,
+            'name': S.LABEL_NAME, 'road_type_id': S.TABLE_ROAD_TYPE, 'region_id': S.COL_REGION,
+            'published': S.MAP_PUBLISHED,
         }),
         (Eclass, S.ECLASS.capitalize(), {
             'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,

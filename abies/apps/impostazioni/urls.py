@@ -8,6 +8,7 @@ from config.constants import DATA_ID_ECLASSES, DATA_ID_ROAD_TYPES, IPSO_REF_OBSE
 
 urlpatterns = [
     path('cartography/', cartography.catalog),
+    path('cartography/regions/', cartography.publish_region),
     path('cartography/<int:region_id>/', cartography.workspace),
     path('cartography/<int:region_id>/<slug:action>/', cartography.change),
     path('equations/import/preview/', equation_imports.preview_import, name='impostazioni-equation-preview'),

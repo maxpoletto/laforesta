@@ -83,3 +83,45 @@ def test_region_and_edit_guards(client, walk, regions, reader_user):
     client.force_login(reader_user)
     assert client.get(f'{ROOT}{region.pk}/').status_code == 403
     assert write(client, region, 'clear', versions=[]).status_code == 403
+
+
+def test_walk_to_published_road(client, walk, regions):
+    region = regions[0]
+    assert write(client, region, 'import', upload_id=walk.pk).status_code == 200
+    state = workspace(client, region)
+    line, gate, _ = state['drawings']
+    kind = client.get(ROOT).json()['road_types'][0]['id']
+    road_data = {'name': 'Via nord', 'road_type_id': kind, 'version': 1}
+    assert write(client, region, 'road', id=gate['id'], **road_data).status_code == 400
+    coords = [[16, 38], [16.012, 38.02]]
+    geometry = {'type': 'LineString', 'coordinates': coords}
+    assert write(client, region, 'adjust', id=line['id'], version=1, geometry=geometry).status_code == 200
+    assert write(client, region, 'road', id=line['id'], **road_data).status_code == 400
+    response = write(client, region, 'road', id=line['id'], **(road_data | {'version': 2}))
+    assert response.status_code == 200, response.content
+    draft, = workspace(client, region)['roads']
+    assert not draft['published']
+    assert not client.get('/api/geo/roads.geojson').json()['features']
+    assert write(client, region, 'publish', versions=[]).status_code == 400
+    assert write(client, region, 'publish', versions=[[draft['id'], draft['version']]]).status_code == 200
+    road, = client.get('/api/geo/roads.geojson').json()['features']
+    assert road['geometry'] == geometry and road['properties']['road_type_id'] == kind
+    state = workspace(client, region)
+    assert write(client, region, 'clear', versions=[[d['id'], d['version']] for d in state['drawings']]).status_code == 200
+    assert write(client, region, 'restore', source_id=state['sources'][0]['id']).json()['added'] == 3
+    restored = workspace(client, region)
+    assert restored['drawings'][0]['geometry'] == line['geometry']
+    assert [r['id'] for r in restored['roads']] == [draft['id']]
+
+
+def test_publish_empty_region_for_field_device(client, writer_user, settings):
+    settings.IPSO_SECRET = 'field-token'
+    client.force_login(writer_user)
+    response = client.post(ROOT + 'regions/', {'name': 'Costa nuova', 'nonce': str(uuid.uuid4())},
+                           content_type='application/json')
+    assert response.status_code == 200
+    region = {'id': response.json()['region_id'], 'name': 'Costa nuova'}
+    assert region in client.get(ROOT).json()['regions']
+    ref = client.get('/ipso/reference.json', HTTP_AUTHORIZATION='Bearer field-token').json()
+    assert region in ref['regions']
+    assert ref['parcels'] == []

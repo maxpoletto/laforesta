@@ -98,7 +98,7 @@ from config.constants import (
     FIELD_PARCEL, FIELD_PHOTO_COUNT, FIELD_PHOTOS, FIELD_PRESERVED,
     FIELD_PRESSLER_COEFF, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
     FIELD_REASON, FIELD_REFERENCE_VERSION, FIELD_REFERENCE_VERSION_LABEL,
-    FIELD_REGION_ID, FIELD_SEQ,
+    FIELD_REGION_ID, FIELD_REGIONS, FIELD_SEQ,
     FIELD_SAMPLE_AREA_ID, FIELD_SAMPLE_GRID_ID, FIELD_SCHEMA_VERSION,
     FIELD_SESSION_ID, FIELD_SHOOT, FIELD_SORT_ORDER, FIELD_SPECIES,
     FIELD_SELECTABLE, FIELD_SPECIES_ID, FIELD_STANDARD,
@@ -261,6 +261,7 @@ def reference_json(request: HttpRequest) -> HttpResponse:
         IPSO_REF_GENERATED_AT: django_timezone.now().astimezone(timezone.utc)
                        .isoformat(timespec='seconds').replace('+00:00', 'Z'),
         IPSO_REF_SPECIES: _species_rows(),
+        FIELD_REGIONS: list(Region.objects.order_by('name').values('id', 'name')),
         IPSO_REF_PARCELS: _parcel_rows(),
         IPSO_REF_HYPSOMETRY: height_names,
         IPSO_REF_HYPSOMETRY_IDS: height_ids,
