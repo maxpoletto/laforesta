@@ -27,7 +27,7 @@ const IpsoModes = (function() {
     [IPSO_MODE_SAMPLES]: {
       id: IPSO_MODE_SAMPLES,
       labelKey: 'MODE_SAMPLES',
-      preTitleKey: 'PRE_NEW_SAMPLES',
+      preTitleKey: 'MODE_SAMPLES',
       buttonId: 'btn-mode-samples',
       autoHeight: false,
       blankSmallNumber: false,
@@ -68,6 +68,13 @@ const IpsoModes = (function() {
       observations: true,
       enabled: true,
     },
+    [IPSO_MODE_POINTS]: {
+      id: IPSO_MODE_POINTS,
+      labelKey: 'MODE_POINTS',
+      preTitleKey: 'MODE_POINTS',
+      buttonId: 'btn-mode-points',
+      enabled: true,
+    },
     [IPSO_MODE_MAP]: {
       id: IPSO_MODE_MAP,
       labelKey: 'MODE_MAP',
@@ -88,7 +95,7 @@ const IpsoModes = (function() {
   function all() {
     return [
       defs[IPSO_MODE_SAMPLES],
-      defs[IPSO_MODE_FREE_SURVEY],
+      defs[IPSO_MODE_POINTS],
       defs[IPSO_MODE_MARTELLATE],
       defs[IPSO_MODE_OBSERVATIONS],
       defs[IPSO_MODE_MAP],
@@ -100,6 +107,7 @@ const IpsoModes = (function() {
     SAMPLES: IPSO_MODE_SAMPLES,
     FREE_SURVEY: IPSO_MODE_FREE_SURVEY,
     OBSERVATIONS: IPSO_MODE_OBSERVATIONS,
+    POINTS: IPSO_MODE_POINTS,
     MAP: IPSO_MODE_MAP,
     get, defaultMode, all,
   };
@@ -108,7 +116,7 @@ const IpsoModes = (function() {
 if (typeof module !== 'undefined') {
   module.exports = {
     IPSO_MODE_MARTELLATE, IPSO_MODE_SAMPLES, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_OBSERVATIONS, IPSO_MODE_MAP,
+    IPSO_MODE_OBSERVATIONS, IPSO_MODE_POINTS, IPSO_MODE_MAP,
     IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX,
     IpsoModes,
   };

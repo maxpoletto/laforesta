@@ -58,6 +58,7 @@ function createUploadFlow(opts) {
     document.getElementById('upload-attempt').textContent =
       S.UPLOAD_ATTEMPT(current.attempt);
 
+    const attempt = current;
     const ac = new AbortController();
     current.abortController = ac;
     try {
@@ -65,15 +66,21 @@ function createUploadFlow(opts) {
         token: opts.uploadToken(),
         sessionId: current.sessionId,
         payload: current.payload,
+        reference: opts.reference?.(),
+        onProgress: (n, total) => {
+          if (current !== attempt) return;
+          document.getElementById('upload-detail').textContent = S.UPLOAD_PROGRESS(n, total);
+        },
         signal: ac.signal,
         maxBytes: opts.uploadMaxBytes ? opts.uploadMaxBytes() : undefined,
       });
-      await completeUpload();
+      if (current === attempt) await completeUpload();
     } catch (err) {
+      if (current !== attempt) return;
       if (err && err.klass === 'aborted') return;
       failAttempt(err);
     } finally {
-      if (current) current.abortController = null;
+      if (current === attempt) current.abortController = null;
     }
   }
 

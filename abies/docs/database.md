@@ -127,6 +127,18 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
     cannot be imported or have its mode changed again. The staged source stays
     intact so its excluded rows can be exported for CSV correction/recovery.
 
+  - For the `points` mode, `work_package_id` displays the point-set name and
+    `record_count` counts explicit points and contiguous trace segments.
+
+- ipso_ipsouploadpage: (id:int, session_id:string, offset:int, end:int,
+  transfer:string, checksum:string, received_at:datetime, body:binary nullable,
+  upload_id:int nullable)
+  - One receipt per (session_id, offset). Offsets and the exclusive end count
+    raw records. Pending pages retain their validated records, CSV slice and
+    optional photos. Finishing a session publishes one `IpsoUpload`, links
+    its receipts and clears their binary bodies in the same transaction.
+    Deleting the completed upload also removes its receipts.
+
 ## Geographic concepts
 
 - region: (id:int, name:string)

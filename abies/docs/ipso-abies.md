@@ -146,6 +146,40 @@ open sessions remain exportable and pending uploads remain retryable or
 local-only, but recording cannot resume until reference data is available. Field
 sessions and trees remain in IndexedDB throughout.
 
+### Starting a field session
+
+The landing page offers `Rilevamento alberi`, `Rilevamento punti`,
+`Martellata` and `Osservazione`. For trees, the first option in
+`Rilevamento` is `Rilevamento libero`. Selecting a named survey opens
+its existing grid-based recording form.
+
+A point survey uses the same required `Operatore`, `Data` and `Compresa`
+fields as a tree survey and also requires `Nome del rilevamento`. The local
+CSV includes the three session fields alongside the recorded fixes.
+`Registra punto` and `Avvia traccia` both start green. Starting a trace
+turns its button yellow and shows a red recording dot and the number of GPS
+positions saved since tapping `Avvia traccia`. A one-second window starts
+with the first fix in each group. Ipso saves the fix with the smallest
+reported horizontal error in the window, retaining the first on a tie.
+A single fix is saved when its window expires. Pausing, opening a point
+note or ending the session saves the current winner immediately.
+The dot pulses unless the device requests reduced motion.
+`Pausa traccia` stops the current segment.
+`Registra punto` captures the current fresh fix (or the
+first fresh fix received in the form) and accepts an optional 200-character
+note. Opening the form interrupts an active trace. The yellow button then
+reads `Traccia in pausa` and the dot disappears. Saving or cancelling
+resumes it at the next new fix. A discarded note adds no point. A loss of
+fresh GPS fixes or hiding the app also breaks the segment. Reopening a saved
+session starts with tracing paused. Each saved fix retains its original coordinates,
+timestamp and reported horizontal accuracy in metres in IndexedDB, the CSV
+and the staged session.
+
+All recording modes display live GPS error to the nearest whole metre. The
+GPS dot and warning use that same rounded value. A fresh fix at 5.49 m
+displays as ±5 m, and a fix at 5.50 m displays as ±6 m and shows the warning.
+The operator can still record either fix. Trace selection uses full precision.
+
 ### Species catch-all choices
 
 New-tree species pulldowns
@@ -254,10 +288,12 @@ store; it does not alter saved session or tree records.
 ## Ipso -> Abies data
 
 When an operator ends a non-empty Ipso session, the PWA first downloads a local
-CSV backup to the phone. It then posts a canonical JSON payload to:
+CSV backup to the phone. A session that fits one request uses the original
+endpoint. Larger sessions use ordered pages.
 
 ```text
 POST /api/ipso/uploads/
+POST /api/ipso/uploads/pages/
 ```
 
 The request must include:
@@ -281,6 +317,14 @@ The upload body contains:
   the device GPS snapshot captured just
   before the camera opens; gallery photos stay location-free, and photo EXIF
   GPS is ignored because mobile providers commonly strip it.
+
+The PWA sizes each page using the record, byte and photo limits from its
+reference snapshot. The default is 500 raw records per request. A session can
+span any number of pages. Each page carries the same session UUID, transfer
+digest and total raw record count, its zero-based offset, and the corresponding
+slice of records and CSV. On retry, an acknowledged page returns the next
+missing offset. Abies publishes one inbox item only after receiving every
+page. The staged CSV reconstructs the phone export byte for byte.
 
 Every tree save in `martellate`, `samples`, and `free_survey` requires a fresh
 device GPS fix. Ipso stores and uploads that fix's latitude, longitude, and
@@ -306,6 +350,7 @@ Supported modes are:
   distinguishes field measurements from calculated heights;
 - `samples` — predefined/grid-based tree surveys;
 - `free_survey` — free/unstructured tree surveys;
+- `points` — named sets of manual points and continuous trace segments;
 - `observations` — point observations with text, categories, GPS, and
   optional photos. The recording form has separate controls for selecting
   existing gallery photos and opening the camera. Ipso ignores photo EXIF GPS;
@@ -314,9 +359,9 @@ Supported modes are:
   snapshot as photo metadata. The photo list displays filename,
   original/upload size, and `ok`/`errore` conversion status.
 
-Boundary points can be recorded as **Osservazioni**, with coordinates and an
-appropriate category, instead of placeholder trees. Observations require no
-diameter or height and do not enter tree counts or dendrometric statistics.
+The inbox groups consecutive fixes with the same trace segment ID. An explicit
+point gets its own row and note. The complete point set remains available for
+download and future cartography editing.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,
@@ -463,6 +508,7 @@ Device endpoints using the shared bearer:
 - `GET /ipso/terreni.geojson`
 - `GET /api/ipso/history/<mark|survey>/<id>/`
 - `POST /api/ipso/uploads/`
+- `POST /api/ipso/uploads/pages/`
 
 Abies session login required:
 
@@ -493,10 +539,12 @@ The upload endpoint has application-level controls:
 
 - bearer check;
 - request size cap: `ABIES_IPSO_UPLOAD_MAX_BYTES`, default 30 MiB;
-- record count cap: `ABIES_IPSO_UPLOAD_MAX_RECORDS`;
+- per-request record count cap: `ABIES_IPSO_UPLOAD_MAX_RECORDS`, default 500;
 - in-memory rate limit: `ABIES_IPSO_UPLOAD_RATE_LIMIT` per
   `ABIES_IPSO_UPLOAD_RATE_WINDOW_S`;
-- strict payload validation before staging.
+- strict payload validation before staging;
+- expired incomplete transfers are cleared when a new transfer starts, after
+  30 days without an accepted new page.
 
 The application rate-limit key uses Django `REMOTE_ADDR` by default. When the
 request comes from a configured trusted proxy, Abies instead uses the first

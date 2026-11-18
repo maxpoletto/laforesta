@@ -281,6 +281,7 @@ test-js:
 	node apps/ipso/static/ipso/pwa/modes.test.mjs
 	node apps/ipso/static/ipso/pwa/csv.test.mjs
 	node apps/ipso/static/ipso/pwa/gps.test.mjs
+	node apps/ipso/static/ipso/pwa/point-recorder.test.mjs
 	node apps/ipso/static/ipso/pwa/format.test.mjs
 	node apps/ipso/static/ipso/pwa/map.test.mjs
 	node apps/ipso/static/ipso/pwa/photo.test.mjs

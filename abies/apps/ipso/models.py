@@ -7,7 +7,7 @@ from simple_history.models import HistoricalRecords
 from config import strings as S
 from config.constants import (
     IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS,
-    IPSO_MODE_SAMPLES, IPSO_TARGET_HARVEST_PLAN_ITEM,
+    IPSO_MODE_POINTS, IPSO_MODE_SAMPLES, IPSO_TARGET_HARVEST_PLAN_ITEM,
     IPSO_TARGET_OBSERVATIONS, IPSO_TARGET_SURVEY,
     IPSO_UPLOAD_STATE_CONFLICT, IPSO_UPLOAD_STATE_IMPORTED,
     IPSO_UPLOAD_STATE_RECEIVED, IPSO_UPLOAD_STATE_REJECTED,
@@ -18,6 +18,7 @@ class IpsoUploadMode(models.TextChoices):
     MARTELLATE = IPSO_MODE_MARTELLATE, S.IPSO_MODE_MARTELLATE_LABEL
     SAMPLES = IPSO_MODE_SAMPLES, S.IPSO_MODE_SAMPLES_LABEL
     FREE_SURVEY = IPSO_MODE_FREE_SURVEY, S.IPSO_MODE_FREE_SURVEY_LABEL
+    POINTS = IPSO_MODE_POINTS, S.IPSO_MODE_POINTS_LABEL
     OBSERVATIONS = IPSO_MODE_OBSERVATIONS, S.IPSO_MODE_OBSERVATIONS_LABEL
 
 
@@ -81,3 +82,20 @@ class IpsoUpload(models.Model):
 
     def __str__(self):
         return f'{self.mode}:{self.session_id}'
+
+
+class IpsoUploadPage(models.Model):
+    """Durable transport receipt. Only unfinished sessions retain page bodies."""
+    session_id = models.CharField(max_length=64)
+    offset = models.PositiveBigIntegerField()
+    end = models.PositiveBigIntegerField()
+    transfer = models.CharField(max_length=64)
+    checksum = models.CharField(max_length=64)
+    received_at = models.DateTimeField(auto_now_add=True)
+    body = models.BinaryField(null=True)
+    upload = models.ForeignKey(IpsoUpload, null=True, on_delete=models.CASCADE)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['session_id', 'offset'], name='ipso_page_offset'),
+        ]

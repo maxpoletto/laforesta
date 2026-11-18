@@ -24,6 +24,7 @@
 
   <main id="main">
 
+    <div id="gps-warning" class="gps-warning" role="status" hidden></div>
     <div id="banner-reference" class="banner hidden"></div>
     <div id="banner-storage" class="banner hidden"></div>
 
@@ -32,7 +33,7 @@
       <h1 id="mode-title"></h1>
       <div class="mode-list">
         <button id="btn-mode-samples" class="btn-secondary btn-big" type="button"></button>
-        <button id="btn-mode-free-survey" class="btn-secondary btn-big" type="button"></button>
+        <button id="btn-mode-points" class="btn-secondary btn-big" type="button"></button>
         <button id="btn-mode-observations" class="btn-secondary btn-big" type="button"></button>
         <button id="btn-mode-martellate" class="btn-secondary btn-big" type="button"></button>
         <button id="btn-mode-map" class="btn-secondary btn-big" type="button"></button>
@@ -62,6 +63,10 @@
         <label class="field">
           <span class="lbl" id="lbl-compresa"></span>
           <select id="in-compresa" required></select>
+        </label>
+        <label class="field" id="field-point-name" hidden>
+          <span class="lbl" id="lbl-point-name"></span>
+          <input id="in-point-name" type="text" maxlength="100" autocomplete="off">
         </label>
         <label class="field" id="field-sample-survey" hidden>
           <span class="lbl" id="lbl-sample-survey"></span>
@@ -156,6 +161,22 @@
         <div id="observation-photo-list" class="photo-list"></div>
       </div>
 
+      <div id="point-controls" hidden>
+        <button type="button" id="point-add" class="btn-primary btn-big"></button>
+        <button type="button" id="trace-toggle" class="btn-primary btn-big"
+                aria-labelledby="trace-action" aria-describedby="trace-progress">
+          <span id="trace-action"></span>
+          <span id="trace-progress" hidden></span>
+        </button>
+        <div id="point-entry" hidden>
+          <label class="field">
+            <span class="lbl" id="lbl-point-note"></span>
+            <input id="point-note" type="text" maxlength="200" autocomplete="off">
+          </label>
+          <button type="button" id="point-save" class="btn-primary btn-big"></button>
+          <button type="button" id="point-cancel" class="btn-secondary btn-big"></button>
+        </div>
+      </div>
       <div id="numpad" class="numpad"></div>
 
       <button id="btn-save" class="btn-primary btn-big" type="button" disabled></button>
@@ -274,6 +295,7 @@
   <script src="ipso.js"></script>
   <script src="session.js"></script>
   <script src="download.js"></script>
+  <script src="point-recorder.js"></script>
   <script src="gps.js"></script>
   <script src="numpad.js"></script>
   <script src="store.js"></script>

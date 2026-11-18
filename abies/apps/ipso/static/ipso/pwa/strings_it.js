@@ -10,10 +10,32 @@ const S = {
 
   // Mode select screen
   MODE_TITLE: 'Ipso',
-  MODE_MARTELLATE: 'Martellate',
-  MODE_SAMPLES: 'Rilevamenti predefiniti',
+  MODE_MARTELLATE: 'Martellata',
+  MODE_SAMPLES: 'Rilevamento alberi',
+  MODE_POINTS: 'Rilevamento punti',
+  UPLOAD_PROGRESS: (n, total) => `Dati inviati: ${n}/${total}`,
+  POINT_NAME: 'Nome del rilevamento',
+  POINT_NOTE: 'Nota (facoltativa)',
+  POINT_ADD: 'Registra punto',
+  POINT_SAVE: 'Salva punto',
+  TRACE_START: 'Avvia traccia',
+  TRACE_PAUSE: 'Pausa traccia',
+  TRACE_PAUSED: 'Traccia in pausa',
+  TRACE_SAVED: n => n === 1 ? '1 posizione salvata' : `${n} posizioni salvate`,
+  POINT: 'Punto',
+  TRACE: 'Traccia',
+  POINT_FIX_COUNT: n => n === 1 ? '1 posizione' : `${n} posizioni`,
+  END_POINTS: n => `Posizioni registrate: ${n}. Esportare il CSV e chiudere?`,
+  EMPTY_POINTS: 'Nessuna posizione registrata.',
+  POINT_DONE: 'Rilevamento punti esportato.',
+  POINT_UPLOADED: 'Rilevamento punti caricato.',
+  GPS_WARNING: meters => `Attenzione: errore GPS superiore a ±${meters} m`,
+  POINT_HEADERS: [
+    'Rilevamento', 'Sequenza', 'Traccia', 'Ora GPS', 'Lat', 'Lon', 'Acc. (m)', 'Nota',
+    'Operatore', 'Data', 'Compresa',
+  ],
   MODE_FREE_SURVEYS: 'Rilevamenti liberi',
-  MODE_OBSERVATIONS: 'Osservazioni',
+  MODE_OBSERVATIONS: 'Osservazione',
   MODE_PAI: 'PAI',
   MODE_MAP: 'Mappa',
   MODE_HISTORY: 'Storico',
@@ -42,7 +64,7 @@ const S = {
   PRE_COMPRESA: 'Compresa',
   PRE_PARTICELLA: 'Particella',
   PRE_SURVEY: 'Rilevamento',
-  PRE_PICK_SURVEY: '— scegli un rilevamento —',
+  PRE_PICK_SURVEY: 'Rilevamento libero',
   PRE_CATASTROFATA: 'Piante catastrofate',
   PRE_PICK_COMPRESA: '— scegli una compresa —',
   PRE_START: 'Inizia',
@@ -287,6 +309,7 @@ const S = {
   // overwritten dynamically by the parcel-locator subscriber.
   where(session) {
     if (!session) return '';
+    if (session.point_set_name) return session.point_set_name;
     if (session.catastrofata) {
       return `${session.compresa} · ${S.CATASTROFATE}`;
     }

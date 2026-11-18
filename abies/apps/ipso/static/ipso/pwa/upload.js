@@ -70,16 +70,21 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   if (!isSupportedUploadMode(mode)) throw new Error(S.UPLOAD_ERROR_MODE_UNSUPPORTED);
   const regionId = Number.isInteger(sess[FIELD_REGION_ID])
     ? sess[FIELD_REGION_ID]
-    : regionIdForName(reference, sess.compresa);
-  const records = mode === IPSO_MODE_OBSERVATIONS
+    : mode === IPSO_MODE_POINTS ? null : regionIdForName(reference, sess.compresa);
+  const records = mode === IPSO_MODE_POINTS
+    ? trees.map(t => ({
+      client_record_id: String(t.seq), date: sess.data, segment: t.segment,
+      taken_at: t.taken_at, note: t.note, lat: t.lat, lon: t.lon, acc_m: t.acc_m,
+    }))
+    : mode === IPSO_MODE_OBSERVATIONS
     ? trees.map((t) => canonicalObservationRecord(sess, t))
     : trees.map((t) => canonicalRecord(sess, t, reference));
-  validatePhotoLimits(records, reference);
   validateRecordNumbers(sess, records, reference);
   const payload = {
     [SESSION]: {
       [FIELD_SESSION_ID]: sess.id,
       [FIELD_MODE]: mode,
+      ...(mode === IPSO_MODE_POINTS && { name: sess.point_set_name }),
       [FIELD_SCHEMA_VERSION]: UPLOAD_SCHEMA_VERSION,
       [FIELD_REFERENCE_VERSION]:
         sess.reference_version || reference.reference_version || '',
@@ -93,14 +98,14 @@ function buildUploadPayload(sess, trees, reference, csvText) {
     [RECORDS]: records,
     [FIELD_CSV_TEXT]: csvText || '',
   };
-  if (estimatedUploadBytes(payload) > uploadMaxBytes(reference)) {
-    throw new Error(S.UPLOAD_ERROR_TOO_LARGE);
-  }
+  const ends = planUploadPages(payload, reference);
+  // Freeze page boundaries with the session for retries after an app restart.
+  if (ends.length > 1) payload.page_ends = ends;
   return payload;
 }
 
 function isSupportedUploadMode(mode) {
-  return mode === IPSO_MODE_MARTELLATE ||
+  return mode === IPSO_MODE_POINTS || mode === IPSO_MODE_MARTELLATE ||
     mode === IPSO_MODE_SAMPLES ||
     mode === IPSO_MODE_FREE_SURVEY ||
     mode === IPSO_MODE_OBSERVATIONS;
@@ -199,7 +204,7 @@ function canonicalRecord(sess, t, reference) {
 
 function validateRecordNumbers(sess, records, reference) {
   const mode = sess.mode || IPSO_MODE_MARTELLATE;
-  if (mode === IPSO_MODE_MARTELLATE || mode === IPSO_MODE_OBSERVATIONS) return;
+  if (mode === IPSO_MODE_POINTS || mode === IPSO_MODE_MARTELLATE || mode === IPSO_MODE_OBSERVATIONS) return;
   if (mode === IPSO_MODE_FREE_SURVEY) {
     validateFreeSurveyNumbers(records, reference);
     return;
@@ -490,7 +495,95 @@ function multipartBody(payload) {
 
 // Posts the canonical staged JSON payload. Resolves with { duplicate: bool } on
 // 200, throws UploadError otherwise. Caller passes signal for cancellation.
+// The CSV is an opaque backup. Distribute its text over the same requests and
+// concatenate on receipt, preserving quoted newlines, BOM and Unicode exactly.
+function uploadPage(payload, offset, end, transfer) {
+  const total = payload.records.length;
+  const csv = payload.csv_text || '';
+  function boundary(index) {
+    const position = Math.floor(csv.length * index / total);
+    const code = csv.charCodeAt(position);
+    return code >= 0xdc00 && code <= 0xdfff ? position - 1 : position;
+  }
+  return {
+    session: payload.session,
+    records: payload.records.slice(offset, end),
+    csv_text: csv.slice(boundary(offset), boundary(end)),
+    total, offset, transfer,
+  };
+}
+
+function planUploadPages(payload, reference, byteLimit = uploadMaxBytes(reference)) {
+  const configured = reference?.upload?.max_records;
+  const maxRecords = Number.isSafeInteger(configured) && configured > 0 ? configured : 500;
+  const total = payload.records.length;
+  let offset = 0;
+  const ends = [];
+  while (offset < total) {
+    let count = Math.min(total - offset, maxRecords);
+    while (true) {
+      const page = offset === 0 && count === total ? payload
+        : uploadPage(payload, offset, offset + count, '0'.repeat(64));
+      try {
+        validatePhotoLimits(page.records, reference);
+        if (estimatedUploadBytes(page) > byteLimit) throw new Error(S.UPLOAD_ERROR_TOO_LARGE);
+        break;
+      } catch (error) {
+        if (count === 1) throw error;
+        count = Math.ceil(count / 2);
+      }
+    }
+    offset += count;
+    ends.push(offset);
+  }
+  return ends;
+}
+
+async function hexDigest(bytes) {
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return Array.from(hash, n => n.toString(16).padStart(2, '0')).join('');
+}
+
+async function transferDigest(payload) {
+  const encoder = new TextEncoder();
+  const hashes = [await hexDigest(encoder.encode(JSON.stringify(stripUploadPayloadFiles(payload))))];
+  for (const row of payload.records) {
+    for (const photo of row.photos || []) {
+      if (photo.blob) hashes.push(await hexDigest(await photo.blob.arrayBuffer()));
+    }
+  }
+  return hexDigest(encoder.encode(hashes.join('')));
+}
+
 async function uploadSession(args) {
+  const { payload, reference, maxBytes } = args;
+  let ends;
+  try {
+    ends = payload.page_ends || planUploadPages(payload, reference, maxBytes);
+  } catch (error) {
+    throw new UploadError('hard:too_large', error.message);
+  }
+  if (ends.length <= 1) return postUpload(args, '/api/ipso/uploads/');
+  const boundaries = new Set(ends);
+  const transfer = await transferDigest(payload);
+  let offset = 0;
+  let result;
+  for (const end of ends) {
+    if (end <= offset) continue;
+    args.onProgress?.(offset, payload.records.length);
+    result = await postUpload({
+      ...args, payload: uploadPage(payload, offset, end, transfer),
+    }, '/api/ipso/uploads/pages/');
+    if (!Number.isSafeInteger(result.nextOffset) || result.nextOffset < end ||
+        result.nextOffset > payload.records.length || !boundaries.has(result.nextOffset)) {
+      throw new UploadError('hard:conflict');
+    }
+    offset = result.nextOffset;
+  }
+  return result;
+}
+
+async function postUpload(args, url) {
   const { token, sessionId, payload, signal, maxBytes } = args;
   const hasFiles = uploadPayloadHasFiles(payload);
   const estimatedBytes = estimatedUploadBytes(payload);
@@ -506,7 +599,7 @@ async function uploadSession(args) {
 
   let resp;
   try {
-    resp = await fetch('/api/ipso/uploads/', {
+    resp = await fetch(url, {
       method: 'POST',
       headers,
       body,
@@ -523,6 +616,7 @@ async function uploadSession(args) {
     return {
       duplicate: !!responsePayload.duplicate,
       storedAs: responsePayload.stored_as,
+      nextOffset: responsePayload.next_offset,
     };
   }
   let detail = '';
@@ -542,7 +636,7 @@ const upload = {
   DEFAULT_SAMPLE_RADIUS_M,
   BACKOFF_SCHEDULE_MS, BACKOFF_CAP_MS,
   backoffMs, classifyHttp, classifyNetwork, distanceMeters,
-  estimatedUploadBytes, uploadMaxBytes,
+  estimatedUploadBytes, uploadMaxBytes, planUploadPages,
   validatePhotoLimits,
   isSupportedUploadMode, validateRecordNumbers, sampleSurveyIdFromWorkPackage,
   sampleMaxNumberForArea,

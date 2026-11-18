@@ -110,6 +110,11 @@ function eq(actual, expected, msg) {
     coords: { latitude: 38.1, longitude: 16.2, accuracy: 7, heading: 42 },
   });
   eq(gps.state().fix.heading, 42, 'gps fix carries browser heading when present');
+  for (const [accuracy, tier] of [[5, 'green'], [5.49, 'green'], [5.5, 'yellow'], [30.5, 'red']]) {
+    geolocationSuccess({ coords: { latitude: 38.1, longitude: 16.2, accuracy } });
+    eq(gps.state().tier, tier, `status colour uses whole metres for ${accuracy} m`);
+    eq(gps.state().fix.acc, accuracy, 'raw GPS accuracy survives display rounding');
+  }
 }
 
 {

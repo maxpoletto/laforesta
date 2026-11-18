@@ -5,6 +5,7 @@ const {
   IPSO_MODE_MARTELLATE,
   IPSO_MODE_SAMPLES,
   IPSO_MODE_FREE_SURVEY,
+  IPSO_MODE_POINTS,
   IPSO_MODE_OBSERVATIONS,
   IPSO_MODE_MAP,
   IpsoModes,
@@ -28,15 +29,13 @@ const allModes = IpsoModes.all();
 
 eq(allModes.map((mode) => mode.id), [
   IPSO_MODE_SAMPLES,
-  IPSO_MODE_FREE_SURVEY,
+  IPSO_MODE_POINTS,
   IPSO_MODE_MARTELLATE,
   IPSO_MODE_OBSERVATIONS,
   IPSO_MODE_MAP,
-], "landing mode order keeps predefined surveys first");
+], "landing offers tree and point surveys first");
 
-const freeSurvey = allModes.find((mode) =>
-  mode.id === IPSO_MODE_FREE_SURVEY
-);
+const freeSurvey = IpsoModes.get(IPSO_MODE_FREE_SURVEY);
 check(Boolean(freeSurvey), "free-survey mode is present");
 check(freeSurvey.enabled === true, "free-survey mode is enabled");
 check(freeSurvey.labelKey === "MODE_FREE_SURVEYS",

@@ -23,6 +23,7 @@ const State = {
   inAutoFill: false,  // true while recomputeAutoH() is writing to h
   saveLockUntil: 0,   // ms timestamp; Salva is disabled while now < this
   saveInProgress: false,
+  closingSession: false,
   gps: null,          // GPS controller
   locator: null,      // parcel-locator instance (one per recording session)
   numpad: null,       // numpad controller
@@ -32,6 +33,7 @@ const State = {
   wakeLock: null,     // active WakeLockSentinel during recording (or null)
   currentScreen: null, // id of the visible screen
   lastFix: null,       // most recent fresh GPS fix, { lat, lon, acc, heading, t }
+  pointRecorder: null,
   sampleAreaId: null,  // selected/inferred sample-area id in sample mode
   parcelName: null,    // selected/inferred parcel name in parcel-based modes
   map: null,           // lazy orientation map controller
@@ -267,6 +269,7 @@ async function boot() {
   wireHistory();
   wirePreSession();
   wireRecording();
+  wirePoints();
   wireMap();
   wireUpload();
   wireDone();
@@ -741,6 +744,10 @@ function applyModeUi() {
   const surveySelect = document.getElementById('in-sample-survey');
   const freeOptions = document.getElementById('field-free-survey-options');
   const observationOptions = document.getElementById('field-observation-options');
+  const points = currentMode().id === IpsoModes.POINTS;
+  const pointField = document.getElementById('field-point-name');
+  pointField.hidden = !points;
+  document.getElementById('in-point-name').required = points;
   const marks = currentMode().id === IpsoModes.MARTELLATE;
   const samples = currentMode().id === IpsoModes.SAMPLES;
   const freeSurvey = currentMode().id === IpsoModes.FREE_SURVEY;
@@ -765,11 +772,16 @@ function modeStringFor(mode, field, fallback) {
 }
 
 
+function isPointSession(sess = State.session) {
+  return !!sess && sess.mode === IpsoModes.POINTS;
+}
+
 function isObservationSession(sess) {
   return !!sess && sess.mode === IpsoModes.OBSERVATIONS;
 }
 
 function countLabel(sess, n) {
+  if (isPointSession(sess)) return S.POINT_FIX_COUNT(n);
   if (isObservationSession(sess)) {
     return `${n} osservazion${n === 1 ? 'e' : 'i'}`;
   }
@@ -777,14 +789,17 @@ function countLabel(sess, n) {
 }
 
 function endBody(sess, n) {
+  if (isPointSession(sess)) return S.END_POINTS(n);
   return isObservationSession(sess) ? S.END_BODY_OBSERVATIONS(n) : S.END_BODY(n);
 }
 
 function doneBody(sess, n) {
+  if (isPointSession(sess)) return S.POINT_DONE;
   return isObservationSession(sess) ? S.DONE_BODY_OBSERVATIONS(n) : S.DONE_BODY(n);
 }
 
 function uploadDoneBody(sess, n) {
+  if (isPointSession(sess)) return S.POINT_UPLOADED;
   return isObservationSession(sess)
     ? S.UPLOAD_DONE_BODY_OBSERVATIONS(n)
     : S.UPLOAD_DONE_BODY(n);
@@ -814,6 +829,8 @@ function enterPreSession(modeId) {
     return;
   }
   setMode(mode.id);
+  document.getElementById('in-point-name').value = '';
+  document.getElementById('in-sample-survey').value = '';
   populateSampleSurveyOptions();
   showScreen('screen-pre');
 }
@@ -919,10 +936,12 @@ function wirePreSession() {
     const date = document.getElementById('in-data').value;
     const regionName = document.getElementById('in-compresa').value;
     const damaged = document.getElementById('in-catastrofata').checked;
-    const modeId = currentMode().id;
     const sampleSurveyId = selectedSampleSurveyId();
-    if (!operator || !date || !regionName) return;
-    if (modeId === IpsoModes.SAMPLES && sampleSurveyId == null) return;
+    let modeId = currentMode().id;
+    if (modeId === IpsoModes.SAMPLES && sampleSurveyId == null) modeId = IpsoModes.FREE_SURVEY;
+    const points = modeId === IpsoModes.POINTS;
+    const pointName = document.getElementById('in-point-name').value.trim();
+    if (!operator || !date || !regionName || (points && !pointName)) return;
 
     // Fire the GPS permission prompt now (during setup, not mid-mark).
     // Runs in parallel with the rest of submit so the permission prompt
@@ -937,6 +956,7 @@ function wirePreSession() {
       );
       const sess = await Store.startSession(State.db, {
         mode: modeId,
+        point_set_name: points ? pointName : undefined,
         reference_version: State.reference.reference_version || '',
         work_package_id: modeId === IpsoModes.SAMPLES
           ? IPSO_WORK_PACKAGE_SAMPLING_SURVEY_PREFIX + sampleSurveyId
@@ -945,9 +965,13 @@ function wirePreSession() {
           ? region[FIELD_REGION_ID] : null,
         [FIELD_SURVEY_ID]: modeId === IpsoModes.SAMPLES ? sampleSurveyId : null,
         // Keep the existing stored-session shape at this boundary.
-        data: date, compresa: regionName, operatore: operator, catastrofata: damaged,
+        data: date,
+        compresa: regionName,
+        operatore: operator,
+        catastrofata: damaged,
       });
       State.session = sess;
+      setMode(modeId);
       State.lastGroup = '';
       State.sampleAreaId = null;
       State.parcelName = null;
@@ -1061,6 +1085,61 @@ function onHeightMeasuredToggle() {
   updateSaveEnabled();
 }
 
+function wirePoints() {
+  const el = id => document.getElementById(id);
+  for (const [id, label] of [
+    ['lbl-point-name', S.POINT_NAME], ['lbl-point-note', S.POINT_NOTE],
+    ['point-add', S.POINT_ADD], ['point-save', S.POINT_SAVE], ['point-cancel', S.REC_CANCEL],
+  ]) el(id).textContent = label;
+  el('trace-toggle').addEventListener('click', () => {
+    if (State.closingSession) return;
+    State.pointRecorder.toggle();
+    State.pointRecorder.onFix(State.lastFix);
+    updatePointControls();
+  });
+  el('point-add').addEventListener('click', () => {
+    if (State.closingSession) return;
+    State.pointRecorder.begin(State.lastFix);
+    el('point-note').value = '';
+    updatePointControls();
+    el('point-note').focus();
+  });
+  el('point-cancel').addEventListener('click', () => {
+    State.pointRecorder.cancel();
+    updatePointControls();
+  });
+  el('point-save').addEventListener('click', async () => {
+    const save = State.pointRecorder.save(el('point-note').value);
+    updatePointControls();
+    try { await save; }
+    catch (error) { showToast(S.TOAST_SAVE_ERROR(error.message)); }
+    updatePointControls();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) State.pointRecorder?.interrupt();
+  });
+  window.addEventListener('pagehide', () => State.pointRecorder?.interrupt());
+}
+
+function updatePointControls() {
+  const recorder = State.pointRecorder;
+  if (!recorder) return;
+  const toggle = document.getElementById('trace-toggle');
+  const progress = document.getElementById('trace-progress');
+  toggle.classList.toggle('tracing', recorder.tracing);
+  let action = S.TRACE_START;
+  if (recorder.tracing) action = recorder.editing ? S.TRACE_PAUSED : S.TRACE_PAUSE;
+  document.getElementById('trace-action').textContent = action;
+  progress.hidden = !recorder.tracing;
+  progress.textContent = recorder.tracing ? S.TRACE_SAVED(recorder.savedFixes) : '';
+  document.getElementById('point-entry').hidden = !recorder.editing;
+  document.getElementById('point-save').disabled = !recorder.canSave;
+  document.getElementById('point-cancel').disabled = recorder.saving;
+  for (const id of ['point-add', 'trace-toggle', 'btn-end', 'btn-view-data', 'btn-rec-map']) {
+    document.getElementById(id).disabled = recorder.editing || State.closingSession;
+  }
+}
+
 function wireMap() {
   document.getElementById('btn-rec-map').addEventListener('click', () => {
     enterMapScreen('screen-rec');
@@ -1073,6 +1152,36 @@ function wireMap() {
 }
 
 function enterRecording() {
+  const points = isPointSession();
+  State.pointRecorder = null;
+  document.getElementById('point-controls').hidden = !points;
+  document.getElementById('btn-save').hidden = points;
+  if (points) {
+    const sess = State.session;
+    State.pointRecorder = createPointRecorder({
+      newId: Store.uuid,
+      append: async row => {
+        sess.tree_count = await Store.addPosition(State.db, sess.id, row);
+      },
+      onTraceSaved: updatePointControls,
+      onError: error => {
+        showToast(S.TOAST_SAVE_ERROR(error.message));
+        updatePointControls();
+      },
+    });
+    applyRecordingModeUi();
+    State.lastFix = State.locator = State.override = null;
+    document.getElementById('sub-status').textContent = sess.point_set_name;
+    document.getElementById('rec-where').textContent = sess.point_set_name;
+    updatePointControls();
+    showScreen('screen-rec');
+    startGps();
+    acquireWakeLock();
+    return;
+  }
+  for (const id of ['btn-end', 'btn-view-data', 'btn-rec-map']) {
+    document.getElementById(id).disabled = false;
+  }
   if (!isObservationMode()) populateSpeciesOptions();
   populateGruppo();
   applyRecordingModeUi();
@@ -1101,11 +1210,12 @@ function enterRecording() {
 // "__auto__" form is unambiguous as a non-particella token.
 function applyRecordingModeUi() {
   const observation = isObservationMode();
+  const hideTree = observation || isPointSession();
   for (const id of ['row-specie-number', 'row-parcel-group', 'row-dh']) {
     const el = document.getElementById(id);
-    if (el) el.hidden = observation;
+    if (el) el.hidden = hideTree;
   }
-  document.getElementById('numpad').hidden = observation;
+  document.getElementById('numpad').hidden = hideTree;
   document.getElementById('field-observation-options').hidden = !observation;
   document.getElementById('hint-autoh').hidden = true;
   document.getElementById('field-free-survey-options').hidden =
@@ -1424,19 +1534,22 @@ function startGps() {
   State.gps.start();
 }
 
+function gpsPositionText(fix) {
+  return IpsoFormat.fmtCoord(fix.lat) + ' ' + IpsoFormat.fmtCoord(fix.lon) +
+    ' ±' + IpsoFormat.fmtInt(Math.round(fix.acc)) + ' m';
+}
+
 function renderGpsStatus(st) {
+  const warning = document.getElementById('gps-warning');
+  const fresh = st.fix && (st.age == null || st.age < GPS_STALE_MS);
+  warning.hidden = !fresh || st.tier === 'green';
+  warning.textContent = warning.hidden ? '' : S.GPS_WARNING(GPS_GREEN_M);
+  State.pointRecorder?.onFix(fresh && !document.hidden ? st.fix : null);
   const dot = document.getElementById('gps-dot');
   const text = document.getElementById('gps-text');
   if (dot) dot.className = 'gps-dot ' + st.tier;
-  if (st.fix && (st.age == null || st.age < GPS_STALE_MS)) {
-    // Keep the line a fixed shape so it doesn't jitter the rec-header on
-    // narrow screens. The dot already encodes accuracy tier; the
-    // GPS-stale fallback below kicks in after GPS_STALE_MS.
-    if (text) {
-      text.textContent =
-        IpsoFormat.fmtCoord(st.fix.lat) + ' ' + IpsoFormat.fmtCoord(st.fix.lon) +
-        ' ±' + Math.round(st.fix.acc) + ' m';
-    }
+  if (fresh) {
+    if (text) text.textContent = gpsPositionText(st.fix);
     State.lastFix = {
       lat: st.fix.lat,
       lon: st.fix.lon,
@@ -1886,6 +1999,7 @@ function currentHypsoParamSetId() {
 }
 
 function updateSaveEnabled() {
+  if (isPointSession()) { updatePointControls(); return; }
   const hint = document.getElementById('hint-autoh');
   if (hint && !isObservationMode()) {
     const height = Number(State.numpad?.value('h'));
@@ -1905,7 +2019,7 @@ function updateSaveEnabled() {
 }
 
 async function onSave() {
-  if (State.saveInProgress || Date.now() < State.saveLockUntil || !State.session) return;
+  if (State.saveInProgress || State.closingSession || Date.now() < State.saveLockUntil || !State.session) return;
   State.saveInProgress = true;
   document.getElementById('btn-save').disabled = true;
   try {
@@ -2020,9 +2134,14 @@ async function onDeleteTree(treeId) {
 }
 
 async function onEnd() {
-  if (State.saveInProgress) return;
+  if (State.saveInProgress || State.closingSession || State.pointRecorder?.editing) return;
+  State.closingSession = true;
   hideModal('modal-confirm-end');
   try {
+    if (State.pointRecorder) {
+      updatePointControls();
+      await State.pointRecorder.stop();
+    }
     const trees = await Store.listTrees(State.db, State.session.id);
     trees.sort((a, b) => a.seq - b.seq);
     if (trees.length === 0) {
@@ -2058,6 +2177,9 @@ async function onEnd() {
     uploadFlow().enter(State.session.id, uploadPayload, trees.length);
   } catch (e) {
     showToast(S.TOAST_EXPORT_ERROR(e.message));
+  } finally {
+    State.closingSession = false;
+    updatePointControls();
   }
 }
 
@@ -2239,6 +2361,7 @@ function currentPaiSpeciesColors() {
 function formatMapRecordText(rec) {
   if (!rec) return '';
   if (State.mapHistory) return formatHistoryMapRecordText(rec);
+  if (isPointSession()) return rec.note || (rec.segment ? S.TRACE : S.POINT);
   if (isObservationMode()) {
     const text = rec[FIELD_TEXT] || '';
     const cats = Array.isArray(rec[FIELD_CATEGORIES])
@@ -2343,10 +2466,7 @@ function updateMapHeader() {
   } else if (committed) {
     sub.textContent = formatParcelText(committed);
   } else if (State.lastFix) {
-    sub.textContent =
-      IpsoFormat.fmtCoord(State.lastFix.lat) + ' ' +
-      IpsoFormat.fmtCoord(State.lastFix.lon) +
-      ' ±' + Math.round(State.lastFix.acc) + ' m';
+    sub.textContent = gpsPositionText(State.lastFix);
   } else {
     sub.textContent = S.MAP_WAITING;
   }
@@ -2366,6 +2486,26 @@ async function enterDataScreen() {
     return;
   }
   trees.sort((a, b) => a.seq - b.seq);
+  if (isPointSession()) {
+    document.getElementById('section-data-groups').hidden = true;
+    document.getElementById('data-trees-h').textContent = State.session.point_set_name;
+    const table = document.getElementById('data-trees-table');
+    table.replaceChildren();
+    let lastSegment = null, countCell, count;
+    for (const fix of trees) {
+      if (!fix.segment || fix.segment !== lastSegment) {
+        const row = table.insertRow();
+        row.insertCell().textContent = fix.segment ? S.TRACE : S.POINT;
+        row.insertCell().textContent = fix.note;
+        countCell = row.insertCell();
+        count = 0;
+      }
+      countCell.textContent = S.POINT_FIX_COUNT(++count);
+      lastSegment = fix.segment;
+    }
+    showScreen('screen-data');
+    return;
+  }
   const showGroups = !isFreeSurveyMode() && !isObservationMode();
   document.getElementById('section-data-groups').hidden = !showGroups;
   document.getElementById('data-trees-h').textContent = isObservationMode()
@@ -2630,6 +2770,7 @@ function uploadFlow() {
     uploadFlowInstance = createUploadFlow({
       db: () => State.db,
       uploadToken: () => State.bearerToken,
+      reference: () => State.reference,
       uploadMaxBytes: () => upload.uploadMaxBytes(State.reference),
       stopRecording: stopRecordingSensors,
       acquireWakeLock,
@@ -2643,6 +2784,7 @@ function uploadFlow() {
 }
 
 function stopRecordingSensors() {
+  State.pointRecorder = null;
   if (State.gps) {
     State.gps.stop();
     State.gps = null;
@@ -2659,7 +2801,8 @@ async function closeEmptySession(sess) {
   releaseWakeLock();
   document.getElementById('done-title').textContent = S.DONE_EMPTY_TITLE;
   document.getElementById('done-body').textContent =
-    isObservationSession(sess) ? S.DONE_EMPTY_BODY_OBSERVATIONS : S.DONE_EMPTY_BODY;
+    isPointSession(sess) ? S.EMPTY_POINTS :
+      isObservationSession(sess) ? S.DONE_EMPTY_BODY_OBSERVATIONS : S.DONE_EMPTY_BODY;
   showScreen('screen-done');
 }
 
@@ -2865,8 +3008,13 @@ async function pendingUploadPayload(s) {
     }
     const records = Array.isArray(s.upload_payload[RECORDS])
       ? s.upload_payload[RECORDS] : [];
+    let payload = s.upload_payload;
+    if (!payload.page_ends) {
+      const ends = upload.planUploadPages(payload, State.reference);
+      if (ends.length > 1) payload = await Store.freezePendingPayload(State.db, s.id, payload, ends);
+    }
     return {
-      uploadPayload: s.upload_payload,
+      uploadPayload: payload,
       treeCount: Number.isInteger(s.upload_tree_count)
         ? s.upload_tree_count : records.length,
     };
@@ -2890,8 +3038,9 @@ async function pendingUploadPayload(s) {
     showToast(S.TOAST_EXPORT_ERROR(e.message));
     return { uploadPayload: null, treeCount: 0 };
   }
+  const payload = upload.buildUploadPayload(s, trees, State.reference, csvText);
   return {
-    uploadPayload: upload.buildUploadPayload(s, trees, State.reference, csvText),
+    uploadPayload: await Store.freezePendingPayload(State.db, s.id, payload, payload.page_ends || []),
     treeCount: trees.length,
   };
 }
@@ -2921,6 +3070,9 @@ function formatItalianDate(ymd) {
 
 function showScreen(id) {
   State.currentScreen = id;
+  if (!['screen-map', 'screen-rec', 'screen-data'].includes(id)) {
+    document.getElementById('gps-warning').hidden = true;
+  }
   for (const el of document.querySelectorAll('main > section.screen')) {
     el.hidden = el.id !== id;
   }

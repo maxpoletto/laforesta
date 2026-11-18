@@ -9,7 +9,7 @@ class ObservationUploadHandler(FileUploadHandler):
     def __init__(self, request=None):
         super().__init__(request)
         self.budget = UploadBudget() if getattr(request, 'path_info', '') in {
-            '/api/bosco/observations/save/', '/api/ipso/uploads/',
+            '/api/bosco/observations/save/', '/api/ipso/uploads/', '/api/ipso/uploads/pages/',
         } else None
 
     def new_file(self, *args, **kwargs):

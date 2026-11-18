@@ -415,9 +415,21 @@ check(
         'setSessionPendingUpload persists the payload tree count');
 }
 
+// The first retry after an upgrade fixes the page boundaries for later retries.
+{
+  const original = { records: [{ client_record_id: '7' }, { client_record_id: '9' }] };
+  const db = makeStoreDb({ sessions: [
+    { id: 'legacy', status: Store.STATUS_PENDING_UPLOAD, upload_payload: original },
+  ] });
+  const first = await Store.freezePendingPayload(db, 'legacy', original, [1, 2]);
+  const second = await Store.freezePendingPayload(db, 'legacy', {records: []}, []);
+  check(same(first.page_ends, [1, 2]) && same(first, second),
+        'retries reuse the first stored page plan and original record identities');
+}
+
 // Every append transaction must recheck whether the session is still open.
 for (const status of [Store.STATUS_PENDING_UPLOAD, Store.STATUS_EXPORTED, Store.STATUS_ABANDONED]) {
-  for (const method of ['addTree', 'addObservation']) {
+  for (const method of ['addTree', 'addObservation', 'addPosition']) {
     const db = makeStoreDb({ sessions: [{ id: 's1', status, tree_count: 0 }] });
     let rejected = false;
     try { await Store[method](db, 's1', { numero: null }); } catch (_) { rejected = true; }

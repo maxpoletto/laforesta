@@ -49,6 +49,16 @@ def upload_record_date(payload: dict) -> str:
     return min(dates) if dates else ''
 
 
+def count_preview_rows(records, previous_segment=None):
+    count = 0
+    for row in records:
+        segment = row.get('segment')
+        if not segment or segment != previous_segment:
+            count += 1
+        previous_segment = segment
+    return count
+
+
 def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
     session = payload[SESSION]
     return {
@@ -56,9 +66,9 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
         FIELD_MODE: session[FIELD_MODE],
         FIELD_SCHEMA_VERSION: session[FIELD_SCHEMA_VERSION],
         FIELD_REFERENCE_VERSION: session.get(FIELD_REFERENCE_VERSION, ''),
-        FIELD_WORK_PACKAGE_ID: session.get(FIELD_WORK_PACKAGE_ID, ''),
+        FIELD_WORK_PACKAGE_ID: session.get('name', session.get(FIELD_WORK_PACKAGE_ID, '')),
         FIELD_OPERATOR: session.get(FIELD_OPERATOR, ''),
-        'record_count': len(payload[RECORDS]),
+        'record_count': count_preview_rows(payload[RECORDS]),
         'record_date': upload_record_date(payload),
         'checksum': checksum,
         'inbox_path': str(inbox_path),

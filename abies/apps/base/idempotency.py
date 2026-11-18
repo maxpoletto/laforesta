@@ -43,7 +43,7 @@ def prepare_nonce_write(request):
         return None
     # The public mobile upload protocol uses its own session UUID/checksum
     # receipts, not the authenticated web forms' nonce protocol.
-    if request.path_info == '/api/ipso/uploads/':
+    if request.path_info in {'/api/ipso/uploads/', '/api/ipso/uploads/pages/'}:
         return None
     user = getattr(request, 'user', None)
     if user is None or not user.is_authenticated:

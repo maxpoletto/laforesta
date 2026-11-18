@@ -166,7 +166,9 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'href="/static/base/css/map-basemaps.css"' in body
     assert 'id="screen-mode"' in body
     assert 'id="btn-mode-samples" class="btn-secondary btn-big" type="button"' in body
-    assert 'id="btn-mode-free-survey" class="btn-secondary btn-big" type="button"' in body
+    assert 'id="btn-mode-free-survey"' not in body
+    assert 'id="btn-mode-points" class="btn-secondary btn-big" type="button"' in body
+    assert 'src="point-recorder.js"' in body
     assert 'id="btn-mode-history" class="btn-secondary btn-big" type="button"' in body
     assert 'id="screen-history"' in body
     assert 'id="btn-mode-pai"' not in body
@@ -723,13 +725,13 @@ def _observation_payload(
     return {SESSION: session, RECORDS: [record], FIELD_CSV_TEXT: 'csv backup'}
 
 
-def _post_multipart_upload(client, payload, files, token='test-token'):
+def _post_multipart_upload(client, payload, files, token='test-token', route='ipso-upload-session'):
     session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
     session_id = session.get(FIELD_SESSION_ID, '') if isinstance(session, dict) else ''
     data = {'payload': json.dumps(payload)}
     data.update(files)
     return client.post(
-        reverse('ipso-upload-session'),
+        reverse(route),
         data=data,
         HTTP_AUTHORIZATION=f'Bearer {token}',
         HTTP_X_IPSO_SESSION_ID=session_id,
@@ -1884,7 +1886,7 @@ def test_admin_downloads_staged_upload_zip(
     assert resp['Content-Type'] == 'application/zip'
     assert 'no-store' in resp['Cache-Control']
     assert f'ipso-upload-{upload.session_id}.zip' in resp['Content-Disposition']
-    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+    zf = zipfile.ZipFile(io.BytesIO(_body(resp)))
     assert sorted(zf.namelist()) == ['export.csv', 'upload.json', 'upload.sha256']
     assert json.loads(zf.read('upload.json'))[SESSION][FIELD_MODE] == IPSO_MODE_MARTELLATE
     assert zf.read('export.csv').decode() == 'csv backup'
@@ -3464,3 +3466,110 @@ def test_import_rejects_reader(reader_client, parcels, species, settings, tmp_pa
     assert TreeMark.objects.count() == 0
     upload.refresh_from_db()
     assert upload.state == IpsoUploadState.RECEIVED
+
+
+@pytest.mark.django_db
+@override_settings(IPSO_SECRET='test-token')
+def test_paged_point_survey_replays_and_previews_contiguous_segments(settings, tmp_path, writer_client):
+    from apps.ipso.models import IpsoUploadPage
+
+    settings.IPSO_INBOX_DIR = tmp_path
+    session_id = 'c766fb79-575d-471c-82d5-7bd7408ff9bf'
+    session = {
+        'session_id': session_id, 'mode': 'points', 'schema_version': 1,
+        'damaged': False, 'name': 'Pista nord',
+    }
+    segments = [session_id] * 501 + [None, '10000000-0000-4000-8000-000000000002',
+                                        None, '10000000-0000-4000-8000-000000000003']
+    fixes = [{
+        'client_record_id': str(i + 1), 'date': '2026-11-18', 'segment': segment,
+        'lat': 38.123456789, 'lon': 16.987654321, 'acc_m': 3.012345,
+        'taken_at': '2026-11-18T09:00:00.123Z', 'note': '' if segment else 'Cancello',
+    } for i, segment in enumerate(segments)]
+
+    def send(offset, rows, csv_text='', **changes):
+        return writer_client.post(reverse('ipso-upload-page'), {
+            'session': session, 'records': rows, 'csv_text': csv_text,
+            'offset': offset, 'total': len(fixes), 'transfer': 'a' * 64, **changes,
+        }, content_type='application/json', HTTP_AUTHORIZATION='Bearer test-token',
+            HTTP_X_IPSO_SESSION_ID=session_id)
+
+    assert send(0, fixes[:501]).status_code == 422
+    assert send(500, fixes[500:]).status_code == 409
+    assert not IpsoUploadPage.objects.exists()
+    first = send(0, fixes[:500], 'prima parte')
+    assert first.json()['next_offset'] == 500
+    # The legacy endpoint cannot publish just the prefix of an in-flight session.
+    assert _post_upload(Client(), {'session': session, 'records': fixes[:1]}).status_code == 409
+    assert not IpsoUpload.objects.exists()
+    assert send(0, fixes[:500], 'prima parte').json() == first.json()
+    assert send(0, fixes[:500], 'conflitto').status_code == 409
+    assert send(500, fixes[500:], transfer='b' * 64).status_code == 409
+    invalid = [fixes[0], *fixes[501:]]
+    assert send(500, invalid).status_code == 409
+    assert send(500, fixes[500:], ' seconda parte').status_code == 200
+    assert send(0, fixes[:500], 'prima parte').json()['next_offset'] == len(fixes)
+    assert send(500, fixes[500:], ' seconda parte').json()['duplicate']
+    upload = IpsoUpload.objects.get()
+    assert upload.record_count == 5
+    assert not IpsoUploadPage.objects.exclude(body=None).exists()
+    payload, err = ipso_views._read_staged_payload(upload)
+    assert not err
+    assert payload['records'] == fixes
+    assert (Path(upload.inbox_path) / 'export.csv').read_text() == 'prima parte seconda parte'
+    detail = writer_client.get(reverse('ipso-upload-detail', args=[upload.id])).json()
+    assert detail['record_count'] == 5
+    assert detail['session']['name'] == 'Pista nord'
+    assert [r['fix_count'] for r in detail['records']] == [501, 1, 1, 1, 1]
+    assert [r['note'] for r in detail['records']] == ['', 'Cancello', '', 'Cancello', '']
+    assert detail['targets'] == []
+
+
+@pytest.mark.django_db
+@override_settings(IPSO_SECRET='test-token', IPSO_UPLOAD_MAX_RECORDS=1)
+def test_paged_tree_upload_preserves_ids_and_imports_once(settings, tmp_path, writer_client, parcels, species):
+    settings.IPSO_INBOX_DIR = tmp_path
+    payload = _upload_payload(parcels, species)
+    record = payload['records'][0]
+    for offset, original_id in enumerate(['7', '11']):
+        page = dict(payload, offset=offset, total=2, transfer='e' * 64,
+                    records=[dict(record, client_record_id=original_id, number=offset + 1)])
+        response = writer_client.post(reverse('ipso-upload-page'), page,
+                                      content_type='application/json', HTTP_AUTHORIZATION='Bearer test-token')
+        assert response.status_code == 200, response.content
+    upload = IpsoUpload.objects.get()
+    staged, error = ipso_views._read_staged_payload(upload)
+    assert not error
+    assert [r['client_record_id'] for r in staged['records']] == ['7', '11']
+    item = _harvest_item(parcels)
+    body = {'harvest_plan_item_id': item.pk, 'nonce': 'page-import'}
+    url = reverse('ipso-upload-import-martellate', args=[upload.pk])
+    for _ in range(2):
+        response = writer_client.post(url, body, content_type='application/json')
+        assert response.status_code == 200, response.content
+    assert TreeMark.objects.filter(harvest_plan_item=item).count() == 2
+
+
+@override_settings(IPSO_SECRET='test-token', IPSO_UPLOAD_MAX_RECORDS=1)
+def test_paged_observations_preserve_photos(settings, tmp_path, parcels, writer_client):
+    settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
+    settings.OBSERVATION_MEDIA_DIR = tmp_path / 'media'
+    category = ObservationCategory.objects.get(name='viabilità')
+    payload = _observation_payload(parcels[0], category)
+    for offset in range(2):
+        photo_id = f'photo-{offset}'
+        record = dict(payload[RECORDS][0], client_record_id=str(offset + 1),
+                      photos=[{FIELD_CLIENT_PHOTO_ID: photo_id, FIELD_CHECKSUM: hashlib.sha256(JPEG_BYTES).hexdigest()}])
+        page = dict(payload, records=[record], offset=offset, total=2, transfer='b' * 64)
+        missing = _post_multipart_upload(Client(), page, {}, route='ipso-upload-page')
+        assert missing.status_code == 422
+        files = {'photo:' + photo_id: SimpleUploadedFile('campo.jpg', JPEG_BYTES, content_type='image/jpeg')}
+        response = _post_multipart_upload(Client(), page, files, route='ipso-upload-page')
+        assert response.status_code == 200, response.content
+    upload = IpsoUpload.objects.get()
+    for offset in range(2):
+        assert (Path(upload.inbox_path) / 'photos' / f'photo-{offset}').read_bytes() == JPEG_BYTES
+    response = writer_client.post(reverse('ipso-upload-import-observations', args=[upload.id]),
+                                  {}, content_type='application/json')
+    assert response.status_code == 200, response.content
+    assert ObservationPhoto.objects.filter(observation__upload_session_id=upload.session_id).count() == 2

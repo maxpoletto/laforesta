@@ -8,6 +8,7 @@ urlpatterns = [
     path('history/<str:history_kind>/<int:history_id>/',
          views.history_detail, name='ipso-history-detail'),
     path('inbox/', views.inbox_data, name='ipso-inbox-data'),
+    path('uploads/pages/', views.upload_session, {'paged': True}, name='ipso-upload-page'),
     path('uploads/', views.upload_session, name='ipso-upload-session'),
     path('uploads/<int:upload_id>/', views.upload_detail, name='ipso-upload-detail'),
     path('uploads/<int:upload_id>/reject/', views.reject_upload, name='ipso-upload-reject'),

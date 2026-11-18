@@ -281,6 +281,7 @@ async function startSession(db, fields) {
   const damaged = !!fields.catastrofata;
   const row = {
     id,
+    point_set_name: fields.point_set_name,
     schema_version: SCHEMA_VERSION,
     mode: fields.mode || IPSO_MODE_MARTELLATE,
     status: STATUS_OPEN,
@@ -359,6 +360,21 @@ async function setSessionPendingUpload(db, id, uploadPayload, treeCount) {
     row.upload_payload = uploadPayload;
     row.upload_tree_count = Number.isInteger(treeCount) ? treeCount : null;
     store.put(row);
+  });
+}
+
+// Older pending sessions may predate frozen payloads or page boundaries.
+async function freezePendingPayload(db, id, candidate, ends) {
+  return tx(db, [STORE_SESSIONS], 'readwrite', async transaction => {
+    const sessions = transaction.objectStore(STORE_SESSIONS);
+    const row = await req(sessions.get(id));
+    if (!row || row.status !== STATUS_PENDING_UPLOAD) throw new Error(S.STORE_ERROR_SESSION_CHANGED);
+    const payload = row.upload_payload || candidate;
+    if (!payload.page_ends && ends.length > 1) payload.page_ends = ends;
+    row.upload_payload = payload;
+    row.upload_tree_count = payload.records.length;
+    sessions.put(row);
+    return payload;
   });
 }
 
@@ -531,6 +547,22 @@ async function addObservation(db, sessionId, rec) {
   });
 }
 
+// Point sessions only append fixes; keep the sequence and count in the same
+// transaction as each fix without scanning an entire walking track.
+async function addPosition(db, sessionId, fix) {
+  return tx(db, [STORE_SESSIONS, STORE_TREES], 'readwrite', async t => {
+    const sessions = t.objectStore(STORE_SESSIONS);
+    const sess = await req(sessions.get(sessionId));
+    requireOpenSession(sess, sessionId);
+    const seq = sess.last_seq + 1;
+    await req(t.objectStore(STORE_TREES).add({ ...fix, session_id: sessionId, seq }));
+    sess.last_seq = seq;
+    sess.tree_count++;
+    sessions.put(sess);
+    return sess.tree_count;
+  });
+}
+
 async function listTrees(db, sessionId) {
   return tx(db, [STORE_TREES], 'readonly', (t) =>
     req(t.objectStore(STORE_TREES).index('by_session').getAll(sessionId))
@@ -607,9 +639,9 @@ const Store = {
   getCachedBootResources, cacheReference, cacheTerreni,
   historyMetaKey, getCachedHistoryDetail, cacheHistoryDetail,
   startSession, getSession, listResumableSessions, listRecoverableSessions,
-  setSessionStatus, setSessionPendingUpload,
+  setSessionStatus, setSessionPendingUpload, freezePendingPayload,
   setSessionUploadStatus,
-  addTree, addObservation, listTrees, deleteTree, lastTree, numberExists,
+  addTree, addObservation, addPosition, listTrees, deleteTree, lastTree, numberExists,
   getNextNumberForOperator,
   uuid,
 };

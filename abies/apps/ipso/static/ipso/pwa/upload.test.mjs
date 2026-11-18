@@ -1,4 +1,6 @@
 import { createRequire } from 'module';
+import { webcrypto } from 'node:crypto';
+import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
 const upload = require('./upload.js');
@@ -454,6 +456,51 @@ check(
   upload.classifyNetwork() === 'soft:network',
   'classifyNetwork keeps network failures retryable',
 );
+
+// An older frozen observation payload has no page plan. Simulate a lost
+// response after the server accepted page two, then restart from the snapshot.
+{
+  if (!globalThis.crypto) globalThis.crypto = webcrypto;
+  const csvText = '\uFEFFnome;nota\r\n"è;🌲\n"\r\n';
+  const photos = observationPayload.records[0].photos;
+  const payload = {
+    session: observationPayload.session, csv_text: csvText,
+    records: Array.from({length: 3}, (_, i) => ({
+      ...observationPayload.records[0], client_record_id: String(i + 1),
+      photos: [{ ...photos[0], client_photo_id: 'photo-' + i }],
+    })),
+  };
+  const args = {sessionId: payload.session.session_id, token: 'device', payload,
+    reference: {upload: {photo_limits: {max_files: 1}}}};
+  const pages = new Map();
+  const attempts = [];
+  const realFetch = globalThis.fetch;
+  let nextOffset = 0;
+  try {
+    globalThis.fetch = async (url, request) => {
+      assert.equal(url, '/api/ipso/uploads/pages/');
+      const page = JSON.parse(request.body.get('payload'));
+      attempts.push(page.offset);
+      assert.equal(await request.body.get('photo:photo-' + page.offset).text(), 'abc');
+      if (pages.has(page.offset)) assert.deepEqual(page, pages.get(page.offset));
+      else {
+        assert.equal(page.offset, nextOffset);
+        pages.set(page.offset, page);
+        nextOffset += page.records.length;
+      }
+      if (attempts.length === 2) throw new Error('offline');
+      return {status: 200, json: async () => ({ next_offset: nextOffset })};
+    };
+    await assert.rejects(upload.uploadSession(args), error => error.klass === 'soft:network');
+    await upload.uploadSession({ ...args, payload: structuredClone(payload) });
+    assert.deepEqual(attempts, [0, 1, 0, 2]);
+    assert.equal([...pages.values()].map(page => page.csv_text).join(''), csvText);
+    assert.equal(new Set([...pages.values()].map(page => page.transfer)).size, 1);
+    pass++;
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
 
 if (failures.length) {
   console.error(failures.join('\n'));

@@ -417,6 +417,53 @@ button {
   background: var(--red);
   display: inline-block;
 }
+#point-controls, #point-entry {
+  display: grid;
+  gap: 10px;
+}
+#trace-toggle {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-block: 4px;
+}
+#trace-toggle.tracing {
+  background: #ffe082; /* Active tool yellow on the Abies map. */
+  color: var(--gray-1);
+}
+#trace-progress {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+#trace-toggle.tracing:enabled::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+}
+@media (prefers-reduced-motion: no-preference) {
+  #trace-toggle.tracing:enabled::after {
+    animation: recording-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes recording-pulse {
+    50% { opacity: .2; }
+  }
+}
+.gps-warning {
+  background: #9c201d;
+  color: white;
+  font-weight: 700;
+  padding: 4px .6rem;
+  margin-bottom: 6px;
+  text-align: center;
+}
 .gps-dot.green  { background: var(--green); }
 .gps-dot.yellow { background: var(--yellow); }
 .gps-dot.red    { background: var(--red); }

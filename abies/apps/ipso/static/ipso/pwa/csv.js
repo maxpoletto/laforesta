@@ -80,6 +80,7 @@ function includeObservations(session) {
 }
 
 function csvHeader(session) {
+  if (session?.mode === IPSO_MODE_POINTS) return S.POINT_HEADERS;
   if (includeObservations(session)) return S.CSV_HEADER_OBSERVATIONS;
   const header = includeSampleArea(session)
     ? [...HEADER.slice(0, 3), SAMPLE_AREA_HEADER, ...HEADER.slice(3)]
@@ -106,6 +107,12 @@ function formatHeader(session) {
 }
 
 function formatRow(rec, session, reference) {
+  if (session?.mode === IPSO_MODE_POINTS) {
+    return [session.point_set_name, rec.seq, rec.segment, rec.taken_at,
+      rec.lat.toString().replace('.', ','), rec.lon.toString().replace('.', ','),
+      rec.acc_m.toString().replace('.', ','), rec.note,
+      session.operatore, formatDate(session.data), session.compresa].map(escapeField).join(CSV_SEP);
+  }
   if (includeObservations(session)) return formatObservationRow(rec, session);
   const damaged = !!session.catastrofata;
   // Particella is per-tree (auto-detected or manually overridden) so it
@@ -180,7 +187,7 @@ function filename(session, now, kind, seq) {
   const hhmm = pad2(now.getHours()) + pad2(now.getMinutes());
   const parts = ['ipso'];
   if (includeObservations(session)) parts.push(S.CSV_FILENAME_OBSERVATIONS);
-  parts.push(regionName);
+  parts.push(session.mode === IPSO_MODE_POINTS ? sanitize(session.point_set_name) : regionName);
   if (session.catastrofata) parts.push(FILENAME_DAMAGED);
   parts.push(date, hhmm);
   let base = parts.join('_');

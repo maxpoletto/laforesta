@@ -12,10 +12,6 @@
 // battery while the operator is in pre_session or done screens.
 'use strict';
 
-// Accuracy thresholds calibrated for forest GPS. Open-sky phone GPS gives 3-10
-// m; under tree canopy 10-20 m is typical and usable per-tree fix for marking.
-// Anything > 30 m is flagged red.
-const GPS_GREEN_M = 10;
 const GPS_YELLOW_M = 30;
 // Restart the watcher if no fresh fix has arrived in this long. Tightened
 // from 8 s to 3 s — under canopy the OS sometimes delivers callbacks
@@ -46,10 +42,11 @@ function createGps(onChange) {
       return { fix: null, tier: 'red', error: lastError, restarts: restartCount };
     }
     const age = Date.now() - fix.t;
+    const accuracyM = Math.round(fix.acc);
     let tier;
-    if (age > GPS_STALE_MS) tier = 'red';
-    else if (fix.acc <= GPS_GREEN_M) tier = 'green';
-    else if (fix.acc <= GPS_YELLOW_M) tier = 'yellow';
+    if (age >= GPS_STALE_MS) tier = 'red';
+    else if (accuracyM <= GPS_GREEN_M) tier = 'green';
+    else if (accuracyM <= GPS_YELLOW_M) tier = 'yellow';
     else tier = 'red';
     return { fix, tier, error: null, age, restarts: restartCount };
   }
@@ -78,7 +75,7 @@ function createGps(onChange) {
           lon: pos.coords.longitude,
           acc: pos.coords.accuracy,
           heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
-          t: Date.now(),
+          t: pos.timestamp ?? Date.now(),
         };
         lastError = null;
         permissionDenied = false;

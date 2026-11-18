@@ -110,7 +110,7 @@ in R2 keep their priorities.
 | P2 | S4 Dependency versions need a reproducible security-update policy | Fixed in branch | Upgraded locks/manifests, pinned base, inventories and automated checks; GitHub activation remains |
 | P2 | R2 Restore documentation and replacement sequencing need hardening | Open, partly addressed | Photo restore docs/validation and unique archive publication done; broader maintenance/mirroring remains |
 | P3 | R3 SQLite acknowledged writes are not durable across every host failure | Deferred | SQLite-specific; revisit durability against the PostgreSQL target |
-| P2 | R4 Ipso can record more rows than its upload API accepts | Open | Source review |
+| P2 | R4 Ipso can record more rows than its upload API accepts | Fixed | Resumable pages and import regressions |
 | P3 | M1 Scientific identity depends on editable species labels | Fixed | Species-ID height/volume configuration, unified Settings editor and previewed batch imports |
 | P3 | M2 Version/modification semantics differ across writers | Fixed | [Row-by-row implementation and tests](proposal-m2-versioning.md#implementation-progress); edit tokens, row clocks and digest ETags remain distinct |
 | P3 | M3 Duplication and mixed internal naming | Completed within agreed scope | [D01–D15 dispositions and naming boundary](audit-m3-duplication-and-naming.md#implementation-progress); stored/wire renaming paused |
@@ -540,6 +540,14 @@ This is an explicit durability tradeoff, not evidence of corruption or observed 
 
 ### R4 Ipso can record more rows than its upload API accepts
 
+**Resolution.** The mobile app publishes a long session in ordered, retryable
+pages with stable record IDs. The record limit applies per request. The inbox
+receives a single session once all pages arrive. Regression coverage includes
+505 fixes, a segment crossing pages, interrupted transfers, tree import and
+observation photos. See [Ipso integration](../ipso-abies.md#ipso---abies-data).
+
+Original finding follows.
+
 Sources: [configured maximum](../../config/settings.py), line 54; [published upload limits](../../apps/ipso/views.py), line 295; [upload validation](../../apps/ipso/views.py), line 1973; [mobile session completion](../../apps/ipso/static/ipso/pwa/app.js).
 
 The server defaults to a maximum of 500 records per session upload. Reference data publishes the byte limit, not the record limit, and the app does not stop or roll over recording at that count. A legitimate long field session can therefore be completed into a frozen payload that the server rejects.
@@ -841,8 +849,8 @@ Regression coverage and outstanding cases:
   snapshot lock lifetime through nonce commit hooks.
 - [ ] R2: interrupted instance replacement, full maintenance serialization and
   operational/off-host application recovery drills.
-- [ ] R4: recording at/beyond the published session limit; upgrades with old
-  open/pending sessions and photo blobs.
+- [x] R4: sessions exceeding the per-request limit, frozen payloads, replay
+  after interruption, stable record IDs and multipart photo uploads.
 
 ## Overall assessment
 

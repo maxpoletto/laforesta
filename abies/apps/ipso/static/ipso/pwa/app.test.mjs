@@ -11,6 +11,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const { Store: RealStore } = createRequire(import.meta.url)('./store.js');
 const RealUpload = createRequire(import.meta.url)('./upload.js');
 const RealIpso = createRequire(import.meta.url)('./ipso.js');
+const { GPS_GREEN_M } = createRequire(import.meta.url)('./constants.js');
+const { S: catalog } = createRequire(import.meta.url)('./strings_it.js');
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, updateSaveEnabled, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
@@ -126,6 +128,10 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       id: 'martellate', labelKey: 'MODE_MARTELLATE',
       buttonId: 'btn-mode-martellate', enabled: true,
     },
+    points: {
+      id: 'points', labelKey: 'MODE_POINTS', preTitleKey: 'MODE_POINTS',
+      buttonId: 'btn-mode-points', enabled: true,
+    },
     samples: {
       id: 'samples', labelKey: 'MODE_SAMPLES',
       buttonId: 'btn-mode-samples', enabled: true,
@@ -144,7 +150,8 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     APP_UPDATE: 'Aggiorna app',
     APP_UPDATING: 'Aggiornamento…',
     MODE_MARTELLATE: 'Martellate',
-    MODE_SAMPLES: 'Rilevamenti predefiniti',
+    MODE_SAMPLES: 'Rilevamento alberi',
+    MODE_POINTS: 'Rilevamento punti',
     MODE_FREE_SURVEYS: 'Rilevamenti liberi',
     MODE_MAP: 'Mappa',
     MODE_HISTORY: 'Storico',
@@ -179,6 +186,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     TOAST_SAVE_ERROR: detail => `save error: ${detail}`,
     TOAST_SAVE_FOLLOWUP_ERROR: detail => `saved; follow-up error: ${detail}`,
     GPS_PERMISSION_BANNER: 'gps denied',
+    GPS_WARNING: catalog.GPS_WARNING,
     PRE_PICK_COMPRESA: 'pick region',
     PRE_PICK_SURVEY: 'pick survey',
     PRE_NEW_FREE_SURVEY: 'Nuovo rilevamento libero',
@@ -221,6 +229,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     IPSO_BEARER_STORAGE_KEY: 'ipso.bearer_token',
     IPSO_OPERATOR_STORAGE_KEY: 'ipso.operatore',
     IPSO_SPECIES_STORAGE_KEY: 'ipso.specie',
+    GPS_GREEN_M,
     GPS_STALE_MS: 10000,
     SAVE_COOLDOWN_MS: 300,
     SAVE_COOLDOWN_RECHECK_MS: 320,
@@ -322,6 +331,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     S: strings,
     IpsoModes: {
       MARTELLATE: 'martellate',
+      POINTS: 'points',
       SAMPLES: 'samples',
       FREE_SURVEY: 'free_survey',
       OBSERVATIONS: 'observations',
@@ -329,7 +339,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       defaultMode() { return modes.martellate; },
       all() {
         return [
-          modes.samples, modes.free_survey, modes.martellate,
+          modes.samples, modes.points, modes.martellate,
           modes.map,
         ];
       },
@@ -373,6 +383,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       async setSessionPendingUpload(_db, sessionId, payload, count) {
         events.push(['setSessionPendingUpload', sessionId, payload, count]);
       },
+      async freezePendingPayload(_db, _id, payload) { return payload; },
       async setSessionUploadStatus() { events.push('setSessionUploadStatus'); },
     },
     csv: {
@@ -382,6 +393,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     },
     upload: {
       validatePhotoLimits: RealUpload.validatePhotoLimits,
+      planUploadPages: RealUpload.planUploadPages,
       uploadMaxBytes() { return 30 * 1024 * 1024; },
       distanceMeters() { return 0; },
       buildUploadPayload() {
@@ -408,6 +420,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
       formatBytes(bytes) { return `${bytes} B`; },
     },
     IpsoFormat: {
+      fmtDecimal: (v, n) => v.toFixed(n).replace('.', ','),
       fmtCoord(value) { return Number(value).toFixed(6); },
       fmtInt(value) { return String(Number(value)); },
       fmtDecimal2(value) { return Number(value).toFixed(2).replace('.', ','); },
@@ -461,30 +474,23 @@ const session = {
   tree_count: 1,
 };
 
-// The free-survey landing entry starts the standard pre-session flow but is
-// marked local-only until Abies import support lands in the next CL.
+// Both field survey entry points are reachable from the landing page.
 {
   const { context, elements } = makeHarness();
   const app = context.__ipsoAppTest;
   app.State.reference = referenceFixture();
   app.wireModeSelection();
-
-  const samplesButton = elements.get('btn-mode-samples');
-  const freeButton = elements.get('btn-mode-free-survey');
-  check(samplesButton.textContent === 'Rilevamenti predefiniti',
-        'sample mode is labelled as predefined surveys');
-  check(!samplesButton.disabled, 'predefined survey mode remains enabled');
-  check(freeButton.textContent === 'Rilevamenti liberi',
-        'free-survey mode is labelled on the landing page');
-  check(!freeButton.disabled, 'free-survey mode is enabled');
-
-  await freeButton.click();
-  check(app.State.mode.id === 'free_survey',
-        'free-survey button selects the free-survey mode');
-  check(app.State.currentScreen === 'screen-pre',
-        'free-survey button opens the pre-session screen');
-  check(elements.get('pre-title').textContent === 'Nuovo rilevamento libero',
-        'free-survey pre-session title is localized');
+  const trees = elements.get('btn-mode-samples');
+  check(trees.textContent === 'Rilevamento alberi', 'tree survey landing label');
+  await trees.click();
+  check(!elements.get('field-sample-survey').hidden &&
+        elements.get('in-sample-survey').options[0].value === '',
+        'free survey is the first tree survey option');
+  const points = elements.get('btn-mode-points');
+  check(points.textContent === 'Rilevamento punti', 'point survey landing label');
+  await points.click();
+  check(!elements.get('field-point-name').hidden && elements.get('in-point-name').required,
+        'point surveys ask for a name');
 }
 
 // A previously provisioned device keeps using the bearer secret stored before
@@ -1380,6 +1386,26 @@ for (const failure of ['session-refresh', 'preference', 'backup']) {
 
   check(!events.includes('addObservation'),
         'observation save requires at least one category');
+}
+
+// The recording readout, map header and warning agree at the rounding boundary.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const warning = context.document.getElementById('gps-warning');
+  const fix = { lat: 38, lon: 16, t: 1000, acc: 5.5 };
+  app.renderGpsStatus({ fix, age: 0, tier: 'yellow' });
+  check(!warning.hidden && warning.textContent.includes('±5 m'),
+        'a fix rounded to six metres shows the five-metre warning');
+  const gpsText = context.document.getElementById('gps-text');
+  const mapText = context.document.getElementById('map-sub');
+  check(gpsText.textContent.endsWith('±6 m') && mapText.textContent === gpsText.textContent,
+        'both GPS readouts display six metres when the warning appears');
+  app.renderGpsStatus({ fix: { ...fix, acc: 5.49 }, age: 0, tier: 'green' });
+  check(warning.hidden && gpsText.textContent.endsWith('±5 m') && mapText.textContent === gpsText.textContent,
+        'a fix rounded to five metres displays five and clears the warning');
+  app.renderGpsStatus({ fix, age: context.GPS_STALE_MS, tier: 'red' });
+  check(warning.hidden, 'a stale fix does not show a live accuracy warning');
 }
 
 // Observation GPS captured when the observation starts remains authoritative.

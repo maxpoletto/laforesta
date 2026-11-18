@@ -21,6 +21,12 @@ Row actions:
 - Trash: admin-only staged-upload delete, after the forced `Esporta` download
   step.
 
+Paged sessions appear once, after the final page arrives. For a
+`Rilevamento punti` the work context is the point-set name, and the row count
+is the number of explicit points plus contiguous trace segments. Point sets
+support preview, export and rejection. Conversion to cartography features is
+reserved for the future editor.
+
 The navigation badge counts uploads still in `received` state.
 
 ## Detail panel
@@ -35,6 +41,13 @@ categories, and photo count. Ipso observation position comes from the initial
 device GPS fix captured when the observation form opens, with save-time GPS
 used only as a fallback; camera photos may also carry device GPS metadata
 captured before the camera opens. Ipso ignores photo EXIF GPS.
+
+For point surveys the preview follows capture order. Each trace row shows
+first and last fix time, fix count and maximum reported GPS error. A manually
+recorded point shows its note, coordinates, time and error. A walk with two
+marked points between three trace segments therefore has five preview
+rows. The staged JSON and CSV contain each point and each fix selected by
+the device for the trace, including its original timestamp and accuracy.
 
 Target selectors appear only when the current user can import and the upload is
 still `received`.

@@ -39,7 +39,7 @@ import {
   FIELD_SURVEY_ID, FIELD_TARGET_LABEL, FIELD_TEXT,
   FIELD_WORK_PACKAGE_LABEL, FILE_ERROR,
   IPSO_MODE_FREE_SURVEY, IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS,
-  IPSO_MODE_SAMPLES,
+  IPSO_MODE_POINTS, IPSO_MODE_SAMPLES,
   IPSO_REFERENCE_LEGACY_CONVERTED,
   IPSO_UPLOAD_STATE_IMPORTED, IPSO_UPLOAD_STATE_RECEIVED,
   MESSAGE, PENDING_COUNT, RECORD_COUNT, RECORDS, ROLE_ADMIN, ROLE_READER, ROWS,
@@ -148,6 +148,7 @@ let selectedId = null;
 let disposeEscape = null;
 let includeImportedEl = null;
 let inboxStateIndex = -1;
+let inboxModeIndex = -1;
 let parcelsGeo = null;
 
 cache.register(DATA_ID, DATA_URL);
@@ -179,6 +180,7 @@ function buildPage(el, params, data) {
 
   const state = readTableState(params);
   inboxStateIndex = inboxStateColumnIndex(data);
+  inboxModeIndex = data?.columns?.indexOf(S.IPSO_COL_MODE) ?? -1;
   table = new TableWrapper({
     container: tableHost,
     digest: data,
@@ -211,7 +213,7 @@ function inboxActions() {
       key: 'mode',
       title: S.ACTION_EDIT,
       icon: '✎',
-      visible: row => !isImportedInboxRow(row),
+      visible: row => !isImportedInboxRow(row) && row[inboxModeIndex] !== S.IPSO_MODE_POINTS_LABEL,
       onClick: id => showModeModal(id),
     }];
     actions.onDelete = id => confirmDeleteUpload(id);
@@ -237,6 +239,7 @@ function applyParams(params) {
 
 function refreshTable(data) {
   inboxStateIndex = inboxStateColumnIndex(data);
+  inboxModeIndex = data?.columns?.indexOf(S.IPSO_COL_MODE) ?? -1;
   table?.setData(data);
   applyInboxFilter();
   updateNavDot(data);
@@ -617,6 +620,22 @@ function metadataGrid(items) {
 function recordsTable(records, uploadId, mode) {
   const host = document.createElement('div');
   host.className = 'ipso-record-preview';
+  if (mode === IPSO_MODE_POINTS) {
+    const columns = [S.IPSO_COL_SEQ, S.COL_TYPE, S.IPSO_START_TIME, S.IPSO_END_TIME,
+      S.IPSO_FIX_COUNT, S.COL_NOTE, S.COL_LAT, S.COL_LON, S.IPSO_MAX_ACCURACY];
+    const rows = records.map(r => [r.seq, r.segment ? S.IPSO_TRACE_LABEL : S.IPSO_POINT_LABEL,
+      r.taken_at, r.end_at, r.fix_count, r.note, r.lat, r.lon, r.acc_m]);
+    detailTable = new TableWrapper({
+      container: host, digest: { columns, rows },
+      columnDefs: { ...PREVIEW_COLUMN_DEFS,
+        [S.IPSO_MAX_ACCURACY]: { type: 'number', formatter: decimal2Value },
+        [S.IPSO_FIX_COUNT]: { type: 'number', formatter: intValue },
+      }, canModify: false, inlineToolbar: false,
+      sort: { column: S.IPSO_COL_SEQ, ascending: true },
+      labels: { ...S.TABLE_LABELS, empty: S.IPSO_EMPTY_RECORDS }, csvFormat: S.TABLE_CSV_FORMAT,
+    });
+    return host;
+  }
   if (mode === IPSO_MODE_OBSERVATIONS) {
     observationRecordsTable(host, records);
     return host;
@@ -692,6 +711,7 @@ function modeLabel(mode) {
   if (mode === IPSO_MODE_SAMPLES) return S.IPSO_MODE_SAMPLES_LABEL;
   if (mode === IPSO_MODE_FREE_SURVEY) return S.IPSO_MODE_FREE_SURVEY_LABEL;
   if (mode === IPSO_MODE_OBSERVATIONS) return S.IPSO_MODE_OBSERVATIONS_LABEL;
+  if (mode === IPSO_MODE_POINTS) return S.IPSO_MODE_POINTS_LABEL;
   return mode || '';
 }
 

@@ -8,6 +8,8 @@ import json
 import re
 import shutil
 import time
+import tempfile
+import zipfile
 from collections import defaultdict, deque
 from copy import deepcopy
 from dataclasses import dataclass
@@ -23,14 +25,13 @@ from django.core.exceptions import RequestDataTooBig
 from django.core.files import File
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
-from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.cache import patch_vary_headers
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from apps.base import csv_io
 from apps.base.auth import require_admin, require_writer
 from apps.base.validation import read_json_body
 from apps.base.idempotency import (
@@ -63,7 +64,7 @@ from apps.base.responses import (
 )
 from apps.base.tree_import_warnings import tree_import_warnings
 from apps.campionamenti import csv_trees
-from apps.ipso import staging as ipso_staging
+from apps.ipso import staging as ipso_staging, upload_pages
 from apps.ipso.import_validation import RowErrors, record_id
 from apps.ipso.import_review import (
     EXPORT_SALT, TreeImportReview, read_review_token, recovery_csv,
@@ -71,7 +72,7 @@ from apps.ipso.import_review import (
 from apps.ipso.importers import (
     _int_ids, free_survey_import_rows, record_measurements, sample_import_rows,
 )
-from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState
+from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadPage, IpsoUploadState
 from apps.piano_di_taglio.mark_import import (
     MarkImportRow, import_mark_rows, ipso_mark_fingerprint,
     mark_number_duplicate_errors, mark_parcel_matches_item,
@@ -107,7 +108,7 @@ from config.constants import (
     FIELD_WORK_PACKAGE_ID, FIELD_WORK_PACKAGE_LABEL, FILE_ERROR, IMPORTED,
     IPSO_ERROR_AUTH, IPSO_ERROR_CONFLICT, IPSO_ERROR_INVALID_PAYLOAD,
     IPSO_ERROR_RATE_LIMITED, IPSO_ERROR_TOO_LARGE, IPSO_MODE_FREE_SURVEY,
-    IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_SAMPLES,
+    IPSO_MODE_MARTELLATE, IPSO_MODE_OBSERVATIONS, IPSO_MODE_POINTS, IPSO_MODE_SAMPLES,
     IPSO_REF_GENERATED_AT,
     IPSO_REF_HISTORY, IPSO_REF_HYPSOMETRY, IPSO_REF_HYPSOMETRY_IDS, IPSO_REF_OBSERVATION_CATEGORIES,
     IPSO_REF_PAI,
@@ -160,7 +161,7 @@ class ObservationImportRow:
     categories: list[ObservationCategory]
     client_record_id: str
     fingerprint: str
-    photos: list[tuple[dict, bytes]]
+    photos: list[tuple[dict, Path]]
 
 
 ASSET_FILES = {
@@ -170,6 +171,7 @@ ASSET_FILES = {
     'download.js',
     'format.js',
     'geo.js',
+    'point-recorder.js',
     'gps.js',
     'index.html',
     'ipso.js',
@@ -312,6 +314,7 @@ def _upload_limits() -> dict:
         FIELD_MAX_BYTES: _setting_int(
             'IPSO_UPLOAD_MAX_BYTES', IPSO_UPLOAD_MAX_BYTES_DEFAULT
         ),
+        'max_records': _setting_int('IPSO_UPLOAD_MAX_RECORDS', 500),
         'photo_limits': {
             'max_photo_bytes': settings.OBSERVATION_PHOTO_MAX_BYTES,
             'max_total_bytes': settings.OBSERVATION_UPLOAD_MAX_BYTES,
@@ -699,12 +702,13 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
     payload, file_error = _read_staged_payload(upload)
     session = payload.get(SESSION, {}) if payload else {}
     records = payload.get(RECORDS, []) if payload else []
+    preview = _preview_records(records, upload.mode)
     targets, suggested_target_id = _upload_targets(upload)
     return _api_json({
         UPLOAD: _upload_metadata(upload),
         SESSION: session,
-        RECORDS: _preview_records(records, upload.mode),
-        RECORD_COUNT: len(records),
+        RECORDS: preview,
+        RECORD_COUNT: len(preview),
         FILE_ERROR: file_error,
         TARGETS: targets,
         SUGGESTED_TARGET_ID: suggested_target_id,
@@ -741,7 +745,20 @@ def download_upload(request: HttpRequest, upload_id: int) -> HttpResponse:
     files = _staged_upload_files(upload)
     if not files:
         raise Http404
-    return csv_io.zip_response(files, _upload_archive_filename(upload))
+    # Keep an arbitrarily long photo session off the worker's heap.
+    archive = tempfile.TemporaryFile()
+    try:
+        with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as target:
+            for name, path in files:
+                target.write(path, name)
+        archive.seek(0)
+        response = FileResponse(archive, as_attachment=True,
+                                filename=_upload_archive_filename(upload), content_type='application/zip')
+    except BaseException:
+        archive.close()
+        raise
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 @login_required
@@ -775,10 +792,12 @@ def update_upload_mode(request: HttpRequest, upload_id: int) -> JsonResponse:
         mode = _str(body, FIELD_MODE)
     except UploadValidationError as e:
         return validation_error([str(e)])
-    if mode not in ALLOWED_UPLOAD_MODES:
+    if mode == IPSO_MODE_POINTS or mode not in ALLOWED_UPLOAD_MODES:
         return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
 
     upload = _get_upload(upload_id)
+    if upload.mode == IPSO_MODE_POINTS:
+        return validation_error([S.IPSO_ERR_MODE_UNSUPPORTED])
     if upload.state == IpsoUploadState.IMPORTED:
         return validation_error([S.IPSO_ERR_IMPORTED_CANNOT_EDIT_MODE])
     payload, file_error = _read_staged_payload(upload)
@@ -998,29 +1017,30 @@ def import_observations_upload(request: HttpRequest, upload_id: int) -> JsonResp
     payload, file_error = _read_staged_payload(upload)
     if file_error:
         return _upload_validation_error(upload, [file_error], request=request)
-    rows, errors = _observation_import_rows(upload, payload)
-    if errors:
-        return _upload_validation_error(upload, errors, request=request)
+    with tempfile.TemporaryDirectory() as scratch:
+        rows, errors = _observation_import_rows(upload, payload, Path(scratch))
+        if errors:
+            return _upload_validation_error(upload, errors, request=request)
 
-    try:
-        begin_nonce_write(request)
-        with transaction.atomic():
-            upload, error = _lock_prepared_upload(upload)
-            if error:
-                return error
-            imported = _apply_observation_import_rows(
-                upload, rows, request.user,
+        try:
+            begin_nonce_write(request)
+            with transaction.atomic():
+                upload, error = _lock_prepared_upload(upload)
+                if error:
+                    return error
+                imported = _apply_observation_import_rows(
+                    upload, rows, request.user,
+                )
+                if not _claim_upload_import(
+                        upload, request.user, IPSO_TARGET_OBSERVATIONS, None):
+                    return _rollback_upload_not_received_response()
+                mark_stale(DIGEST_OBSERVATIONS, 'audit')
+                data = _upload_metadata(upload)
+        except IntegrityError:
+            upload = _get_upload(upload_id)
+            return _upload_validation_error(
+                upload, [S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT], request=request,
             )
-            if not _claim_upload_import(
-                    upload, request.user, IPSO_TARGET_OBSERVATIONS, None):
-                return _rollback_upload_not_received_response()
-            mark_stale(DIGEST_OBSERVATIONS, 'audit')
-            data = _upload_metadata(upload)
-    except IntegrityError:
-        upload = _get_upload(upload_id)
-        return _upload_validation_error(
-            upload, [S.IPSO_ERR_IMPORT_OBSERVATION_CONFLICT], request=request,
-        )
     return success_response(request, body, extra={
         IMPORTED: imported,
         UPLOAD: data,
@@ -1029,7 +1049,7 @@ def import_observations_upload(request: HttpRequest, upload_id: int) -> JsonResp
 
 @csrf_exempt
 @require_POST
-def upload_session(request: HttpRequest) -> JsonResponse:
+def upload_session(request: HttpRequest, paged=False) -> JsonResponse:
     if _upload_rate_limited(request):
         return _api_json({OK: False, ERROR: IPSO_ERROR_RATE_LIMITED}, status=429)
     if _upload_too_large(request):
@@ -1045,6 +1065,28 @@ def upload_session(request: HttpRequest) -> JsonResponse:
         normalized, csv_text, staged_photo_files = _validate_upload_payload(
             payload, request, photo_files,
         )
+        if paged:
+            offset = _int(payload, 'offset')
+            total = _int(payload, 'total')
+            transfer = _str(payload, 'transfer')
+            if (offset < 0 or total > 2**63 - 1 or offset + len(normalized[RECORDS]) > total
+                    or not _SHA256_RE.fullmatch(transfer)):
+                raise UploadValidationError(S.IPSO_ERR_UPLOAD_PAGE)
+            seen_photos = set()
+            for row in normalized[RECORDS]:
+                for photo in row.get(FIELD_PHOTOS, []):
+                    key = photo[FIELD_CLIENT_PHOTO_ID]
+                    if key not in staged_photo_files:
+                        raise UploadValidationError(S.IPSO_ERR_UPLOAD_PHOTO_MISSING.format(key))
+                    if key in seen_photos:
+                        raise UploadValidationError(S.IPSO_ERR_UPLOAD_PAGE)
+                    seen_photos.add(key)
+            result = upload_pages.receive_page(
+                normalized, csv_text, staged_photo_files, offset, total, transfer,
+            )
+            return _api_json({OK: True, **result})
+    except upload_pages.PageConflict:
+        return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT, DETAIL: S.IPSO_ERR_UPLOAD_PAGE}, status=409)
     except PhotoError as e:
         return _api_json({
             OK: False, ERROR: IPSO_ERROR_TOO_LARGE if e.status_code == 413 else IPSO_ERROR_INVALID_PAYLOAD,
@@ -1061,9 +1103,13 @@ def upload_session(request: HttpRequest) -> JsonResponse:
             upload = IpsoUpload.objects.create(
                 **ipso_staging.upload_model_fields(normalized, checksum, inbox_path)
             )
+            if IpsoUploadPage.objects.filter(session_id=session_id, upload__isnull=True).exists():
+                raise upload_pages.PageConflict
             _write_upload_files(
                 inbox_path, normalized, checksum, csv_text, staged_photo_files,
             )
+    except upload_pages.PageConflict:
+        return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT, DETAIL: S.IPSO_ERR_UPLOAD_PAGE}, status=409)
     except IntegrityError:
         return _duplicate_upload_response(
             session_id, normalized, checksum, csv_text, staged_photo_files,
@@ -1159,7 +1205,7 @@ def _upload_metadata(upload: IpsoUpload, labels: dict | None = None) -> dict:
     }
 
 
-def _staged_upload_files(upload: IpsoUpload) -> list[tuple[str, bytes]]:
+def _staged_upload_files(upload: IpsoUpload) -> list[tuple[str, Path]]:
     root = Path(upload.inbox_path)
     if not root.is_dir():
         return []
@@ -1167,14 +1213,14 @@ def _staged_upload_files(upload: IpsoUpload) -> list[tuple[str, bytes]]:
     for name in STAGED_UPLOAD_ARCHIVE_FILES:
         path = root / name
         if path.is_file():
-            files.append((name, path.read_bytes()))
+            files.append((name, path))
     photo_root = root / IPSO_UPLOAD_FILE_PHOTOS_DIR
     if photo_root.is_dir():
         for path in sorted(photo_root.rglob('*')):
             if not path.is_file() or path.name.endswith('.tmp'):
                 continue
             rel = path.relative_to(root).as_posix()
-            files.append((rel, path.read_bytes()))
+            files.append((rel, path))
     return files
 
 
@@ -1191,6 +1237,8 @@ def _upload_label_maps(uploads: list[IpsoUpload]) -> dict:
     harvest_item_ids = set()
     survey_ids = set()
     for upload in uploads:
+        if upload.mode == IPSO_MODE_POINTS:
+            continue
         harvest_id = _prefixed_int(
             upload.work_package_id, IPSO_WORK_PACKAGE_HARVEST_PREFIX,
         )
@@ -1238,6 +1286,8 @@ def _prefixed_int(raw: str, prefix: str) -> int | None:
 
 def _work_package_label(upload: IpsoUpload, labels: dict | None = None) -> str:
     raw = (upload.work_package_id or '').strip()
+    if upload.mode == IPSO_MODE_POINTS:
+        return raw
     item_id = _prefixed_int(raw, IPSO_WORK_PACKAGE_HARVEST_PREFIX)
     if item_id is not None:
         if labels is not None:
@@ -1356,6 +1406,22 @@ def _preview_decimal(value):
 def _preview_records(records: list, mode: str = '') -> list[dict]:
     if not isinstance(records, list):
         return []
+    if mode == IPSO_MODE_POINTS:
+        out = []
+        for row in records:
+            segment = row['segment']
+            if segment and out and out[-1]['segment'] == segment:
+                out[-1]['fix_count'] += 1
+                out[-1]['end_at'] = row[FIELD_TAKEN_AT]
+                out[-1][FIELD_ACC_M] = max(out[-1][FIELD_ACC_M], row[FIELD_ACC_M])
+                continue
+            out.append({
+                FIELD_SEQ: len(out) + 1, 'segment': segment, FIELD_NOTE: row[FIELD_NOTE],
+                FIELD_TAKEN_AT: row[FIELD_TAKEN_AT], 'end_at': row[FIELD_TAKEN_AT], 'fix_count': 1,
+                FIELD_LAT: None if segment else row[FIELD_LAT],
+                FIELD_LON: None if segment else row[FIELD_LON], FIELD_ACC_M: row[FIELD_ACC_M],
+            })
+        return out
     if mode == IPSO_MODE_OBSERVATIONS:
         return _preview_observation_records(records)
     species_ids = _int_ids(records, FIELD_SPECIES_ID)
@@ -1374,7 +1440,7 @@ def _preview_records(records: list, mode: str = '') -> list[dict]:
         for a in SampleArea.objects.filter(id__in=sample_area_ids)
     }
     out = []
-    for i, row in enumerate(records[:500], start=1):
+    for i, row in enumerate(records, start=1):
         if not isinstance(row, dict):
             continue
         out.append({
@@ -1407,7 +1473,7 @@ def _preview_observation_records(records: list) -> list[dict]:
         for category in ObservationCategory.objects.filter(id__in=category_ids)
     }
     out = []
-    for i, row in enumerate(records[:500], start=1):
+    for i, row in enumerate(records, start=1):
         if not isinstance(row, dict):
             continue
         row_category_ids = [
@@ -1679,7 +1745,7 @@ def _martellate_import_rows(
 
 
 def _observation_import_rows(
-        upload: IpsoUpload, payload: dict,
+        upload: IpsoUpload, payload: dict, scratch: Path,
 ) -> tuple[list[ObservationImportRow], list[str]]:
     session = payload.get(SESSION, {}) if isinstance(payload, dict) else {}
     records = payload.get(RECORDS, []) if isinstance(payload, dict) else []
@@ -1745,7 +1811,7 @@ def _observation_import_rows(
         if region is None:
             errors.append(S.IPSO_ERR_IMPORT_RECORD_REGION_NOT_FOUND.format(i))
             continue
-        photos, photo_error = _staged_observation_photos(upload, record, i)
+        photos, photo_error = _staged_observation_photos(upload, record, i, scratch)
         if photo_error:
             errors.append(photo_error)
             continue
@@ -1808,8 +1874,8 @@ def _apply_observation_import_rows(
             )
             for category in row.categories
         ])
-        for photo, content in row.photos:
-            _store_observation_photo(observation, photo, content)
+        for photo, path in row.photos:
+            _store_observation_photo(observation, photo, path.read_bytes())
         imported += 1
     return imported
 
@@ -1834,8 +1900,8 @@ def _observation_import_fingerprint(session_id: str, record: dict) -> str:
 
 
 def _staged_observation_photos(
-        upload: IpsoUpload, record: dict, index: int,
-) -> tuple[list[tuple[dict, bytes]], str | None]:
+        upload: IpsoUpload, record: dict, index: int, scratch: Path,
+) -> tuple[list[tuple[dict, Path]], str | None]:
     photos = []
     budget = UploadBudget()
     try:
@@ -1872,7 +1938,9 @@ def _staged_observation_photos(
             FIELD_CHECKSUM: hashlib.sha256(prepared.content).hexdigest(),
             FIELD_WIDTH_PX: prepared.width, FIELD_HEIGHT_PX: prepared.height,
         }
-        photos.append((stored_photo, prepared.content))
+        prepared_path = scratch / stored_photo[FIELD_CHECKSUM]
+        prepared_path.write_bytes(prepared.content)
+        photos.append((stored_photo, prepared_path))
     return photos, None
 
 
@@ -2131,6 +2199,11 @@ def _normalize_session(session: dict) -> dict:
         FIELD_COMPLETED_AT: _opt_str(session, FIELD_COMPLETED_AT),
         FIELD_DAMAGED: _bool(session, FIELD_DAMAGED),
     }
+    if mode == IPSO_MODE_POINTS:
+        name = _str(session, FIELD_NAME)
+        if len(name) > 100:
+            raise UploadValidationError(S.IPSO_ERR_FIELD_STRING.format(FIELD_NAME))
+        normalized[FIELD_NAME] = name
     region_id = session.get(FIELD_REGION_ID)
     if region_id is not None:
         normalized[FIELD_REGION_ID] = _int(session, FIELD_REGION_ID)
@@ -2143,6 +2216,22 @@ def _normalize_record(mode: str, index: int, row: object) -> dict:
     date = _str(row, FIELD_DATE)
     if not _DATE_RE.match(date):
         raise UploadValidationError(S.IPSO_ERR_RECORD_DATE_INVALID.format(index))
+    if mode == IPSO_MODE_POINTS:
+        # Preserve the device measurement, including sub-metre precision.
+        lat, lon, acc = (row.get(key) for key in (FIELD_LAT, FIELD_LON, FIELD_ACC_M))
+        taken_at = _opt_datetime_string(row, FIELD_TAKEN_AT)
+        segment = _opt_str(row, 'segment')
+        note = _opt_str(row, FIELD_NOTE)
+        if (any(type(value) not in (int, float) for value in (lat, lon, acc))
+                or not -90 <= lat <= 90 or not -180 <= lon <= 180 or not 0 <= acc < float('inf')
+                or not taken_at or len(note) > 200
+                or (segment and (not _SESSION_ID_RE.fullmatch(segment) or note))):
+            raise UploadValidationError(S.IPSO_ERR_POINT_INVALID.format(index))
+        return {
+            FIELD_CLIENT_RECORD_ID: _str(row, FIELD_CLIENT_RECORD_ID),
+            FIELD_DATE: date, FIELD_LAT: lat, FIELD_LON: lon, FIELD_ACC_M: acc,
+            FIELD_TAKEN_AT: taken_at, 'segment': segment or None, FIELD_NOTE: note,
+        }
     if mode == IPSO_MODE_OBSERVATIONS:
         return _normalize_observation_record(index, row, date)
 
@@ -2374,6 +2463,8 @@ def _validate_observation_category_ids(records: list[dict]) -> None:
 
 
 def _validate_record_ids(mode: str, records: list[dict]) -> None:
+    if mode == IPSO_MODE_POINTS:
+        return
     if mode == IPSO_MODE_OBSERVATIONS:
         _validate_observation_category_ids(records)
         return
@@ -2519,7 +2610,10 @@ def _opt_datetime_string(payload: dict, key: str) -> str:
 def _parse_photo_taken_at(value: str):
     if not value:
         return None
-    out = parse_datetime(value)
+    try:
+        out = parse_datetime(value)
+    except ValueError:
+        out = None
     if out is None or django_timezone.is_naive(out):
         raise UploadValidationError(
             S.IPSO_ERR_FIELD_STRING.format(FIELD_TAKEN_AT)

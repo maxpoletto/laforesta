@@ -42,6 +42,7 @@ const SHELL = [
   './format.js',
   './palette.js',
   './download.js',
+  './point-recorder.js',
   './gps.js',
   './numpad.js',
   './store.js',
