@@ -1,5 +1,6 @@
 """Tests for Impostazioni (settings) views."""
 
+import gzip
 import json
 import re
 from datetime import date
@@ -10,7 +11,7 @@ from django.test import Client, override_settings
 
 from apps.base.idempotency import NonceWrite
 from apps.base.models import (
-    DigestStatus, HarvestPlan, LoginMethod, ObservationCategory, RoadType, Role, Sample,
+    DigestStatus, Eclass, HarvestPlan, LoginMethod, Observation, ObservationCategory, Parcel, RoadType, Role, Sample,
     SampleArea, SampleGrid, SiteSettings, Species, Survey, Tractor, Tree,
     TreeSample, User,
 )
@@ -21,7 +22,7 @@ from config.constants import (
     DIGEST_PARCEL_DENDROMETRY,
     DIGEST_PARCEL_DENDROMETRY_POINTS, DIGEST_PRESERVED_TREES,
     FIELD_ACTIVE, FIELD_COMMON_NAME, FIELD_CURRENT_PASSWORD,
-    FIELD_DEFAULT_LANDING_PAGE, FIELD_DENSITY, FIELD_DESCRIPTION, FIELD_EMAIL, FIELD_FIRST_NAME,
+    FIELD_DEFAULT_LANDING_PAGE, FIELD_DELETE_REASON, FIELD_DENSITY, FIELD_DESCRIPTION, FIELD_EMAIL, FIELD_FIRST_NAME,
     FIELD_HARVEST_PLAN_ID,
     FIELD_IS_ACTIVE, FIELD_LANDING_PAGE, FIELD_LAST_NAME,
     FIELD_LATIN_NAME, FIELD_LOGIN_METHOD, FIELD_MANUFACTURER, FIELD_MINOR,
@@ -98,7 +99,7 @@ def test_settings_page_hides_version_from_non_admin(writer_client):
     (Role.WRITER, LoginMethod.PASSWORD, ['password', 'landing-page', 'species',
                                        'dendrometry', 'diameter-classes', 'tractors']),
     (Role.ADMIN, LoginMethod.PASSWORD, ['password', 'users', 'landing-page',
-                                      'observation-categories', 'road-types', 'species',
+                                      'observation-categories', 'road-types', 'eclasses', 'species',
                                       'dendrometry', 'diameter-classes', 'tractors']),
 ])
 def test_settings_navigation_respects_role_and_login(db, role, login_method, sections):
@@ -613,7 +614,7 @@ class TestObservationCategories:
         assert resp.status_code == 200
         data = resp.json()
         assert data[COLUMNS] == [
-            ROW_ID, S.LABEL_NAME, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE,
+            ROW_ID, S.LABEL_NAME, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE, VERSION, FIELD_DELETE_REASON,
         ]
         assert [row[1] for row in data[ROWS]] == [
             S.OBSERVATION_CATEGORY_PHYTOSANITARY,
@@ -641,7 +642,7 @@ class TestObservationCategories:
         assert category.sort_order == 40
         assert category.active is True
         assert resp.json()[PATCHES][0][DATA_ID] == IPSO_REF_OBSERVATION_CATEGORIES
-        assert resp.json()[PATCHES][0][RECORD] == [category.id, 'incendio', 40, True]
+        assert resp.json()[PATCHES][0][RECORD] == [category.id, 'incendio', 40, True, 1, '']
         assert DigestStatus.objects.get(name=DIGEST_OBSERVATIONS).stale is True
         assert DigestStatus.objects.get(name='audit').stale is True
 
@@ -711,8 +712,8 @@ class TestRoadTypes:
 
     def test_seeded_types(self, admin_client):
         data = admin_client.get(self.DATA_URL).json()
-        assert data[COLUMNS] == [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.COL_PRIORITY, S.COL_ACTIVE]
-        assert [row[1:] for row in data[ROWS]] == [
+        assert data[COLUMNS] == [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE, VERSION, FIELD_DELETE_REASON]
+        assert [row[1:-2] for row in data[ROWS]] == [
             ['Strada di 1° livello', 'Strada forestale camionabile', 10, True],
             ['Strada di 2° livello', 'Strada forestale adatta a macchine operatrici e automezzi 4x4', 20, True],
             ['Pista', 'Pista da esbosco per trattori e macchine forestali', 30, True],
@@ -730,7 +731,7 @@ class TestRoadTypes:
         obj = RoadType.objects.get(name='Pista temporanea')
         patch, = response.json()[PATCHES]
         assert patch[DATA_ID] == DATA_ID_ROAD_TYPES
-        assert patch[RECORD] == [obj.pk, obj.name, '', 25, True]
+        assert patch[RECORD] == [obj.pk, obj.name, '', 25, True, 1, '']
         assert admin_client.get(self.DATA_URL).json()[ROWS][2] == patch[RECORD]
         assert obj.history.count() == 1
 
@@ -740,7 +741,7 @@ class TestRoadTypes:
                    FIELD_DESCRIPTION: 'Tratto ripido', FIELD_SORT_ORDER: '50', FIELD_ACTIVE: False}
         response = _post(admin_client, self.SAVE_URL, payload)
         assert response.status_code == 200, response.content
-        saved_row = [obj.pk, 'Pista secondaria', 'Tratto ripido', 50, False]
+        saved_row = [obj.pk, 'Pista secondaria', 'Tratto ripido', 50, False, 2, '']
         assert admin_client.get(self.DATA_URL).json()[ROWS][-1] == saved_row
         latest, baseline = obj.history.all()
         assert latest.version == obj.version + 1
@@ -758,11 +759,11 @@ class TestRoadTypes:
         assert f'name="version" value="{latest.version}"' in conflict[HTML]
         assert obj.history.count() == 2
 
-    @pytest.mark.parametrize(('name', 'priority'), [
+    @pytest.mark.parametrize(('name', 'sort_order'), [
         (' sentiero ', 20), (' ', 20), ('x' * 101, 20), ('Nuovo', '1.5'), ('Nuovo', ''),
     ])
-    def test_invalid_type(self, admin_client, name, priority):
-        response = _post(admin_client, self.SAVE_URL, {FIELD_NAME: name, FIELD_SORT_ORDER: priority})
+    def test_invalid_type(self, admin_client, name, sort_order):
+        response = _post(admin_client, self.SAVE_URL, {FIELD_NAME: name, FIELD_SORT_ORDER: sort_order})
         assert response.status_code == 400
         assert response.json()[STATUS] == STATUS_VALIDATION_ERROR
         assert RoadType.objects.count() == 4
@@ -774,8 +775,144 @@ class TestRoadTypes:
 
 
 # ---------------------------------------------------------------------------
-# Bosco source settings
+# Economic classes
 # ---------------------------------------------------------------------------
+
+class TestEconomicClasses:
+    URL = '/api/impostazioni/eclasses/'
+
+    def test_defaults_and_add_form(self, admin_client):
+        data = admin_client.get(self.URL + 'data/').json()
+        assert data[COLUMNS] == [ROW_ID, 'Nome', 'Descrizione', 'Ceduo', VERSION, FIELD_DELETE_REASON]
+        assert [row[1:-2] for row in data[ROWS]] == [
+            ['A', 'Fustaia di abete', False],
+            ['B', 'Fustaia mista di conifere e latifoglie', False],
+            ['C', 'Fustaia di pino', False],
+            ['D', 'Fustaia di pino nero e latifoglie', False],
+            ['E', 'Fustaia di faggio e conifere', False],
+            ['F', 'Ceduo di castagno', True],
+        ]
+        html = admin_client.get(self.URL + 'form/').json()[HTML]
+        assert 'type="checkbox" name="coppice"' in html and 'disabled' not in html
+
+    def test_create_edit_and_replay(self, admin_client):
+        payload = {'name': ' G ', 'description': ' Betulla ', 'coppice': True, 'nonce': 'create-eclass'}
+        response = _post(admin_client, self.URL + 'save/', payload)
+        assert response.status_code == 200
+        assert _post(admin_client, self.URL + 'save/', payload).json() == response.json()
+        obj = Eclass.objects.get(name='G')
+        assert response.json()[PATCHES][0][RECORD] == [obj.pk, 'G', 'Betulla', True, 1, '']
+        edit = {ROW_ID: obj.pk, VERSION: obj.version, 'name': 'G', 'description': 'Betulla', 'coppice': False}
+        assert _post(admin_client, self.URL + 'save/', edit).status_code == 200
+        obj.refresh_from_db()
+        assert obj.version == 2 and not obj.coppice and obj.history.count() == 2
+        stale = _post(admin_client, self.URL + 'save/', edit).json()
+        assert stale[STATUS] == STATUS_CONFLICT
+        assert stale[HTML] == admin_client.get(f'{self.URL}form/{obj.pk}/').json()[HTML]
+
+    @pytest.mark.parametrize('coppice', [False, True])
+    def test_assigned_class_preserves_parcels_and_threshold(self, admin_client, regions, eclasses, coppice):
+        obj = eclasses[2 if coppice else 0]
+        Eclass.objects.filter(pk=obj.pk).update(min_harvest_volume=45)
+        parcel = Parcel.objects.create(name='12', region=regions[0], eclass=obj, area_ha=1,
+                                       intervention_interval=18 if coppice else None,
+                                       standards_per_ha=75 if coppice else None)
+        html = admin_client.get(f'{self.URL}form/{obj.pk}/').json()[HTML]
+        assert 'disabled aria-describedby="eclass-in-use"' in html
+        edit = {ROW_ID: obj.pk, VERSION: obj.version, 'name': 'X', 'description': 'Aggiornata'}
+        rejected = _post(admin_client, self.URL + 'save/', {**edit, 'coppice': not coppice})
+        assert rejected.status_code == 400 and rejected.json()[MESSAGE] == S.ECLASS_COPPICE_IN_USE
+        result = _post(admin_client, self.URL + 'save/', {**edit, 'coppice': coppice})
+        assert result.status_code == 200
+        parcel.refresh_from_db()
+        assert parcel.eclass_id == obj.pk and parcel.eclass.name == 'X'
+        assert parcel.eclass.min_harvest_volume == 45 and parcel.eclass.version == 2
+        assert DigestStatus.objects.get(name='parcels').stale
+        assert DigestStatus.objects.get(name='audit').stale
+        assert 'parcels' in result.json()['invalidates']['data_ids']
+
+    @pytest.mark.parametrize('name', ['', ' a ', 'X' * 11])
+    def test_invalid_name(self, admin_client, name):
+        assert _post(admin_client, self.URL + 'save/', {'name': name}).status_code == 400
+
+    def test_writer_cannot_access_admin_editor(self, writer_client):
+        assert writer_client.get(self.URL + 'data/').status_code == 403
+        assert writer_client.get(self.URL + 'form/').status_code == 403
+        assert _post(writer_client, self.URL + 'save/', {'name': 'G'}).status_code == 403
+
+
+@pytest.mark.parametrize('section,model,name', [
+    ('eclasses', Eclass, 'F'),
+    ('road-types', RoadType, 'Pista'),
+    ('observation-categories', ObservationCategory, S.OBSERVATION_CATEGORY_WASTE),
+])
+def test_delete_unused_reference(admin_client, writer_client, admin_user, monkeypatch, section, model, name):
+    url = f'/api/impostazioni/{section}/'
+    obj = model.objects.get(name=name)
+    payload = {ROW_ID: obj.pk, VERSION: obj.version}
+    assert writer_client.post(url + 'delete/', payload).status_code == 403
+    assert admin_client.get(url + 'delete/').status_code == 405
+    stale = _post(admin_client, url + 'delete/', {**payload, VERSION: obj.version - 1})
+    assert stale.json()[STATUS] == STATUS_CONFLICT and stale.json()[RECORD][-2:] == [obj.version, '']
+    payload[FIELD_NONCE] = 'test-reference-delete'
+    result = _post(admin_client, url + 'delete/', payload)
+    assert result.status_code == 200
+    assert result.json()['deletes'] == [{DATA_ID: result.json()[DATA_ID], ROW_ID: obj.pk}]
+    monkeypatch.setattr(NonceWrite, 'cached_response', lambda self: None)
+    assert _post(admin_client, url + 'delete/', payload).json() == result.json()
+    assert not model.objects.filter(pk=obj.pk).exists()
+    history = model.history.get(id=obj.pk, history_type='-')
+    assert history.history_user == admin_user
+    assert all(DigestStatus.objects.get(name=key).stale for key in result.json()['invalidates']['data_ids'])
+    assert all(row[0] != obj.pk for row in admin_client.get(url + 'data/').json()[ROWS])
+    assert _post(admin_client, url + 'delete/', {ROW_ID: obj.pk, VERSION: obj.version}).status_code == 404
+
+
+@pytest.mark.parametrize('section', ['eclasses', 'observation-categories'])
+def test_reference_assigned_since_listing_cannot_be_deleted(admin_client, regions, section):
+    url = f'/api/impostazioni/{section}/'
+    row = admin_client.get(url + 'data/').json()[ROWS][0]
+    assert row[-1] == ''
+    if section == 'eclasses':
+        assignment = Parcel.objects.create(eclass_id=row[0], region=regions[0], name='1', area_ha=10)
+        reason = S.ECLASS_DELETE_IN_USE
+        form_note = S.ECLASS_COPPICE_IN_USE
+    else:
+        assignment = Observation.objects.create(date=date.today(), lat=39, lon=16)
+        assignment.categories.add(row[0])
+        reason = form_note = S.OBSERVATION_CATEGORY_IN_USE
+    payload = {ROW_ID: row[0], VERSION: row[-2]}
+    rejected = _post(admin_client, url + 'delete/', payload)
+    assert rejected.status_code == 400
+    assert rejected.json()[MESSAGE] == reason == rejected.json()[RECORD][-1]
+    assert form_note in admin_client.get(f'{url}form/{row[0]}/').json()[HTML]
+    assert admin_client.get(url + 'data/').json()[ROWS][0][-1] == reason
+    assignment.delete()
+    assert _post(admin_client, url + 'delete/', payload).status_code == 200
+
+
+@override_settings(IPSO_SECRET='test-token')
+def test_deleted_category_disappears_from_bosco_and_ipso(admin_client):
+    category = ObservationCategory.objects.get(name=S.OBSERVATION_CATEGORY_WASTE)
+
+    def bosco_categories():
+        response = admin_client.get('/api/bosco/observations/data/')
+        return json.loads(gzip.decompress(response.getvalue()))['categories']
+
+    def ipso_categories():
+        response = Client().get('/ipso/reference.json', HTTP_AUTHORIZATION='Bearer test-token')
+        return response.json()[IPSO_REF_OBSERVATION_CATEGORIES]
+
+    for entries in (bosco_categories(), ipso_categories()):
+        assert any(row['id'] == category.pk for row in entries)
+    response = _post(admin_client, '/api/impostazioni/observation-categories/delete/',
+                     {ROW_ID: category.pk, VERSION: category.version})
+    assert response.status_code == 200
+    for entries in (bosco_categories(), ipso_categories()):
+        assert all(row['id'] != category.pk for row in entries)
+
+
+# Bosco source settings
 
 class TestDendrometrySettings:
     DATA_URL = '/api/impostazioni/dendrometry/data/'

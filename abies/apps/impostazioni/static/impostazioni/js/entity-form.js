@@ -1,14 +1,15 @@
 /** Modal editing for the Settings entity tables, which use local state. */
 import { interceptSubmit, renderModalForm, showFormError } from '../../base/js/forms.js';
-import { dismiss } from '../../base/js/modals.js';
-import { wireCancelButtons } from '../../base/js/ui-widgets.js';
+import { dismiss, showError } from '../../base/js/modals.js';
+import { postJSON } from '../../base/js/api.js';
+import { showConfirmModal, wireCancelButtons } from '../../base/js/ui-widgets.js';
 import { parseDecimal } from '../../base/js/format.js';
 import * as cache from '../../base/js/cache.js';
 import { collectSpeciesEquations, wireSpeciesEquations } from './species-equations.js';
 import * as S from '../../base/js/strings.js';
 import {
-  DATA_ID, FIELD_PRESSLER_DEFAULT, HTML, LOGIN_METHOD_PASSWORD,
-  MESSAGE, PATCHES, RECORD,
+  DATA_ID, FIELD_NONCE, FIELD_PRESSLER_DEFAULT, HTML, LOGIN_METHOD_PASSWORD,
+  MESSAGE, PATCHES, RECORD, ROW_ID, STATUS, STATUS_NOT_FOUND, VERSION,
 } from '../../base/js/constants.js';
 
 function updateRecord(state, record) {
@@ -18,6 +19,33 @@ function updateRecord(state, record) {
   if (index >= 0) rows[index] = record;
   else rows.push(record);
   state.table?.setData(state.digest);
+}
+
+export function confirmReferenceDelete(cfg, state, row) {
+  const { columns } = state.digest;
+  const id = row[columns.indexOf(ROW_ID)];
+  const version = row[columns.indexOf(VERSION)];
+  showConfirmModal(S.DELETE_REFERENCE_CONFIRM(row[columns.indexOf(S.COL_NAME)]), async () => {
+    let response;
+    try {
+      response = await postJSON(cfg.deleteUrl, {
+        [ROW_ID]: id, [VERSION]: version, [FIELD_NONCE]: crypto.randomUUID(),
+      });
+    } catch {
+      showError(S.ERROR_NETWORK);
+      return;
+    }
+    const { data, status } = response;
+    cache.applyResponseChanges(data);
+    if (status === 200 || data[STATUS] === STATUS_NOT_FOUND) {
+      state.digest.rows = state.digest.rows.filter(r => r[0] !== id);
+      state.table?.setData(state.digest);
+      if (status !== 200) showError(S.REFERENCE_ALREADY_DELETED);
+    } else {
+      updateRecord(state, data[RECORD]);
+      showError(data[MESSAGE] || S.ERROR_GENERIC);
+    }
+  });
 }
 
 export function wireSettingsForm(form, cfg, state) {

@@ -1,6 +1,7 @@
 .settings-forms input[type="password"] { width: 300px; max-width: 100%; }
 .settings-cluster + .settings-cluster { padding-top: 16px; }
 .road-type-name { width: min(170px, 20vw); }
+#id_road_type_sort_order { max-width: 120px; }
 
 .settings-nav {
   display: flex;

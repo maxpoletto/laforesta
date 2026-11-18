@@ -1,0 +1,27 @@
+{% load l10n %}
+<div class="form-card">
+  <form id="settings-form">
+    <input type="hidden" name="row_id" value="{{ obj.id|unlocalize }}">
+    <input type="hidden" name="version" value="{{ obj.version|default:1|unlocalize }}">
+    <h2>{% if obj %}Modifica classe economica{% else %}Nuova classe economica{% endif %}</h2>
+    <div class="form-group">
+      <label for="id_eclass_name">{{ S.LABEL_NAME }}</label>
+      <input type="text" id="id_eclass_name" name="name" maxlength="10" required value="{{ obj.name }}">
+    </div>
+    <div class="form-group">
+      <label for="id_eclass_description">{{ S.COL_DESCRIPTION }}</label>
+      <textarea id="id_eclass_description" name="description" rows="2">{{ obj.description }}</textarea>
+    </div>
+    {% with in_use=obj.parcel_set.exists %}
+      <div class="form-group">
+        <input type="hidden" name="coppice" value="{% if in_use and obj.coppice %}true{% else %}false{% endif %}">
+        <label><input type="checkbox" name="coppice" value="true"{% if obj.coppice %} checked{% endif %}{% if in_use %} disabled aria-describedby="eclass-in-use"{% endif %}> {{ S.CSV_COL_COPPICE }}</label>
+        {% if in_use %}<p id="eclass-in-use" class="text-muted">{{ S.ECLASS_COPPICE_IN_USE }}</p>{% endif %}
+      </div>
+    {% endwith %}
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
+</div>

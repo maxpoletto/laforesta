@@ -19,19 +19,19 @@ import { navigate } from '../../base/js/router.js';
 import { loadCSS, unloadCSS } from '../../base/js/page-css.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { PROTECTED_SPECIES_NAMES, speciesTypeColumns } from './species-types.js';
-import { wireSettingsForm } from './entity-form.js';
+import { confirmReferenceDelete, wireSettingsForm } from './entity-form.js';
 import { wireEquationImports } from './equation-imports.js';
 import * as S from '../../base/js/strings.js';
 import {
   FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COUNTS,
   FIELD_CREATED_AT, FIELD_CURRENT_PASSWORD, FIELD_DEFAULT_LANDING_PAGE,
-  FIELD_DIAMETER_CLASS_MODE, FIELD_ID,
+  FIELD_DIAMETER_CLASS_MODE, FIELD_DELETE_REASON, FIELD_ID,
   FIELD_LANDING_PAGE, FIELD_MIN_N, FIELD_NONCE,
   FIELD_NAME, FIELD_PARCELS, FIELD_PASSWORD1, FIELD_PASSWORD2,
   FIELD_REGIONS, FIELD_SOURCE, FIELD_SURVEY_IDS, FIELD_SURVEYS, FIELD_TREES,
   FIELD_USE_FOR_HEIGHT_PLOTS,
   IPSO_REF_OBSERVATION_CATEGORIES,
-  DATA_ID, DATA_ID_ROAD_TYPES, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN,
+  DATA_ID, DATA_ID_ECLASSES, DATA_ID_ROAD_TYPES, MESSAGE, PATCHES, RECORD, ROW_ID, VERSION, ROLE_ADMIN,
   FIELD_VOLUME_COEFFICIENTS,
 } from '../../base/js/constants.js';
 import {
@@ -48,6 +48,7 @@ const CSS_URL = '/static/impostazioni/css/impostazioni.css';
 const booleanCol = (label) => ({ label, type: 'boolean', width: '50px' });
 const ACTIVE_COL_DEF = booleanCol(S.COL_ACTIVE);
 const MINOR_COL_DEF = booleanCol(S.COL_MINOR);
+const SORT_ORDER_COL_DEF = { type: 'number', width: '80px', className: 'num', formatter: fmtInt };
 
 // State per entity section: { table, digest, loaded, activeOnly }.
 const sections = {};
@@ -86,12 +87,11 @@ const ENTITY_SECTIONS = {
     dataUrl: `${API}observation-categories/data/`,
     formUrl: `${API}observation-categories/form/`,
     saveUrl: `${API}observation-categories/save/`,
+    deleteUrl: `${API}observation-categories/delete/`,
     csvFilename: S.CSV_OBSERVATION_CATEGORIES,
+    labels: { ...S.TABLE_LABELS, add: S.NEW_OBSERVATION_CATEGORY_LABEL },
     columnDefs: {
-      [S.CSV_COL_SORT_ORDER]: {
-        label: S.CSV_COL_SORT_ORDER, type: 'number', width: '80px',
-        className: 'num', formatter: fmtInt,
-      },
+      [S.CSV_COL_SORT_ORDER]: SORT_ORDER_COL_DEF,
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
     },
   },
@@ -100,13 +100,28 @@ const ENTITY_SECTIONS = {
     dataUrl: `${API}road-types/data/`,
     formUrl: `${API}road-types/form/`,
     saveUrl: `${API}road-types/save/`,
+    deleteUrl: `${API}road-types/delete/`,
     csvFilename: S.CSV_ROAD_TYPES,
     labels: { ...S.TABLE_LABELS, add: S.NEW_ROAD_TYPE_LABEL },
-    sort: { column: S.COL_PRIORITY, ascending: true },
+    sort: { column: S.CSV_COL_SORT_ORDER, ascending: true },
     columnDefs: {
       [S.COL_NAME]: { className: 'road-type-name' },
-      [S.COL_PRIORITY]: { type: 'number', width: '80px', formatter: fmtInt },
+      [S.CSV_COL_SORT_ORDER]: SORT_ORDER_COL_DEF,
       [S.COL_ACTIVE]: ACTIVE_COL_DEF,
+    },
+  },
+  eclasses: {
+    key: DATA_ID_ECLASSES,
+    dataUrl: `${API}eclasses/data/`,
+    formUrl: `${API}eclasses/form/`,
+    saveUrl: `${API}eclasses/save/`,
+    deleteUrl: `${API}eclasses/delete/`,
+    csvFilename: S.CSV_ECLASSES,
+    labels: { ...S.TABLE_LABELS, add: S.NEW_ECLASS_LABEL },
+    sort: { column: S.COL_NAME, ascending: true },
+    columnDefs: {
+      [S.COL_NAME]: { width: '80px' },
+      [S.TYPE_COPPICE]: booleanCol(S.TYPE_COPPICE),
     },
   },
   users: {
@@ -132,6 +147,7 @@ const wireSection = {
   species: root => wireEntitySection(root, ENTITY_SECTIONS.species),
   'observation-categories': root => wireEntitySection(root, ENTITY_SECTIONS.observationCategories),
   'road-types': root => wireEntitySection(root, ENTITY_SECTIONS.roadTypes),
+  eclasses: root => wireEntitySection(root, ENTITY_SECTIONS.eclasses),
   dendrometry: wireDendrometrySection,
   'diameter-classes': wireDiameterClassesSection,
   users: root => wireEntitySection(root, ENTITY_SECTIONS.users),
@@ -312,7 +328,7 @@ function wireEntitySection(root, cfg) {
   const activeCheck = root.querySelector('[data-role="active-toggle"]');
   if (cfg.key === 'species') state.dispose = wireSpeciesEquationTools(root, cfg, state, tableContainer);
 
-  activeCheck.addEventListener('change', () => {
+  activeCheck?.addEventListener('change', () => {
     state.activeOnly = activeCheck.checked;
     applyActiveFilter(state);
   });
@@ -351,6 +367,8 @@ async function loadEntityData(cfg, state, container) {
     digest: data,
     columnDefs: {
       ...cfg.columnDefs,
+      [FIELD_DELETE_REASON]: { hidden: true },
+      [VERSION]: { hidden: true },
       ...(cfg.key === 'species' ? speciesTypeColumns(
         data.columns, (row, kind) => saveSpeciesType(state, row, kind),
         state.classificationPending,
@@ -360,6 +378,10 @@ async function loadEntityData(cfg, state, container) {
     actions: {
       onEdit: (rowId) => openForm(cfg, state, rowId),
       onAdd: () => openForm(cfg, state, null),
+      ...(cfg.deleteUrl && {
+        deleteVisible: row => !row[data.columns.indexOf(FIELD_DELETE_REASON)],
+        onDelete: (_id, row) => confirmReferenceDelete(cfg, state, row),
+      }),
     },
     csvFilename: cfg.csvFilename,
     sort: cfg.sort,

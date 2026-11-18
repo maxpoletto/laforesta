@@ -41,14 +41,15 @@ from apps.prelievi import csv_harvests
 from apps.prelievi.models import Harvest
 from config import strings as S
 from config.constants import (
-    FIELD_COMMON_NAME, FIELD_DENSITY, FIELD_LATIN_NAME, FIELD_MINOR,
+    ECLASS_DEFAULT_BASELINE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY, FIELD_DESCRIPTION,
+    FIELD_LATIN_NAME, FIELD_MINOR,
     FIELD_NAME, FIELD_PRESSLER_DEFAULT, FIELD_SORT_ORDER,
 )
 
 # Comprehensive emptiness guard: if ANY of these holds a row, the instance is not
 # empty and bootstrap refuses (it has no wipe).  Listed verbose_names are shown.
 GUARD_MODELS = [
-    Region, Eclass, Crew, Tractor, Species, Product, Parcel, SampleGrid,
+    Region, Crew, Tractor, Species, Product, Parcel, SampleGrid,
     SampleArea, Survey, Sample, Tree, TreeMark, TreeSample,
     HarvestPlan,
     HarvestPlanItem, HarvestDetail, Harvest, HypsoParamSet,
@@ -91,8 +92,7 @@ class Command(BaseCommand):
                 survey_dates: dict = {}
                 for table in csv_reference.ALL_TABLES:
                     report = self._load_reftable(
-                        data_dir, table, required=table in (
-                            csv_reference.REGIONS, csv_reference.ECLASSES))
+                        data_dir, table, required=table is csv_reference.REGIONS)
                     if not report.present and not report.errors:
                         self._seed_default(table, report)
                     if (table is csv_reference.SPECIES and not report.errors
@@ -191,17 +191,31 @@ class Command(BaseCommand):
         if self._missing_columns(report, missing):
             return report
         parsed, errors = csv_reference.validate_rows(table, reader, cols)
-        self._apply_validated(
-            report, parsed, errors,
-            lambda rows: csv_reference.apply(table, rows)[0],
-        )
+        if errors:
+            report.errors.extend(errors)
+            return report
+        if table is csv_reference.ECLASSES:
+            # An explicit catalog replaces only factory defaults on a fresh
+            # install. Omit the CSV to use classes already configured in Settings.
+            seeded = Eclass.history.filter(history_change_reason=ECLASS_DEFAULT_BASELINE).values('id')
+            if (Eclass.objects.exclude(pk__in=seeded, version=1).exists()
+                    or Eclass.history.filter(id__in=seeded, history_type='-').exists()):
+                report.errors.append(S.ERR_BOOTSTRAP_NOT_EMPTY.format(S.ECLASSES))
+                return report
+            flags = dict(Eclass.objects.values_list('name', 'coppice'))
+            for row in parsed:
+                if row[FIELD_NAME] in flags and row[FIELD_COPPICE] != flags[row[FIELD_NAME]]:
+                    row.setdefault(FIELD_DESCRIPTION, '')
+            Eclass.objects.exclude(name__in=[row[FIELD_NAME] for row in parsed]).delete()
+        if parsed:
+            csv_reference.apply(table, parsed)
+            report.loaded = len(parsed)
         return report
 
     def _seed_default(self, table, report):
         """Seed species/products from the in-repo canonical defaults when their
         optional CSV is absent.  This mainly serves minimal or hand-built data
-        dirs.  Other absent reference tables have no default and are left
-        empty."""
+        dirs. Migrations already supply the default economic classes."""
         if table is csv_reference.SPECIES:
             parsed = [
                 {FIELD_COMMON_NAME: common, FIELD_LATIN_NAME: latin,

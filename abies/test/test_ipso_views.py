@@ -957,6 +957,7 @@ def test_upload_stages_observation_photos(db, parcels, settings, tmp_path):
     upload = IpsoUpload.objects.get(session_id=payload[SESSION][FIELD_SESSION_ID])
     assert upload.mode == IPSO_MODE_OBSERVATIONS
     assert upload.record_count == 1
+    assert upload.category_ids == [category.pk]
     staged = json.loads((Path(upload.inbox_path) / 'upload.json').read_text())
     photo = staged[RECORDS][0][FIELD_PHOTOS][0]
     assert photo[FIELD_CHECKSUM] == hashlib.sha256(JPEG_BYTES).hexdigest()
@@ -3610,6 +3611,36 @@ def _assert_complete_photo_upload(upload):
     assert (root / IPSO_UPLOAD_FILE_READY).read_text().strip() == upload.checksum
     for i in range(3):
         assert (root / 'photos' / f'photo-{i}').read_bytes() == JPEG_BYTES
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_pending_categories_protected_from_delete_through_upload(send_photo_page, admin_client, legacy):
+    category = ObservationCategory.objects.get(name='Paged upload test')
+    url = '/api/impostazioni/observation-categories/'
+    payload = {'row_id': category.pk, 'version': category.version}
+    assert send_photo_page(0).status_code == 200
+    if legacy:
+        IpsoUploadPage.objects.update(category_ids=None)
+
+    def check_protected(reason):
+        response = admin_client.post(url + 'delete/', payload, content_type='application/json')
+        assert response.status_code == 400 and response.json()['message'] == reason
+        rows = admin_client.get(url + 'data/').json()['rows']
+        assert next(row[-1] for row in rows if row[0] == category.pk) == reason
+
+    check_protected(S.OBSERVATION_CATEGORY_PENDING)
+    assert send_photo_page(1).status_code == send_photo_page(2).status_code == 200
+    upload = IpsoUpload.objects.get()
+    assert upload.category_ids == [category.pk]
+    if legacy:
+        IpsoUpload.objects.update(category_ids=None)
+    check_protected(S.OBSERVATION_CATEGORY_PENDING)
+    if legacy:
+        (Path(upload.inbox_path) / 'upload.json').unlink()
+        check_protected(S.OBSERVATION_CATEGORY_UNVERIFIED)
+    assert admin_client.post(reverse('ipso-upload-reject', args=[upload.pk]),
+                             {'reason': 'Prova'}, content_type='application/json').status_code == 200
+    assert admin_client.post(url + 'delete/', payload, content_type='application/json').status_code == 200
 
 
 def test_duplicate_identifiers_reject_the_intermediate_page_before_ack(send_photo_page):

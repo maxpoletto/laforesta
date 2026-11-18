@@ -209,15 +209,19 @@ class Region(models.Model):
         return self.name
 
 
-class Eclass(models.Model):
+class Eclass(TimestampedModel):
     """Parcel economic class (comparto)."""
     name = models.CharField(max_length=10, unique=True)
+    description = models.TextField(blank=True)
     coppice = models.BooleanField(default=False)
     min_harvest_volume = models.IntegerField(default=0)
+    history = HistoricalRecords(verbose_name=S.ECLASS_REVISION,
+                                verbose_name_plural=S.ECLASS_REVISIONS)
 
     class Meta:
         verbose_name = S.ECLASS
         verbose_name_plural = S.ECLASSES
+        ordering = ['name']
 
     def __str__(self):
         return self.name

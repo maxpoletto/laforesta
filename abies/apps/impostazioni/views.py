@@ -7,7 +7,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, Exists, F, OuterRef, Q
+from django.db.models.deletion import ProtectedError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
@@ -23,7 +24,7 @@ from apps.base.digests import (
     hypso_param_row, mark_stale, mark_stale_prefixes, serve_digest,
 )
 from apps.base.responses import (
-    conflict_response, parse_json_body, row_patch, save_model_response,
+    check_delete_version, conflict_response, parse_json_body, row_delete, row_patch, save_model_response,
     submitted_version, success_response,
     validation_error,
 )
@@ -31,21 +32,22 @@ from apps.base.selectors import (
     active_or_default_survey_ids,
 )
 from apps.base.models import (
-    HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
-    LoginMethod, ObservationCategory, RoadType, Role, SiteSettings, Species, SpeciesType, Survey,
-    Tractor, TreeSample, User,
+    Eclass, HYPSO_FUNC_LN, HypsoParam, HypsoParamSource,
+    LoginMethod, ObservationCategory, ObservationCategoryAssignment, Parcel, RoadType,
+    Role, SiteSettings, Species, SpeciesType, Survey, Tractor, TreeSample, User,
 )
 from apps.base.species import OTHER_SPECIES_TYPES, PROTECTED_SPECIES_NAMES
+from apps.ipso.staging import pending_observation_categories
 from config import strings as S
 from config.constants import (
     BOSCO_DENDROMETRY_DIGESTS, BOSCO_SPECIES_DIGESTS, COLUMNS,
-    DATA_ID_ROAD_TYPES, DIAMETER_CLASS_MODES,
+    DATA_ID_ECLASSES, DATA_ID_ROAD_TYPES, DIAMETER_CLASS_MODES,
     DIGEST_HYPSO_PARAMS, DIGEST_OBSERVATIONS,
     DIGEST_PARCELS, DIGEST_PARCEL_DENDROMETRY, DIGEST_PARCEL_DENDROMETRY_POINTS,
     DIGEST_PREFIX_MARK_TREES, DIGEST_PREFIX_SAMPLED_TREES,
     FIELD_ACTIVE, FIELD_ACTIVE_ID, FIELD_ACTIVE_IDS, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME,
-    FIELD_COUNTS,
-    FIELD_DATA_IDS, FIELD_DESCRIPTION, FIELD_DIAMETER_CLASS_MODE,
+    FIELD_COPPICE, FIELD_COUNTS,
+    FIELD_DATA_IDS, FIELD_DELETE_REASON, FIELD_DESCRIPTION, FIELD_DIAMETER_CLASS_MODE,
     FIELD_CREATED_AT, FIELD_DENSITY, FIELD_EMAIL, FIELD_FILE, FIELD_FIRST_NAME,
     FIELD_ID, FIELD_IS_ACTIVE, FIELD_LAST_NAME,
     FIELD_DEFAULT_LANDING_PAGE,
@@ -277,30 +279,49 @@ def _save_species_response(request, body, parsed):
 # ---------------------------------------------------------------------------
 
 OBSERVATION_CATEGORY_COLS = [
-    ROW_ID, S.LABEL_NAME, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE,
+    ROW_ID, S.LABEL_NAME, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE, VERSION, FIELD_DELETE_REASON,
 ]
 
 
+def _category_delete_reason(assigned, pk, pending):
+    if assigned:
+        return S.OBSERVATION_CATEGORY_IN_USE
+    if pending is None:
+        return S.OBSERVATION_CATEGORY_UNVERIFIED
+    return S.OBSERVATION_CATEGORY_PENDING if pk in pending else ''
+
+
+def _observation_category_rows(categories):
+    pending = pending_observation_categories()
+    assigned = set(ObservationCategoryAssignment.objects.values_list('category_id', flat=True).distinct())
+    return [
+        [c.pk, c.name, c.sort_order, c.active, c.version,
+         _category_delete_reason(c.pk in assigned, c.pk, pending)]
+        for c in categories
+    ]
+
+
 def _observation_category_row(category):
-    return [category.id, category.name, category.sort_order, category.active]
+    return _observation_category_rows([category])[0]
 
 
 @login_required
 @require_admin
 def observation_categories_data(request):
-    rows = [
-        _observation_category_row(category)
-        for category in ObservationCategory.objects.order_by('sort_order', 'name', 'id')
-    ]
+    rows = _observation_category_rows(ObservationCategory.objects.all())
     return JsonResponse({COLUMNS: OBSERVATION_CATEGORY_COLS, ROWS: rows})
 
 
 @login_required
 @require_admin
 def observation_categories_form(request, obj_id=None):
+    reason = ''
+    if obj_id:
+        assigned = ObservationCategoryAssignment.objects.filter(category_id=obj_id).exists()
+        reason = _category_delete_reason(assigned, obj_id, pending_observation_categories())
     return _form(
         'impostazioni/_observation_category_form.html',
-        ObservationCategory, obj_id, request,
+        ObservationCategory, obj_id, request, extra={FIELD_DELETE_REASON: reason},
     )
 
 
@@ -338,12 +359,13 @@ def observation_categories_save(request):
 # ---------------------------------------------------------------------------
 
 ROAD_TYPE_FORM = 'impostazioni/_road_type_form.html'
-ROAD_TYPE_COLS = [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.COL_PRIORITY, S.COL_ACTIVE]
+ROAD_TYPE_COLS = [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.CSV_COL_SORT_ORDER, S.COL_ACTIVE, VERSION, FIELD_DELETE_REASON]
 
 
 def _road_type_row(road_type):
+    # Cartographic features do not yet have a road-type foreign key.
     return [road_type.pk, road_type.name, road_type.description,
-            road_type.sort_order, road_type.active]
+            road_type.sort_order, road_type.active, road_type.version, '']
 
 
 @login_required
@@ -372,9 +394,9 @@ def road_types_save(request):
     max_length = RoadType._meta.get_field(FIELD_NAME).max_length
     if len(name) > max_length:
         return _error(S.ERR_NAME_MAX_LENGTH.format(max_length))
-    priority = int_or_none(body.get(FIELD_SORT_ORDER))
-    if priority is None:
-        return _error(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.COL_PRIORITY))
+    sort_order = int_or_none(body.get(FIELD_SORT_ORDER))
+    if sort_order is None:
+        return _error(S.ERR_BOSCO_INTEGER_REQUIRED.format(S.CSV_COL_SORT_ORDER))
 
     def conflict(obj):
         return conflict_response(
@@ -386,7 +408,7 @@ def road_types_save(request):
         request, body, model=RoadType, data_id=DATA_ID_ROAD_TYPES,
         values={
             FIELD_NAME: name, FIELD_DESCRIPTION: body.get(FIELD_DESCRIPTION, '').strip(),
-            FIELD_SORT_ORDER: priority, FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
+            FIELD_SORT_ORDER: sort_order, FIELD_ACTIVE: is_truthy(body.get(FIELD_ACTIVE)),
         },
         row_fn=_road_type_row, stale=('audit',), conflict_fn=conflict,
         unique_field=FIELD_NAME, unique_value=name, unique_case_insensitive=True,
@@ -395,9 +417,119 @@ def road_types_save(request):
 
 
 # ---------------------------------------------------------------------------
-# Bosco source settings (writer+)
+# Economic classes
 # ---------------------------------------------------------------------------
 
+ECLASS_FORM = 'impostazioni/_eclass_form.html'
+ECLASS_COLS = [ROW_ID, S.LABEL_NAME, S.COL_DESCRIPTION, S.CSV_COL_COPPICE, VERSION, FIELD_DELETE_REASON]
+
+
+def _eclass_row(obj):
+    assigned = obj.assigned if hasattr(obj, 'assigned') else obj.parcel_set.exists()
+    return [obj.pk, obj.name, obj.description, obj.coppice, obj.version, S.ECLASS_DELETE_IN_USE if assigned else '']
+
+
+@login_required
+@require_admin
+def eclasses_data(request):
+    classes = Eclass.objects.annotate(assigned=Exists(Parcel.objects.filter(eclass_id=OuterRef('pk'))))
+    return JsonResponse({COLUMNS: ECLASS_COLS, ROWS: [_eclass_row(obj) for obj in classes]})
+
+
+@login_required
+@require_admin
+def eclasses_form(request, obj_id=None):
+    return _form(ECLASS_FORM, Eclass, obj_id, request)
+
+
+@login_required
+@require_admin
+@require_POST
+def eclasses_save(request):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    name = body.get(FIELD_NAME, '').strip()
+    if not name:
+        return _error(S.ERR_NAME_REQUIRED)
+    max_length = Eclass._meta.get_field(FIELD_NAME).max_length
+    if len(name) > max_length:
+        return _error(S.ERR_NAME_MAX_LENGTH.format(max_length))
+    coppice = is_truthy(body.get(FIELD_COPPICE))
+
+    def conflict(obj):
+        return conflict_response(data_id=DATA_ID_ECLASSES, row_id=obj.pk, record=_eclass_row(obj),
+                                 html=render_to_string(ECLASS_FORM, {'obj': obj}, request=request))
+
+    begin_nonce_write(request)
+    with transaction.atomic():
+        row_id = int_or_none(body.get(ROW_ID))
+        current = Eclass.objects.filter(pk=row_id)
+        # Reserve SQLite's write lock before checking parcel assignments, also
+        # for clients without a nonce. A stale form gets the current row below.
+        current.update(version=F('version'))
+        if current.filter(version=submitted_version(body), parcel__isnull=False).exclude(coppice=coppice).exists():
+            return _error(S.ECLASS_COPPICE_IN_USE)
+        return save_model_response(
+            request, body, model=Eclass, data_id=DATA_ID_ECLASSES,
+            values={FIELD_NAME: name, FIELD_DESCRIPTION: body.get(FIELD_DESCRIPTION, '').strip(),
+                    FIELD_COPPICE: coppice},
+            row_fn=_eclass_row, conflict_fn=conflict, stale=(DIGEST_PARCELS, 'audit'),
+            invalidates={FIELD_DATA_IDS: [DIGEST_PARCELS, 'audit']},
+            unique_field=FIELD_NAME, unique_value=name, unique_case_insensitive=True,
+            unique_error=S.ERR_ECLASS_NAME_DUPLICATE,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Delete unused reference entries
+# ---------------------------------------------------------------------------
+
+_REFERENCE_TABLES = {
+    IPSO_REF_OBSERVATION_CATEGORIES: (ObservationCategory, _observation_category_row,
+                                      S.OBSERVATION_CATEGORY_IN_USE, (DIGEST_OBSERVATIONS, 'audit')),
+    DATA_ID_ROAD_TYPES: (RoadType, _road_type_row, S.ROAD_TYPE_IN_USE, ('audit',)),
+    DATA_ID_ECLASSES: (Eclass, _eclass_row, S.ECLASS_DELETE_IN_USE, (DIGEST_PARCELS, 'audit')),
+}
+
+
+@login_required
+@require_admin
+@require_POST
+def delete_reference(request, data_id):
+    body, error = parse_json_body(request)
+    if error:
+        return error
+    row_id = int_or_none(body.get(ROW_ID))
+    if row_id is None:
+        return _error(S.ERR_ROW_ID_INVALID)
+    model, row_fn, protected_message, digests = _REFERENCE_TABLES[data_id]
+    begin_nonce_write(request)
+    with transaction.atomic():
+        error = check_delete_version(model(pk=row_id), body, data_id=data_id, record_fn=row_fn)
+        if error:
+            return error
+        obj = model.objects.get(pk=row_id)
+        record = row_fn(obj)
+        # All three tables carry the current reason in their final hidden column.
+        reason = record[-1]
+        if not reason:
+            try:
+                obj.delete()
+            except ProtectedError:
+                reason = protected_message
+                record[-1] = reason
+        if reason:
+            return conflict_response(data_id=data_id, row_id=row_id, record=record, message=reason)
+        mark_stale(*digests)
+        return success_response(request, body, data_id=data_id, row_id=row_id,
+                                deletes=[row_delete(data_id, row_id)],
+                                invalidates={FIELD_DATA_IDS: list(digests)})
+
+
+# ---------------------------------------------------------------------------
+# Bosco source settings (writer+)
+# ---------------------------------------------------------------------------
 
 @login_required
 @require_writer

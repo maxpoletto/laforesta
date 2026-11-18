@@ -56,7 +56,8 @@ def regions(db):
 def eclasses(db):
     items = []
     for name, coppice in [('A', False), ('B', False), ('F', True)]:
-        items.append(Eclass.objects.create(name=name, coppice=coppice))
+        obj, _ = Eclass.objects.get_or_create(name=name, defaults={'coppice': coppice})
+        items.append(obj)
     return items
 
 

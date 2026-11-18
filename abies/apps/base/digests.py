@@ -38,6 +38,7 @@ from apps.base.selectors import (
 )
 from config import strings as S
 from config.constants import (
+    ECLASS_DEFAULT_BASELINE,
     COL_COPPICE, COL_PARCEL_ID, COL_REGION_ID, COL_SPECIES_ID,
     COL_SURVEY_ID, COL_TREE_ID, DIGEST_FUTURE_PRODUCTION, DIGEST_HYPSO_PARAMS,
     DIGEST_PARCELS,
@@ -527,7 +528,7 @@ def _audit_configs() -> list:
     Field maps are selective: only domain-meaningful fields are shown.
     """
     from apps.base.models import (
-        Crew, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
+        Crew, Eclass, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
         MapFeature, Observation, ObservationCategory, Parcel, RoadType, SampleArea, SampleGrid,
         SiteSettings, Species, Survey,
         Tractor, User, VolumeEquation,
@@ -587,9 +588,13 @@ def _audit_configs() -> list:
         (MapFeature, S.MAP_FEATURE.capitalize(), {
             'id': 'ID', 'parcel_id': S.COL_PARCEL, 'version': S.COL_MAP_REVISION,
         }),
+        (Eclass, S.ECLASS.capitalize(), {
+            'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,
+            'coppice': S.CSV_COL_COPPICE, 'min_harvest_volume': S.CSV_COL_MIN_VOLUME,
+        }),
         (RoadType, S.TABLE_ROAD_TYPE, {
             'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION,
-            'sort_order': S.COL_PRIORITY, 'active': S.COL_ACTIVE,
+            'sort_order': S.CSV_COL_SORT_ORDER, 'active': S.COL_ACTIVE,
         }),
         (Observation, S.TABLE_OBSERVATION, {
             'date': S.COL_DATE,
@@ -726,7 +731,7 @@ def _audit_rows(model, manager, table_label, field_labels, events):
         pk = getattr(entry, source_pk)
         # Migration snapshots establish the before value for existing rows;
         # they are not user writes and must not appear as new audit events.
-        if entry.history_change_reason == _AUDIT_BASELINE_REASON:
+        if entry.history_change_reason in (_AUDIT_BASELINE_REASON, ECLASS_DEFAULT_BASELINE):
             prev_map[pk] = entry
             continue
         ht = entry.history_type

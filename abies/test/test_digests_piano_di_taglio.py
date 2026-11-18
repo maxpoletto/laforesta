@@ -52,7 +52,7 @@ def plan(db):
 
 @pytest.fixture
 def coppice_eclass(db):
-    return Eclass.objects.create(name='C', coppice=True)
+    return Eclass.objects.get_or_create(name='F', defaults={'coppice': True})[0]
 
 
 @pytest.fixture

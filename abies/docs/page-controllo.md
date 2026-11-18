@@ -74,6 +74,7 @@ dropping it from the config.
 | App/model | Base table | History table | Controllo label | Notes |
 | --- | --- | --- | --- | --- |
 | `base.Crew` | `base_crew` | `base_historicalcrew` | `Squadra` | Crew reference table. |
+| `base.Eclass` | `base_eclass` | `base_historicaleclass` | `Classe economica` | Parcel economic classes. The migration establishes the first before-value for later edits. |
 | `base.HarvestPlan` | `base_harvestplan` | `base_historicalharvestplan` | `Piano di taglio` | Plan header. |
 | `base.HarvestPlanItem` | `base_harvestplanitem` | `base_historicalharvestplanitem` | `Voce piano di taglio` | Worksite/plan-item state and materialized volumes. |
 | `base.HarvestTransition` | `base_harvesttransition` | `base_historicalharvesttransition` | `Transizione cantiere` | Opening/closing events, including date and permit-note corrections. |
@@ -122,4 +123,4 @@ in the Controllo audit digest:
   many-to-many or child rows are not individually audited unless
   represented by an audited parent or aggregate row.
 - Bootstrap/reference-only tables without `HistoricalRecords()`, such as
-  `Region`, `Eclass`, `Product`, and `HarvestDetail`, are not audited.
+  `Region`, `Product`, and `HarvestDetail`, are not audited.

@@ -4,6 +4,7 @@ from django.urls import path
 
 from apps.impostazioni import views
 from apps.impostazioni import equation_imports
+from config.constants import DATA_ID_ECLASSES, DATA_ID_ROAD_TYPES, IPSO_REF_OBSERVATION_CATEGORIES
 
 urlpatterns = [
     path('equations/import/preview/', equation_imports.preview_import, name='impostazioni-equation-preview'),
@@ -43,12 +44,23 @@ urlpatterns = [
          name='impostazioni-observation-categories-form-edit'),
     path('observation-categories/save/', views.observation_categories_save,
          name='impostazioni-observation-categories-save'),
+    path('observation-categories/delete/', views.delete_reference, {'data_id': IPSO_REF_OBSERVATION_CATEGORIES},
+         name='impostazioni-observation-categories-delete'),
 
     # Road types
     path('road-types/data/', views.road_types_data, name='impostazioni-road-types-data'),
     path('road-types/form/', views.road_types_form, name='impostazioni-road-types-form-add'),
     path('road-types/form/<int:obj_id>/', views.road_types_form, name='impostazioni-road-types-form-edit'),
     path('road-types/save/', views.road_types_save, name='impostazioni-road-types-save'),
+    path('road-types/delete/', views.delete_reference, {'data_id': DATA_ID_ROAD_TYPES},
+         name='impostazioni-road-types-delete'),
+
+    path('eclasses/data/', views.eclasses_data, name='impostazioni-eclasses-data'),
+    path('eclasses/form/', views.eclasses_form, name='impostazioni-eclasses-form-add'),
+    path('eclasses/form/<int:obj_id>/', views.eclasses_form, name='impostazioni-eclasses-form-edit'),
+    path('eclasses/save/', views.eclasses_save, name='impostazioni-eclasses-save'),
+    path('eclasses/delete/', views.delete_reference, {'data_id': DATA_ID_ECLASSES},
+         name='impostazioni-eclasses-delete'),
 
     # Bosco source settings (writer+)
     path('dendrometry/data/', views.dendrometry_data,

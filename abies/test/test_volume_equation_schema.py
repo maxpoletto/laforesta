@@ -62,7 +62,7 @@ def test_real_upgrade_preserves_captured_zero_estimates_and_height_links():
     try:
         old = executor.loader.project_state(previous).apps
         region = old.get_model('base', 'Region').objects.create(name='Upgrade region')
-        eclass = old.get_model('base', 'Eclass').objects.create(name='A')
+        eclass = old.get_model('base', 'Eclass').objects.create(name='Old A')
         parcel = old.get_model('base', 'Parcel').objects.create(name='1', region=region,
                                                                eclass=eclass, area_ha=1)
         sp = old.get_model('base', 'Species').objects.create(

@@ -14,14 +14,11 @@
       <label for="id_road_type_description">{{ S.COL_DESCRIPTION }}</label>
       <textarea id="id_road_type_description" name="description" rows="2">{{ obj.description }}</textarea>
     </div>
-    <div class="form-row">
-      <div class="form-group narrow">
-        <label for="id_road_type_priority">{{ S.COL_PRIORITY }}</label>
-        <input type="number" id="id_road_type_priority" name="sort_order"
-               value="{{ obj.sort_order|unlocalize }}" aria-describedby="road-type-order-hint" required>
-      </div>
+    <div class="form-group">
+      <label for="id_road_type_sort_order">{{ S.CSV_COL_SORT_ORDER }}</label>
+      <input type="number" id="id_road_type_sort_order" name="sort_order"
+             value="{{ obj.sort_order|unlocalize }}" required>
     </div>
-    <p class="text-muted" id="road-type-order-hint">I valori più bassi vengono mostrati per primi.</p>
     <div class="form-group">
       <label>
         <input type="hidden" name="active" value="false">

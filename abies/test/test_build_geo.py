@@ -143,7 +143,7 @@ def test_upgrade_rolls_back_invalid_map_then_migrates_and_serves_it(settings, mo
     try:
         state = executor.migrate(previous).apps
         region = state.get_model('base', 'Region').objects.create(name='Capistrano')
-        eclass = state.get_model('base', 'Eclass').objects.create(name='F', coppice=True)
+        eclass = state.get_model('base', 'Eclass').objects.create(name='Old F', coppice=True)
         parcel = state.get_model('base', 'Parcel').objects.create(
             name='01', region=region, eclass=eclass, area_ha=3,
             intervention_interval=18, standards_per_ha=75)

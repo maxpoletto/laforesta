@@ -65,7 +65,7 @@ Bootstrap has a deliberately narrow contract.
 
 The command loads files in dependency order:
 
-1. Reference tables: `regions.csv`, `eclasses.csv`, optional `crews.csv`,
+1. Reference tables: `regions.csv`, optional `eclasses.csv`, optional `crews.csv`,
    optional `tractors.csv`, optional `species.csv`, optional `products.csv`.
 2. Parcels: `particelle.csv` and the optional parcel map.
 3. Containers: `sample_grids.csv`, `harvest_plans.csv`, `surveys.csv`.
@@ -99,11 +99,11 @@ applied update, and immediately regenerates the `parcels` digest used by Bosco.
 The minimal bootstrap input is:
 
 - `regions.csv`
-- `eclasses.csv`
 - `particelle.csv`
 
 A complete application data bundle usually also includes:
 
+- `eclasses.csv`
 - `crews.csv`
 - `tractors.csv`
 - `species.csv`
@@ -123,6 +123,13 @@ Optional missing files are skipped, except species and products, which fall back
 to built-in defaults.
 
 ## File Notes
+
+`particelle.csv` can use the economic classes already configured in
+**Impostazioni → Dati di base → Classi economiche**. A fresh database starts
+with classes A–F. To supply a different catalog during setup, include
+`eclasses.csv` before editing those defaults. The file defines the complete
+set of classes. Required columns are `Comparto` (also accepted as `Nome`)
+and `Ceduo`. The description and minimum harvest volume are optional.
 
 `particelle.csv` defines parcels and links them to regions and eclasses.
 References must already exist in the loaded reference tables. Optional

@@ -3,7 +3,7 @@
     <input type="hidden" name="row_id" value="{{ obj.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ obj.version|default:'1' }}">
 
-    <h2>{% if obj %}Modifica categoria{% else %}Nuova categoria{% endif %}</h2>
+    <h2>{% if obj %}Modifica categoria di osservazione{% else %}Nuova categoria{% endif %}</h2>
 
     <div class="form-group">
       <label for="id_category_name">Nome</label>
@@ -12,7 +12,7 @@
     </div>
 
     <div class="form-group">
-      <label for="id_category_sort_order">Ordine</label>
+      <label for="id_category_sort_order">{{ S.CSV_COL_SORT_ORDER }}</label>
       <input type="number" id="id_category_sort_order" name="sort_order" required
              value="{% if obj %}{{ obj.sort_order }}{% else %}0{% endif %}">
     </div>
@@ -26,6 +26,7 @@
       </label>
     </div>
 
+    {% if delete_reason %}<p class="text-muted">{{ delete_reason }}</p>{% endif %}
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
       <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>

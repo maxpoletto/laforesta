@@ -87,6 +87,7 @@ export const FIELD_TAKEN_AT = 'taken_at';
 // Ipso integration identifiers.
 export const DATA_ID_IPSO_UPLOADS = 'ipso_uploads';
 export const DATA_ID_ROAD_TYPES = 'road_types';
+export const DATA_ID_ECLASSES = 'eclasses';
 export const IPSO_REFERENCE_LEGACY_CONVERTED = 'legacy-converted';
 export const IPSO_MODE_MARTELLATE = 'martellate';
 export const IPSO_MODE_SAMPLES = 'samples';
@@ -153,6 +154,7 @@ export const FIELD_ACTIVE                = 'active';
 export const FIELD_ACTIVE_ID             = 'active_id';
 export const FIELD_ACTIVE_IDS            = 'active_ids';
 export const FIELD_IS_ACTIVE             = 'is_active';
+export const FIELD_DELETE_REASON         = 'delete_reason';
 export const FIELD_LAT                   = 'lat';
 export const FIELD_LON                   = 'lon';
 export const FIELD_ACC_M                 = 'acc_m';

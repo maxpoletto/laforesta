@@ -78,8 +78,9 @@ S (string constants) provided by the shell's render context.
     <div id="settings-dati-di-base" class="settings-forms" data-settings-panel hidden>
       {% if user.role == ROLE_ADMIN %}
         <div class="settings-cluster">
-          {% include "impostazioni/_entity_section.html" with key="observation-categories" title="Categorie di osservazioni" %}
-          {% include "impostazioni/_entity_section.html" with key="road-types" title="Tipi di viabilità" %}
+          {% include "impostazioni/_entity_section.html" with key="observation-categories" title="Categorie di osservazioni" usage_note="Puoi eliminare le categorie che non sono usate in osservazioni esistenti." %}
+          {% include "impostazioni/_entity_section.html" with key="road-types" title="Tipi di viabilità" usage_note="Puoi eliminare i tipi di viabilità che non sono assegnati a strade o sentieri esistenti." %}
+          {% include "impostazioni/_entity_section.html" with key="eclasses" title="Classi economiche" hide_active_filter=True usage_note="Se una classe è assegnata a una particella, puoi modificarne il nome e la descrizione, ma non puoi eliminarla o cambiare il valore «Ceduo»." %}
         </div>
       {% endif %}
       <div class="settings-cluster">

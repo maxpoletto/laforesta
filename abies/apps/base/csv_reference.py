@@ -23,7 +23,7 @@ from apps.base.species import (
 )
 from config import strings as S
 from config.constants import (
-    FIELD_ACTIVE, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY,
+    FIELD_ACTIVE, FIELD_BOTANICAL_TYPE, FIELD_COMMON_NAME, FIELD_COPPICE, FIELD_DENSITY, FIELD_DESCRIPTION,
     FIELD_LATIN_NAME, FIELD_MANUFACTURER, FIELD_MINOR, FIELD_MIN_HARVEST_VOLUME,
     FIELD_MODEL, FIELD_NAME, FIELD_NOTES, FIELD_PRESSLER_DEFAULT, FIELD_SORT_ORDER,
     FIELD_YEAR,
@@ -69,6 +69,7 @@ REGIONS = RefTable('regions', Region, (
 
 ECLASSES = RefTable('eclasses', Eclass, (
     RefColumn(S.CSV_COL_CLASS, FIELD_NAME, KIND_STR),
+    RefColumn(S.COL_DESCRIPTION, FIELD_DESCRIPTION, KIND_STR, required=False, default=''),
     RefColumn(S.CSV_COL_COPPICE, FIELD_COPPICE, KIND_BOOL),
     RefColumn(S.CSV_COL_MIN_VOLUME, FIELD_MIN_HARVEST_VOLUME, KIND_INT,
               required=False, default=0),
@@ -125,6 +126,8 @@ def resolve_columns(table: RefTable, fieldnames):
             found[col.field] = col.header
         elif table is TRACTORS and col is table.key and S.LABEL_VEHICLE in available:
             found[col.field] = S.LABEL_VEHICLE
+        elif table is ECLASSES and col is table.key and S.LABEL_NAME in available:
+            found[col.field] = S.LABEL_NAME
         elif col.required:
             missing.append(col.header)
     return found, missing

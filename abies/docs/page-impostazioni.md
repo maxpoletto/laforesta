@@ -7,13 +7,13 @@ full content width.
 | Tab | URL | Sections in display order |
 | --- | --- | --- |
 | Generali | `/impostazioni` | Password, Utenti, Pagina iniziale |
-| Dati di base | `/impostazioni?scheda=dati-di-base` | Categorie di osservazioni and Tipi di viabilità, then Specie, Parametri dendrometrici and Classi diametriche, then Mezzi |
+| Dati di base | `/impostazioni?scheda=dati-di-base` | Categorie di osservazioni, Tipi di viabilità and Classi economiche, then Specie, Parametri dendrometrici and Classi diametriche, then Mezzi |
 | Cartografia | `/impostazioni?scheda=cartografia` | Full-width space reserved for the map editor, currently blank |
 
 Readers enter Generali directly. An unavailable or unknown tab returns to
 the default URL. Switching tabs adds a history entry and preserves open
 sections and form input while Impostazioni remains mounted. Sections start
-collapsed on entry. The two category sections are available to admins.
+collapsed on entry. Admins can open all three sections in the first group.
 
 The plan used for projected production and the cutting calendar is selected
 directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
@@ -35,10 +35,14 @@ default, then `/prelievi`.
 ## Reference tables
 
 Tractors and species are visible to writers. Admins also manage observation
-categories and road types. The collapsible sub-sections have sortable tables.
-Tables support add and edit but not delete; entities are deactivated via the
-`active` flag. The `Solo attivi` checkbox is checked by default and filters the
-table.
+categories, road types and economic classes. Each collapsible section has a
+sortable table with add and edit controls. Tables with an active flag also
+have a `Solo attivi` filter, checked by default.
+
+The trash icon appears beside unused economic classes, road types, and
+observation categories. Selecting it opens a confirmation that names the
+entry. Abies checks its version and assignments again before deleting it and
+records the deletion in Controllo.
 
 - `Mezzi` lists the vehicle name, manufacturer, model, year and active flag.
   The reference CSV importer accepts both the `Mezzo` column from the settings
@@ -70,16 +74,37 @@ table.
 - Categorie di osservazioni: name, sort order, and active flag. Active
   categories are sent to Ipso in `reference.json`. The default rows are `fitosanitario`, `viabilità`,
   and `rifiuti`.
+  An assigned category can be deactivated. Its edit form explains whether an
+  observation or an incoming Ipso upload uses it. Accepted pages protect their
+  categories as soon as they reach the server. For work still on operators'
+  phones, deactivating a category keeps its ID available for later uploads.
 - `Tipi di viabilità` lists the site-wide road and trail types. Admins can
-  edit the name, optional description, integer priority and active flag.
-  Lower priorities appear first. The migration seeds these editable defaults.
+  edit the name, optional description, sort order (`Ordine`) and active flag.
+  The migration seeds these editable defaults.
+  All road types are unused until the cartography editor can assign them to roads.
 
-  | Nome | Descrizione | Priorità |
+  | Nome | Descrizione | Ordine |
   | --- | --- | ---: |
   | Strada di 1° livello | Strada forestale camionabile | 10 |
   | Strada di 2° livello | Strada forestale adatta a macchine operatrici e automezzi 4x4 | 20 |
   | Pista | Pista da esbosco per trattori e macchine forestali | 30 |
   | Sentiero | Percorso per pedoni o animali | 40 |
+
+- `Classi economiche` lists parcel classes by name. Admins can edit `Nome`
+  (up to ten characters), an optional `Descrizione`, and the `Ceduo` checkbox.
+  Renaming a class updates its label in Bosco and preserves parcel assignments.
+  Once a parcel uses a class, its `Ceduo` checkbox is locked because coppice
+  parcels require an intervention interval and a count of retained standards
+  per hectare. Change an individual parcel's class and these values in Bosco.
+
+  | Nome | Descrizione | Ceduo |
+  | --- | --- | --- |
+  | A | Fustaia di abete | No |
+  | B | Fustaia mista di conifere e latifoglie | No |
+  | C | Fustaia di pino | No |
+  | D | Fustaia di pino nero e latifoglie | No |
+  | E | Fustaia di faggio e conifere | No |
+  | F | Ceduo di castagno | Sì |
 
 ### Species equation editor
 

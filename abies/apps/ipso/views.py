@@ -816,7 +816,8 @@ def update_upload_mode(request: HttpRequest, upload_id: int) -> JsonResponse:
         ipso_staging.write_payload_files(inbox_path, payload, checksum)
         upload.mode = mode
         upload.checksum = checksum
-        update_fields = ['mode', 'checksum']
+        upload.category_ids = ipso_staging.observation_category_ids(payload[RECORDS])
+        update_fields = ['mode', 'checksum', FIELD_CATEGORY_IDS]
         if upload.state != IpsoUploadState.REJECTED:
             upload.error_summary = ''
             update_fields.append('error_summary')
@@ -1097,9 +1098,14 @@ def upload_session(request: HttpRequest, paged=False) -> JsonResponse:
             )
             if IpsoUploadPage.objects.filter(session_id=session_id, upload__isnull=True).exists():
                 raise upload_pages.PageConflict
+            if upload.mode == IPSO_MODE_OBSERVATIONS:
+                # Recheck under the writer lock before accepting these category references.
+                _validate_observation_category_ids(normalized[RECORDS])
             _write_upload_files(
                 inbox_path, normalized, checksum, csv_text, staged_photo_files,
             )
+    except UploadValidationError as e:
+        return _api_json({OK: False, ERROR: IPSO_ERROR_INVALID_PAYLOAD, DETAIL: str(e)}, status=422)
     except upload_pages.PageConflict:
         return _api_json({OK: False, ERROR: IPSO_ERROR_CONFLICT, DETAIL: S.IPSO_ERR_UPLOAD_PAGE}, status=409)
     except IntegrityError:

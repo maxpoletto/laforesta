@@ -626,7 +626,7 @@ CSV_COL_ACTIVE      = 'Attivo'              # Crew/Species.active (bool); paired
 CSV_COL_LATIN       = 'Nome latino'         # Species.latin_name; paired with COL_LATIN_NAME
 CSV_COL_DENSITY     = 'Densità (q/m³)'      # Species.density; paired with COL_DENSITY
 CSV_COL_MINOR       = 'Minore'              # Species.minor (bool); paired with COL_MINOR
-CSV_COL_SORT_ORDER  = 'Ordine'             # Species/ObservationCategory.sort_order
+CSV_COL_SORT_ORDER  = 'Ordine'
 
 # --- Named-container CSV headers (bootstrap: sample_grids/surveys/harvest_plans).
 CSV_COL_GRID         = 'Griglia'       # SampleGrid.name / Survey grid FK; paired with COL_GRID
@@ -763,7 +763,6 @@ COL_INCREMENT_PCT   = 'Incremento %'
 COL_YEAR            = 'Anno'
 COL_ESTIMATED_BIRTH_YEAR = 'Anno di nascita stimato'
 COL_DESCRIPTION     = 'Descrizione'
-COL_PRIORITY        = 'Priorità'
 COL_N_AREAS         = 'N. aree'
 COL_N_SURVEYS       = 'N. rilevamenti'
 COL_LAST_UPDATE     = 'Ultimo aggiornamento'
@@ -907,6 +906,15 @@ REGIONS = 'comprese'
 
 ECLASS = 'classe economica'
 ECLASSES = 'classi economiche'
+ECLASS_REVISION = 'revisione di una classe economica'
+ECLASS_REVISIONS = 'revisioni delle classi economiche'
+ERR_ECLASS_NAME_DUPLICATE = 'Esiste già una classe economica con questo nome.'
+ECLASS_COPPICE_IN_USE = 'Questa classe è assegnata a una o più particelle. Non puoi modificare il valore «Ceduo».'
+ECLASS_DELETE_IN_USE = 'Questa classe è assegnata a una o più particelle. Non puoi eliminarla.'
+OBSERVATION_CATEGORY_IN_USE = 'Questa categoria è assegnata a osservazioni. Puoi disattivarla, ma per eliminarla devi prima rimuoverla dalle osservazioni.'
+OBSERVATION_CATEGORY_PENDING = 'Questa categoria è usata in un caricamento Ipso in attesa di importazione. Puoi disattivarla per le nuove osservazioni.'
+OBSERVATION_CATEGORY_UNVERIFIED = 'Impossibile verificare le categorie di un caricamento Ipso in attesa. Controlla il caricamento prima di eliminare la categoria.'
+ROAD_TYPE_IN_USE = 'Questo tipo è assegnato a strade o sentieri. Puoi disattivarlo per i nuovi tracciati.'
 
 CREW = 'squadra'
 CREWS = 'squadre'

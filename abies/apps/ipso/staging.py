@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import io
 import json
 import os
 import re
+import zipfile
 from datetime import timezone
 from pathlib import Path
 
@@ -14,10 +16,11 @@ from django.conf import settings
 from django.utils import timezone as django_timezone
 
 from apps.base.file_io import fsync_directory as _fsync_dir
+from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadPage, IpsoUploadState
 
 from config import strings as S
 from config.constants import (
-    FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
+    FIELD_CATEGORY_IDS, FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
     IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_PHOTOS_DIR,
     IPSO_UPLOAD_FILE_READY, IPSO_UPLOAD_FILE_SHA256,
@@ -96,6 +99,36 @@ def count_preview_rows(records, previous_segment=None):
     return count
 
 
+def observation_category_ids(records):
+    return sorted({pk for row in records for pk in row.get(FIELD_CATEGORY_IDS, [])})
+
+
+def pending_observation_categories():
+    """IDs still needed for import, or None when a legacy receipt cannot be read."""
+    ids = set()
+    pending = IpsoUploadPage.objects.filter(upload__isnull=True).only('category_ids')
+    received = IpsoUpload.objects.filter(state=IpsoUploadState.RECEIVED).only(
+        'mode', 'category_ids', 'checksum', 'inbox_path')
+    try:
+        for page in pending.iterator():
+            if page.category_ids is None:  # A receipt from before the index was introduced.
+                with zipfile.ZipFile(io.BytesIO(page.body)) as archive:
+                    ids.update(observation_category_ids(json.loads(archive.read('records'))))
+            else:
+                ids.update(page.category_ids)
+        for upload in received.iterator():
+            if upload.category_ids is not None:
+                ids.update(upload.category_ids)
+            elif upload.mode == IpsoUploadMode.OBSERVATIONS:
+                payload, error = read_staged_payload(upload)
+                if error:
+                    return None
+                ids.update(observation_category_ids(payload[RECORDS]))
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, zipfile.BadZipFile):
+        return None
+    return ids
+
+
 def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
     session = payload[SESSION]
     return {
@@ -106,6 +139,7 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
         FIELD_WORK_PACKAGE_ID: session.get('name', session.get(FIELD_WORK_PACKAGE_ID, '')),
         FIELD_OPERATOR: session.get(FIELD_OPERATOR, ''),
         'record_count': count_preview_rows(payload[RECORDS]),
+        FIELD_CATEGORY_IDS: observation_category_ids(payload[RECORDS]),
         'record_date': upload_record_date(payload),
         'checksum': checksum,
         'inbox_path': str(inbox_path),

@@ -65,6 +65,7 @@ def test_happy_path_loads_everything(tmp_path):
     call_command('bootstrap', _make_dir(tmp_path))
     assert Region.objects.count() == 1
     assert Eclass.objects.count() == 1
+    assert Eclass.objects.get(name='A').description == 'Fustaia di abete'
     assert Crew.objects.count() == 1
     assert Tractor.objects.filter(name='T1').exists()
     assert Species.objects.filter(common_name='Abete').exists()
@@ -78,6 +79,39 @@ def test_happy_path_loads_everything(tmp_path):
     assert TreeSample.objects.filter(preserved_number__isnull=True).count() == 1
     assert TreeSample.objects.filter(preserved_number__isnull=False).count() == 1
     assert Harvest.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_optional_eclasses_csv_uses_site_classes(tmp_path):
+    obj = Eclass.objects.get(name='A')
+    obj.description = 'Descrizione locale'
+    obj.version += 1
+    obj.save()
+    with pytest.raises(CommandError):
+        call_command('bootstrap', _make_dir(tmp_path))
+    (tmp_path / 'eclasses.csv').unlink()
+    call_command('bootstrap', tmp_path)
+    parcel = Parcel.objects.get(name='1')
+    assert parcel.eclass_id == obj.pk and parcel.eclass.description == 'Descrizione locale'
+    assert Eclass.objects.count() == 6
+
+
+@pytest.mark.django_db
+def test_eclasses_csv_accepts_settings_columns(tmp_path):
+    catalog = 'Nome;Ceduo;Descrizione\nA;0;Locale\nG;1;Bosco\n'
+    call_command('bootstrap', _make_dir(tmp_path, **{'eclasses.csv': catalog}))
+    assert list(Eclass.objects.values_list('name', 'description', 'coppice')) == [
+        ('A', 'Locale', False), ('G', 'Bosco', True)]
+
+
+@pytest.mark.django_db
+def test_bootstrap_respects_removed_default_class(tmp_path):
+    Eclass.objects.get(name='F').delete()
+    with pytest.raises(CommandError):
+        call_command('bootstrap', _make_dir(tmp_path))
+    (tmp_path / 'eclasses.csv').unlink()
+    call_command('bootstrap', tmp_path)
+    assert not Eclass.objects.filter(name='F').exists()
 
 
 @pytest.mark.django_db

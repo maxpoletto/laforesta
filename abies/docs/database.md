@@ -116,7 +116,7 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
   state:string, received_at:datetime, updated_at:datetime,
   imported_at:datetime nullable, imported_by_id:int nullable,
   target_type:string, target_id:int nullable, error_summary:string,
-  import_result:json)
+  import_result:json, category_ids:json nullable)
   - One completed Ipso mobile session staged for later import. `session_id` is
     unique, so identical client retries are idempotent and conflicting retries
     are marked `conflict`.
@@ -143,13 +143,17 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
 
   - For the `points` mode, `work_package_id` displays the point-set name and
     `record_count` counts explicit points and contiguous trace segments.
+  - `category_ids` holds the distinct observation category IDs in the staged
+    records. Settings uses them to protect categories awaiting import. For a
+    legacy observation upload, it reads the verified staged payload.
 
 - ipso_ipsouploadpage: (id:int, session_id:string, offset:int, end:int,
   transfer:string, checksum:string, received_at:datetime, body:binary nullable,
-  upload_id:int nullable)
+  upload_id:int nullable, category_ids:json nullable)
   - One receipt per (session_id, offset). Offsets and the exclusive end count
     raw records. Pending pages retain their validated records, CSV slice and
-    optional photos. Finishing a session publishes one `IpsoUpload`, links
+    optional photos, plus their distinct observation category IDs. Finishing
+    a session moves category tracking to the published `IpsoUpload`, links
     its receipts and clears their binary bodies in the same transaction.
     During repair a linked receipt temporarily holds its verified page again.
     Abandoned repair bodies expire after 30 days of inactivity. Deleting
@@ -166,10 +170,13 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
 - region: (id:int, name:string)
   - Denotes a forest region or "compresa".
 
-- eclass: (id:int, name:string, coppice:bool, min_harvest_volume:int)
-  - Represents a parcel economic class. It may be coppice or high forest
-    (coppice=false).
-  - Characterized by a minimum volume (m3/ha) before harvesting is permitted.
+- eclass: (id:int, name:string, description:string, coppice:bool,
+  min_harvest_volume:int, version:int, created_at:datetime, modified_at:datetime)
+  - A parcel economic class has a unique name (up to ten characters), an
+    optional description, and a coppice or high-forest classification.
+    `min_harvest_volume` is the minimum standing volume in m³/ha for harvesting.
+  - Settings edits are versioned and audited. Parcels refer to the class by ID.
+    An empty catalog starts with the six [settings defaults](page-impostazioni.md#reference-tables).
 
 - parcel: (id:int, name:string, region_id:int, eclass_id:int,
   area_ha:decimal, ave_age:int nullable, location_name:string,
@@ -789,14 +796,14 @@ Most of these are configurable in the Settings section.
 - observation_category: (id:int, name:string, sort_order:int, active:bool)
   - Admin-managed category list for field observations. Default active rows
     are "fitosanitario", "viabilità", and "rifiuti".
-  - `sort_order` controls display order in settings and Ipso reference data.
-  - Rows are deactivated rather than deleted so future observations can keep
-    stable category IDs.
+  - `sort_order` (`Ordine`) controls display order in settings and Ipso reference data.
+  - Unused categories can be deleted. Deactivating a category preserves its ID
+    for existing observations and incoming Ipso uploads.
 
 - road_type: (id:int, name:string, description:text, sort_order:int, active:bool)
   - Site-wide road and trail classification managed in Impostazioni. Names are
     unique. The optional description explains the classification.
-  - `sort_order` is displayed as `Priorità`, lowest first. Types may share a
-    priority. Deactivating or renaming a type preserves its ID.
+  - `sort_order` (`Ordine`) controls display order, lowest first. Types may share
+    the same value. Deactivating or renaming a type preserves its ID.
   - Versioned and audited. [Settings](page-impostazioni.md#reference-tables)
     lists the four initial types.
