@@ -17,7 +17,7 @@ from apps.base.responses import parse_json_body, success_response, validation_er
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
 from config import strings as S
-from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES
+from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES, PENDING_COUNT
 
 
 @login_required
@@ -131,7 +131,8 @@ def import_points(region_id, upload, payload, user):
     added = restore_drawings(source)
     claim_upload_import(upload, user, IpsoUploadTargetType.POINT_SET, source.pk)
     mark_stale('audit')
-    return {'added': added, 'source_id': source.pk}
+    return {'added': added, 'source_id': source.pk,
+            PENDING_COUNT: IpsoUpload.objects.filter(state=IpsoUploadState.RECEIVED).count()}
 
 
 def valid_edit(drawing, geometry):

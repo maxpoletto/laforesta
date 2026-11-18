@@ -8,6 +8,7 @@ import { showConfirmModal } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { CartographyMap } from './cartography-map.js';
+import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
 const API = '/api/impostazioni/cartography/';
 const tab = 'cartografia';
@@ -229,6 +230,7 @@ export class CartographyEditor {
         return;
       }
       cache.applyResponseChanges(data);
+      if (action === 'import') updateInboxDot(data);
       if (!this.current(generation)) return;
       if (action === 'regions') {
         this.catalog.regions.push({id: data.region_id, name: body.name.trim()});

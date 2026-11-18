@@ -17,6 +17,7 @@ import {
 import { navigate } from '../../base/js/router.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { excludedRowsURL, showTreeImportReview } from './import-review.js';
+import { updateInboxDot } from './inbox-status.js';
 import {
   importWarningLines, isImportWarningResponse, showImportWarningModal,
   withImportWarningsConfirmed,
@@ -202,7 +203,7 @@ function buildPage(el, params, data) {
   });
   installIncludeImportedToggle(tableHost);
   applyInboxFilter();
-  updateNavDot(data);
+  updateInboxDot(data);
 }
 
 function inboxActions() {
@@ -239,11 +240,12 @@ function applyParams(params) {
 }
 
 function refreshTable(data) {
+  if (!data) return; // Invalidation evicts the old digest before its replacement arrives.
   inboxStateIndex = inboxStateColumnIndex(data);
   inboxModeIndex = data?.columns?.indexOf(S.IPSO_COL_MODE) ?? -1;
   table?.setData(data);
   applyInboxFilter();
-  updateNavDot(data);
+  updateInboxDot(data);
   if (summaryEl) summaryEl.textContent = summaryText(data);
 }
 
@@ -446,6 +448,7 @@ function renderDetail(data) {
           `/api/impostazioni/cartography/${regionId}/import/`, mutationBody('points', {upload_id: upload[FIELD_ID]}));
         if (status >= 400) { showError(result[MESSAGE] || S.ERROR_GENERIC); return; }
         cache.applyResponseChanges(result);
+        updateInboxDot(result);
         navigate(`/impostazioni?scheda=cartografia&c=${regionId}&fonte=${result.source_id}`);
       } catch { showError(S.ERROR_NETWORK); }
       finally { open.disabled = false; }
@@ -754,11 +757,4 @@ function summaryText(data) {
   const pending = data?.[PENDING_COUNT] || 0;
   if (!rows.length) return S.IPSO_SUMMARY_EMPTY;
   return S.IPSO_SUMMARY(rows.length, pending);
-}
-
-function updateNavDot(data) {
-  const show = (data?.[PENDING_COUNT] || 0) > 0;
-  for (const dot of document.querySelectorAll('[data-ipso-pending-dot]')) {
-    dot.hidden = !show;
-  }
 }

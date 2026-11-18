@@ -35,9 +35,10 @@ hosts (top to bottom):
 
 The **Viabilità** controls appear for a compresa with published roads.
 Each checkbox controls one configured road type across the Bosco modes. Hidden
-type IDs are stored in the `ns` query parameter. The overlay comes from
-`/api/geo/roads.geojson`; parcel layers and their opening view still use the
-parcel outlines. A compresa with roads and no parcels opens on its roads.
+type IDs are stored in the `ns` query parameter, so reloading the page keeps
+the selection. The overlay comes from `/api/geo/roads.geojson`. Bosco frames
+the opening view around the parcel outlines. A compresa with roads and no
+parcels opens on its roads.
 
 ### Hover and click on the map
 

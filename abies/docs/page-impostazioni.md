@@ -29,6 +29,22 @@ selected compresa uses the `c` query parameter and the basemap uses `mt`.
 The [cartography design](cartography.md) also describes later parcel editing
 and import tools.
 
+### Testing the road workflow
+
+The browser test starts a local Django test server with a temporary database.
+It records a short walk using simulated GPS fixes. At desktop width it opens
+the upload from the Ipso inbox. At portrait width it imports the same kind of
+walk from the editor. Both runs move a vertex, publish the road, check that
+Bosco remembers the road filter after a reload and recover the original fixes.
+With the Playwright Node module and its Chromium installed, the command is
+
+```sh
+ABIES_PLAYWRIGHT_MODULE=playwright python -m pytest -q test/test_cartography_browser.py
+```
+
+An absolute path to the installed Playwright module also works. The API
+workflow and regression tests run as part of the regular `make test` suite.
+
 ## Personal settings
 
 Password-auth users see `Password` with fields for the current password,
