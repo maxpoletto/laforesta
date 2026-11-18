@@ -5,6 +5,7 @@
  * Tables load when their section opens. Switching panels preserves form and table state.
  */
 
+import { CartographyEditor } from './cartography.js';
 import { postJSON } from '../../base/js/api.js';
 import * as cache from '../../base/js/cache.js';
 import { TableWrapper } from '../../base/js/table.js';
@@ -140,6 +141,8 @@ const ENTITY_SECTIONS = {
   },
 };
 
+let cartography = null;
+
 const wireSection = {
   password: wirePasswordSection,
   'landing-page': root => wireLandingPageSection(root, document.body.dataset.role),
@@ -171,6 +174,8 @@ export function mount(params) {
 }
 
 export function unmount() {
+  cartography?.destroy();
+  cartography = null;
   unloadCSS(CSS_URL);
   for (const state of Object.values(sections)) {
     state.dispose?.();
@@ -189,6 +194,13 @@ export function onQueryChange(params = {}) {
     return;
   }
   for (const panel of panels) panel.hidden = panel !== active;
+  if (active?.id === 'settings-cartografia') {
+    cartography ??= new CartographyEditor(active);
+    cartography.open(params);
+  } else if (cartography) {
+    cartography.destroy();
+    cartography = null;
+  }
   for (const link of document.querySelectorAll('#content .settings-nav a')) {
     if (link.getAttribute('aria-controls') === activeId) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');

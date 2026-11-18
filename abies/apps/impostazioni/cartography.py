@@ -73,13 +73,14 @@ def pending_uploads(region_id):
 @login_required
 @require_writer
 @require_GET
+@transaction.atomic
 def workspace(request, region_id):
     region = get_object_or_404(Region, pk=region_id)
     return JsonResponse({
         'uploads': pending_uploads(region.pk),
         'sources': list(MapPointSet.objects.filter(region=region).order_by('-date', '-pk')
                         .values('id', 'name', 'operator', 'date')),
-        'drawings': list(MapDrawing.objects.filter(region=region).values(
+        'drawings': list(MapDrawing.objects.filter(region=region).order_by('source_id', 'sequence', 'pk').values(
             'id', 'source_id', 'sequence', 'name', 'geometry', 'fixes', 'version')),
         'roads': list(MapFeature.objects.filter(region=region).values(
             'id', 'name', 'road_type_id', 'geometry', 'published', 'version')),
@@ -124,6 +125,7 @@ def import_points(region_id, body, user):
         raise ValueError(S.IPSO_ERR_IMPORT_CONTEXT_CHANGED)
     added = restore_drawings(source)
     claim_upload_import(upload, user, IpsoUploadTargetType.POINT_SET, source.pk)
+    mark_stale('audit')
     return {'added': added, 'source_id': source.pk}
 
 

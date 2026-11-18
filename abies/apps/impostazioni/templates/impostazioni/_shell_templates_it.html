@@ -173,7 +173,48 @@ S (string constants) provided by the shell's render context.
       </div>
     </div>
 
-    <div id="settings-cartografia" data-settings-panel hidden></div>
+    <div id="settings-cartografia" data-settings-panel hidden>
+      <div class="map-workspace cartography-layout">
+        <div id="cartography-map" class="map-workspace-host"></div>
+        <aside id="cartography-sidebar" class="map-workspace-sidebar" aria-label="Controlli cartografia">
+          <label for="cartography-region">Compresa</label>
+          <select id="cartography-region"></select>
+          <button class="btn" data-action="new-region">Nuova compresa</button>
+          <p role="status" data-role="status"></p>
+          <details data-role="imports">
+            <summary id="cartography-imports">Importa da Ipso</summary>
+            <label for="cartography-uploads">Nuovi rilievi</label>
+            <select id="cartography-uploads"></select>
+            <button class="btn" data-action="import" disabled>Importa</button>
+            <details id="cartography-saved">
+              <summary>Già importati</summary>
+              <label for="cartography-sources">Rilievo punti</label>
+              <select id="cartography-sources"></select>
+              <button class="btn" data-action="restore" disabled>Importa di nuovo</button>
+              <button class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
+            </details>
+          </details>
+          <details>
+            <summary>Particelle</summary>
+            <select id="cartography-parcels" size="3" aria-label="Particelle"></select>
+          </details>
+          <label for="cartography-drawings">Disegni</label>
+          <select id="cartography-drawings" size="4"></select>
+          <div class="cartography-buttons">
+            <button class="btn" data-action="edit" disabled>Modifica vertici</button>
+            <button class="btn btn-save" data-action="save" hidden>{{ S.SAVE }}</button>
+            <button class="btn" data-action="cancel" hidden>{{ S.CANCEL }}</button>
+            <button class="btn" data-action="road" disabled>Crea strada</button>
+            <button class="btn" disabled>Crea particella</button>
+            <button class="btn" disabled>Aggiungi a particella esistente</button>
+            <button class="btn btn-delete" data-action="clear" disabled>Elimina disegni</button>
+          </div>
+          <label for="cartography-roads">Strade</label>
+          <select id="cartography-roads" size="3"></select>
+          <button class="btn btn-save" data-action="publish" disabled>Pubblica</button>
+        </aside>
+      </div>
+    </div>
   {% endif %}
 </template>
 
@@ -190,4 +231,27 @@ S (string constants) provided by the shell's render context.
       <button type="button" class="btn btn-save" data-action="accept">Accetta</button>
     </div>
   </div>
+</template>
+
+<template id="tmpl-cartography-road">
+  <form class="form-card">
+    <h2>Crea strada</h2>
+    <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
+    <div class="form-row"><label>Tipo di viabilità <select name="road_type_id" required></select></label></div>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">Crea strada</button>
+    </div>
+  </form>
+</template>
+
+<template id="tmpl-cartography-region">
+  <form class="form-card">
+    <h2>Nuova compresa</h2>
+    <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">Pubblica compresa</button>
+    </div>
+  </form>
 </template>

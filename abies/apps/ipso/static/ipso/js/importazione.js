@@ -14,6 +14,7 @@ import { dismiss as dismissModal, show as showModal, showError } from '../../bas
 import {
   showCascadeDeleteModal, showConfirmModal, wireCancelButtons,
 } from '../../base/js/ui-widgets.js';
+import { navigate } from '../../base/js/router.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { excludedRowsURL, showTreeImportReview } from './import-review.js';
 import {
@@ -431,6 +432,25 @@ function renderDetail(data) {
     rejectBtn.textContent = S.IPSO_ACTION_REJECT;
     rejectBtn.addEventListener('click', () => confirmReject(upload[FIELD_ID]));
     actions.appendChild(rejectBtn);
+  }
+  const regionId = data.session?.region_id;
+  if (canRejectUpload(upload) && upload[FIELD_MODE] === IPSO_MODE_POINTS && regionId && !data[FILE_ERROR]) {
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'btn btn-save';
+    open.textContent = S.CARTOGRAPHY_OPEN;
+    open.onclick = async () => {
+      open.disabled = true;
+      try {
+        const {data: result, status} = await api.postJSON(
+          `/api/impostazioni/cartography/${regionId}/import/`, mutationBody('points', {upload_id: upload[FIELD_ID]}));
+        if (status >= 400) { showError(result[MESSAGE] || S.ERROR_GENERIC); return; }
+        cache.applyResponseChanges(result);
+        navigate(`/impostazioni?scheda=cartografia&c=${regionId}&fonte=${result.source_id}`);
+      } catch { showError(S.ERROR_NETWORK); }
+      finally { open.disabled = false; }
+    };
+    actions.appendChild(open);
   }
   const closeBtn = document.createElement('button');
   closeBtn.className = 'btn detail-close';

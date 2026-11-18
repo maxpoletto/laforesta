@@ -191,3 +191,14 @@ const MapCommon = (function() {
 if (typeof module !== 'undefined') module.exports = MapCommon;
 
 export default MapCommon;
+
+export const MAP_TYPE_TOKENS = { o: 'osm', t: 'topo', s: 'satellite' };
+export const MAP_TYPE_BY_NAME = { osm: 'o', topo: 't', satellite: 's' };
+
+export function mapTypeName(token) {
+  return MAP_TYPE_TOKENS[token] || MAP_TYPE_TOKENS.s;
+}
+
+export function mapTypeToken(name) {
+  return MAP_TYPE_BY_NAME[name] || 's';
+}

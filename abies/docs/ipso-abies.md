@@ -374,7 +374,9 @@ Supported modes are:
 
 The inbox groups consecutive fixes with the same trace segment ID. An explicit
 point gets its own row and note. The complete point set remains available for
-download and future cartography editing.
+download. A writer can import it from the inbox or the cartography editor.
+The editor retains the measured fixes separately from editable drawings. Ipso
+can record points in an empty named compresa after the next reference sync.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,

@@ -8,7 +8,7 @@ full content width.
 | --- | --- | --- |
 | Generali | `/impostazioni` | Password, Utenti, Pagina iniziale |
 | Dati di base | `/impostazioni?scheda=dati-di-base` | Categorie di osservazioni, Tipi di viabilità and Classi economiche, then Specie, Parametri dendrometrici and Classi diametriche, then Mezzi |
-| Cartografia | `/impostazioni?scheda=cartografia` | Full-width space reserved for the map editor, currently blank |
+| Cartografia | `/impostazioni?scheda=cartografia` | Region map, Ipso drawings and road publication |
 
 Readers enter Generali directly. An unavailable or unknown tab returns to
 the default URL. Switching tabs adds a history entry and preserves open
@@ -17,6 +17,17 @@ collapsed on entry. Admins can open all three sections in the first group.
 
 The plan used for projected production and the cutting calendar is selected
 directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
+
+## Cartografia
+
+Writers and admins can publish an empty compresa, import an Ipso walk, drag
+its vertices, and create a typed road. **Pubblica** lists the pending roads
+before making them visible in Bosco. **Elimina disegni** clears working copies
+for the selected compresa. Previously imported walks are available under
+**Importa da Ipso → Già importati**, including after inbox deletion. The
+selected compresa uses the `c` query parameter and the basemap uses `mt`.
+The [cartography design](cartography.md) also describes later parcel editing
+and import tools.
 
 ## Personal settings
 

@@ -709,3 +709,13 @@ export const NEW_INTERVENTION_LABEL = 'Nuovo intervento';
 export const NEW_HARVEST_LABEL = 'Nuovo prelievo';
 export const CALENDAR_IMPORT_TITLE = coppice =>
   `Importa calendario ${coppice ? 'ceduo' : 'fustaia'} da CSV`;
+
+export const CARTOGRAPHY_DRAFT = name => `${name} (bozza)`;
+export const CARTOGRAPHY_DRAWING = (name, seq, kind) => `${name} · ${seq} · ${kind}`;
+export const CARTOGRAPHY_IMPORT_COUNT = n => `Disegni aggiunti: ${n}.`;
+export const CARTOGRAPHY_CLEAR = (region, n) => `Eliminare tutti i disegni di ${region} (${n})?`;
+export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${name}»?`;
+export const CARTOGRAPHY_PUBLISH = names => `Pubblicare le seguenti strade? ${names.join(', ')}`;
+export const CARTOGRAPHY_PUBLISH_LABEL = 'Pubblica';
+export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
+export const CARTOGRAPHY_OPEN = 'Apri in Cartografia';

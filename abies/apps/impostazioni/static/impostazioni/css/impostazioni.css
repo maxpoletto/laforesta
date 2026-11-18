@@ -110,3 +110,19 @@
   width: auto;
   margin-top: 2px;
 }
+
+.cartography-layout { height: calc(100dvh - var(--header-height) - 86px); }
+#cartography-sidebar { padding: 12px 16px; }
+#cartography-sidebar label, #cartography-sidebar summary {
+  display: block;
+  margin: 10px 0 5px;
+  font-weight: 600;
+}
+#cartography-sidebar summary { display: list-item; cursor: pointer; }
+#cartography-sidebar select { width: 100%; margin-bottom: 6px; }
+.cartography-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.cartography-vertex {
+  background: white;
+  border: 2px solid var(--color-bosco-green);
+  border-radius: 50%;
+}
