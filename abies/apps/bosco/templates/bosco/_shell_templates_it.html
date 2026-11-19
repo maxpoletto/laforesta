@@ -98,14 +98,16 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 
         <section class="bosco-sidebar-section" data-mode-panel="3" hidden>
           <h2>Piante ad accrescimento indefinito</h2>
-          <div class="bosco-list-heading">Particelle</div>
-          <div class="bosco-scroll-list" data-target="pai-parcels"></div>
+          <div class="bosco-list-heading" id="bosco-pai-parcels-label">Particelle</div>
+          <ul class="map-workspace-list" aria-labelledby="bosco-pai-parcels-label"
+              data-target="pai-parcels"></ul>
           <div class="bosco-list-actions">
             <button type="button" class="btn" data-action="show-all-parcels">Tutte</button>
             <button type="button" class="btn" data-action="hide-all-parcels">Nessuna</button>
           </div>
-          <div class="bosco-list-heading">Specie</div>
-          <div class="bosco-scroll-list" data-target="pai-species"></div>
+          <div class="bosco-list-heading" id="bosco-pai-species-label">Specie</div>
+          <ul class="map-workspace-list" aria-labelledby="bosco-pai-species-label"
+              data-target="pai-species"></ul>
           <div class="bosco-list-actions">
             <button type="button" class="btn" data-action="show-all-species">Tutte</button>
             <button type="button" class="btn" data-action="hide-all-species">Nessuna</button>
@@ -118,8 +120,9 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
         <section class="bosco-sidebar-section" data-mode-panel="4" hidden>
           <h2>Osservazioni</h2>
           <div data-role="observation-controls">
-            <div class="bosco-list-heading">Categorie</div>
-            <div class="bosco-scroll-list" data-target="observation-categories"></div>
+            <div class="bosco-list-heading" id="bosco-observation-categories-label">Categorie</div>
+            <ul class="map-workspace-list" aria-labelledby="bosco-observation-categories-label"
+              data-target="observation-categories"></ul>
             <div class="bosco-list-actions">
               <button type="button" class="btn" data-action="show-all-observation-categories">Tutte</button>
               <button type="button" class="btn" data-action="hide-all-observation-categories">Nessuna</button>

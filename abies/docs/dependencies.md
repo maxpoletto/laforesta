@@ -69,6 +69,12 @@ lines and Shapely for water multipolygon assembly, clipping and simplification.
 Both are locked Python wheels. They add no browser dependency or external
 runtime map service. `bin/check-runtime` checks their native imports too.
 
+The Cartografia visibility icons are local WebP versions of
+[View by Kiranshastry](https://www.flaticon.com/free-icon/view_709612) and
+[Hide by th studio](https://www.flaticon.com/free-icon/hide_2767146).
+The Cartografia footer credits both authors under the
+[Flaticon license](https://www.flaticon.com/legal).
+
 ## Initial installation
 
 Create a Python 3.14 virtual environment and install the locked tooling and app:

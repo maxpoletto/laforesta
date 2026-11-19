@@ -31,6 +31,21 @@ async function walk(browser) {
   const editor = url + '/impostazioni?scheda=cartografia';
   await page.goto(editor);
   const modal = loc('#modal-container');
+  const sidebar = loc('#cartography-sidebar');
+  const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
+  const drawings = loc('#cartography-drawings li');
+  const visibleDrawing = loc('#cartography-drawings [data-action=toggle-item]');
+  const drawingSummary = loc('#cartography-drawings-label');
+  assert.deepEqual(await sidebar.locator(':scope > *').evaluateAll(sections => sections.map(section =>
+    [section.tagName, section.querySelector('label, summary, h2').textContent.trim()])),
+    [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni']]);
+  await drawingSummary.click();
+  assert.ok(await action('open-import').isHidden());
+  assert.ok(await sidebar.getByText('Nessuna particella').isVisible());
+  assert.ok(await sidebar.getByText('Nessuna strada').isVisible());
+  await drawingSummary.click();
+  const bulkButtons = sidebar.locator('.cartography-list-header button:visible');
+  assert.equal(await bulkButtons.count(), 0);
   const selected = loc('#cartography-region option:checked');
   async function saveRegion(name, description) {
     await modal.getByLabel('Nome', {exact: true}).fill(name);
@@ -109,18 +124,46 @@ async function walk(browser) {
     await page.getByRole('button', {name: 'Importa in Cartografia'}).click();
   } else {
     await page.goto(editor);
-    await loc('#cartography-imports').click();
-    await action('import').click();
+    await action('open-import').click();
+    await modal.getByRole('button', {name: 'Importa', exact: true}).click();
   }
-  await loc('#cartography-drawings option').first().waitFor({state: 'attached'});
+  await drawings.first().waitFor({state: 'attached'});
   assert.equal(await loc('[data-ipso-pending-dot]:not([hidden])').count(), 0);
   await action('edit-region').click();
   await modal.getByLabel('Nome', {exact: true}).waitFor();
   assert.equal(await modal.getByRole('button', {name: 'Elimina', exact: true}).count(), 0);
   await modal.getByRole('button', {name: 'Annulla'}).click();
-  assert.equal(await loc('#cartography-drawings option').count(), 1);
+  assert.equal(await drawings.count(), 1);
   assert.ok(await action('promote').isDisabled());
-  await loc('#cartography-drawings').selectOption({index: 0});
+  const layout = await drawings.first().evaluate(row => {
+    const list = row.parentElement;
+    const header = list.closest('details').querySelector('[data-action=toggle-all]');
+    const eye = row.querySelector('[data-action=toggle-item]');
+    const alignment = () => header.getBoundingClientRect().left - eye.getBoundingClientRect().left;
+    const shortAlignment = alignment();
+    const before = list.clientHeight;
+    const rowHeight = row.offsetHeight;
+    for (let i = 0; i < 6; i++) list.append(row.cloneNode(true));
+    const capped = list.clientHeight;
+    const scrolls = list.scrollHeight > capped;
+    const scrollbar = list.offsetWidth - list.clientWidth - 2;
+    const longAlignment = alignment();
+    while (list.lastElementChild !== row) list.lastElementChild.remove();
+    return {before, rowHeight, capped, scrolls, scrollbar, shortAlignment, longAlignment};
+  });
+  assert.equal(layout.capped, layout.before + 5 * layout.rowHeight);
+  assert.ok(layout.scrolls);
+  assert.ok(layout.scrollbar > 0);
+  assert.equal(layout.shortAlignment, 0);
+  assert.equal(layout.longAlignment, 0);
+  const eyeImage = () => visibleDrawing.evaluate(eye => getComputedStyle(eye, '::before').backgroundImage);
+  assert.match(await eyeImage(), /visible\.webp/);
+  await visibleDrawing.click();
+  assert.match(await eyeImage(), /hidden\.webp/);
+  assert.equal(await visibleDrawing.getAttribute('aria-pressed'), 'false');
+  await sidebar.locator('[data-kind=drawing] [data-action=toggle-all]').click();
+  assert.equal(await visibleDrawing.getAttribute('aria-pressed'), 'true');
+  await drawings.first().locator('[data-action=select-item]').click();
   await action('edit').click();
   assert.deepEqual(await loc('#cartography-parts option').allTextContents(),
     ['1. Linea', '2. Punto', '3. Linea', '4. Linea']);
@@ -128,23 +171,26 @@ async function walk(browser) {
   await action('copy').click();
   await modal.getByLabel('Nome').fill('Laterale');
   await modal.locator('button[type=submit]').click();
-  await page.waitForFunction(() => document.querySelector('#cartography-drawings').options.length === 2);
+  await page.waitForFunction(() => document.querySelector('#cartography-drawings').children.length === 2);
   await action('remove-part').click();
   await loc('#cartography-parts').selectOption('1');
   await action('remove-part').click();
   await loc('#cartography-parts').selectOption('0');
   assert.ok(await action('promote').isDisabled());
   await action('join').click();
+  if (width < 800) await sidebarToggle.click();
   await action('undo').click();
+  if (width < 800) await sidebarToggle.click();
   assert.ok(await action('promote').isDisabled());
   await action('join').click();
-  const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
   if (width < 800) await sidebarToggle.click();
   await loc('.cartography-vertex').nth(1).click();
   if (width < 800) await sidebarToggle.click();
   await action('split').click();
   assert.equal(await loc('#cartography-parts option').count(), 2);
+  if (width < 800) await sidebarToggle.click();
   await action('undo').click();
+  if (width < 800) await sidebarToggle.click();
   await page.getByRole('link', {name: 'Dati di base', exact: true}).click();
   await page.getByRole('link', {name: 'Cartografia', exact: true}).click();
   await action('save').waitFor();
@@ -185,36 +231,88 @@ async function walk(browser) {
   await loc('path.bosco-road').waitFor({state: 'attached'});
 
   await page.goto(editor);
-  await loc('#cartography-imports').click();
-  await loc('#cartography-saved summary').click();
   await action('clear').click();
   await modal.locator('[data-action=confirm]').click();
-  await page.waitForFunction(() => !document.querySelector('#cartography-drawings').options.length);
-  await action('restore').click();
-  await loc('#cartography-drawings option').first().waitFor({state: 'attached'});
+  await page.waitForFunction(() => !document.querySelector('#cartography-drawings').children.length);
+  assert.ok(await action('clear').isHidden());
+  await action('open-import').click();
+  await modal.locator('[data-action=restore]').click();
+  await drawings.first().waitFor({state: 'attached'});
   await action('new-region').click();
   await saveRegion('Costa alta', '');
-  await action('polygon').click();
   if (width < 800) await sidebarToggle.click();
+  await action('polygon').click();
+  assert.ok(await action('line').isHidden());
+  assert.ok(await action('finish').isDisabled());
   const map = loc('#cartography-map .leaflet-container');
-  for (const [x, y] of [[100, 150], [165, 150], [145, 215]]) {
+  for (const [x, y] of [[100, 295], [165, 295], [145, 360]]) {
     await map.click({position: {x, y}});
   }
-  if (width < 800) await sidebarToggle.click();
-  await action('save').click();
+  await action('finish').click();
   await modal.getByLabel('Nome').fill('Confine');
   await modal.locator('[type=submit]').click();
+  if (width < 800) await sidebarToggle.click();
   await action('promote').click();
   assert.match(await modal.locator('[name=eclass_id] option:checked').textContent(), /A —/);
   assert.equal(await modal.getByLabel('Area (ha)').inputValue(), '');
   await modal.getByLabel('Nome', {exact: true}).fill('2a');
-  await modal.locator('[type=submit]').click();
-  await page.waitForFunction(() => document.querySelector('#cartography-parcels')?.value === '2a');
-  assert.equal(await loc('#cartography-drawings option').count(), 0);
+  const [promoted] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/parcel/') && r.request().method() === 'POST' && r.ok()),
+    modal.locator('[type=submit]').click(),
+  ]);
+  const {parcel_id: parcelId} = await promoted.json();
+  const selectedParcel = loc('#cartography-parcels [data-action=select-item][aria-pressed=true]');
+  await selectedParcel.waitFor();
+  assert.equal((await selectedParcel.textContent()).trim(), '2a');
+  assert.equal(await drawings.count(), 0);
+  assert.equal(await bulkButtons.count(), 1);
+
+  const regionId = await loc('#cartography-region').inputValue();
+  const headers = {'X-CSRFToken': await page.locator('body').getAttribute('data-csrf')};
+  const outline = await (await page.request.get(url + '/api/geo/map.geojson')).json();
+  const [lon, lat] = outline.features[0].geometry.coordinates[0][0];
+  const tree = await page.request.post(url + '/api/bosco/pai/save/', {
+    headers, data: {parcel_id: parcelId, species_id: Number(process.env.TEST_SPECIES),
+      number: 1, d_cm: 42, h_m: 18.5, date: '2026-11-19', lat, lon, nonce: 'list-pai'},
+  });
+  assert.ok(tree.ok(), await tree.text());
+  const observation = await page.request.post(url + '/api/bosco/observations/save/', {
+    headers, form: {region_id: regionId, date: '2026-11-19', text: 'Verifica elenco',
+      lat, lon, category_ids: process.env.TEST_CATEGORY, nonce: 'list-observation'},
+  });
+  assert.ok(observation.ok(), await observation.text());
+
+  async function checkFilterList(target, hasSwatch = false) {
+    const row = loc(`ul[data-target="${target}"] li.map-workspace-list-row`).first();
+    const checkbox = row.getByRole('checkbox');
+    await checkbox.waitFor();
+    const style = await row.evaluate(li => {
+      const label = li.querySelector('label');
+      const text = label.querySelector('.map-workspace-list-label');
+      const swatch = label.querySelector('.bosco-legend-dot');
+      return {
+        font: getComputedStyle(text).fontSize, weight: getComputedStyle(text).fontWeight,
+        padding: parseFloat(getComputedStyle(label).paddingInlineStart),
+        gap: parseFloat(getComputedStyle(label).columnGap),
+        swatch: swatch?.getBoundingClientRect().width ?? 0,
+      };
+    });
+    assert.equal(style.font, '16px');
+    assert.equal(style.weight, '400');
+    assert.ok(style.padding >= 6 && style.gap >= 6);
+    if (hasSwatch) assert.equal(style.swatch, 12);
+    await checkbox.uncheck();
+    assert.ok(!await checkbox.isChecked());
+  }
+  await page.goto(url + `/bosco?c=${regionId}&m=3`);
+  await checkFilterList('pai-parcels');
+  await checkFilterList('pai-species', true);
+  await page.goto(url + `/bosco?c=${regionId}&m=4`);
+  await checkFilterList('observation-categories');
   assert.deepEqual(errors, []);
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ignoreDefaultArgs: ['--hide-scrollbars']});
   try { await walk(browser); } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

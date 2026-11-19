@@ -175,38 +175,75 @@ S (string constants) provided by the shell's render context.
 
     <div id="settings-cartografia" data-settings-panel hidden>
       <div class="map-workspace cartography-layout">
-        <div id="cartography-map" class="map-workspace-host"></div>
-        <aside id="cartography-sidebar" class="map-workspace-sidebar" aria-label="Controlli cartografia">
-          <label for="cartography-region">Compresa</label>
-          <select id="cartography-region"></select>
-          <div class="cartography-buttons">
-            <button class="btn" data-action="edit-region" disabled>Proprietà</button>
-            <button class="btn btn-save" data-action="new-region" disabled>Nuova</button>
-          </div>
-          <p role="status" data-role="status"></p>
-          <details data-role="imports">
-            <summary id="cartography-imports">Importa da Ipso</summary>
-            <label for="cartography-uploads">Nuovi rilievi</label>
-            <select id="cartography-uploads"></select>
-            <button class="btn" data-action="import" disabled>Importa</button>
-            <details id="cartography-saved">
-              <summary>Già importati</summary>
-              <label for="cartography-sources">Rilievo punti</label>
-              <select id="cartography-sources"></select>
-              <button class="btn" data-action="restore" disabled>Importa di nuovo</button>
-              <button class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
-            </details>
-          </details>
-          <details open>
-            <summary>Disegni</summary>
-            <select id="cartography-drawings" size="4" aria-label="Disegni"></select>
-            <div class="cartography-buttons">
+        <div id="cartography-map" class="map-workspace-host">
+          <div class="cartography-map-tools" data-role="map-tools" hidden>
+            <div class="cartography-buttons" data-role="draw-tools">
               <button class="btn" data-action="line" disabled>Linea</button>
               <button class="btn" data-action="polygon" disabled>Poligono</button>
+            </div>
+            <div class="cartography-buttons" data-role="sketch-tools" hidden>
+              <button class="btn" data-action="cancel-sketch">{{ S.CANCEL }}</button>
+              <button class="btn btn-save" data-action="finish">Termina</button>
+            </div>
+            <button class="btn" data-action="undo" title="Annulla ultimo passo"
+                    aria-label="Annulla ultimo passo" hidden>↶</button>
+          </div>
+        </div>
+        <aside id="cartography-sidebar" class="map-workspace-sidebar" aria-label="Controlli cartografia">
+          <section class="cartography-section">
+            <label for="cartography-region">Compresa</label>
+            <select id="cartography-region"></select>
+            <div class="cartography-buttons">
+              <button class="btn" data-action="edit-region" disabled>Proprietà</button>
+              <button class="btn btn-save" data-action="new-region" disabled>Nuova</button>
+            </div>
+            <p role="status" data-role="status"></p>
+          </section>
+          <section class="cartography-section">
+            <div class="cartography-list-header" data-kind="parcel">
+              <h2 id="cartography-parcels-label">Particelle</h2>
+              <button class="cartography-icon cartography-eye" data-action="toggle-all"
+                      aria-label="Visibilità di tutte le particelle" title="Mostra/nascondi tutte le particelle"
+                      aria-pressed="false" hidden disabled></button>
+            </div>
+            <p class="cartography-empty" data-empty="parcel">Nessuna particella</p>
+            <ul class="map-workspace-list" id="cartography-parcels"
+                aria-labelledby="cartography-parcels-label" hidden></ul>
+            <div class="cartography-buttons">
+              <button class="btn" disabled>Proprietà</button>
+              <button class="btn" disabled>Confini</button>
+            </div>
+          </section>
+          <section class="cartography-section">
+            <div class="cartography-list-header" data-kind="road">
+              <h2 id="cartography-roads-label">Strade</h2>
+              <button class="cartography-icon cartography-eye" data-action="toggle-all"
+                      aria-label="Visibilità di tutte le strade" title="Mostra/nascondi tutte le strade"
+                      aria-pressed="false" hidden disabled></button>
+            </div>
+            <p class="cartography-empty" data-empty="road">Nessuna strada</p>
+            <ul class="map-workspace-list" id="cartography-roads"
+                aria-labelledby="cartography-roads-label" hidden></ul>
+            <div class="cartography-buttons">
+              <button class="btn" disabled>Proprietà</button>
+              <button class="btn" disabled>Punti</button>
+            </div>
+          </section>
+          <details class="cartography-section" open>
+            <summary id="cartography-drawings-label">Disegni</summary>
+            <div class="cartography-list-header" data-kind="drawing">
+              <button class="cartography-icon cartography-eye" data-action="toggle-all"
+                      aria-label="Visibilità di tutti i disegni" title="Mostra/nascondi tutti i disegni"
+                      aria-pressed="false" hidden disabled></button>
+              <button class="cartography-icon action-delete" data-action="clear"
+                      aria-label="Elimina disegni" title="Elimina disegni" hidden disabled>🗑︎</button>
+            </div>
+            <p class="cartography-empty" data-empty="drawing">Nessun disegno</p>
+            <ul class="map-workspace-list" id="cartography-drawings"
+                aria-labelledby="cartography-drawings-label" hidden></ul>
+            <div class="cartography-buttons">
               <button class="btn" data-action="edit" disabled>Modifica</button>
               <button class="btn btn-save" data-action="promote" disabled>Promuovi</button>
-              <button class="btn btn-delete" data-action="remove-drawing" disabled>Elimina disegno</button>
-              <button class="btn btn-delete" data-action="clear" disabled>Elimina disegni</button>
             </div>
             <div data-role="parts" hidden>
               <label for="cartography-parts">Parte del disegno</label>
@@ -221,17 +258,18 @@ S (string constants) provided by the shell's render context.
               </div>
             </div>
             <div class="cartography-buttons" data-role="edit-actions" hidden>
-              <button class="btn" data-action="undo">Annulla ultimo passo</button>
               <button class="btn" data-action="cancel">{{ S.CANCEL }}</button>
               <button class="btn btn-save" data-action="save">{{ S.SAVE }}</button>
             </div>
+            <button class="btn" data-action="open-import" disabled>Importa…</button>
           </details>
-          <label for="cartography-parcels">Particelle</label>
-          <select id="cartography-parcels" size="3"></select>
-          <label for="cartography-roads">Strade</label>
-          <select id="cartography-roads" size="3"></select>
         </aside>
       </div>
+      <footer class="cartography-credits">
+        Icone di visibilità di
+        <a href="https://www.flaticon.com/free-icon/view_709612">Kiranshastry</a>
+        e <a href="https://www.flaticon.com/free-icon/hide_2767146">th studio</a> su Flaticon.
+      </footer>
     </div>
   {% endif %}
 </template>
@@ -247,6 +285,48 @@ S (string constants) provided by the shell's render context.
     <div class="form-actions">
       <button type="button" class="btn" data-action="reject">Rifiuta</button>
       <button type="button" class="btn btn-save" data-action="accept">Accetta</button>
+    </div>
+  </div>
+</template>
+
+<template id="tmpl-cartography-row">
+  <li class="map-workspace-list-row">
+    <button class="map-workspace-list-choice cartography-item" data-action="select-item" aria-pressed="false">
+      <span class="map-workspace-list-label"></span>
+    </button>
+    <button class="cartography-icon cartography-eye" data-action="toggle-item"
+            aria-pressed="true"></button>
+    <button class="cartography-icon action-delete" data-action="remove-drawing" disabled>🗑︎</button>
+  </li>
+</template>
+
+<template id="tmpl-cartography-import">
+  <div class="form-card cartography-import">
+    <h2>Importa disegni</h2>
+    <div class="modal-tabs">
+      <button type="button" class="btn modal-tab" disabled>Da file</button>
+      <button type="button" class="btn modal-tab active" aria-current="true">Da Ipso</button>
+      <button type="button" class="btn modal-tab" disabled>Da rilevamento</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="cartography-uploads">Nuovi rilievi</label>
+        <select id="cartography-uploads"></select>
+      </div>
+      <button class="btn btn-save" data-action="import" disabled>Importa</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="cartography-sources">Già importati</label>
+        <select id="cartography-sources"></select>
+      </div>
+      <div class="cartography-buttons">
+        <button class="btn" data-action="restore" disabled>Importa di nuovo</button>
+        <button class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" data-action="cancel">{{ S.CANCEL }}</button>
     </div>
   </div>
 </template>

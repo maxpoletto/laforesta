@@ -20,6 +20,12 @@ directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
 
 ## Cartografia
 
+The sidebar starts with **Compresa**, then shows **Particelle**, **Strade**,
+and **Disegni**. Only **Disegni** can be collapsed. Each list grows with its
+contents and scrolls after six rows. The eye icons control map visibility
+for individual rows or the entire list. Drawings also have trash icons for
+individual and bulk deletion. Bulk icons appear when their list has entries.
+
 The **Compresa** dropdown at the top of the sidebar lists regions alphabetically.
 It remembers the last selection when the operator returns to Cartografia in the
 same browser tab. A link to a specific compresa opens that compresa.
@@ -38,15 +44,18 @@ split a line at a selected vertex, remove parts, or join consecutive lines. **Pr
 into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 
-**Linea** and **Poligono** start a drawing in the selected compresa. Click or
-tap the map to place vertices, then use **Salva** to name the drawing.
+**Linea** and **Poligono** on the map start a drawing in the selected
+compresa. Click or tap the map to place vertices, then use **Termina** to
+name the drawing. Undo is on the map during drawing and editing. The
+**Annulla** and **Salva** controls for an existing drawing are in **Disegni**.
 Promoting a polygon opens Bosco’s parcel properties form. The first economic
 class by name is selected, and the cadastral area can be left blank. In a
 compresa with cataloged parcels, the destination selector also offers to add
 the polygon to an existing parcel.
 
-**Elimina disegni** clears the working copies in the selected compresa.
-**Importa da Ipso → Già importati** reopens the edited copy if one exists.
+The trash icon above **Disegni** clears the working copies in the selected
+compresa. **Importa… → Da Ipso → Già importati** reopens the edited copy if
+one exists.
 After deletion or promotion it restores the original field measurements, even
 after inbox cleanup. The selected compresa uses the `c` query parameter and
 the basemap uses `mt`.

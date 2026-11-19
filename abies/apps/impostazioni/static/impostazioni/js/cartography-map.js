@@ -16,7 +16,7 @@ function fixLabel(fix) {
 }
 
 export class CartographyMap {
-  constructor(container, parcels, regionName, onSelect, basemap, onPlace) {
+  constructor(container, parcels, regionName, onSelect, basemap, onPlace, tools) {
     const features = parcels.features.filter(f => parcelIdentity(f).regionName === regionName);
     this.parcels = new ParcelMap({
       container, geojson: {type: 'FeatureCollection', features}, basemap,
@@ -39,6 +39,34 @@ export class CartographyMap {
     this.handles = L.layerGroup().addTo(this.map);
     this.layers = new Map();
     this.preview = L.featureGroup().addTo(this.map);
+    this.hiddenLayers = new Set();
+    this.toolbar = L.control({position: 'topleft'});
+    this.toolbar.onAdd = () => {
+      L.DomEvent.disableClickPropagation(tools);
+      tools.hidden = false;
+      return tools;
+    };
+    this.toolbar.onRemove = () => {
+      tools.hidden = true;
+      container.append(tools);
+    };
+    this.toolbar.addTo(this.map);
+  }
+
+  isVisible(kind, id) {
+    return !this.hiddenLayers.has(kind + id);
+  }
+
+  setVisible(kind, id, visible) {
+    const key = kind + id;
+    if (visible) this.hiddenLayers.delete(key);
+    else this.hiddenLayers.add(key);
+    const group = kind === 'parcel' ? this.parcels.parcelLayer : this.objects;
+    const layers = kind === 'parcel' ? this.parcelLayers.get(id) : [this.layers.get(key)];
+    for (const layer of layers) {
+      if (visible) group.addLayer(layer);
+      else group.removeLayer(layer);
+    }
   }
 
   render(state) {
@@ -49,7 +77,8 @@ export class CartographyMap {
     this.layers.clear();
     for (const [kind, rows] of [['road', state.roads], ['drawing', state.drawings]]) {
       for (const row of rows) {
-        const group = L.featureGroup().addTo(this.objects);
+        const group = L.featureGroup();
+        if (this.isVisible(kind, row.id)) group.addTo(this.objects);
         const parts = kind === 'drawing' ? row.parts : [row.geometry];
         for (const part of parts) {
           const layer = this.partLayer(part, kind === 'road' ? roadStyle : drawingStyle).addTo(group);
@@ -100,13 +129,13 @@ export class CartographyMap {
     this.handles.clearLayers();
     this.preview.clearLayers();
     for (const [key, layer] of this.layers) {
-      if (!this.objects.hasLayer(layer)) this.objects.addLayer(layer);
+      if (!this.hiddenLayers.has(key)) this.objects.addLayer(layer);
       layer.setStyle(key === kind + row?.id ? selectedStyle : key.startsWith('road') ? roadStyle : drawingStyle);
     }
     for (const [name, pieces] of this.parcelLayers) {
       for (const piece of pieces) piece.setStyle(kind === 'parcel' && name === row?.id ? selectedStyle : PARCEL_STYLE);
     }
-    if (!row || kind === 'parcel') return;
+    if (!row || kind === 'parcel' || !this.isVisible(kind, row.id)) return;
     this.layers.get(kind + row.id).bringToFront();
     if (kind === 'drawing') this.watchHandles(row.parts);
   }
@@ -197,6 +226,7 @@ export class CartographyMap {
 
   destroy() {
     this.stopEdit();
+    this.toolbar.remove();
     this.parcels.destroy();
   }
 }

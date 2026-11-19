@@ -39,9 +39,9 @@ establishes an extent.
 The sidebar has 4 main sections:
 
 - Region selector
-- Drawings
 - Parcels
 - Roads
+- Drawings
 
 ### Region selector
 

@@ -37,16 +37,21 @@ def live_server(transactional_db, tmp_path, monkeypatch, request):
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize('width', [1280, 390])
 def test_field_walk_in_browser(live_server, client, writer_user, settings, tmp_path, width):
-    from apps.base.models import Eclass, MapDrawing, MapFeature, MapPointSet, RoadType
+    from apps.base.models import (
+        Eclass, MapDrawing, MapFeature, MapPointSet, ObservationCategory, RoadType, Species,
+    )
 
     Eclass.objects.get_or_create(name='B')
     Eclass.objects.get_or_create(name='A')
     RoadType.objects.get_or_create(name='Pista di prova', defaults={'sort_order': 30})
+    category = ObservationCategory.objects.create(name='Controllo di prova')
+    species = Species.objects.create(common_name='Pino di prova')
     settings.IPSO_SECRET = 'cartography-browser-test'
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'
     client.force_login(writer_user)
     result = subprocess.run(['node', str(Path(__file__).with_name('js') / 'cartography-walk.cjs')],
                             env={**os.environ, 'TEST_URL': live_server.url, 'TEST_WIDTH': str(width),
+                                 'TEST_CATEGORY': str(category.pk), 'TEST_SPECIES': str(species.pk),
                                  'TEST_SESSION': client.cookies[settings.SESSION_COOKIE_NAME].value},
                             capture_output=True, text=True, timeout=100)
     assert result.returncode == 0, result.stdout + result.stderr

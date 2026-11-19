@@ -113,14 +113,94 @@
 
 .cartography-layout { height: calc(100dvh - var(--header-height) - 86px); }
 #cartography-sidebar { padding: 12px 16px; }
-#cartography-sidebar label, #cartography-sidebar summary {
+#cartography-sidebar label {
   display: block;
-  margin: 10px 0 5px;
+  margin-bottom: 5px;
   font-weight: 600;
 }
-#cartography-sidebar summary { display: list-item; cursor: pointer; }
 #cartography-sidebar select { width: 100%; margin-bottom: 6px; }
+.cartography-section + .cartography-section {
+  border-top: 1px solid #c9d3c7;
+  margin-top: 12px;
+  padding-top: 8px;
+}
+.cartography-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 2.75rem;
+}
+details.cartography-section { position: relative; }
+details.cartography-section > .cartography-list-header {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 0;
+}
+.cartography-section h2 { font-size: 1rem; margin-right: auto; }
+.cartography-section [data-role="status"]:empty { display: none; }
+.cartography-section [data-role="status"] { margin-top: 6px; }
 .cartography-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.cartography-section > .cartography-buttons,
+.cartography-section > [data-role="parts"],
+.cartography-section > [data-action="open-import"] { margin-top: 6px; }
+.cartography-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+  padding-inline-end: 1px;
+}
+.cartography-section .map-workspace-list-row + .map-workspace-list-row {
+  box-shadow: inset 0 1px #ddd;
+}
+.cartography-icon, .cartography-item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cartography-item[aria-pressed="true"] {
+  background: #e1eddf;
+  color: var(--color-bosco-green-dark);
+}
+.cartography-icon { flex: 0 0 36px; width: 36px; min-height: 2.75rem; font-size: 1.125rem; }
+.cartography-icon:hover:not(:disabled), .cartography-item:hover:not(:disabled) { background: #e8eee6; }
+.cartography-icon:disabled, .cartography-item:disabled { cursor: default; opacity: 0.5; }
+.cartography-icon[hidden] { display: none; }
+.cartography-eye {
+  display: grid;
+  place-items: center;
+}
+.cartography-eye::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  background: url("../img/visible.webp") center / contain no-repeat;
+}
+.cartography-eye[aria-pressed="false"]::before {
+  background-image: url("../img/hidden.webp");
+}
+.cartography-credits {
+  padding-top: 4px;
+  font-size: 0.75rem;
+  color: #555;
+  text-align: right;
+}
+.cartography-empty { font-size: 0.9rem; color: #555; padding: 4px 0; }
+
+.cartography-map-tools { display: flex; flex-wrap: wrap; gap: 5px; }
+.cartography-map-tools .btn { padding-inline: 0.7rem; }
+.cartography-map-tools [data-action="undo"] { font-size: 1.1rem; line-height: 1; }
+.cartography-map-tools[hidden] { display: none; }
+.cartography-import .modal-tabs { flex-wrap: wrap; }
+.cartography-import .form-row { align-items: end; }
+@media (max-width: 600px) {
+  .cartography-import .form-row { align-items: stretch; gap: 6px; }
+}
+.cartography-import select { max-width: 100%; }
+.cartography-import .form-group { min-width: 0; }
+
 .cartography-vertex {
   background: white;
   border: 2px solid var(--color-bosco-green);

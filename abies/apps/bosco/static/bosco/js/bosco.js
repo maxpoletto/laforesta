@@ -2166,12 +2166,12 @@ function destroyProductionChart() {
 function renderPaiMode() {
   if (!map || currentState?.mode !== MODE_PAI) return;
   if (!preservedData) {
-    if (paiParcelsHost) paiParcelsHost.textContent = S.LOADING;
-    if (paiSpeciesHost) paiSpeciesHost.textContent = S.LOADING;
+    showMapFilterMessage(paiParcelsHost, S.LOADING);
+    showMapFilterMessage(paiSpeciesHost, S.LOADING);
     clearPaiMarkers();
     loadPreservedTrees().then(renderPaiMode).catch(() => {
-      if (paiParcelsHost) paiParcelsHost.textContent = S.ERROR_NETWORK;
-      if (paiSpeciesHost) paiSpeciesHost.textContent = S.ERROR_NETWORK;
+      showMapFilterMessage(paiParcelsHost, S.ERROR_NETWORK);
+      showMapFilterMessage(paiSpeciesHost, S.ERROR_NETWORK);
     });
     return;
   }
@@ -2269,22 +2269,34 @@ async function deletePai(rowId) {
   });
 }
 
-function renderPaiCheckboxes(host, items, selectedIds, paramName, colors = null) {
+function showMapFilterMessage(host, message) {
   if (!host) return;
-  host.replaceChildren();
+  const row = document.createElement('li');
+  row.className = 'map-workspace-list-row';
+  const text = document.createElement('span');
+  text.className = 'map-workspace-list-choice';
+  text.textContent = message;
+  row.appendChild(text);
+  host.replaceChildren(row);
+}
+
+function renderMapFilterChoices(host, items, selectedIds, onChange, emptyMessage, colors = null) {
+  if (!host) return;
   if (!items.length) {
-    host.textContent = S.BOSCO_NO_PAI_TREES;
+    showMapFilterMessage(host, emptyMessage);
     return;
   }
   const selected = selectedIds == null ? null : new Set(selectedIds);
-  for (const item of items) {
+  host.replaceChildren(...items.map(item => {
+    const row = document.createElement('li');
+    row.className = 'map-workspace-list-row';
     const label = document.createElement('label');
-    label.className = 'bosco-check';
+    label.className = 'map-workspace-list-choice';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.value = String(item.id);
     input.checked = selected == null || selected.has(item.id);
-    input.addEventListener('change', () => updatePaiFilter(paramName, host, items));
+    input.addEventListener('change', onChange);
     label.appendChild(input);
     if (colors) {
       const dot = document.createElement('span');
@@ -2293,10 +2305,17 @@ function renderPaiCheckboxes(host, items, selectedIds, paramName, colors = null)
       label.appendChild(dot);
     }
     const text = document.createElement('span');
-    text.textContent = `${item.name} (${fmtInt(item.count)})`;
+    text.className = 'map-workspace-list-label';
+    text.textContent = label.title = `${item.name} (${fmtInt(item.count)})`;
     label.appendChild(text);
-    host.appendChild(label);
-  }
+    row.appendChild(label);
+    return row;
+  }));
+}
+
+function renderPaiCheckboxes(host, items, selectedIds, paramName, colors = null) {
+  renderMapFilterChoices(host, items, selectedIds, () => updatePaiFilter(paramName, host, items),
+    S.BOSCO_NO_PAI_TREES, colors);
 }
 
 function updatePaiFilter(paramName, host, items) {
@@ -2591,11 +2610,11 @@ async function deleteObservation(rowId) {
 function renderObservationsMode() {
   if (!map || currentState?.mode !== MODE_OBSERVATIONS) return;
   if (!observationsData) {
-    if (observationCategoriesHost) observationCategoriesHost.textContent = S.LOADING;
+    showMapFilterMessage(observationCategoriesHost, S.LOADING);
     if (observationSummary) observationSummary.textContent = S.BOSCO_LOADING_OBSERVATIONS;
     clearObservationMarkers();
     loadObservations().then(renderObservationsMode).catch(() => {
-      if (observationCategoriesHost) observationCategoriesHost.textContent = S.ERROR_NETWORK;
+      showMapFilterMessage(observationCategoriesHost, S.ERROR_NETWORK);
       if (observationSummary) observationSummary.textContent = S.BOSCO_OBSERVATIONS_UNAVAILABLE;
     });
     return;
@@ -2644,26 +2663,8 @@ function regionObservations(regionId, region) {
 }
 
 function renderObservationCategoryCheckboxes(items, selectedIds) {
-  if (!observationCategoriesHost) return;
-  observationCategoriesHost.replaceChildren();
-  if (!items.length) {
-    observationCategoriesHost.textContent = S.BOSCO_NO_OBSERVATION_CATEGORIES;
-    return;
-  }
-  const selected = selectedIds == null ? null : new Set(selectedIds);
-  for (const item of items) {
-    const label = document.createElement('label');
-    label.className = 'bosco-check';
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.value = String(item.id);
-    input.checked = selected == null || selected.has(item.id);
-    input.addEventListener('change', () => updateObservationCategoryFilter(items));
-    const text = document.createElement('span');
-    text.textContent = `${item.name} (${fmtInt(item.count)})`;
-    label.append(input, text);
-    observationCategoriesHost.appendChild(label);
-  }
+  renderMapFilterChoices(observationCategoriesHost, items, selectedIds,
+    () => updateObservationCategoryFilter(items), S.BOSCO_NO_OBSERVATION_CATEGORIES);
 }
 
 function updateObservationCategoryFilter(allCategories) {

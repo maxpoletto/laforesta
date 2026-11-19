@@ -1093,6 +1093,40 @@ input:focus, select:focus, textarea:focus {
   border-left: 4px solid var(--color-bosco-green);
 }
 
+.map-workspace-list {
+  --map-list-row-height: 2.75rem;
+  --map-list-block-padding: 4px;
+  max-height: calc(6 * var(--map-list-row-height) + 2 * var(--map-list-block-padding) + 2px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border: 1px solid #bbb;
+  padding-block: var(--map-list-block-padding);
+  background: #fafafa;
+  font-size: 1rem;
+  list-style: none;
+}
+
+.map-workspace-list-row {
+  display: flex;
+  min-height: var(--map-list-row-height);
+}
+
+.map-workspace-list .map-workspace-list-choice {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 8px;
+  font: inherit;
+  font-weight: 400;
+  text-align: start;
+}
+
+.map-workspace-list-choice input { flex: 0 0 auto; }
+.map-workspace-list-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .map-workspace-sidebar.hidden { display: none; }
 
 @media (max-width: 800px) {

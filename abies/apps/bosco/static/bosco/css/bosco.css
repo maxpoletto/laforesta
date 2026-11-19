@@ -104,27 +104,6 @@
   font-weight: 700;
 }
 
-.bosco-scroll-list {
-  min-height: 44px;
-  max-height: 140px;
-  overflow-y: auto;
-  border: 1px solid #bbb;
-  padding: 6px;
-  background: #fafafa;
-}
-
-.bosco-scroll-list .bosco-check {
-  display: flex;
-  align-items: center;
-  font-weight: 400;
-}
-
-.bosco-scroll-list .bosco-check > span:not(.bosco-legend-dot) {
-  position: relative;
-  top: -1px;
-  font-weight: 400;
-}
-
 .bosco-list-actions {
   display: flex;
   gap: 6px;
