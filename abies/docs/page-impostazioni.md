@@ -38,6 +38,13 @@ remove parts, or join consecutive lines. **Promuovi** turns the resulting line
 into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 
+**Linea** and **Poligono** start a drawing in the selected compresa. Click or
+tap the map to place vertices, then use **Salva** to name the drawing.
+Promoting a polygon opens Bosco’s parcel properties form. The first economic
+class by name is selected, and the cadastral area can be left blank. In a
+compresa with cataloged parcels, the destination selector also offers to add
+the polygon to an existing parcel.
+
 **Elimina disegni** clears the working copies in the selected compresa.
 **Importa da Ipso → Già importati** reopens the edited copy if one exists.
 After deletion or promotion it restores the original field measurements, even

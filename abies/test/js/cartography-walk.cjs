@@ -173,6 +173,25 @@ async function walk(browser) {
   await page.waitForFunction(() => !document.querySelector('#cartography-drawings').options.length);
   await action('restore').click();
   await loc('#cartography-drawings option').first().waitFor({state: 'attached'});
+  await action('new-region').click();
+  await saveRegion('Costa alta', '');
+  await action('polygon').click();
+  if (width < 800) await sidebarToggle.click();
+  const map = loc('#cartography-map .leaflet-container');
+  for (const [x, y] of [[100, 150], [165, 150], [145, 215]]) {
+    await map.click({position: {x, y}});
+  }
+  if (width < 800) await sidebarToggle.click();
+  await action('save').click();
+  await modal.getByLabel('Nome').fill('Confine');
+  await modal.locator('[type=submit]').click();
+  await action('promote').click();
+  assert.match(await modal.locator('[name=eclass_id] option:checked').textContent(), /A —/);
+  assert.equal(await modal.getByLabel('Area (ha)').inputValue(), '');
+  await modal.getByLabel('Nome', {exact: true}).fill('2a');
+  await modal.locator('[type=submit]').click();
+  await page.waitForFunction(() => document.querySelector('#cartography-parcels')?.value === '2a');
+  assert.equal(await loc('#cartography-drawings option').count(), 0);
   assert.deepEqual(errors, []);
 }
 

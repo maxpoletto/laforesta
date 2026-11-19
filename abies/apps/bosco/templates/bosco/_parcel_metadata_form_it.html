@@ -3,12 +3,32 @@
     <input type="hidden" name="row_id" value="{{ parcel.id }}">
     <input type="hidden" name="version" value="{{ version }}">
 
-    <h2>Caratteristiche particella</h2>
-
-    <div class="form-readonly-flat">
-      <span><span class="label">Particella:</span> {{ parcel.region.name }} {{ parcel.name }}</span>
-    </div>
-
+    {% if promotion %}
+      <h2>Promuovi disegno a particella</h2>
+      {% if destinations %}
+        <div class="form-row"><div class="form-group">
+          <label for="parcel-destination">Destinazione</label>
+          <select id="parcel-destination" name="parcel_id">
+            <option value="">Nuova particella</option>
+            <optgroup label="Aggiungi a particella esistente">
+              {% for target in destinations %}
+                <option value="{{ target.pk }}" data-version="{{ target.version }}">{{ target.name }}</option>
+              {% endfor %}
+            </optgroup>
+          </select>
+        </div></div>
+      {% endif %}
+      <fieldset class="cartography-parcel-fields">
+        <div class="form-row"><div class="form-group">
+          <label for="id_parcel_name">Nome</label>
+          <input type="text" id="id_parcel_name" name="name" maxlength="20" required>
+        </div></div>
+    {% else %}
+      <h2>Caratteristiche particella</h2>
+      <div class="form-readonly-flat">
+        <span><span class="label">Particella:</span> {{ parcel.region.name }} {{ parcel.name }}</span>
+      </div>
+    {% endif %}
     <div class="form-row narrow">
       <div class="form-group">
         <label for="id_parcel_eclass">{{ S.CSV_COL_CLASS }}</label>
@@ -111,6 +131,7 @@
       </div>
     </div>
 
+    {% if promotion %}</fieldset>{% endif %}
     {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
   </form>
 </div>

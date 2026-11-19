@@ -10,8 +10,10 @@ import pytest
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize('width', [1280, 390])
 def test_field_walk_in_browser(live_server, client, writer_user, settings, tmp_path, width):
-    from apps.base.models import MapDrawing, MapFeature, MapPointSet, RoadType
+    from apps.base.models import Eclass, MapDrawing, MapFeature, MapPointSet, RoadType
 
+    Eclass.objects.get_or_create(name='B')
+    Eclass.objects.get_or_create(name='A')
     RoadType.objects.get_or_create(name='Pista di prova', defaults={'sort_order': 30})
     settings.IPSO_SECRET = 'cartography-browser-test'
     settings.IPSO_INBOX_DIR = tmp_path / 'inbox'

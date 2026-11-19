@@ -1,4 +1,6 @@
 import { fetchJSON, postJSON } from '../../base/js/api.js';
+import { renderModalForm } from '../../base/js/forms.js';
+import { wireParcelMetadataGovernance } from '../../bosco/js/parcel-metadata.js';
 import * as cache from '../../base/js/cache.js';
 import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as modals from '../../base/js/modals.js';
@@ -95,11 +97,7 @@ export class CartographyEditor {
       if (region.id === this.regionId && this.map) return;
       this.regionId = region.id;
       this.region.value = String(region.id);
-      this.map?.destroy();
-      this.map = new CartographyMap(this.panel.querySelector('#cartography-map'), this.geo, region.name,
-        (kind, id) => this.select(kind, id), mapTypeName(params.mt), ll => this.place(ll));
-      this.parcels.replaceChildren(...[...this.map.parcelLayers.keys()].map(name => new Option(name, name)));
-      this.map.map.on('basemapchange', e => this.navigate(region.id, mapTypeToken(e.name)));
+      this.showRegionMap(region);
       this.state = null;
       this.draft = null;
       this.busy = false;
@@ -116,6 +114,16 @@ export class CartographyEditor {
     } catch (error) {
       if (this.current(generation)) modals.showError(S.ERROR_NETWORK);
     }
+  }
+
+  showRegionMap(region) {
+    this.map?.destroy();
+    this.map = new CartographyMap(this.panel.querySelector('#cartography-map'), this.geo, region.name,
+      (kind, id) => this.select(kind, id), mapTypeName(this.mt), ll => this.place(ll));
+    const names = [...this.map.parcelLayers.keys()].sort((a, b) =>
+      a.localeCompare(b, document.documentElement.lang, {numeric: true}));
+    this.parcels.replaceChildren(...names.map(name => new Option(name, name)));
+    this.map.map.on('basemapchange', e => this.navigate(region.id, mapTypeToken(e.name)));
   }
 
   current(generation) {
@@ -164,8 +172,9 @@ export class CartographyEditor {
     const part = draft?.parts?.[draft.active];
     b.edit.disabled = locked || !drawing;
     b.line.disabled = b.polygon.disabled = locked || !this.state;
-    b.promote.disabled = !!this.busy || !(parts?.length === 1 && parts[0].type === 'LineString'
-      && this.catalog?.road_types.length);
+    const road = parts?.length === 1 && parts[0].type === 'LineString' && this.catalog?.road_types.length;
+    const parcel = parts?.length && parts.every(part => part.type === 'Polygon');
+    b.promote.disabled = !!this.busy || !(road || parcel);
     this.panel.querySelector('[data-role=edit-actions]').hidden = !draft;
     this.panel.querySelector('[data-role=parts]').hidden = !part;
     b.save.disabled = !!this.busy || !!(draft?.tool && draft.vertices.length < (draft.tool === 'Polygon' ? 3 : 2));
@@ -237,6 +246,34 @@ export class CartographyEditor {
     };
     modals.show(form);
     form.querySelector('input').focus();
+  }
+
+  async promoteParcel(drawing) {
+    const generation = this.generation;
+    this.busy = true;
+    this.updateButtons();
+    try {
+      const {data} = await fetchJSON(API + this.regionId + '/parcel-form/');
+      if (!this.current(generation)) return;
+      const form = renderModalForm(data.html);
+      wireParcelMetadataGovernance(form);
+      const select = form.elements.parcel_id;
+      const fields = form.querySelector('fieldset');
+      if (select) select.onchange = () => { fields.hidden = fields.disabled = !!select.value; };
+      form.querySelector('[data-action=cancel]').onclick = modals.dismiss;
+      form.onsubmit = event => {
+        event.preventDefault();
+        const body = Object.fromEntries(new FormData(form));
+        modals.dismiss();
+        this.write('parcel', {...body, id: drawing.id, version: drawing.version, parts: drawing.parts,
+          parcel_version: select?.selectedOptions[0]?.dataset.version});
+      };
+      (select || form.elements.name).focus();
+    } catch {
+      if (this.current(generation)) modals.showError(S.ERROR_NETWORK);
+    } finally {
+      if (this.current(generation)) { this.busy = false; this.updateButtons(); }
+    }
   }
 
   async act(action) {
@@ -319,6 +356,10 @@ export class CartographyEditor {
       }
       case 'promote': {
         const drawing = this.draft || row;
+        if (drawing.parts[0].type === 'Polygon') {
+          await this.promoteParcel(drawing);
+          break;
+        }
         this.form('tmpl-cartography-road', body => this.write('road', {
           ...body, id: drawing.id, version: drawing.version, parts: drawing.parts,
         }));
@@ -380,11 +421,19 @@ export class CartographyEditor {
       let selection = data.drawing_id && {kind: 'drawing', id: data.drawing_id};
       if (action === 'adjust') selection = {kind: 'drawing', id: body.id};
       if (action === 'road') selection = {kind: 'road', id: data.road_id};
+      if (data.parcel_id) {
+        const geo = await cache.load('terreni');
+        if (!this.current(generation)) return;
+        this.geo = sortFeaturesByArea(geo);
+        this.showRegionMap(this.catalog.regions.find(region => region.id === this.regionId));
+        selection = {kind: 'parcel', id: data.parcel_name};
+      }
       const firstImport = !this.state.drawings.length && !this.state.roads.length
         && !this.map.parcels.parcelLayer.getBounds().isValid();
       await this.reload(generation, selection);
       if (!this.current(generation)) return;
       if (!this.draft) this.status.textContent = data.added == null ? '' : S.CARTOGRAPHY_IMPORT_COUNT(data.added);
+      if (data.parcel_id) this.map.frame('parcel', data.parcel_name);
       if (data.added) this.map.fitSource(this.state.drawings, data.source_id || body.source_id, firstImport);
     } catch (error) {
       if (this.current(generation)) modals.showError(S.ERROR_NETWORK);

@@ -1117,3 +1117,6 @@ CARTOGRAPHY_REGION_IN_USE = 'Questa compresa è utilizzata in piani, rilievi o a
 CARTOGRAPHY_REGION_REVIEW = 'Il contenuto della compresa è cambiato. Controlla di nuovo gli elementi da eliminare.'
 CARTOGRAPHY_ROAD_TYPE_REQUIRED = 'Seleziona un tipo di viabilità attivo.'
 MAP_PUBLISHED = 'Pubblicato'
+
+CARTOGRAPHY_PARCEL_EXISTS = 'Esiste già una particella con questo nome nella compresa.'
+CARTOGRAPHY_PIECE_OVERLAPS = 'La nuova superficie si sovrappone a una parte della stessa particella.'

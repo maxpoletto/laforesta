@@ -35,7 +35,7 @@ from apps.base.http import (
 )
 from apps.base.map_data import map_geojson
 from apps.base.models import (
-    Eclass, Observation, ObservationCategory, ObservationPhoto, Parcel,
+    Observation, ObservationCategory, ObservationPhoto, Parcel,
     Region, Sample, Species, Tree, TreeSample,
     parcel_sort_key,
 )
@@ -57,7 +57,7 @@ from apps.base.responses import (
     conflict_response, parse_json_body, row_delete, row_patch, submitted_version,
     success_response, validation_error,
 )
-from apps.base.validation import decimal_field_value
+from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
@@ -76,20 +76,6 @@ from config.constants import (
 ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
 ALLOWED_SATELLITE_LAYERS = {'ndvi', 'ndmi', 'evi'}
 SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-FIELD_ECLASS_ID = 'eclass_id'
-FIELD_AREA_HA = 'area_ha'
-FIELD_AVE_AGE = 'ave_age'
-FIELD_LOCATION_NAME = 'location_name'
-FIELD_ALTITUDE_MIN_M = 'altitude_min_m'
-FIELD_ALTITUDE_MAX_M = 'altitude_max_m'
-FIELD_ASPECT = 'aspect'
-FIELD_GRADE_PCT = 'grade_pct'
-FIELD_DESC_VEG = 'desc_veg'
-FIELD_DESC_GEO = 'desc_geo'
-FIELD_CUTTING_PLAN = 'cutting_plan'
-FIELD_HARVEST_MECHANISM = 'harvest_mechanism'
-FIELD_INTERVENTION_INTERVAL = 'intervention_interval'
-FIELD_STANDARDS_PER_HA = 'standards_per_ha'
 
 
 @login_required
@@ -119,15 +105,6 @@ def map_context_data(request, region_id):
                                          use_etag=True)
     except (MapContextError, OSError, ValueError, KeyError):
         return unavailable(stale=True)
-
-PARCEL_METADATA_TEXT_FIELDS = {
-    FIELD_LOCATION_NAME: (S.COL_LOCATION, 200),
-    FIELD_ASPECT: (S.COL_ASPECT, 20),
-    FIELD_DESC_VEG: (S.LABEL_BOSCO_VEG_DESC, None),
-    FIELD_DESC_GEO: (S.LABEL_BOSCO_GEO_DESC, None),
-    FIELD_CUTTING_PLAN: (S.LABEL_BOSCO_CUTTING_PLAN, None),
-    FIELD_HARVEST_MECHANISM: (S.LABEL_BOSCO_HARVEST_MECHANISM, 200),
-}
 
 _SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
 
@@ -199,7 +176,7 @@ def parcel_metadata_save_view(request):
                   .filter(id=row_id).first())
         if parcel is None:
             raise Http404
-        values, errors = _parse_parcel_metadata_body(body)
+        values, errors = parse_parcel_metadata(body)
         if errors:
             return validation_error(
                 errors, html=_render_parcel_metadata_form(request, row_id, body),
@@ -1002,121 +979,7 @@ def _render_parcel_metadata_form(request, parcel_id: int, values: dict | None = 
     parcel = Parcel.objects.select_related('region', 'eclass').filter(id=parcel_id).first()
     if parcel is None:
         raise Http404
-    form_values = _parcel_metadata_form_values(parcel, values)
-    eclasses = list(Eclass.objects.order_by('coppice', 'name'))
-    selected_eclass_id = int_or_none(values.get(FIELD_ECLASS_ID)) if values else None
-    if selected_eclass_id is None:
-        selected_eclass_id = parcel.eclass_id
-    selected_eclass = next(
-        (eclass for eclass in eclasses if eclass.id == selected_eclass_id),
-        None,
-    )
-    return render_to_string('bosco/_parcel_metadata_form.html', {
-        'parcel': parcel,
-        'version': parcel.version,
-        'values': form_values,
-        'eclasses': eclasses,
-        'selected_eclass_id': selected_eclass_id,
-        'is_coppice': (
-            selected_eclass.coppice if selected_eclass is not None
-            else parcel.eclass.coppice
-        ),
-    }, request=request)
-
-
-def _parcel_metadata_form_values(parcel, values: dict | None = None):
-    fields = (
-        (FIELD_AREA_HA, parcel.area_ha),
-        (FIELD_AVE_AGE, parcel.ave_age),
-        (FIELD_LOCATION_NAME, parcel.location_name),
-        (FIELD_ALTITUDE_MIN_M, parcel.altitude_min_m),
-        (FIELD_ALTITUDE_MAX_M, parcel.altitude_max_m),
-        (FIELD_ASPECT, parcel.aspect),
-        (FIELD_GRADE_PCT, parcel.grade_pct),
-        (FIELD_DESC_VEG, parcel.desc_veg),
-        (FIELD_DESC_GEO, parcel.desc_geo),
-        (FIELD_CUTTING_PLAN, parcel.cutting_plan),
-        (FIELD_HARVEST_MECHANISM, parcel.harvest_mechanism),
-        (FIELD_INTERVENTION_INTERVAL, parcel.intervention_interval),
-        (FIELD_STANDARDS_PER_HA, parcel.standards_per_ha),
-    )
-    return {key: _form_value(values, key, default, blank=True) for key, default in fields}
-
-
-def _parse_parcel_metadata_body(body: dict):
-    errors = []
-    eclass_id = int_or_none(body.get(FIELD_ECLASS_ID))
-    if eclass_id is None:
-        eclass = None
-        errors.append(S.ERR_BOSCO_GOVERNANCE_REQUIRED)
-    else:
-        eclass = Eclass.objects.filter(id=eclass_id).first()
-        if eclass is None:
-            errors.append(S.ERR_BOSCO_GOVERNANCE_INVALID)
-
-    raw_area = body.get(FIELD_AREA_HA)
-    area_ha = decimal_field_value(parse_decimal(raw_area), 'base.Parcel', FIELD_AREA_HA)
-    if raw_area not in (None, '') and (area_ha is None or area_ha <= 0):
-        errors.append(S.ERR_BOSCO_AREA_INVALID)
-
-    values = {
-        'eclass': eclass,
-        FIELD_AREA_HA: area_ha,
-        FIELD_AVE_AGE: _optional_int(body, FIELD_AVE_AGE, S.LABEL_BOSCO_AVE_AGE, errors),
-        FIELD_LOCATION_NAME: _text_value(body, FIELD_LOCATION_NAME, errors),
-        FIELD_ALTITUDE_MIN_M: _optional_int(
-            body, FIELD_ALTITUDE_MIN_M, S.LABEL_BOSCO_ALTITUDE_MIN, errors,
-        ),
-        FIELD_ALTITUDE_MAX_M: _optional_int(
-            body, FIELD_ALTITUDE_MAX_M, S.LABEL_BOSCO_ALTITUDE_MAX, errors,
-        ),
-        FIELD_ASPECT: _text_value(body, FIELD_ASPECT, errors),
-        FIELD_GRADE_PCT: _optional_int(body, FIELD_GRADE_PCT, S.LABEL_BOSCO_GRADE, errors),
-        FIELD_DESC_VEG: _text_value(body, FIELD_DESC_VEG, errors),
-        FIELD_DESC_GEO: _text_value(body, FIELD_DESC_GEO, errors),
-        FIELD_CUTTING_PLAN: _text_value(body, FIELD_CUTTING_PLAN, errors),
-        FIELD_HARVEST_MECHANISM: _text_value(
-            body, FIELD_HARVEST_MECHANISM, errors),
-        FIELD_INTERVENTION_INTERVAL: _optional_int(
-            body, FIELD_INTERVENTION_INTERVAL, S.COL_INTERVENTION_INTERVAL, errors,
-        ),
-        FIELD_STANDARDS_PER_HA: _optional_int(
-            body, FIELD_STANDARDS_PER_HA, S.COL_STANDARDS_PER_HA, errors,
-        ),
-    }
-    if eclass is not None and eclass.coppice:
-        for field, label in (
-            (FIELD_INTERVENTION_INTERVAL, S.COL_INTERVENTION_INTERVAL),
-            (FIELD_STANDARDS_PER_HA, S.COL_STANDARDS_PER_HA),
-        ):
-            if values[field] is None:
-                errors.append(S.ERR_BOSCO_COPPICE_METADATA_REQUIRED.format(label))
-    else:
-        values[FIELD_INTERVENTION_INTERVAL] = None
-        values[FIELD_STANDARDS_PER_HA] = None
-    alt_min = values[FIELD_ALTITUDE_MIN_M]
-    alt_max = values[FIELD_ALTITUDE_MAX_M]
-    if alt_min is not None and alt_max is not None and alt_min > alt_max:
-        errors.append(S.ERR_BOSCO_ALTITUDE_RANGE)
-    return values, errors
-
-
-def _optional_int(body: dict, key: str, label: str, errors: list[str]):
-    raw = body.get(key)
-    if raw in (None, ''):
-        return None
-    value = int_or_none(raw)
-    if value is None:
-        errors.append(S.ERR_BOSCO_INTEGER_REQUIRED.format(label))
-    return value
-
-
-def _text_value(body: dict, key: str, errors: list[str]):
-    label, max_len = PARCEL_METADATA_TEXT_FIELDS[key]
-    value = str(body.get(key) or '').strip()
-    if max_len is not None and len(value) > max_len:
-        errors.append(S.ERR_BOSCO_TEXT_TOO_LONG.format(label))
-    return value
+    return render_parcel_metadata_form(request, parcel, values)
 
 
 def _render_pai_form(request, pai_id: int | None = None, values: dict | None = None):

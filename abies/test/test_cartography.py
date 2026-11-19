@@ -334,3 +334,42 @@ def test_pending_legacy_page_with_known_region_leaves_other_regions_editable(cli
                                   body=_page_body([{'region_id': regions[0].id}], '', {}))
     assert region_details(client, regions[0])['deletion'] is None
     assert region_details(client, regions[1])['deletion'] is not None
+
+
+def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, eclasses):
+    from apps.base.digests import build_parcel_record
+    from apps.base.map_data import map_geojson
+    from apps.base.models import Parcel
+
+    client.force_login(writer_user)
+    region = regions[0]
+    form = client.get(f'{ROOT}{region.pk}/parcel-form/')
+    assert form.status_code == 200
+    import re
+    html = form.json()['html']
+    assert re.search(fr'<option value="{eclasses[0].pk}"[^>]+selected', html)
+    assert 'required' not in re.search(r'<input[^>]+name="area_ha"[^>]*>', html).group()
+    polygon = {'type': 'Polygon', 'coordinates': [[[16, 38], [16.1, 38], [16, 38.1], [16, 38]]]}
+    def draw(shape):
+        result = write(client, region, 'create', name='Confine', parts=[shape])
+        assert result.status_code == 200, result.content
+        return result.json()['drawing_id']
+    first = draw(polygon)
+    data = {'id': first, 'version': 1, 'name': '2a', 'eclass_id': eclasses[0].pk}
+    assert write(client, region, 'parcel', **data, area_ha='abc').status_code == 400
+    assert write(client, region, 'parcel', **data).status_code == 200
+    parcel = Parcel.objects.get(region=region)
+    assert parcel.name == '2a' and parcel.area_ha is None
+    assert build_parcel_record(parcel)
+    assert map_geojson()['features'][0]['properties']['name'] == region.name + '-2a'
+    assert workspace(client, region)['drawings'] == []
+    next_piece = {'type': 'Polygon', 'coordinates': [[[17, 38], [17.1, 38], [17, 38.1], [17, 38]]]}
+    other = draw(next_piece)
+    append = {'id': other, 'version': 1, 'parcel_id': parcel.pk}
+    assert write(client, region, 'parcel', **append, parcel_version=0).status_code == 400
+    assert write(client, region, 'parcel', **append, parcel_version=parcel.version, parts=[polygon]).status_code == 400
+    assert write(client, region, 'parcel', id=other, version=1, name='2a', eclass_id=eclasses[0].pk).status_code == 400
+    assert write(client, region, 'parcel', **append, parcel_version=parcel.version).status_code == 200
+    assert parcel.map_features.count() == 2
+    parcel.refresh_from_db()
+    assert parcel.version == 2

@@ -1,5 +1,7 @@
 """Writer workspace for the selected compresa."""
 
+from shapely.geometry import shape
+
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import F, Q
@@ -11,15 +13,17 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.base.auth import require_writer
 from apps.base.digests import mark_stale
 from apps.base.idempotency import begin_nonce_write
-from apps.base.models import MapDrawing, MapFeature, MapPointSet, Region, RoadType
+from apps.base.models import MapDrawing, MapFeature, MapPointSet, Parcel, Region, RoadType
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, walk_parts
-from apps.impostazioni.regions import required_name
+from apps.base.map_import_v1 import parcel_key
+from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
+from apps.impostazioni.regions import required_name, unlinked_outlines
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
 from config import strings as S
-from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES, PENDING_COUNT
+from config.constants import DATA_ID_ECLASSES, DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES, DIGEST_FUTURE_PRODUCTION, DIGEST_PARCELS, HTML, PENDING_COUNT
 
 
 @login_required
@@ -28,6 +32,44 @@ from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES, PENDING_C
 def catalog(request):
     return JsonResponse({'regions': list(Region.objects.order_by(Lower('name'), 'name').values('id', 'name')),
                          'road_types': list(RoadType.objects.filter(active=True).values('id', 'name'))})
+
+
+@login_required
+@require_writer
+@require_GET
+def parcel_form(request, region_id):
+    parcel = Parcel(region=get_object_or_404(Region, pk=region_id))
+    return JsonResponse({HTML: render_parcel_metadata_form(request, parcel, promotion=True)})
+
+
+def promote_parcel(drawing, parts, body):
+    geometry = feature_geometry(parts, 'Polygon')
+    targets = Parcel.objects.filter(region=drawing.region)
+    if body.get('parcel_id') not in (None, ''):
+        parcel = get_object_or_404(targets, pk=int_or_none(body['parcel_id']))
+        if parcel.version != int_or_none(body.get('parcel_version')):
+            raise ValueError(S.CARTOGRAPHY_STALE)
+        piece = shape(geometry)
+        existing = parcel.map_features.filter(published=True).values_list('geometry', flat=True)
+        if any(piece.relate_pattern(shape(outline), 'T********') for outline in existing):
+            raise ValueError(S.CARTOGRAPHY_PIECE_OVERLAPS)
+        parcel.version += 1
+        parcel.save(update_fields=['version'])
+    else:
+        name = required_name(body)
+        if len(name) > Parcel._meta.get_field('name').max_length:
+            raise ValueError(S.ERR_NAME_MAX_LENGTH.format(Parcel._meta.get_field('name').max_length))
+        if targets.filter(name=name).exists() or any(
+                parcel_key(row.members)[1] == name for row in unlinked_outlines(drawing.region.name)):
+            raise ValueError(S.CARTOGRAPHY_PARCEL_EXISTS)
+        values, errors = parse_parcel_metadata(body)
+        if errors:
+            raise ValueError(' '.join(errors))
+        parcel = targets.create(region=drawing.region, name=name, **values)
+    MapFeature.objects.create(parcel=parcel, geometry=geometry, members={'type': 'Feature'})
+    drawing.delete()
+    mark_stale(DIGEST_PARCELS, 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
+    return {'parcel_id': parcel.pk, 'parcel_name': parcel.name}
 
 
 def pending_uploads(region_id):
@@ -118,17 +160,19 @@ def edit_workspace(region_id, action, body):
     if action == 'create':
         row = drawings.create(region_id=region_id, name=required_name(body), parts=checked_parts(body.get('parts')))
         return {'drawing_id': row.pk}
-    if action in ('adjust', 'road', 'copy', 'remove-drawing'):
+    if action in ('adjust', 'road', 'parcel', 'copy', 'remove-drawing'):
         drawing = get_object_or_404(drawings, pk=int_or_none(body.get('id')))
         if drawing.version != int_or_none(body.get('version')):
             raise ValueError(S.CARTOGRAPHY_STALE)
         if action == 'remove-drawing':
             drawing.delete()
             return {}
-        parts = checked_parts(body.get('parts', drawing.parts if action == 'road' else None))
+        parts = checked_parts(body.get('parts', drawing.parts if action in ('road', 'parcel') else None))
         if action == 'copy':
             copy = drawings.create(region_id=region_id, name=required_name(body), parts=parts)
             return {'drawing_id': copy.pk}
+        if action == 'parcel':
+            return promote_parcel(drawing, parts, body)
         if action == 'road':
             kind = RoadType.objects.filter(pk=int_or_none(body.get('road_type_id')), active=True).first()
             if kind is None:
@@ -168,6 +212,8 @@ def change(request, region_id, action):
             else:
                 extra = edit_workspace(region_id, action, body)
             invalidations = {'import': [DATA_ID_IPSO_UPLOADS, 'audit'],
+                             'parcel': ['terreni', DIGEST_PARCELS, DATA_ID_ECLASSES, 'harvest_plan_items',
+                                        DIGEST_FUTURE_PRODUCTION, 'audit'],
                              'road': ['roads', DATA_ID_ROAD_TYPES, 'audit']}
             return success_response(request, body, extra=extra,
                                     invalidates={'data_ids': invalidations.get(action, [])})

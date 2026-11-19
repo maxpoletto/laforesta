@@ -13,6 +13,7 @@ urlpatterns = [
     path('cartography/regions/<int:region_id>/save/', regions.save),
     path('cartography/regions/<int:region_id>/delete/', regions.save, {'delete': True}),
     path('cartography/<int:region_id>/', cartography.workspace),
+    path('cartography/<int:region_id>/parcel-form/', cartography.parcel_form),
     path('cartography/<int:region_id>/<slug:action>/', cartography.change),
     path('equations/import/preview/', equation_imports.preview_import, name='impostazioni-equation-preview'),
     path('equations/import/confirm/', equation_imports.confirm_import, name='impostazioni-equation-confirm'),
