@@ -178,15 +178,25 @@ S (string constants) provided by the shell's render context.
         <div id="cartography-map" class="map-workspace-host">
           <div class="cartography-map-tools" data-role="map-tools" hidden>
             <div class="cartography-buttons" data-role="draw-tools">
-              <button class="btn" data-action="line" disabled>Linea</button>
-              <button class="btn" data-action="polygon" disabled>Poligono</button>
+              <button class="btn cartography-map-icon" data-action="line" aria-label="Linea" title="Linea" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 18 10 6l10 8"/><path class="cartography-tool-vertices" d="M4 18h.01M10 6h.01M20 14h.01"/>
+                </svg>
+              </button>
+              <button class="btn cartography-map-icon" data-action="polygon" aria-label="Poligono" title="Poligono" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m4 17 4-12 12 4-3 10Z"/><path class="cartography-tool-vertices" d="M4 17h.01M8 5h.01M20 9h.01M17 19h.01"/>
+                </svg>
+              </button>
             </div>
+            <button class="btn cartography-map-icon" data-action="undo" title="Annulla ultimo passo"
+                    aria-label="Annulla ultimo passo" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
+            </button>
             <div class="cartography-buttons" data-role="sketch-tools" hidden>
               <button class="btn" data-action="cancel-sketch">{{ S.CANCEL }}</button>
               <button class="btn btn-save" data-action="finish">Termina</button>
             </div>
-            <button class="btn" data-action="undo" title="Annulla ultimo passo"
-                    aria-label="Annulla ultimo passo" hidden>↶</button>
           </div>
         </div>
         <aside id="cartography-sidebar" class="map-workspace-sidebar" aria-label="Controlli cartografia">
@@ -210,8 +220,15 @@ S (string constants) provided by the shell's render context.
             <ul class="map-workspace-list" id="cartography-parcels"
                 aria-labelledby="cartography-parcels-label" hidden></ul>
             <div class="cartography-buttons">
-              <button class="btn" disabled>Proprietà</button>
-              <button class="btn" disabled>Confini</button>
+              <button class="btn" data-action="parcel-properties" disabled>Proprietà</button>
+              <button class="btn" data-action="boundaries" disabled>Confini</button>
+            </div>
+            <label class="cartography-snap" data-role="parcel-snap" hidden>
+              <input type="checkbox"> Aggancia ai vertici delle altre particelle
+            </label>
+            <div class="cartography-buttons" data-role="parcel-edit-actions" hidden>
+              <button class="btn" data-action="cancel-parcel">{{ S.CANCEL }}</button>
+              <button class="btn btn-save" data-action="save-parcel">{{ S.SAVE }}</button>
             </div>
           </section>
           <section class="cartography-section">
@@ -225,8 +242,12 @@ S (string constants) provided by the shell's render context.
             <ul class="map-workspace-list" id="cartography-roads"
                 aria-labelledby="cartography-roads-label" hidden></ul>
             <div class="cartography-buttons">
-              <button class="btn" disabled>Proprietà</button>
-              <button class="btn" disabled>Punti</button>
+              <button class="btn" data-action="road-properties" disabled>Proprietà</button>
+              <button class="btn" data-action="points" disabled>Punti</button>
+            </div>
+            <div class="cartography-buttons" data-role="road-edit-actions" hidden>
+              <button class="btn" data-action="cancel-road">{{ S.CANCEL }}</button>
+              <button class="btn btn-save" data-action="save-road">{{ S.SAVE }}</button>
             </div>
           </section>
           <details class="cartography-section" open>
@@ -337,6 +358,7 @@ S (string constants) provided by the shell's render context.
     <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
     <div class="form-row"><label>Tipo di viabilità <select name="road_type_id" required></select></label></div>
     <div class="form-actions">
+      <button type="button" class="btn btn-delete" data-action="delete" hidden>{{ S.ACTION_DELETE }}</button>
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
       <button type="submit" class="btn btn-save">Crea strada</button>
     </div>

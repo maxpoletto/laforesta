@@ -379,3 +379,89 @@ def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, ecl
     assert parcel.map_features.count() == 2
     parcel.refresh_from_db()
     assert parcel.version == 2
+
+
+def test_edit_road_properties_points_and_delete(client, writer_user, regions):
+    from apps.base.models import MapFeature, RoadType
+
+    region = regions[0]
+    client.force_login(writer_user)
+    kind = RoadType.objects.create(name='Pista di prova', sort_order=1)
+    road = MapFeature.objects.create(region=region, name='Prima', road_type=kind,
+                                     geometry={'type': 'LineString', 'coordinates': [[16, 38], [17, 38]]})
+    assert write(client, region, 'road-properties', id=road.pk, version=1,
+                 name='Nuova', road_type_id=kind.pk).status_code == 200
+    assert write(client, region, 'road-points', id=road.pk, version=1, parts=[]).status_code == 400
+    coords = [[16, 38], [16.5, 38.1], [17, 38]]
+    assert write(client, region, 'road-points', id=road.pk, version=2,
+                 parts=[{'type': 'LineString', 'coordinates': coords}]).status_code == 200
+    road.refresh_from_db()
+    assert road.version == 3 and road.name == 'Nuova' and road.geometry['coordinates'] == coords
+    assert write(client, region, 'remove-road', id=road.pk, version=3).status_code == 200
+    assert not MapFeature.objects.filter(pk=road.pk).exists()
+
+
+def test_rename_parcel_keeps_records_and_requires_confirmation(client, writer_user, parcels):
+    from apps.base.models import HarvestPlan, HarvestPlanItem
+
+    parcel = parcels[0]
+    region = parcel.region
+    client.force_login(writer_user)
+    plan = HarvestPlan.objects.create(name='Prova', year_start=2027, year_end=2030)
+    item = HarvestPlanItem.objects.create(harvest_plan=plan, parcel=parcel, year_planned=2028)
+    body = {'id': parcel.pk, 'version': parcel.version, 'name': 'Nuova', 'eclass_id': parcel.eclass_id}
+    assert write(client, region, 'parcel-properties', **body).status_code == 400
+    assert write(client, region, 'parcel-properties', **body, confirm_rename=True).status_code == 200
+    parcel.refresh_from_db()
+    assert parcel.name == 'Nuova' and item.parcel_id == parcel.pk
+    assert write(client, region, 'remove-parcel', id=parcel.pk, version=parcel.version).status_code == 400
+
+
+def test_shared_boundary_moves_both_parcels_and_preserves_pieces(client, writer_user, parcels):
+    from apps.base.models import MapFeature
+
+    west, east = parcels[:2]
+    client.force_login(writer_user)
+    left = MapFeature.objects.create(parcel=west, geometry={'type': 'Polygon',
+        'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 39], [16, 38]]]})
+    right = MapFeature.objects.create(parcel=east, geometry={'type': 'Polygon',
+        'coordinates': [[[17, 38], [18, 38], [18, 39], [17, 39], [17, 38.5], [17, 38]]]})
+    path = f'{ROOT}{west.region_id}/parcels/{west.pk}/boundaries/'
+    snapshot = client.get(path).json()
+    outline = next(row for row in snapshot['features'] if row['id'] == left.pk)
+    ring = outline['parts'][0]['coordinates'][0]
+    edits = [{'id': left.pk, 'part': 0, 'ring': 0, 'index': ring.index([17, 38.5]),
+              'point': [17.1, 38.5], 'operation': 'move'}]
+    body = {'id': west.pk, 'review': snapshot['review'], 'edits': edits}
+    invalid = {**body, 'edits': [{**edits[0], 'point': [18.2, 38.5]}]}
+    assert write(client, west.region, 'parcel-boundaries', **invalid).status_code == 400
+    left.refresh_from_db()
+    right.refresh_from_db()
+    assert left.version == right.version == 1
+    assert write(client, west.region, 'parcel-boundaries', **body).status_code == 200
+    left.refresh_from_db()
+    right.refresh_from_db()
+    for outline in (left, right):
+        assert outline.version == 2
+        assert [17.1, 38.5] in outline.geometry['coordinates'][0]
+    assert write(client, west.region, 'parcel-boundaries', **body).status_code == 400
+
+
+def test_boundary_edit_can_add_piece_and_reject_overlap(client, writer_user, parcels):
+    from apps.base.models import MapFeature
+
+    parcel = parcels[0]
+    client.force_login(writer_user)
+    first = {'type': 'Polygon', 'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 38]]]}
+    second = {'type': 'Polygon', 'coordinates': [[[18, 38], [19, 38], [19, 39], [18, 38]]]}
+    existing = MapFeature.objects.create(parcel=parcel, geometry=first)
+    snapshot = client.get(f'{ROOT}{parcel.region_id}/parcels/{parcel.pk}/boundaries/').json()
+    body = {'id': parcel.pk, 'review': snapshot['review']}
+    assert write(client, parcel.region, 'parcel-boundaries', **body, added=[first]).status_code == 400
+    assert write(client, parcel.region, 'parcel-boundaries', **body, added=[second]).status_code == 200
+    existing.refresh_from_db()
+    assert existing.geometry == first and existing.version == 1
+    parcel.refresh_from_db()
+    assert parcel.version == 2 and parcel.map_features.count() == 2
+    assert write(client, parcel.region, 'remove-parcel', id=parcel.pk, version=2).status_code == 200
+    assert not MapFeature.objects.filter(parcel_id=parcel.pk).exists()

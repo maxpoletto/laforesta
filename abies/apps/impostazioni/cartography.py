@@ -19,7 +19,8 @@ from apps.base.responses import parse_json_body, success_response, validation_er
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
-from apps.impostazioni.regions import required_name, unlinked_outlines
+from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, save_boundaries
+from apps.impostazioni.regions import invalidate_map_labels, required_name, unlinked_outlines
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
 from config import strings as S
@@ -42,6 +43,95 @@ def parcel_form(request, region_id):
     return JsonResponse({HTML: render_parcel_metadata_form(request, parcel, promotion=True)})
 
 
+def parcel_used(parcel):
+    # Do not let a deletion cascade through an otherwise unprotected grid or plan.
+    return any(
+        relation.related_model._base_manager.filter(**{relation.field.name: parcel}).exists()
+        for relation in Parcel._meta.related_objects if relation.get_accessor_name() != 'map_features'
+    )
+
+
+@login_required
+@require_writer
+@require_GET
+@transaction.atomic
+def parcel_details(request, region_id, parcel_id, *, boundaries=False):
+    parcel = get_object_or_404(Parcel.objects.select_related('region', 'eclass'),
+                               region_id=region_id, pk=parcel_id)
+    if boundaries:
+        return JsonResponse(boundary_workspace(parcel, parcel_outlines(region_id)))
+    return JsonResponse({HTML: render_parcel_metadata_form(request, parcel, edit_name=True,
+                                                          can_delete=not parcel_used(parcel))})
+
+
+def parcel_name(body, region, existing_id=None):
+    name = required_name(body)
+    limit = Parcel._meta.get_field('name').max_length
+    if len(name) > limit:
+        raise ValueError(S.ERR_NAME_MAX_LENGTH.format(limit))
+    if Parcel.objects.filter(region=region, name=name).exclude(pk=existing_id).exists() or any(
+            parcel_key(row.members)[1] == name for row in unlinked_outlines(region.name)):
+        raise ValueError(S.CARTOGRAPHY_PARCEL_EXISTS)
+    return name
+
+
+def road_type(body, current=None):
+    pk = int_or_none(body.get('road_type_id'))
+    types = RoadType.objects.filter(Q(active=True) | Q(pk=current))
+    kind = types.filter(pk=pk).first()
+    if kind is None:
+        raise ValueError(S.CARTOGRAPHY_ROAD_TYPE_REQUIRED)
+    return kind
+
+
+def edit_road(region_id, action, body):
+    road = get_object_or_404(MapFeature, region_id=region_id, pk=int_or_none(body.get('id')))
+    if road.version != int_or_none(body.get('version')):
+        raise ValueError(S.CARTOGRAPHY_STALE)
+    if action == 'remove-road':
+        road.delete()
+        return {}
+    if action == 'road-properties':
+        road.name = required_name(body)
+        road.road_type = road_type(body, road.road_type_id)
+        fields = ['name', 'road_type']
+    else:
+        road.geometry = feature_geometry(checked_parts(body.get('parts')), 'LineString')
+        fields = ['geometry']
+    road.version += 1
+    road.save(update_fields=[*fields, 'version'])
+    return {'road_id': road.pk}
+
+
+def edit_parcel(region_id, action, body):
+    parcel = get_object_or_404(Parcel, region_id=region_id, pk=int_or_none(body.get('id')))
+    if action == 'parcel-boundaries':
+        save_boundaries(parcel, body)
+        return {'parcel_id': parcel.pk, 'parcel_name': parcel.name}
+    if parcel.version != int_or_none(body.get('version')):
+        raise ValueError(S.CARTOGRAPHY_STALE)
+    if action == 'remove-parcel':
+        if parcel_used(parcel):
+            raise ValueError(S.CARTOGRAPHY_PARCEL_IN_USE)
+        parcel.map_features.all().delete()
+        parcel.delete()
+        return {'parcel_map_changed': True}
+    name = required_name(body)
+    if name != parcel.name:
+        if body.get('confirm_rename') is not True:
+            raise ValueError(S.CARTOGRAPHY_CONFIRM_RENAME)
+        name = parcel_name(body, parcel.region, parcel.pk)
+    values, errors = parse_parcel_metadata(body)
+    if errors:
+        raise ValueError(' '.join(errors))
+    for field, value in values.items():
+        setattr(parcel, field, value)
+    parcel.name = name
+    parcel.version += 1
+    parcel.save(update_fields=['name', *values, 'version'])
+    return {'parcel_id': parcel.pk, 'parcel_name': parcel.name}
+
+
 def promote_parcel(drawing, parts, body):
     geometry = feature_geometry(parts, 'Polygon')
     targets = Parcel.objects.filter(region=drawing.region)
@@ -56,19 +146,13 @@ def promote_parcel(drawing, parts, body):
         parcel.version += 1
         parcel.save(update_fields=['version'])
     else:
-        name = required_name(body)
-        if len(name) > Parcel._meta.get_field('name').max_length:
-            raise ValueError(S.ERR_NAME_MAX_LENGTH.format(Parcel._meta.get_field('name').max_length))
-        if targets.filter(name=name).exists() or any(
-                parcel_key(row.members)[1] == name for row in unlinked_outlines(drawing.region.name)):
-            raise ValueError(S.CARTOGRAPHY_PARCEL_EXISTS)
+        name = parcel_name(body, drawing.region)
         values, errors = parse_parcel_metadata(body)
         if errors:
             raise ValueError(' '.join(errors))
         parcel = targets.create(region=drawing.region, name=name, **values)
     MapFeature.objects.create(parcel=parcel, geometry=geometry, members={'type': 'Feature'})
     drawing.delete()
-    mark_stale(DIGEST_PARCELS, 'harvest_plan_items', DIGEST_FUTURE_PRODUCTION, 'audit')
     return {'parcel_id': parcel.pk, 'parcel_name': parcel.name}
 
 
@@ -99,7 +183,8 @@ def workspace(request, region_id):
         'drawings': list(MapDrawing.objects.filter(region=region).order_by('pk').values(
             'id', 'source_id', 'name', 'parts', 'version')),
         'roads': list(MapFeature.objects.filter(region=region).values(
-            'id', 'name', 'road_type_id', 'geometry', 'published', 'version')),
+            'id', 'name', 'road_type_id', 'road_type__name', 'geometry', 'published', 'version')),
+        'parcels': list(Parcel.objects.filter(region=region).values('id', 'name')),
     })
 
 
@@ -146,6 +231,10 @@ def check_selection(rows, selected):
 
 
 def edit_workspace(region_id, action, body):
+    if action in ('road-properties', 'road-points', 'remove-road'):
+        return edit_road(region_id, action, body)
+    if action in ('parcel-properties', 'parcel-boundaries', 'remove-parcel'):
+        return edit_parcel(region_id, action, body)
     if action in ('restore', 'forget'):
         source = get_object_or_404(MapPointSet, region_id=region_id, pk=int_or_none(body.get('source_id')))
         if action == 'restore':
@@ -174,13 +263,9 @@ def edit_workspace(region_id, action, body):
         if action == 'parcel':
             return promote_parcel(drawing, parts, body)
         if action == 'road':
-            kind = RoadType.objects.filter(pk=int_or_none(body.get('road_type_id')), active=True).first()
-            if kind is None:
-                raise ValueError(S.CARTOGRAPHY_ROAD_TYPE_REQUIRED)
-            road = MapFeature.objects.create(region_id=region_id, road_type=kind, name=required_name(body),
+            road = MapFeature.objects.create(region_id=region_id, road_type=road_type(body), name=required_name(body),
                                              geometry=feature_geometry(parts, 'LineString'))
             drawing.delete()
-            mark_stale('audit')
             return {'road_id': road.pk}
         drawing.parts = parts
         drawing.version += 1
@@ -211,11 +296,22 @@ def change(request, region_id, action):
                 extra = import_points(region_id, upload, payload, request.user)
             else:
                 extra = edit_workspace(region_id, action, body)
-            invalidations = {'import': [DATA_ID_IPSO_UPLOADS, 'audit'],
-                             'parcel': ['terreni', DIGEST_PARCELS, DATA_ID_ECLASSES, 'harvest_plan_items',
-                                        DIGEST_FUTURE_PRODUCTION, 'audit'],
-                             'road': ['roads', DATA_ID_ROAD_TYPES, 'audit']}
-            return success_response(request, body, extra=extra,
-                                    invalidates={'data_ids': invalidations.get(action, [])})
+            if action in ('parcel-properties', 'remove-parcel'):
+                invalidates = invalidate_map_labels()
+            elif action in ('parcel', 'parcel-boundaries'):
+                digests = [DIGEST_PARCELS, 'audit']
+                if action == 'parcel':
+                    digests.extend(['harvest_plan_items', DIGEST_FUTURE_PRODUCTION])
+                mark_stale(*digests)
+                invalidates = {'data_ids': ['terreni', DATA_ID_ECLASSES, *digests]}
+            elif action in ('road', 'road-properties', 'road-points', 'remove-road'):
+                mark_stale('audit')
+                invalidates = {'data_ids': ['roads', DATA_ID_ROAD_TYPES, 'audit']}
+            elif action == 'import':
+                invalidates = {'data_ids': [DATA_ID_IPSO_UPLOADS, 'audit']}
+            else:
+                invalidates = {}
+            return success_response(request, body, extra=extra, invalidates=invalidates)
+
     except ValueError as exc:
         return validation_error([str(exc)])

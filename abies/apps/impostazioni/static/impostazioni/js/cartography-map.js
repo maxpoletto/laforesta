@@ -8,6 +8,7 @@ import { handPart, rings } from './drawing-parts.js';
 const drawingStyle = { color: '#ad4c00', weight: 4 };
 const roadStyle = { color: '#244c86', weight: 4 };
 const selectedStyle = { color: '#db9500', weight: 6 };
+const SNAP_RADIUS_PX = 10;
 
 function fixLabel(fix) {
   const label = document.createElement('span');
@@ -16,10 +17,10 @@ function fixLabel(fix) {
 }
 
 export class CartographyMap {
-  constructor(container, parcels, regionName, onSelect, basemap, onPlace, tools) {
+  constructor(container, parcels, regionName, onSelect, basemap, onPlace, tools, initialView) {
     const features = parcels.features.filter(f => parcelIdentity(f).regionName === regionName);
     this.parcels = new ParcelMap({
-      container, geojson: {type: 'FeatureCollection', features}, basemap,
+      container, geojson: {type: 'FeatureCollection', features}, basemap, initialView,
       onMapClick: (ll, feature) => {
         if (!onPlace(ll)) onSelect(feature ? 'parcel' : null, feature && parcelIdentity(feature).parcelName);
       },
@@ -33,13 +34,14 @@ export class CartographyMap {
       this.parcelLayers.get(parcelName).push(layer);
     });
     this.map = this.parcels.leaflet;
-    if (!features.length) this.map.fitWorld();
+    if (!features.length && !initialView) this.map.fitWorld();
     this.onSelect = onSelect;
     this.objects = L.featureGroup().addTo(this.map);
     this.handles = L.layerGroup().addTo(this.map);
     this.layers = new Map();
     this.preview = L.featureGroup().addTo(this.map);
     this.hiddenLayers = new Set();
+    this.editedParcels = [];
     this.toolbar = L.control({position: 'topleft'});
     this.toolbar.onAdd = () => {
       L.DomEvent.disableClickPropagation(tools);
@@ -62,7 +64,7 @@ export class CartographyMap {
     if (visible) this.hiddenLayers.delete(key);
     else this.hiddenLayers.add(key);
     const group = kind === 'parcel' ? this.parcels.parcelLayer : this.objects;
-    const layers = kind === 'parcel' ? this.parcelLayers.get(id) : [this.layers.get(key)];
+    const layers = kind === 'parcel' ? this.parcelLayers.get(id) || [] : [this.layers.get(key)];
     for (const layer of layers) {
       if (visible) group.addLayer(layer);
       else group.removeLayer(layer);
@@ -104,7 +106,7 @@ export class CartographyMap {
   }
 
   frame(kind, id) {
-    const layers = kind === 'parcel' ? this.parcelLayers.get(id) : [this.layers.get(kind + id)];
+    const layers = kind === 'parcel' ? this.parcelLayers.get(id) || [] : [this.layers.get(kind + id)];
     this.fit(this.bounds(layers));
   }
 
@@ -125,6 +127,7 @@ export class CartographyMap {
   }
 
   select(kind, row) {
+    this.showEditedParcels([]);
     this.stopEdit();
     this.handles.clearLayers();
     this.preview.clearLayers();
@@ -140,22 +143,75 @@ export class CartographyMap {
     if (kind === 'drawing') this.watchHandles(row.parts);
   }
 
+  nearestParcelVertex(name, point) {
+    const location = this.map.latLngToContainerPoint([point[1], point[0]]);
+    const nearby = this.map.getBounds().pad(0.1);
+    let distance = SNAP_RADIUS_PX;
+    let nearest = point;
+    for (const [other, layers] of this.parcelLayers) {
+      if (other === name || !this.isVisible('parcel', other)) continue;
+      for (const layer of layers) {
+        if (!layer.getBounds().intersects(nearby)) continue;
+        const geometry = layer.feature.geometry;
+        const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+        for (const coordinates of polygons) {
+          for (const ring of coordinates) {
+            for (const [lon, lat] of ring) {
+              const vertex = L.latLng(lat, lon);
+              if (!nearby.contains(vertex)) continue;
+              const pixels = this.map.latLngToContainerPoint(vertex).distanceTo(location);
+              if (pixels < distance) {
+                nearest = [lon, lat];
+                distance = pixels;
+              }
+            }
+          }
+        }
+      }
+    }
+    return nearest;
+  }
+
+  showEditedParcels(names) {
+    const layer = this.parcels.parcelLayer;
+    for (const name of this.editedParcels) {
+      if (this.isVisible('parcel', name)) {
+        for (const piece of this.parcelLayers.get(name) || []) layer.addLayer(piece);
+      }
+    }
+    for (const name of names) {
+      for (const piece of this.parcelLayers.get(name) || []) layer.removeLayer(piece);
+    }
+    this.editedParcels = names;
+  }
+
   edit(draft, callbacks) {
     this.stopEdit();
     this.handles.clearLayers();
     this.preview.clearLayers();
-    if (draft.id) this.objects.removeLayer(this.layers.get('drawing' + draft.id));
+    if (draft.kind === 'parcel') {
+      this.showEditedParcels([draft.id, ...draft.neighbors]);
+      for (const feature of draft.features) {
+        if (!draft.neighbors.includes(feature.name)) continue;
+        for (const part of feature.parts) {
+          this.partLayer(part, {...selectedStyle, weight: 3, dashArray: '6 4'}).addTo(this.preview);
+        }
+      }
+    } else if (draft.id) {
+      this.objects.removeLayer(this.layers.get((draft.kind || 'drawing') + draft.id));
+    }
+
+    draft.parts?.forEach((part, i) => {
+      const layer = this.partLayer(part, i === draft.active ? selectedStyle : drawingStyle).addTo(this.preview);
+      if (i === draft.active) this.activeLayer = layer;
+      layer.on('click', e => draft.tool ? callbacks.place(e.latlng) : callbacks.selectPart(i));
+    });
     if (draft.tool) {
       const part = handPart(draft.tool, draft.vertices);
       if (part) this.partLayer(part, selectedStyle).addTo(this.preview).on('click', e => callbacks.place(e.latlng));
-      return;
+    } else if (draft.parts[draft.active]) {
+      this.watchHandles([draft.parts[draft.active]], callbacks);
     }
-    draft.parts.forEach((part, i) => {
-      const layer = this.partLayer(part, i === draft.active ? selectedStyle : drawingStyle).addTo(this.preview);
-      if (i === draft.active) this.activeLayer = layer;
-      layer.on('click', () => callbacks.selectPart(i));
-    });
-    this.watchHandles([draft.parts[draft.active]], callbacks);
   }
 
   watchHandles(parts, callbacks) {
@@ -170,8 +226,8 @@ export class CartographyMap {
             if (callbacks && i > 0) {
               const mid = L.latLng((lat + ring[i - 1][1]) / 2, (lon + ring[i - 1][0]) / 2);
               if (visible.contains(mid)) {
-                L.circleMarker(mid, {radius: 4, weight: 1, color: drawingStyle.color,
-                  fillColor: 'white', fillOpacity: 1, bubblingMouseEvents: false})
+                const icon = L.divIcon({className: 'cartography-insert-vertex', iconSize: [10, 10]});
+                L.marker(mid, {icon, title: S.CARTOGRAPHY_INSERT_VERTEX, bubblingMouseEvents: false})
                   .addTo(this.handles).on('click', () => callbacks.insert(r, i, [mid.lng, mid.lat]));
               }
             }

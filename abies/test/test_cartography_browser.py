@@ -55,11 +55,11 @@ def test_field_walk_in_browser(live_server, client, writer_user, settings, tmp_p
                                  'TEST_SESSION': client.cookies[settings.SESSION_COOKIE_NAME].value},
                             capture_output=True, text=True, timeout=100)
     assert result.returncode == 0, result.stdout + result.stderr
-    road = MapFeature.objects.get(published=True, name='Strada nord')
+    road = MapFeature.objects.get(published=True, name='Via nord')
     source = MapPointSet.objects.get()
     original = [[row['lon'], row['lat']] for row in source.records if row['segment']]
     first, gate, second, side = MapDrawing.objects.get(source=source).parts
     assert first['coordinates'] + second['coordinates'] + side['coordinates'] == original
     assert gate['fixes'][0][1] == 'Cancello'
-    assert len(road.geometry['coordinates']) == len(first['coordinates']) + len(second['coordinates'])
+    assert len(road.geometry['coordinates']) == len(first['coordinates']) + len(second['coordinates']) + 1
     assert road.geometry['coordinates'][0] != first['coordinates'][0]

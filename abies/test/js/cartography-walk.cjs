@@ -151,7 +151,9 @@ async function walk(browser) {
     while (list.lastElementChild !== row) list.lastElementChild.remove();
     return {before, rowHeight, capped, scrolls, scrollbar, shortAlignment, longAlignment};
   });
-  assert.equal(layout.capped, layout.before + 5 * layout.rowHeight);
+  assert.equal(layout.rowHeight, 40);
+  assert.equal(layout.before, 40);
+  assert.equal(layout.capped, 240);
   assert.ok(layout.scrolls);
   assert.ok(layout.scrollbar > 0);
   assert.equal(layout.shortAlignment, 0);
@@ -216,6 +218,22 @@ async function walk(browser) {
     modal.locator('button[type=submit]').click(),
   ]);
   assert.equal((await (await page.request.get(url + '/api/geo/roads.geojson')).json()).features.length, 1);
+  await action('road-properties').click();
+  await modal.getByLabel('Nome').fill('Via nord');
+  await modal.getByRole('button', {name: 'Salva', exact: true}).click();
+  await loc('#cartography-roads').getByRole('button', {name: 'Via nord', exact: true}).waitFor();
+  await action('points').click();
+  await action('save-road').waitFor();
+  if (width < 800) await sidebarToggle.click();
+  await loc('.cartography-insert-vertex').first().click();
+  await action('undo').click();
+  await loc('.cartography-insert-vertex').first().click();
+  if (width < 800) await sidebarToggle.click();
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/road-points/') && r.ok()),
+    action('save-road').click(),
+  ]);
+  await action('save-road').waitFor({state: 'hidden'});
   await page.goto(url + '/bosco');
   const filter = page.getByRole('checkbox', {name: 'Pista di prova'});
   await filter.waitFor();
@@ -241,6 +259,10 @@ async function walk(browser) {
   await action('new-region').click();
   await saveRegion('Costa alta', '');
   if (width < 800) await sidebarToggle.click();
+  const lineIcon = await action('line').boundingBox();
+  const polygonIcon = await action('polygon').boundingBox();
+  assert.equal(lineIcon.x, polygonIcon.x);
+  assert.ok(lineIcon.y + lineIcon.height <= polygonIcon.y);
   await action('polygon').click();
   assert.ok(await action('line').isHidden());
   assert.ok(await action('finish').isDisabled());
@@ -267,9 +289,41 @@ async function walk(browser) {
   assert.equal(await drawings.count(), 0);
   assert.equal(await bulkButtons.count(), 1);
 
+  await action('parcel-properties').click();
+  await modal.getByLabel('Nome', {exact: true}).fill('2b');
+  const rename = modal.locator('[name=confirm_rename]');
+  assert.equal(await rename.getAttribute('required'), '');
+  await rename.check();
+  await modal.getByRole('button', {name: 'Salva', exact: true}).click();
+  await loc('#cartography-parcels').getByRole('button', {name: '2b', exact: true}).waitFor();
+
+  await action('boundaries').click();
+  await action('save-parcel').waitFor();
+  if (width < 800) await sidebarToggle.click();
+  assert.ok(await action('line').isHidden());
+  await loc('.cartography-insert-vertex').first().click();
+  await action('undo').click();
+  await loc('.cartography-insert-vertex').first().click();
+  await action('polygon').click();
+  const size = await map.boundingBox();
+  const corner = [size.width - 95, size.height - 105];
+  for (const [dx, dy] of [[0, 0], [55, 0], [40, 42]]) {
+    await map.click({position: {x: corner[0] + dx, y: corner[1] + dy}});
+  }
+  await action('finish').click();
+  assert.ok(await modal.isHidden());
+  if (width < 800) await sidebarToggle.click();
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/parcel-boundaries/') && r.ok()),
+    action('save-parcel').click(),
+  ]);
+  await action('save-parcel').waitFor({state: 'hidden'});
+
   const regionId = await loc('#cartography-region').inputValue();
   const headers = {'X-CSRFToken': await page.locator('body').getAttribute('data-csrf')};
   const outline = await (await page.request.get(url + '/api/geo/map.geojson')).json();
+  assert.equal(outline.features.length, 2);
+  assert.ok(outline.features.every(feature => feature.properties.name === 'Costa alta-2b'));
   const [lon, lat] = outline.features[0].geometry.coordinates[0][0];
   const tree = await page.request.post(url + '/api/bosco/pai/save/', {
     headers, data: {parcel_id: parcelId, species_id: Number(process.env.TEST_SPECIES),

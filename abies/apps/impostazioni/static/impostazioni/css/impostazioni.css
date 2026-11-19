@@ -127,7 +127,7 @@
 .cartography-section summary {
   cursor: pointer;
   font-weight: 600;
-  line-height: 2.75rem;
+  line-height: 2.5rem;
 }
 details.cartography-section { position: relative; }
 details.cartography-section > .cartography-list-header {
@@ -164,7 +164,7 @@ details.cartography-section > .cartography-list-header {
   background: #e1eddf;
   color: var(--color-bosco-green-dark);
 }
-.cartography-icon { flex: 0 0 36px; width: 36px; min-height: 2.75rem; font-size: 1.125rem; }
+.cartography-icon { flex: 0 0 36px; width: 36px; min-height: 2.5rem; font-size: 1.125rem; }
 .cartography-icon:hover:not(:disabled), .cartography-item:hover:not(:disabled) { background: #e8eee6; }
 .cartography-icon:disabled, .cartography-item:disabled { cursor: default; opacity: 0.5; }
 .cartography-icon[hidden] { display: none; }
@@ -189,10 +189,36 @@ details.cartography-section > .cartography-list-header {
 }
 .cartography-empty { font-size: 0.9rem; color: #555; padding: 4px 0; }
 
-.cartography-map-tools { display: flex; flex-wrap: wrap; gap: 5px; }
+.cartography-map-tools,
+.cartography-map-tools [data-role="draw-tools"] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
 .cartography-map-tools .btn { padding-inline: 0.7rem; }
-.cartography-map-tools [data-action="undo"] { font-size: 1.1rem; line-height: 1; }
-.cartography-map-tools[hidden] { display: none; }
+.cartography-map-tools .cartography-map-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  background: white;
+}
+.cartography-map-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cartography-tool-vertices { stroke-width: 4; }
+.cartography-map-tools[hidden],
+.cartography-map-tools .cartography-map-icon[hidden] { display: none; }
 .cartography-import .modal-tabs { flex-wrap: wrap; }
 .cartography-import .form-row { align-items: end; }
 @media (max-width: 600px) {
@@ -200,6 +226,20 @@ details.cartography-section > .cartography-list-header {
 }
 .cartography-import select { max-width: 100%; }
 .cartography-import .form-group { min-width: 0; }
+
+#cartography-sidebar .cartography-snap {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+#cartography-sidebar .cartography-snap[hidden] { display: none; }
+
+.cartography-insert-vertex {
+  background: white;
+  border: 1px solid #ad4c00;
+  border-radius: 50%;
+  cursor: crosshair;
+}
 
 .cartography-vertex {
   background: white;

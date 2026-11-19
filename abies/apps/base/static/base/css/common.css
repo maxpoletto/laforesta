@@ -1094,8 +1094,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .map-workspace-list {
-  --map-list-row-height: 2.75rem;
-  --map-list-block-padding: 4px;
+  --map-list-row-height: 2.5rem;
+  --map-list-block-padding: 0px;
   max-height: calc(6 * var(--map-list-row-height) + 2 * var(--map-list-block-padding) + 2px);
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -1108,7 +1108,7 @@ input:focus, select:focus, textarea:focus {
 
 .map-workspace-list-row {
   display: flex;
-  min-height: var(--map-list-row-height);
+  height: var(--map-list-row-height);
 }
 
 .map-workspace-list .map-workspace-list-choice {

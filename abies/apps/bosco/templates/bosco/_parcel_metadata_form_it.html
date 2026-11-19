@@ -19,16 +19,21 @@
         </div></div>
       {% endif %}
       <fieldset class="cartography-parcel-fields">
-        <div class="form-row"><div class="form-group">
-          <label for="id_parcel_name">Nome</label>
-          <input type="text" id="id_parcel_name" name="name" maxlength="20" required>
-        </div></div>
+    {% elif edit_name %}
+      <h2>Caratteristiche particella</h2>
     {% else %}
       <h2>Caratteristiche particella</h2>
       <div class="form-readonly-flat">
         <span><span class="label">Particella:</span> {{ parcel.region.name }} {{ parcel.name }}</span>
       </div>
     {% endif %}
+    {% if promotion or edit_name %}
+      <div class="form-row"><div class="form-group">
+        <label for="id_parcel_name">Nome</label>
+        <input type="text" id="id_parcel_name" name="name" maxlength="20" required value="{{ parcel.name }}">
+      </div></div>
+    {% endif %}
+
     <div class="form-row narrow">
       <div class="form-group">
         <label for="id_parcel_eclass">{{ S.CSV_COL_CLASS }}</label>
@@ -131,7 +136,22 @@
       </div>
     </div>
 
+    {% if edit_name %}
+      <div class="form-row" hidden>
+        <label><input type="checkbox" name="confirm_rename">
+          Confermo il nuovo nome. I dati esistenti resteranno associati alla particella.
+        </label>
+      </div>
+    {% endif %}
     {% if promotion %}</fieldset>{% endif %}
-    {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
+    {% if can_delete %}
+      <div class="form-actions">
+        <button type="button" class="btn btn-delete" data-action="delete">{{ S.ACTION_DELETE }}</button>
+        <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+      </div>
+    {% else %}
+      {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
+    {% endif %}
   </form>
 </div>

@@ -729,3 +729,8 @@ export const CARTOGRAPHY_DISCARD = 'Abbandona modifiche';
 
 export const CARTOGRAPHY_VISIBILITY = name => `Mostra/nascondi «${name}»`;
 export const CARTOGRAPHY_REMOVE_DRAWING = name => `Elimina disegno «${name}»`;
+
+export const CARTOGRAPHY_ROAD_PROPERTIES = 'Proprietà strada';
+export const CARTOGRAPHY_CANCEL_BOUNDARIES = 'Abbandonare le modifiche ai confini?';
+export const CARTOGRAPHY_CANCEL_POINTS = 'Abbandonare le modifiche ai punti della strada?';
+export const CARTOGRAPHY_INSERT_VERTEX = 'Inserisci vertice';

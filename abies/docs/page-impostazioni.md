@@ -38,6 +38,21 @@ If an unfinished upload received before the server upgrade has no region ID in
 its saved records, deletion becomes available again once Abies can identify
 the compresa on completion or the unfinished transfer expires.
 
+Selecting a parcel or road enables its **Proprietà** button. Parcel properties
+use the Bosco form. Renaming asks for confirmation that the existing records
+follow the same parcel, and a parcel with dependent records is protected from
+deletion. Road properties include the name, type and delete action.
+
+Use **Confini** for parcel outlines or **Punti** for a road. Drag a vertex
+to move it or click the small handle between vertices to insert one. Activate
+**Poligono** during a parcel edit to sketch another piece, then use **Termina**
+to add it to the edit. A coincident edge shared by parcels in the compresa
+is edited on both sides and the affected outlines are highlighted. **Aggancia
+ai vertici delle altre particelle** lets the operator align nearby outlines by
+dropping vertices near the reference vertices. **Salva** publishes the edit and
+**Annulla** discards it after confirmation. The unsaved edit survives switching
+tabs within a browser session.
+
 An imported Ipso walk appears as one drawing. **Modifica** lets the operator
 select a trace or point, move a vertex, copy a side road into a new drawing,
 split a line at a selected vertex, remove parts, or join consecutive lines. **Promuovi** turns the resulting line
@@ -59,8 +74,7 @@ one exists.
 After deletion or promotion it restores the original field measurements, even
 after inbox cleanup. The selected compresa uses the `c` query parameter and
 the basemap uses `mt`.
-The [cartography design](cartography.md) also describes later parcel editing
-and import tools.
+The [cartography design](cartography.md) also describes additional import tools.
 
 ### Testing the road workflow
 

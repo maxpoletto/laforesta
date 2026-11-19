@@ -1,0 +1,155 @@
+"""Read and replay a versioned workspace for one parcel's boundary edits."""
+
+import hashlib
+import json
+from copy import deepcopy
+
+from shapely import STRtree, make_valid
+from shapely.geometry import LineString, Point, shape
+
+from apps.base.models import MapFeature, Parcel
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, position
+from config import strings as S
+
+
+def parcel_outlines(region_id):
+    return list(MapFeature.objects.filter(parcel__region_id=region_id, published=True)
+                .select_related('parcel').order_by('pk'))
+
+
+def parts_for(outline):
+    geometry = outline.geometry
+    polygons = geometry['coordinates']
+    if geometry['type'] == 'Polygon':
+        polygons = [polygons]
+    return [{'type': 'Polygon', 'coordinates': [[point[:2] for point in ring] for ring in polygon]}
+            for polygon in polygons]
+
+
+def feature_rings(features):
+    for feature in features:
+        for part in feature['parts']:
+            yield from part['coordinates']
+
+
+def node_boundaries(features):
+    """Expose vertices along coincident edges even if only one parcel recorded them."""
+    rings = list(feature_rings(features))
+    points = sorted({tuple(point) for ring in rings for point in ring})
+    tree = STRtree([Point(point) for point in points])
+    for ring in rings:
+        noded = [ring[0]]
+        for start, end in zip(ring, ring[1:]):
+            if start != end:
+                segment = LineString([start, end])
+                endpoints = {tuple(start), tuple(end)}
+                interior = [points[index] for index in tree.query(segment, predicate='covers')
+                            if points[index] not in endpoints]
+                interior.sort(key=lambda point: segment.project(Point(point)))
+                noded.extend(map(list, interior))
+            noded.append(end)
+        ring[:] = noded
+
+
+def boundary_workspace(parcel, outlines):
+    signature = [parcel.version, [(row.pk, row.version, row.parcel.version) for row in outlines]]
+    review = hashlib.sha256(json.dumps(signature, separators=(',', ':')).encode()).hexdigest()
+    shapes = [shape(row.geometry) for row in outlines]
+    tree = STRtree(shapes)
+    owned = [geom for row, geom in zip(outlines, shapes) if row.parcel_id == parcel.pk]
+    if not owned:
+        return {'review': review, 'features': []}
+    # A bounding-box intersection covers neighbors at junctions and can also
+    # include parcels whose surveys overlap by a small amount.
+    neighbors = {outlines[i].parcel_id for i in tree.query(owned)[1]}
+    features = [{'id': outline.pk, 'parcel_id': outline.parcel_id,
+                 'name': outline.parcel.name, 'parts': parts_for(outline)}
+                for outline in outlines if outline.parcel_id in neighbors]
+    node_boundaries(features)
+    return {'review': review, 'features': features}
+
+
+def apply_boundary_edit(rings, original, index, operation, point):
+    end = original[index]
+    if operation == 'move':
+        for ring in rings:
+            for i, coord in enumerate(ring):
+                if coord == end:
+                    ring[i] = point
+    else:
+        start = original[index - 1]
+        for ring in rings:
+            for i in range(len(ring) - 1, 0, -1):
+                if (ring[i - 1], ring[i]) in ((start, end), (end, start)):
+                    ring.insert(i, point)
+
+
+def boundary_results(parcel, data, outlines):
+    """Replay from the database snapshot so the shared side cannot be left behind."""
+    state = boundary_workspace(parcel, outlines)
+    if data.get('review') != state['review']:
+        raise ValueError(S.CARTOGRAPHY_STALE)
+    features = state['features']
+    original_parts = {f['id']: deepcopy(f['parts']) for f in features}
+    owned = {f['id']: f['parts'] for f in features if f['parcel_id'] == parcel.pk}
+    edits = data.get('edits', [])
+    if not isinstance(edits, list):
+        raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
+    rings = list(feature_rings(features))
+    try:
+        for edit in edits:
+            index = edit['index']
+            point = edit['point']
+            operation = edit['operation']
+            identifiers = [edit[key] for key in ('id', 'part', 'ring', 'index')]
+            if (not position(point) or any(type(value) is not int or value < 0 for value in identifiers)
+                    or operation not in ('move', 'insert') or (operation == 'insert' and index == 0)):
+                raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
+            ring = owned[edit['id']][edit['part']]['coordinates'][edit['ring']]
+            apply_boundary_edit(rings, ring, index, operation, point)
+    except (IndexError, KeyError, TypeError):
+        raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID) from None
+    updates = {f['id']: feature_geometry(checked_parts(f['parts']), 'Polygon') for f in features
+               if f['parts'] != original_parts[f['id']]}
+    raw_added = data.get('added', [])
+    if not isinstance(raw_added, list):
+        raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
+    added = [feature_geometry(checked_parts([part]), 'Polygon') for part in raw_added]
+    validate_intersections(outlines, updates, added)
+    return updates, added
+
+
+def validate_intersections(outlines, updates, added):
+    """Allow correction of legacy overlap, and reject any newly overlapping area."""
+    before = [make_valid(shape(row.geometry)) for row in outlines]
+    after = [shape(updates[row.pk]) if row.pk in updates else geometry
+             for row, geometry in zip(outlines, before)]
+    after.extend(shape(geometry) for geometry in added)
+    tree = STRtree(after)
+    changed = [i for i, row in enumerate(outlines) if row.pk in updates]
+    changed.extend(range(len(outlines), len(after)))
+    for i in changed:
+        for j in tree.query(after[i], predicate='intersects'):
+            if j == i:
+                continue
+            overlap = after[i].intersection(after[j])
+            if overlap.area and (i >= len(before) or j >= len(before)
+                                 or overlap.difference(before[i].intersection(before[j])).area > 1e-14):
+                raise ValueError(S.CARTOGRAPHY_BOUNDARY_OVERLAPS)
+
+
+def save_boundaries(parcel, body):
+    outlines = parcel_outlines(parcel.region_id)
+    updates, added = boundary_results(parcel, body, outlines)
+    touched = {parcel.pk} if added else set()
+    for outline in outlines:
+        if outline.pk in updates:
+            outline.geometry = updates[outline.pk]
+            outline.version += 1
+            outline.save(update_fields=['geometry', 'version'])
+            touched.add(outline.parcel_id)
+    for geometry in added:
+        MapFeature.objects.create(parcel=parcel, geometry=geometry, members={'type': 'Feature'})
+    for item in Parcel.objects.filter(pk__in=touched):
+        item.version += 1
+        item.save(update_fields=['version'])
