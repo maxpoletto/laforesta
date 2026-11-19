@@ -7,11 +7,13 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { showConfirmModal } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
+import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
 const API = '/api/impostazioni/cartography/';
 const tab = 'cartografia';
+const selectionKey = 'abies.cartography.region';
 const versions = rows => rows.map(row => [row.id, row.version]).sort((a, b) => a[0] - b[0]);
 const sourceLabel = row => [row.name, row.date, row.operator].filter(Boolean).join(' · ');
 
@@ -41,15 +43,22 @@ export class CartographyEditor {
       const action = e.target.closest('button')?.dataset.action;
       if (action && !this.busy) this.act(action);
     });
-    this.ready = Promise.all([fetchJSON(API), cache.load('terreni')]).then(([response, geo]) => {
-      this.catalog = response.data;
-      this.geo = sortFeaturesByArea(geo);
-      fill(this.region, this.catalog.regions);
-    });
+    this.ready = this.loadCatalog();
+  }
+
+  async loadCatalog(geo = cache.load('terreni')) {
+    const [response, parcels] = await Promise.all([fetchJSON(API), geo]);
+    if (this.life.signal.aborted) return;
+    this.catalog = response.data;
+    this.geo = sortFeaturesByArea(parcels);
+    const lang = document.documentElement.lang;
+    this.catalog.regions.sort((a, b) => a.name.localeCompare(b.name, lang));
+    fill(this.region, this.catalog.regions);
   }
 
   navigate(id, mt = this.mt) {
-    const params = new URLSearchParams({scheda: tab, c: id});
+    const params = new URLSearchParams({scheda: tab});
+    if (id) params.set('c', id);
     if (mt) params.set('mt', mt);
     navigateWithParams('/impostazioni', params);
   }
@@ -64,9 +73,19 @@ export class CartographyEditor {
     try {
       await this.ready;
       if (!this.current(generation)) return;
-      const region = this.catalog.regions.find(r => r.id === Number(params.c)) || this.catalog.regions[0];
+      const regions = this.catalog.regions;
+      const lastRegion = Number(sessionStorage.getItem(selectionKey));
+      const region = regions.find(r => r.id === Number(params.c))
+        || regions.find(r => r.id === lastRegion) || regions[0];
       this.mt = params.mt;
-      if (!region) { this.updateButtons(); return; }
+      if (!region) {
+        this.busy = false;
+        sessionStorage.removeItem(selectionKey);
+        this.updateButtons();
+        if (params.c) this.navigate(null);
+        return;
+      }
+      sessionStorage.setItem(selectionKey, region.id);
       if (region.id === this.regionId && this.map) return;
       this.regionId = region.id;
       this.region.value = String(region.id);
@@ -137,6 +156,7 @@ export class CartographyEditor {
     b.import.disabled = locked || !this.state?.uploads.length;
     b.restore.disabled = b.forget.disabled = locked || !this.state?.sources.length;
     b['new-region'].disabled = !!locked;
+    b['edit-region'].disabled = locked || !this.state;
     this.region.disabled = this.parcels.disabled = this.drawings.disabled = this.roads.disabled = !!locked;
   }
 
@@ -156,12 +176,22 @@ export class CartographyEditor {
     form.querySelector('input').focus();
   }
 
-  act(action) {
+  async act(action) {
     const row = this.selected;
     switch (action) {
       case 'new-region':
-        this.form('tmpl-cartography-region', body => this.write('regions', body));
+      case 'edit-region': {
+        const generation = this.generation;
+        this.busy = true;
+        this.updateButtons();
+        try {
+          await showRegionForm(API, action === 'new-region' ? null : this.regionId,
+            () => this.current(generation), id => this.regionChanged(id));
+        } finally {
+          if (this.current(generation)) { this.busy = false; this.updateButtons(); }
+        }
         break;
+      }
       case 'import':
         this.write(action, {upload_id: Number(this.uploads.value)});
         break;
@@ -214,17 +244,38 @@ export class CartographyEditor {
     }
   }
 
+  async regionChanged(id) {
+    const generation = ++this.generation;
+    this.busy = true;
+    this.updateButtons();
+    try {
+      await this.loadCatalog(cache.get('terreni') || cache.load('terreni'));
+      if (!this.current(generation)) return;
+      this.map?.destroy();
+      this.map = this.state = this.selected = this.regionId = null;
+      for (const select of [this.drawings, this.parcels, this.roads, this.uploads, this.sources]) {
+        select.replaceChildren();
+      }
+      this.status.textContent = '';
+      this.navigate(id || this.catalog.regions[0]?.id);
+    } catch {
+      if (this.current(generation)) modals.showError(S.ERROR_NETWORK);
+    } finally {
+      if (this.current(generation)) { this.busy = false; this.updateButtons(); }
+    }
+  }
+
   async write(action, body) {
     if (this.busy || this.life.signal.aborted) return;
     const generation = this.generation;
     this.busy = true;
     this.updateButtons();
     try {
-      const path = action === 'regions' ? 'regions' : this.regionId + '/' + action;
+      const path = this.regionId + '/' + action;
       const {data, status} = await postJSON(API + path + '/', {...body, nonce: crypto.randomUUID()});
       if (status >= 400) {
         if (this.current(generation)) {
-          if (action !== 'regions') await this.reload(generation);
+          await this.reload(generation);
           modals.showError(data.message || S.ERROR_GENERIC);
         }
         return;
@@ -232,12 +283,6 @@ export class CartographyEditor {
       cache.applyResponseChanges(data);
       if (action === 'import') updateInboxDot(data);
       if (!this.current(generation)) return;
-      if (action === 'regions') {
-        this.catalog.regions.push({id: data.region_id, name: body.name.trim()});
-        fill(this.region, this.catalog.regions);
-        this.navigate(data.region_id);
-        return;
-      }
       let selection;
       if (action === 'adjust') selection = {kind: 'drawing', id: body.id};
       if (action === 'road') selection = {kind: 'road', id: data.road_id};

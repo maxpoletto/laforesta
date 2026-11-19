@@ -4,6 +4,7 @@ from itertools import groupby
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import F, Q
+from django.db.models.functions import Lower
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
@@ -14,6 +15,7 @@ from apps.base.idempotency import begin_nonce_write
 from apps.base.models import MapDrawing, MapFeature, MapPointSet, Region, RoadType
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
+from apps.impostazioni.regions import required_name
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
 from config import strings as S
@@ -24,36 +26,8 @@ from config.constants import DATA_ID_IPSO_UPLOADS, DATA_ID_ROAD_TYPES, PENDING_C
 @require_writer
 @require_GET
 def catalog(request):
-    return JsonResponse({'regions': list(Region.objects.order_by('name').values('id', 'name')),
+    return JsonResponse({'regions': list(Region.objects.order_by(Lower('name'), 'name').values('id', 'name')),
                          'road_types': list(RoadType.objects.filter(active=True).values('id', 'name'))})
-
-
-def required_name(body):
-    name = body.get('name')
-    if not isinstance(name, str) or not name.strip():
-        raise ValueError(S.ERR_NAME_REQUIRED)
-    if len(name.strip()) > 100:
-        raise ValueError(S.ERR_NAME_MAX_LENGTH.format(100))
-    return name.strip()
-
-
-@login_required
-@require_writer
-@require_POST
-def publish_region(request):
-    body, error = parse_json_body(request)
-    if error:
-        return error
-    try:
-        name = required_name(body)
-    except ValueError as exc:
-        return validation_error([str(exc)])
-    begin_nonce_write(request)
-    with transaction.atomic():
-        region, created = Region.objects.get_or_create(name=name)
-        if not created:
-            return validation_error([S.CARTOGRAPHY_REGION_EXISTS])
-        return success_response(request, body, extra={'region_id': region.pk})
 
 
 def pending_uploads(region_id):

@@ -21,11 +21,48 @@ async function walk(browser) {
   const action = name => loc(`#settings-cartografia [data-action="${name}"]`);
   const editor = url + '/impostazioni?scheda=cartografia';
   await page.goto(editor);
-  await action('new-region').click();
   const modal = loc('#modal-container');
-  await modal.locator('input[name=name]').fill('Costa');
-  await modal.getByRole('button', { name: 'Pubblica compresa' }).click();
-  await page.waitForSelector('#cartography-region option:checked[value]:not([value=""])', { state: 'attached' });
+  const selected = loc('#cartography-region option:checked');
+  async function saveRegion(name, description) {
+    await modal.getByLabel('Nome', {exact: true}).fill(name);
+    await modal.getByLabel('Descrizione').fill(description);
+    await modal.getByRole('button', {name: 'Salva', exact: true}).click();
+    await page.waitForFunction(label => document.querySelector('#cartography-region')?.selectedOptions[0]?.text === label, name);
+  }
+
+  assert.ok(await action('edit-region').isDisabled());
+  await action('new-region').click();
+  await saveRegion('Temporanea', '');
+  await action('edit-region').click();
+  await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
+  await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
+  await page.waitForFunction(() => !document.querySelector('#cartography-region').options.length);
+  assert.ok(await action('edit-region').isDisabled());
+  await action('new-region').click();
+  await saveRegion('Costa', 'Versante est');
+  await action('new-region').click();
+  await saveRegion('Abetaia', '');
+  assert.deepEqual(await loc('#cartography-region option').allTextContents(), ['Abetaia', 'Costa']);
+  await loc('#cartography-region').selectOption({label: 'Costa'});
+  await page.waitForURL(/&c=\d+/);
+  await action('edit-region').click();
+  assert.equal(await modal.getByLabel('Descrizione').inputValue(), 'Versante est');
+  await saveRegion('Costa nord', 'Versante nord');
+  await page.goto(url + '/impostazioni?scheda=dati-di-base');
+  await page.getByRole('link', {name: 'Cartografia', exact: true}).click();
+  await action('edit-region').click();
+  assert.equal(await modal.getByLabel('Nome', {exact: true}).inputValue(), 'Costa nord');
+  await saveRegion('Costa', 'Versante nord');
+  await loc('#cartography-region').selectOption({label: 'Abetaia'});
+  await action('edit-region').click();
+  await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
+  await modal.getByRole('button', {name: 'Annulla'}).click();
+  assert.equal(await selected.textContent(), 'Abetaia');
+  await action('edit-region').click();
+  await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
+  await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
+  await page.waitForFunction(() => document.querySelector('#cartography-region')?.options.length === 1);
+  assert.equal(await selected.textContent(), 'Costa');
 
   await page.goto(url + '/ipso/#secret=cartography-browser-test');
   await loc('#btn-mode-points').click();
@@ -59,6 +96,10 @@ async function walk(browser) {
   }
   await loc('#cartography-drawings option').first().waitFor({state: 'attached'});
   assert.equal(await loc('[data-ipso-pending-dot]:not([hidden])').count(), 0);
+  await action('edit-region').click();
+  await modal.getByLabel('Nome', {exact: true}).waitFor();
+  assert.equal(await modal.getByRole('button', {name: 'Elimina', exact: true}).count(), 0);
+  await modal.getByRole('button', {name: 'Annulla'}).click();
   assert.ok(await action('road').isDisabled());
   await loc('#cartography-drawings').selectOption({ index: 1 });
   assert.ok(await action('road').isDisabled());

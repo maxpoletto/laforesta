@@ -116,7 +116,8 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
   state:string, received_at:datetime, updated_at:datetime,
   imported_at:datetime nullable, imported_by_id:int nullable,
   target_type:string, target_id:int nullable, error_summary:string,
-  import_result:json, category_ids:json nullable)
+  import_result:json, category_ids:json nullable, point_region_id:int nullable,
+  region_ids:json nullable)
   - One completed Ipso mobile session staged for later import. `session_id` is
     unique, so identical client retries are idempotent and conflicting retries
     are marked `conflict`.
@@ -146,10 +147,13 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
   - `category_ids` holds the distinct observation category IDs in the staged
     records. Settings uses them to protect categories awaiting import. For a
     legacy observation upload, it reads the verified staged payload.
+  - `region_ids` includes the regions of the session and individual records.
+    Cartografia checks both accepted pages and completed uploads so an operator
+    cannot delete the compresa while fieldwork awaits import.
 
 - ipso_ipsouploadpage: (id:int, session_id:string, offset:int, end:int,
   transfer:string, checksum:string, received_at:datetime, body:binary nullable,
-  upload_id:int nullable, category_ids:json nullable)
+  upload_id:int nullable, category_ids:json nullable, region_ids:json nullable)
   - One receipt per (session_id, offset). Offsets and the exclusive end count
     raw records. Pending pages retain their validated records, CSV slice and
     optional photos, plus their distinct observation category IDs. Finishing

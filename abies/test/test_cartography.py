@@ -170,3 +170,183 @@ def test_discard_one_working_copy_or_road_draft(client, regions, walk):
                                        geometry=line['geometry'], name='Strada')
     assert write(client, region, 'discard-road', id=public.pk, version=1).status_code == 400
     assert MapFeature.objects.filter(pk=public.pk, published=True).exists()
+
+
+def region_details(client, region):
+    return client.get(f'{ROOT}regions/{region.pk}/').json()
+
+
+def test_region_editor_lifecycle(client, writer_user, regions):
+    from apps.base.models import Region
+
+    client.force_login(writer_user)
+    created = client.post(ROOT + 'regions/', {'name': '  Abetaia  ', 'description': 'Versante nord'},
+                          content_type='application/json')
+    assert created.status_code == 200
+    region = Region.objects.get(pk=created.json()['region_id'])
+    details = region_details(client, region)
+    assert details['name'] == 'Abetaia' and details['description'] == 'Versante nord'
+    assert details['deletion'] is not None
+    edit_url = f'{ROOT}regions/{region.pk}/save/'
+    body = {'name': regions[0].name, 'description': 'Modificata', 'version': details['version']}
+    assert client.post(edit_url, body, content_type='application/json').status_code == 400
+    body['name'] = 'abeti nuovi'
+    assert client.post(edit_url, body, content_type='application/json').status_code == 200
+    assert client.post(edit_url, body, content_type='application/json').json()['status'] == 'conflict'
+    names = [r['name'] for r in client.get(ROOT).json()['regions']]
+    assert names == sorted(names, key=str.casefold)
+    fresh = region_details(client, region)
+    assert fresh['description'] == 'Modificata' and fresh['version'] == details['version'] + 1
+    url = f'{ROOT}regions/{region.pk}/delete/'
+    assert client.post(url, {'version': details['version'], 'review': details['deletion']['review']},
+                       content_type='application/json').status_code == 400
+    assert client.post(url, {'version': fresh['version'], 'review': fresh['deletion']['review']},
+                       content_type='application/json').status_code == 200
+    assert not Region.objects.filter(pk=region.pk).exists()
+
+
+def test_region_delete_reviews_map_content_and_protects_fieldwork(client, writer_user, parcels):
+    from apps.base.models import MapFeature, Observation, Parcel, RoadType
+
+    client.force_login(writer_user)
+    region = parcels[0].region
+    preview = region_details(client, region)
+    assert preview['deletion']['parcels'] == 2
+    road = MapFeature.objects.create(region=region, road_type=RoadType.objects.first(),
+                                     geometry={'type': 'LineString', 'coordinates': [[16, 38], [16, 39]]})
+    url = f'{ROOT}regions/{region.pk}/delete/'
+
+    def remove(preview):
+        return client.post(url, {'version': preview['version'], 'review': preview['deletion']['review']},
+                           content_type='application/json')
+
+    assert remove(preview).status_code == 400
+    fresh = region_details(client, region)
+    assert fresh['deletion']['roads'] == 1
+    obs = Observation.objects.create(region=region, date='2026-11-19', lat=38, lon=16)
+    assert region_details(client, region)['deletion'] is None
+    assert remove(fresh).status_code == 400
+    assert MapFeature.objects.filter(pk=road.pk).exists()
+    obs.delete()
+    assert remove(fresh).status_code == 200
+    assert not Parcel.objects.filter(region_id=region.pk).exists()
+    assert not MapFeature.objects.filter(pk=road.pk).exists()
+    assert Parcel.objects.filter(pk=parcels[-1].pk).exists()
+
+
+def test_pending_and_imported_walk_protect_region(client, regions, walk):
+    assert region_details(client, regions[0])['deletion'] is None
+    assert write(client, regions[0], 'import', upload_id=walk.pk).status_code == 200
+    assert region_details(client, regions[0])['deletion'] is None
+
+
+def test_rename_preserves_parcels_and_built_map_data(client, writer_user, parcels, import_parcel_map, settings):
+    from apps.base.map_data import map_geojson
+    from apps.bosco.map_context_data import CONTEXT_FILE, SCHEMA_VERSION, publish_context, region_geometry
+    from apps.base.models import MapFeature
+
+    client.force_login(writer_user)
+    region = parcels[0].region
+    import_parcel_map(parcels[0])
+    feature = MapFeature.objects.get(parcel=parcels[0])
+    MapFeature.objects.create(members={'type': 'Feature', 'properties': {'layer': region.name, 'Particella': '99'}},
+                              geometry=feature.geometry)
+    key = region.map_key
+    sat = settings.SATELLITE_DIR / str(key)
+    sat.mkdir(parents=True)
+    (sat / 'manifest.json').write_text('{"dates":[]}')
+    import json
+    summary = json.dumps({'schema_version': 2, 'parcels': ['1'], 'means': {'parcels': {'1': {'ndvi': [0.4]}}}})
+    (sat / 'timeseries.json').write_text(summary)
+    fingerprint, _ = region_geometry(map_geojson(), region.name)
+    publish_context(settings.MAP_CONTEXT_DIR / str(key) / CONTEXT_FILE, {
+        'schema_version': SCHEMA_VERSION, 'region_key': str(key), 'build': {'geometry_hash': fingerprint},
+    })
+    response = client.post(f'{ROOT}regions/{region.pk}/save/', {'version': 1, 'name': 'Nuova costa'},
+                           content_type='application/json')
+    assert response.status_code == 200
+    assert 'parcels' in response.json()['invalidates']['data_ids']
+    assert {f['properties']['layer'] for f in map_geojson()['features']} == {'Nuova costa'}
+    assert client.get(f'/api/bosco/satellite/{region.pk}/manifest/').status_code == 200
+    region.refresh_from_db()
+    assert region.map_key == key
+    series = client.get(f'/api/bosco/satellite/{region.pk}/timeseries/')
+    assert b''.join(series.streaming_content) == summary.encode()
+    context = client.get(reverse('bosco-map-context', args=[region.pk]))
+    assert context.get('Content-Encoding') == 'gzip'
+
+
+def test_plan_and_survey_references_prevent_region_deletion(client, writer_user, hypso_samples, parcels):
+    from apps.base.models import HarvestPlan, HarvestPlanItem
+
+    client.force_login(writer_user)
+    assert region_details(client, hypso_samples['region'])['deletion'] is None
+    region = parcels[-1].region
+    review = region_details(client, region)
+    plan = HarvestPlan.objects.create(name='Piano', year_start=2026, year_end=2030)
+    item = HarvestPlanItem.objects.create(harvest_plan=plan, parcel=parcels[-1], year_planned=2028)
+    assert region_details(client, region)['deletion'] is None
+    assert client.post(f'{ROOT}regions/{region.pk}/delete/', {
+        'version': review['version'], 'review': review['deletion']['review'],
+    }, content_type='application/json').status_code == 400
+    assert HarvestPlanItem.objects.filter(pk=item.pk).exists()
+    item.delete()
+    HarvestPlanItem.objects.create(harvest_plan=plan, region=region, damaged=True, year_planned=2028)
+    assert region_details(client, region)['deletion'] is None
+
+
+def test_partial_ipso_walk_protects_only_its_region(client, writer_user, settings, regions, tmp_path):
+    client.force_login(writer_user)
+    settings.IPSO_SECRET = 'field-token'
+    settings.IPSO_INBOX_DIR = tmp_path
+    walk_id = str(uuid.uuid4())
+    session = {'session_id': walk_id, 'mode': 'points', 'schema_version': 1, 'damaged': False,
+               'name': 'Strada', 'region_id': regions[0].pk}
+    record = {'client_record_id': '1', 'date': '2026-11-19', 'segment': walk_id,
+              'lat': 38, 'lon': 16, 'acc_m': 2, 'taken_at': '2026-11-19T09:00:00Z', 'note': ''}
+    for offset in (0, 1):
+        result = client.post(reverse('ipso-upload-page'), {
+            'session': session, 'records': [{**record, 'client_record_id': str(offset + 1)}],
+            'offset': offset, 'total': 2, 'transfer': 'a' * 64,
+        }, content_type='application/json', HTTP_AUTHORIZATION='Bearer field-token')
+        assert result.status_code == 200, result.content
+        assert region_details(client, regions[0])['deletion'] is None
+        assert region_details(client, regions[1])['deletion'] is not None
+
+
+def test_new_compresa_can_adopt_installed_outlines(client, writer_user, settings):
+    from apps.base.models import MapFeature, Region
+
+    client.force_login(writer_user)
+    name = 'Bosco alto'
+    feature = MapFeature.objects.create(members={'properties': {'Compresa': name, 'Particella': 'A'}},
+                                        geometry={'type': 'Polygon', 'coordinates': [[[16, 38], [17, 38],
+                                                                                      [16, 39], [16, 38]]]})
+    from apps.base.map_keys import initial_map_key
+    directory = settings.SATELLITE_DIR / str(initial_map_key(name))
+    directory.mkdir(parents=True)
+    (directory / 'manifest.json').write_text('{"dates":[]}')
+    result = client.post(ROOT + 'regions/', {'name': name}, content_type='application/json')
+    region = Region.objects.get(pk=result.json()['region_id'])
+    assert client.get(f'/api/bosco/satellite/{region.pk}/manifest/').status_code == 200
+    review = region_details(client, region)
+    assert review['deletion']['outlines'] == 1
+    assert client.post(f'{ROOT}regions/{region.pk}/delete/', {
+        'version': review['version'], 'review': review['deletion']['review'],
+    }, content_type='application/json').status_code == 200
+    assert not MapFeature.objects.filter(pk=feature.pk).exists()
+    result = client.post(ROOT + 'regions/', {'name': name}, content_type='application/json')
+    replacement = Region.objects.get(pk=result.json()['region_id'])
+    assert replacement.map_key != region.map_key
+    assert client.get(f'/api/bosco/satellite/{replacement.pk}/manifest/').status_code == 404
+
+
+def test_pending_legacy_page_with_known_region_leaves_other_regions_editable(client, writer_user, regions):
+    from apps.ipso.models import IpsoUploadPage
+    from apps.ipso.upload_pages import _page_body
+
+    client.force_login(writer_user)
+    IpsoUploadPage.objects.create(session_id='legacy', offset=0, end=1, transfer='a' * 64, checksum='b' * 64,
+                                  body=_page_body([{'region_id': regions[0].id}], '', {}))
+    assert region_details(client, regions[0])['deletion'] is None
+    assert region_details(client, regions[1])['deletion'] is not None

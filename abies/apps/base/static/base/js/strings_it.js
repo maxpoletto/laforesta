@@ -710,6 +710,11 @@ export const NEW_HARVEST_LABEL = 'Nuovo prelievo';
 export const CALENDAR_IMPORT_TITLE = coppice =>
   `Importa calendario ${coppice ? 'ceduo' : 'fustaia'} da CSV`;
 
+export const CARTOGRAPHY_NEW_REGION = 'Nuova compresa';
+export const CARTOGRAPHY_EDIT_REGION = 'Modifica compresa';
+export const CARTOGRAPHY_DELETE_REGION = (name, counts) =>
+  `Eliminare la compresa «${name}» e tutto il suo contenuto cartografico? `
+  + `Particelle: ${counts.parcels}. Contorni: ${counts.outlines}. Strade: ${counts.roads}. Disegni: ${counts.drawings}.`;
 export const CARTOGRAPHY_DRAFT = name => `${name} (bozza)`;
 export const CARTOGRAPHY_DRAWING = (name, seq, kind) => `${name} · ${seq} · ${kind}`;
 export const CARTOGRAPHY_IMPORT_COUNT = n => `Disegni aggiunti: ${n}.`;

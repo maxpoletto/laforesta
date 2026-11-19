@@ -3,12 +3,15 @@
 from django.urls import path
 
 from apps.impostazioni import views
-from apps.impostazioni import cartography, equation_imports
+from apps.impostazioni import cartography, equation_imports, regions
 from config.constants import DATA_ID_ECLASSES, DATA_ID_ROAD_TYPES, IPSO_REF_OBSERVATION_CATEGORIES
 
 urlpatterns = [
     path('cartography/', cartography.catalog),
-    path('cartography/regions/', cartography.publish_region),
+    path('cartography/regions/', regions.save),
+    path('cartography/regions/<int:region_id>/', regions.details),
+    path('cartography/regions/<int:region_id>/save/', regions.save),
+    path('cartography/regions/<int:region_id>/delete/', regions.save, {'delete': True}),
     path('cartography/<int:region_id>/', cartography.workspace),
     path('cartography/<int:region_id>/<slug:action>/', cartography.change),
     path('equations/import/preview/', equation_imports.preview_import, name='impostazioni-equation-preview'),

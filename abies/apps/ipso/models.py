@@ -73,7 +73,8 @@ class IpsoUpload(models.Model):
     import_result = models.JSONField(default=dict, blank=True)
     # Distinct IDs let Settings protect pending observations without opening photos or upload files.
     category_ids = models.JSONField(null=True)
-    history = HistoricalRecords(excluded_fields=['category_ids', 'point_region_id'])
+    region_ids = models.JSONField(null=True)
+    history = HistoricalRecords(excluded_fields=['category_ids', 'point_region_id', 'region_ids'])
 
     class Meta:
         ordering = ['-received_at']
@@ -98,6 +99,7 @@ class IpsoUploadPage(models.Model):
     received_at = models.DateTimeField(auto_now_add=True)
     body = models.BinaryField(null=True)
     category_ids = models.JSONField(null=True)
+    region_ids = models.JSONField(null=True)
     upload = models.ForeignKey(IpsoUpload, null=True, on_delete=models.CASCADE)
 
     class Meta:

@@ -179,7 +179,10 @@ S (string constants) provided by the shell's render context.
         <aside id="cartography-sidebar" class="map-workspace-sidebar" aria-label="Controlli cartografia">
           <label for="cartography-region">Compresa</label>
           <select id="cartography-region"></select>
-          <button class="btn" data-action="new-region">Nuova compresa</button>
+          <div class="cartography-buttons">
+            <button class="btn" data-action="edit-region" disabled>Modifica</button>
+            <button class="btn" data-action="new-region" disabled>Nuova</button>
+          </div>
           <p role="status" data-role="status"></p>
           <details data-role="imports">
             <summary id="cartography-imports">Importa da Ipso</summary>
@@ -248,12 +251,22 @@ S (string constants) provided by the shell's render context.
 </template>
 
 <template id="tmpl-cartography-region">
-  <form class="form-card">
-    <h2>Nuova compresa</h2>
-    <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
-    <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-      <button type="submit" class="btn btn-save">Pubblica compresa</button>
-    </div>
-  </form>
+  <div class="form-card">
+    <h2></h2>
+    <form>
+      <div class="form-row"><div class="form-group">
+        <label for="cartography-region-name">{{ S.LABEL_NAME }}</label>
+        <input id="cartography-region-name" type="text" name="name" maxlength="100" required>
+      </div></div>
+      <div class="form-row"><div class="form-group">
+        <label for="cartography-region-description">{{ S.COL_DESCRIPTION }}</label>
+        <textarea id="cartography-region-description" name="description" rows="3"></textarea>
+      </div></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-delete" data-action="delete">{{ S.ACTION_DELETE }}</button>
+        <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+      </div>
+    </form>
+  </div>
 </template>

@@ -22,7 +22,7 @@ from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadPage, IpsoUpl
 
 from config import strings as S
 from config.constants import (
-    FIELD_CATEGORY_IDS, FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION,
+    FIELD_CATEGORY_IDS, FIELD_DATE, FIELD_MODE, FIELD_OPERATOR, FIELD_REFERENCE_VERSION, FIELD_REGION_ID,
     FIELD_SCHEMA_VERSION, FIELD_SESSION_ID, FIELD_WORK_PACKAGE_ID,
     IPSO_UPLOAD_FILE_CSV, IPSO_UPLOAD_FILE_JSON, IPSO_UPLOAD_FILE_PHOTOS_DIR,
     IPSO_UPLOAD_FILE_READY, IPSO_UPLOAD_FILE_SHA256,
@@ -105,6 +105,44 @@ def observation_category_ids(records):
     return sorted({pk for row in records for pk in row.get(FIELD_CATEGORY_IDS, [])})
 
 
+def field_region_ids(session, records):
+    ids = {row.get(FIELD_REGION_ID) for row in records}
+    ids.add(session.get(FIELD_REGION_ID))
+    return sorted(pk for pk in ids if pk is not None)
+
+
+def region_has_pending_fieldwork(region_id):
+    pages = IpsoUploadPage.objects.filter(upload__isnull=True)
+    if any(region_id in ids for ids in pages.filter(region_ids__isnull=False).values_list('region_ids', flat=True)):
+        return True
+    # Old pages recorded row data but omitted the session header. When the rows
+    # omit their region too, only the completing phone can identify the compresa.
+    for body in pages.filter(region_ids__isnull=True).values_list('body', flat=True).iterator(chunk_size=1):
+        try:
+            with zipfile.ZipFile(io.BytesIO(body)) as archive:
+                rows = json.loads(archive.read('records'))
+                if any(row.get(FIELD_REGION_ID) in (None, region_id) for row in rows):
+                    return True
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, zipfile.BadZipFile):
+            return True
+    uploads = IpsoUpload.objects.filter(state=IpsoUploadState.RECEIVED)
+    for upload in uploads.only('region_ids', 'point_region_id', 'checksum', 'inbox_path').iterator():
+        ids = upload.region_ids
+        if ids is None and upload.point_region_id is not None:
+            ids = [upload.point_region_id]
+        if ids is None:
+            try:
+                payload, error = read_staged_payload(upload)
+                if error:
+                    return True
+                ids = field_region_ids(payload[SESSION], payload[RECORDS])
+            except (OSError, ValueError, TypeError, KeyError, AttributeError):
+                return True
+        if region_id in ids:
+            return True
+    return False
+
+
 def pending_observation_categories():
     """IDs still needed for import, or None when a legacy receipt cannot be read."""
     ids = set()
@@ -135,6 +173,7 @@ def upload_model_fields(payload: dict, checksum: str, inbox_path: Path) -> dict:
     session = payload[SESSION]
     return {
         FIELD_SESSION_ID: session[FIELD_SESSION_ID],
+        'region_ids': field_region_ids(session, payload[RECORDS]),
         'point_region_id': session.get('region_id') if session[FIELD_MODE] == IpsoUploadMode.POINTS else None,
         FIELD_MODE: session[FIELD_MODE],
         FIELD_SCHEMA_VERSION: session[FIELD_SCHEMA_VERSION],

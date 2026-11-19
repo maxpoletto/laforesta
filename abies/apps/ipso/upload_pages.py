@@ -57,6 +57,7 @@ def receive_page(payload, csv_text, photos, offset, total, transfer_id, validate
                 page = IpsoUploadPage.objects.create(
                     session_id=session_id, offset=offset, end=end, transfer=transfer,
                     checksum=checksum, body=body, category_ids=staging.observation_category_ids(records),
+                    region_ids=staging.field_region_ids(session, records),
                 )
         except IntegrityError:
             page = pages.defer('body').get(offset=offset)
@@ -139,11 +140,11 @@ def _publish(pages, session, path, upload=None):
     with tempfile.TemporaryDirectory(dir=path.parent) as scratch:
         root = Path(scratch) / 'complete'
         root.mkdir()
-        digest, record_date, row_count, category_ids = _assemble(root, pages, session)
+        digest, record_date, row_count, category_ids, region_ids = _assemble(root, pages, session)
         if upload is None:
             fields = staging.upload_model_fields({SESSION: session, RECORDS: []}, digest, path)
             upload = IpsoUpload.objects.create(**(fields | {
-                'record_count': row_count, 'record_date': record_date, 'category_ids': category_ids,
+                'record_count': row_count, 'record_date': record_date, 'category_ids': category_ids, 'region_ids': region_ids,
             }))
         elif digest != upload.checksum:
             raise PageConflict
@@ -159,7 +160,7 @@ def _publish(pages, session, path, upload=None):
                 previous.replace(path)
             raise
         fsync_directory(path.parent)
-    pages.update(body=None, category_ids=None, upload=upload)
+    pages.update(body=None, category_ids=None, region_ids=None, upload=upload)
 
 
 def _assemble(root, pages, session):
@@ -169,6 +170,7 @@ def _assemble(root, pages, session):
     row_count = 0
     previous_segment = None
     category_ids = set()
+    region_ids = set()
     record_date = ''
     with (root / IPSO_UPLOAD_FILE_JSON).open('wb') as data, (root / IPSO_UPLOAD_FILE_CSV).open('wb') as csv:
         def emit(b):
@@ -179,6 +181,7 @@ def _assemble(root, pages, session):
             with zipfile.ZipFile(io.BytesIO(body)) as archive:
                 records = json.loads(archive.read('records'))
                 category_ids.update(staging.observation_category_ids(records))
+                region_ids.update(staging.field_region_ids(session, records))
                 row_count += staging.count_preview_rows(records, previous_segment)
                 previous_segment = records[-1].get('segment')
                 for row in records:
@@ -206,4 +209,4 @@ def _assemble(root, pages, session):
     checksum = digest.hexdigest()
     for name in (IPSO_UPLOAD_FILE_SHA256, IPSO_UPLOAD_FILE_READY):
         staging._atomic_write_text(root / name, checksum + '\n')
-    return checksum, record_date, row_count, sorted(category_ids)
+    return checksum, record_date, row_count, sorted(category_ids), sorted(region_ids)

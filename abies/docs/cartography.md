@@ -23,22 +23,45 @@ import points, lines, and polygons from various sources. These we call drawings
 (disegni). They may be edited, and upgraded to parcels and roads that are then
 "published" and made visible to the rest of the app.
 
-## Opening a region (compresa)
+Parcels and roads belong to regions (comprese). The only required feature of
+region is its name. A region's parcels may be non-contiguous. A region does not
+have a boundary distinct from the boundaries of its parcels. Opening a region
+fits all its parcels, roads, and/or drawings on the map.
 
-The region selector is at the top of the sidebar and also support create, rename
-and delete operations. Only unused regions (ones not referenced in a harvest
-plan or survey) can be deleted.
-
-A region needs a name. Its parcels may be non-contiguous. Each parcel has its
-own outline, but a region has no boundary polygon. Opening a region fits all its
-parcels, roads, and/or drawings. On an empty map the operator can navigate to
-the site or import coordinates.
-
-An operator can publish a compresa with just its name. Its ID and name are
-included in  Ipso reference data so it appears in the selector after the next
-sync. The operator can then walk the first parcel boundary with the phone.
+An operator can publish an empty compresa. Its ID and name are included in Ipso
+reference data so it appears in the selector after the next sync, so the
+operator can then walk parcel boundaries or roads with the phone running Ipso.
 Imagery and terrain update jobs can wait until a published road or parcel
 establishes an extent.
+
+## Sidebar overview
+
+The sidebar has 4 main sections:
+
+- Region selector
+- Drawings
+- Parcels
+- Roads
+
+## Region selector
+
+The region selector is at the top of the sidebar. It lists current regions in
+alphabetical order in a pulldown.
+
+The selected region is sticky across tab navigation (i.e., if the operator
+momentarily switches to another part of Abies).
+
+Below the selector are two buttons: [modifica] [nuova]
+
+Both open modals with standard Abies style (e.g., like Piano di Taglio > Nuovo),
+with fields for the name and an optional textual description and "Annulla" and
+"Salva" buttons.
+
+If the region has only map content, **Modifica** also offers a red **Elimina**
+button. The confirmation names the compresa and counts its parcels, outlines,
+roads and drawings. Confirming removes those items with the compresa. A region
+used in a harvest plan, survey or other forestry record is protected. This
+includes observations, saved Ipso walks and field uploads awaiting import.
 
 ## Drawing and selecting
 
