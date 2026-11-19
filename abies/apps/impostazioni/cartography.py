@@ -1,5 +1,4 @@
 """Writer workspace for the selected compresa."""
-from itertools import groupby
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -15,6 +14,7 @@ from apps.base.idempotency import begin_nonce_write
 from apps.base.models import MapDrawing, MapFeature, MapPointSet, Region, RoadType
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, walk_parts
 from apps.impostazioni.regions import required_name
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
@@ -54,31 +54,18 @@ def workspace(request, region_id):
         'uploads': pending_uploads(region.pk),
         'sources': list(MapPointSet.objects.filter(region=region).order_by('-date', '-pk')
                         .values('id', 'name', 'operator', 'date')),
-        'drawings': list(MapDrawing.objects.filter(region=region).order_by('source_id', 'sequence', 'pk').values(
-            'id', 'source_id', 'sequence', 'name', 'geometry', 'fixes', 'version')),
+        'drawings': list(MapDrawing.objects.filter(region=region).order_by('pk').values(
+            'id', 'source_id', 'name', 'parts', 'version')),
         'roads': list(MapFeature.objects.filter(region=region).values(
             'id', 'name', 'road_type_id', 'geometry', 'published', 'version')),
     })
 
 
 def restore_drawings(source):
-    existing = set(MapDrawing.objects.filter(source=source).values_list('sequence', flat=True))
-    drawings = []
-    # Manual points are separate even when consecutive. A pause always breaks a line.
-    groups = groupby(source.records, key=lambda r: ('trace', r['segment']) if r['segment']
-                     else ('point', r['client_record_id']))
-    for seq, (_, records) in enumerate(groups, 1):
-        if seq in existing:
-            continue
-        rows = list(records)
-        coords = [[r['lon'], r['lat']] for r in rows]
-        geometry = ({'type': 'Point', 'coordinates': coords[0]} if len(coords) == 1 else
-                    {'type': 'LineString', 'coordinates': coords})
-        drawings.append(MapDrawing(region_id=source.region_id, source=source,
-                                   name=source.name, sequence=seq, geometry=geometry,
-                                   fixes=[[r['acc_m'], r['note']] for r in rows]))
-    MapDrawing.objects.bulk_create(drawings)
-    return len(drawings)
+    drawing, created = MapDrawing.objects.get_or_create(
+        source=source, defaults={'region_id': source.region_id, 'name': source.name,
+                                 'parts': lambda: walk_parts(source.records)})
+    return {'drawing_id': drawing.pk, 'added': int(created)}
 
 
 def prepare_point_import(region_id, body):
@@ -102,21 +89,11 @@ def import_points(region_id, upload, payload, user):
     })
     if source.region_id != region_id or source.records != payload['records']:
         raise ValueError(S.IPSO_ERR_IMPORT_CONTEXT_CHANGED)
-    added = restore_drawings(source)
+    result = restore_drawings(source)
     claim_upload_import(upload, user, IpsoUploadTargetType.POINT_SET, source.pk)
     mark_stale('audit')
-    return {'added': added, 'source_id': source.pk,
+    return {**result, 'source_id': source.pk,
             PENDING_COUNT: IpsoUpload.objects.filter(state=IpsoUploadState.RECEIVED).count()}
-
-
-def valid_edit(drawing, geometry):
-    if not isinstance(geometry, dict) or geometry.get('type') != drawing.geometry['type']:
-        return False
-    coords = geometry.get('coordinates')
-    points = [coords] if geometry['type'] == 'Point' else coords
-    return (isinstance(points, list) and len(points) == len(drawing.fixes)
-            and all(isinstance(p, list) and len(p) == 2 and all(type(n) in (float, int) for n in p)
-                    and -180 <= p[0] <= 180 and -90 <= p[1] <= 90 for p in points))
 
 
 def check_selection(rows, selected):
@@ -130,7 +107,7 @@ def edit_workspace(region_id, action, body):
     if action in ('restore', 'forget'):
         source = get_object_or_404(MapPointSet, region_id=region_id, pk=int_or_none(body.get('source_id')))
         if action == 'restore':
-            return {'added': restore_drawings(source)}
+            return restore_drawings(source)
         source.delete()
         return {}
     drawings = MapDrawing.objects.filter(region_id=region_id)
@@ -138,47 +115,32 @@ def edit_workspace(region_id, action, body):
         check_selection(drawings, body.get('versions'))
         drawings.delete()
         return {}
-    if action == 'publish':
-        drafts = MapFeature.objects.filter(region_id=region_id, published=False)
-        check_selection(drafts, body.get('versions'))
-        for road in drafts:
-            road.published = True
-            road.version += 1
-            road.save(update_fields=['published', 'version'])
-        mark_stale('audit')
-        return {}
-    if action == 'discard-road':
-        road = get_object_or_404(MapFeature, pk=int_or_none(body.get('id')), region_id=region_id)
-        if road.published or road.version != int_or_none(body.get('version')):
-            raise ValueError(S.CARTOGRAPHY_STALE)
-        road.delete()
-        mark_stale('audit')
-        return {}
-    if action in ('adjust', 'road', 'remove-drawing'):
+    if action == 'create':
+        row = drawings.create(region_id=region_id, name=required_name(body), parts=checked_parts(body.get('parts')))
+        return {'drawing_id': row.pk}
+    if action in ('adjust', 'road', 'copy', 'remove-drawing'):
         drawing = get_object_or_404(drawings, pk=int_or_none(body.get('id')))
         if drawing.version != int_or_none(body.get('version')):
             raise ValueError(S.CARTOGRAPHY_STALE)
         if action == 'remove-drawing':
             drawing.delete()
             return {}
+        parts = checked_parts(body.get('parts', drawing.parts if action == 'road' else None))
+        if action == 'copy':
+            copy = drawings.create(region_id=region_id, name=required_name(body), parts=parts)
+            return {'drawing_id': copy.pk}
         if action == 'road':
-            if (drawing.geometry['type'] != 'LineString'
-                    or len(set(map(tuple, drawing.geometry['coordinates']))) < 2):
-                raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
             kind = RoadType.objects.filter(pk=int_or_none(body.get('road_type_id')), active=True).first()
             if kind is None:
                 raise ValueError(S.CARTOGRAPHY_ROAD_TYPE_REQUIRED)
             road = MapFeature.objects.create(region_id=region_id, road_type=kind, name=required_name(body),
-                                             geometry=drawing.geometry, published=False)
+                                             geometry=feature_geometry(parts, 'LineString'))
             drawing.delete()
             mark_stale('audit')
             return {'road_id': road.pk}
-        geometry = body.get('geometry')
-        if not valid_edit(drawing, geometry):
-            raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
-        drawing.geometry = {'type': geometry['type'], 'coordinates': geometry['coordinates']}
+        drawing.parts = parts
         drawing.version += 1
-        drawing.save(update_fields=['geometry', 'version'])
+        drawing.save(update_fields=['parts', 'version'])
         return {}
     raise Http404
 
@@ -206,8 +168,7 @@ def change(request, region_id, action):
             else:
                 extra = edit_workspace(region_id, action, body)
             invalidations = {'import': [DATA_ID_IPSO_UPLOADS, 'audit'],
-                             'publish': ['roads', 'audit'], 'road': [DATA_ID_ROAD_TYPES, 'audit'],
-                             'discard-road': [DATA_ID_ROAD_TYPES, 'audit']}
+                             'road': ['roads', DATA_ID_ROAD_TYPES, 'audit']}
             return success_response(request, body, extra=extra,
                                     invalidates={'data_ids': invalidations.get(action, [])})
     except ValueError as exc:

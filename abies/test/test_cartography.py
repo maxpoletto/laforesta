@@ -27,7 +27,8 @@ def walk(client, writer_user, settings, tmp_path, regions):
     settings.IPSO_SECRET = 'field-token'
     settings.IPSO_INBOX_DIR = tmp_path
     session_id = str(uuid.uuid4())
-    segments = [session_id, session_id, None, str(uuid.uuid4())]
+    tail = str(uuid.uuid4())
+    segments = [session_id, session_id, None, tail, tail]
     rows = [{
         'client_record_id': str(i + 1), 'date': '2026-11-18', 'segment': segment,
         'lat': 38 + i / 100, 'lon': 16, 'acc_m': 2.3, 'taken_at': '2026-11-18T09:00:00Z',
@@ -51,23 +52,24 @@ def test_import_restore_after_inbox_cleanup(client, walk, regions, admin_user):
     state = workspace(client, region)
     assert state['uploads'] == []
     source, = state['sources']
-    line, gate, last = state['drawings']
-    assert line['geometry'] == {'type': 'LineString', 'coordinates': [[16, 38], [16, 38.01]]}
-    assert gate['geometry']['type'] == last['geometry']['type'] == 'Point'
+    line, = state['drawings']
+    first, gate, last = line['parts']
+    assert first['coordinates'] == [[16, 38], [16, 38.01]]
+    assert gate['type'] == 'Point' and last['type'] == 'LineString'
     assert gate['fixes'] == [[2.3, 'Cancello']]
-    edited = {'type': 'LineString', 'coordinates': [[16.1, 38], [16, 38.01]]}
-    assert write(client, region, 'adjust', id=line['id'], version=line['version'], geometry=edited).status_code == 200
-    assert write(client, region, 'adjust', id=line['id'], version=line['version'], geometry=edited).status_code == 400
+    edited = [{**first, 'coordinates': [[16.1, 38], [16, 38.01]]}, gate]
+    assert write(client, region, 'adjust', id=line['id'], version=line['version'], parts=edited).status_code == 200
+    assert write(client, region, 'adjust', id=line['id'], version=line['version'], parts=edited).status_code == 400
     client.force_login(admin_user)
     assert client.post(reverse('ipso-upload-delete', args=[walk.pk]), {'nonce': str(uuid.uuid4())},
                        content_type='application/json').status_code == 200
     assert write(client, region, 'restore', source_id=source['id']).json()['added'] == 0
     drawings = workspace(client, region)['drawings']
-    assert drawings[0]['geometry'] == edited
+    assert drawings[0]['parts'] == edited
     versions = [[d['id'], d['version']] for d in drawings]
     assert write(client, region, 'clear', versions=versions).status_code == 200
-    assert write(client, region, 'restore', source_id=source['id']).json()['added'] == 3
-    assert workspace(client, region)['drawings'][0]['geometry'] == line['geometry']
+    assert write(client, region, 'restore', source_id=source['id']).json()['added'] == 1
+    assert workspace(client, region)['drawings'][0]['parts'] == line['parts']
 
 
 def test_region_and_edit_guards(client, walk, regions, reader_user):
@@ -75,9 +77,9 @@ def test_region_and_edit_guards(client, walk, regions, reader_user):
     assert write(client, region, 'import', upload_id=walk.pk).status_code == 200
     state = workspace(client, region)
     line = state['drawings'][0]
-    for geometry in ({}, {'type': 'Point', 'coordinates': [16, 38]},
+    for geometry in ({}, {'type': 'Point', 'coordinates': [16]},
                      {'type': 'LineString', 'coordinates': [[False, 38], [16, 91]]}):
-        assert write(client, region, 'adjust', id=line['id'], version=1, geometry=geometry).status_code == 400
+        assert write(client, region, 'adjust', id=line['id'], version=1, parts=[geometry]).status_code == 400
     assert write(client, region, 'clear', versions=[]).status_code == 400
     assert write(client, other, 'restore', source_id=state['sources'][0]['id']).status_code == 404
     client.force_login(reader_user)
@@ -89,29 +91,22 @@ def test_walk_to_published_road(client, walk, regions):
     region = regions[0]
     assert write(client, region, 'import', upload_id=walk.pk).status_code == 200
     state = workspace(client, region)
-    line, gate, _ = state['drawings']
+    drawing, = state['drawings']
+    first, gate, last = drawing['parts']
     kind = client.get(ROOT).json()['road_types'][0]['id']
-    road_data = {'name': 'Via nord', 'road_type_id': kind, 'version': 1}
-    assert write(client, region, 'road', id=gate['id'], **road_data).status_code == 400
-    coords = [[16, 38], [16.012, 38.02]]
-    geometry = {'type': 'LineString', 'coordinates': coords}
-    assert write(client, region, 'adjust', id=line['id'], version=1, geometry=geometry).status_code == 200
-    assert write(client, region, 'road', id=line['id'], **road_data).status_code == 400
-    response = write(client, region, 'road', id=line['id'], **(road_data | {'version': 2}))
+    road_data = {'id': drawing['id'], 'name': 'Via nord', 'road_type_id': kind, 'version': 1}
+    assert write(client, region, 'road', **road_data).status_code == 400
+    copy = write(client, region, 'copy', id=drawing['id'], version=1, parts=[last], name='Laterale')
+    assert copy.status_code == 200
+    joined = {'type': 'LineString', 'coordinates': first['coordinates'] + last['coordinates']}
+    response = write(client, region, 'road', **road_data, parts=[joined])
     assert response.status_code == 200, response.content
-    draft, = workspace(client, region)['roads']
-    assert not draft['published']
-    assert not client.get('/api/geo/roads.geojson').json()['features']
-    assert write(client, region, 'publish', versions=[]).status_code == 400
-    assert write(client, region, 'publish', versions=[[draft['id'], draft['version']]]).status_code == 200
     road, = client.get('/api/geo/roads.geojson').json()['features']
-    assert road['geometry'] == geometry and road['properties']['road_type_id'] == kind
-    state = workspace(client, region)
-    assert write(client, region, 'clear', versions=[[d['id'], d['version']] for d in state['drawings']]).status_code == 200
-    assert write(client, region, 'restore', source_id=state['sources'][0]['id']).json()['added'] == 3
-    restored = workspace(client, region)
-    assert restored['drawings'][0]['geometry'] == line['geometry']
-    assert [r['id'] for r in restored['roads']] == [draft['id']]
+    assert road['geometry'] == joined and road['properties']['road_type_id'] == kind
+    copied, = workspace(client, region)['drawings']
+    assert copied['name'] == 'Laterale' and copied['parts'] == [last]
+    assert write(client, region, 'restore', source_id=state['sources'][0]['id']).json()['added'] == 1
+    assert workspace(client, region)['drawings'][-1]['parts'] == drawing['parts']
 
 
 def test_publish_empty_region_for_field_device(client, writer_user, settings):
@@ -147,29 +142,18 @@ def test_point_import_checks_staged_file_before_reserving_writer(client, regions
     first = client.post(url, body, content_type='application/json')
     assert first.status_code == 200
     assert client.post(url, body, content_type='application/json').json() == first.json()
-    assert len(workspace(client, regions[0])['drawings']) == 3
+    assert len(workspace(client, regions[0])['drawings']) == 1
 
 
-def test_discard_one_working_copy_or_road_draft(client, regions, walk):
-    from apps.base.models import MapFeature, RoadType
-
+def test_remove_working_copy_then_restore_whole_walk(client, regions, walk):
     region = regions[0]
-    kind = RoadType.objects.create(name='Test road', sort_order=10)
     write(client, region, 'import', upload_id=walk.pk)
     state = workspace(client, region)
-    line, point, _ = state['drawings']
-    assert write(client, region, 'remove-drawing', id=point['id'], version=2).status_code == 400
-    assert write(client, region, 'remove-drawing', id=point['id'], version=1).status_code == 200
+    drawing, = state['drawings']
+    assert write(client, region, 'remove-drawing', id=drawing['id'], version=2).status_code == 400
+    assert write(client, region, 'remove-drawing', id=drawing['id'], version=1).status_code == 200
     assert write(client, region, 'restore', source_id=state['sources'][0]['id']).json()['added'] == 1
-    assert [d['sequence'] for d in workspace(client, region)['drawings']] == [1, 2, 3]
-    road_id = write(client, region, 'road', id=line['id'], version=1,
-                    name='Prova', road_type_id=kind.id).json()['road_id']
-    assert write(client, region, 'discard-road', id=road_id, version=1).status_code == 200
-    assert not MapFeature.objects.filter(pk=road_id).exists()
-    public = MapFeature.objects.create(region=region, road_type=kind, published=True,
-                                       geometry=line['geometry'], name='Strada')
-    assert write(client, region, 'discard-road', id=public.pk, version=1).status_code == 400
-    assert MapFeature.objects.filter(pk=public.pk, published=True).exists()
+    assert workspace(client, region)['drawings'][0]['parts'] == drawing['parts']
 
 
 def region_details(client, region):

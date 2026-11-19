@@ -668,16 +668,13 @@ class MapPointSet(models.Model):
 
 
 class MapDrawing(TimestampedModel):
-    """Editable working copy of one contiguous trace or manual point."""
+    """Editable geometry, optionally the working copy of a recorded walk."""
     region = models.ForeignKey(Region, on_delete=models.PROTECT)
-    source = models.ForeignKey(MapPointSet, on_delete=models.SET_NULL, null=True)
+    source = models.OneToOneField(MapPointSet, on_delete=models.SET_NULL, null=True)
     name = models.CharField(max_length=100)
-    sequence = models.PositiveIntegerField()
-    geometry = models.JSONField()
-    fixes = models.JSONField()
+    parts = models.JSONField()
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['source', 'sequence'], name='map_drawing_source_sequence')]
         ordering = ['id']
 
 
