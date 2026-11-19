@@ -20,16 +20,16 @@ keep the current selection when the operator returns to the map.
 
 Users can edit existing parcels (particelle) and roads (strade). They can also
 import points, lines, and polygons from various sources. These we call drawings
-(disegni). They may be edited, and upgraded to parcels and roads that are then
-"published" and made visible to the rest of the app.
+(disegni). They may be edited and upgraded to parcels and roads that then become
+visible throughout Abies.
 
 Parcels and roads belong to regions (comprese). The only required feature of
 region is its name. A region's parcels may be non-contiguous. A region does not
 have a boundary distinct from the boundaries of its parcels. Opening a region
 fits all its parcels, roads, and/or drawings on the map.
 
-An operator can publish an empty compresa. Its ID and name are included in Ipso
-reference data so it appears in the selector after the next sync, so the
+An operator can create and save an empty compresa. Its ID and name are included
+in Ipso reference data so it appears in the selector after the next sync, so the
 operator can then walk parcel boundaries or roads with the phone running Ipso.
 Imagery and terrain update jobs can wait until a published road or parcel
 establishes an extent.
@@ -43,7 +43,7 @@ The sidebar has 4 main sections:
 - Parcels
 - Roads
 
-## Region selector
+### Region selector
 
 The region selector is at the top of the sidebar. It lists current regions in
 alphabetical order in a pulldown.
@@ -51,49 +51,162 @@ alphabetical order in a pulldown.
 The selected region is sticky across tab navigation (i.e., if the operator
 momentarily switches to another part of Abies).
 
-Below the selector are two buttons: [modifica] [nuova]
+Below the selector are two buttons: **Proprietà** (grey) **Nuova** (green)
 
 Both open modals with standard Abies style (e.g., like Piano di Taglio > Nuovo),
 with fields for the name and an optional textual description and "Annulla" and
 "Salva" buttons.
 
-If the region has only map content, **Modifica** also offers a red **Elimina**
+If the region has only map content, **Proprietà** also offers a red **Elimina**
 button. The confirmation names the compresa and counts its parcels, outlines,
 roads and drawings. Confirming removes those items with the compresa. A region
 used in a harvest plan, survey or other forestry record is protected. This
 includes observations, saved Ipso walks and field uploads awaiting import.
 
-## Drawing and selecting
+### Parcel control
 
-The sidebar lists **Particelle**, **Strade** and **Disegni** for the selected
-compresa. Clicking an object on the map selects its entry in the sidebar and
-vice versa. Drawings can be points, lines or polygons. Drawings are grouped by
-source so that an operator can hide a dense survey or show it again while
-tracing. New drawings always appear under **Disegni**. There is no layer order
-to manage.
+The parcel control is a non-foldable section.
 
-Three conversion buttons remain visible in place. Each is clearly disabled
-whenever the selection cannot be used for that action.
+The top part is a list of the region's parcels sorted in natural order (1, 2a,
+2b, ..., 9, 10, ...), or "Nessuna particella" if there are none. The list is
+variable height and up to approximately 300 px tall, enough for 6 full rows.
+[Implementation note: lists here and in the Bosco view should all have the same
+stretch behavior, height, and font size, an Abies constant.]
 
-| Selected drawing | Actions enabled |
-| --- | --- |
-| One line | **Crea strada** |
-| One polygon | **Crea particella**, **Aggiungi a particella esistente** |
-| A point, several objects, an existing road or parcel, or nothing | None |
+Every row of the parcel list contains a parcel name and an "eye" icon for
+hiding/unhiding that parcel from the map. Above the list, aligned with the eye
+icon, is another eye icon that hides/unhides all parcels.
 
-**Crea strada** asks for the road name and type. **Crea particella** asks for
-the parcel name and economic class, which determines whether it is coppice.
-Cadastral area should be optional. The map also shows an area calculated from
-geometry, clearly labeled as such. **Aggiungi a particella esistente** asks
-which parcel owns the additional piece and is disabled until the compresa has a
-parcel to choose. These actions create draft edits ready for publication.
+The parcel list interacts with the map: clicking a parcel on the list selects
+the parcel on the map, and vice-versa.
 
-The operator can delete an individual drawing. **Elimina disegni** clears all
-remaining drawings in the selected compresa. Its confirmation names the
-compresa and gives the count. Both draft and published roads and parcels are
-kept, as are the original field measurements.
+Below the list are two buttons that become enabled when a parcel is selected:
+**Proprietà** **Confini**
 
-### Working with vertices
+**Proprietà** opens a modal identical to that used in the Bosco parcel detail
+page, with the addition that the parcel name is editable also. [Implementation
+note: the modal code should be reused, not duplicated.] The only required
+property is name. In particular, cadastral area may be undefined initially (null
+in the database, rendered as '-' in the UI).
+
+If the parcel is still unused, **Proprietà** also offers a red **Elimina**
+button, analogously to the region workflow. On save or delete, changes
+immediately becoming visible throughout Abies.
+
+**Confini** makes the parcel's map editable:
+- The parcel is highlighted and vertices become visible and movable. Edges
+  acquire "insert vertex" controls [Implementation note: as in bosco/ep].
+- A "new polygon" tool appears on the map, and can be used to add a new region
+  to the parcel.
+- A "undo" button appears on the map, to undo just the last step.
+- Two buttons appear below **Proprietà** and **Confini**: **Annulla** (grey) **Salva** (green)
+
+**Annulla** prompts with the standard modal, and then resets the parcel's state
+to what it was before the user pressed **Confini**.
+
+**Salva** saves the changes and makes them visible throughout Abies.
+
+Any map changes are persistent across tab navigation.
+
+If a user edits a shared edge, both parcels are highlighted in the UI and
+changes to both parcels are saved together (atomically) or canceled together. 
+
+### Road control
+
+The top part is a list of the region's roads sorted in natural order, or
+"Nessuna strada" if there are none, laid out identically to the parcel list.
+
+The road list has the same hide/unhide affordance as the parcel list.
+
+The road list interacts with the map: clicking a road on the list selects
+the road on the map, and vice-versa.
+
+Below the list are two buttons that become enabled when a road is selected:
+**Proprietà** **Punti**
+
+**Proprietà** opens a standard modal where the user can edit the road's name or
+its type, or delete it. Changes immediately become visible throughout Abies.
+
+**Punti** makes the road editable on the map:
+- Vertices become visible and movable, and segments provide insert-vertex
+  controls [Implementation note: like in bosco/ep].
+- A "undo" button appears on the map, to undo just the last step.
+- Two buttons appear below **Proprietà** and **Punti**: **Annulla** **Salva**
+
+**Annulla** prompts with the standard modal, and then resets the road's state
+to what it was before the user pressed **Punti**.
+
+**Salva** saves the changes and makes them visible throughout Abies.
+
+Any map changes are persistent across tab navigation.
+
+### Drawing control
+
+The drawing control is a foldable section.
+
+Drawing's attributes are their name (chosen on import) and their geometry.
+
+The top part is a list of drawings that have been imported but neither deleted
+nor promoted to roads or parcels. The list has the same hide/unhide affordance
+as the other lists, as well as a delete affordance (garbage icon on each row and
+at the top). Deletion is gated by the standard warning modal.
+
+The list interacts bidirectionally with the map just like for parcels and roads.
+
+Below the list are the following buttons: **Modifica** **Promuovi**.
+
+**Modifica** makes the drawing editable, and makes visible  the usual editing
+map controls and **Annulla** and **Salva** buttons.
+
+**Promuovi** open a modal that allows the user to save the drawing as a road
+(for polylines) or a parcel (for polygons). The modals are exactly those used to
+edit the **Proprietà** of the two types of objects.
+
+Clicking **Promuovi** before **Salva** during an ongoing edit is allowed and
+implicitly saves the result. So then clicking **Annulla** in the modal still
+preserves the drawing changes.
+
+After a promotion, the drawing is removed from the set of drawings, and the
+corresponding road or parcel is added to appropriate list.
+
+As always, map changes are persistent across tab navigation.
+
+#### Importing new drawings
+
+Within the foldable drawing control, below the drawing list and its controls, is
+an **Importa ...** button. It opens a modal where users can add drawings to the
+current view.
+
+There are three optins:
+
+- **Da file** opens a file picker for GeoJSON, GPX or georeferenced DXF.
+  Waypoints appear as points, each track segment appears as a separate line,
+  and the rings of a polygon stay together. If the coordinate system of a DXF
+  file is unknown, the editor asks for it before placing the drawing.
+- **Da Ipso** opens on new uploads for this compresa. Previously imported point
+  sets are available under **Già importati**. Each session appears once, with
+  its name, date and operator. An import from the Ipso inbox can open the same
+  drawings directly. Drawings appear in the order they were recorded. A trace
+  interrupted by a manual point appears as a line, a point and a second line.
+  Hovering over a point shows its reported accuracy and any note. On a phone,
+  tapping the point opens the same tooltip.
+- **Da rilevamento** offers a dropdown of existing tree surveys with mappable
+  data in this compresa. Each entry shows the survey name, whether it is free or
+  structured, and how many positions are available. Free surveys contribute
+  positions for each geolocated tree, structured surveys for each sample area.
+
+#### Deleting drawings
+
+As mentioned, drawings can be deleted from the drawing list.
+
+Deleting a GPX or DXF remove it from Abies entirely.
+
+Deleting an Ipso import or a survey deletes the drawing from the current
+region's drawing list, but does not delete the collected data. The survey
+remains unchanged, and the Ipso import remains visible in the Import tab. Both
+types of objects could be reimported as drawings.
+
+## Working with vertices
 
 The [parcel editor prototype](../../bosco/ep/) is the design starting point. The
 operator can place vertices by hand, snap to measured points, or trace a run of
@@ -117,75 +230,7 @@ the same parcel under its new name. For a split, the user is shown the affected
 surveys, plans and harvests and asked where they belong before publishing.
 Deletion of parcels or roads with dependent records is not allowed.
 
-## Importing drawings
-
-The **Importa** menu offers three ways to add drawings to the current compresa.
-After an import, the editor reports how many objects it added and brings them
-into view if they were offscreen. The operator can inspect or clear the drawings
-before using them. A separate import preview is a possible later addition.
-
-- **Da file** opens a file picker for GeoJSON, GPX or georeferenced DXF.
-  Waypoints appear as points, each track segment appears as a separate line,
-  and the rings of a polygon stay together. If the coordinate system of a DXF
-  file is unknown, the editor asks for it before placing the drawing.
-- **Da Ipso** opens on new uploads for this compresa. Previously imported point
-  sets are available under **Già importati**. Each session appears once, with
-  its name, date and operator. An import from the Ipso inbox can open the same
-  drawings directly. Drawings appear in the order they were recorded. A trace
-  interrupted by a manual point appears as a line, a point and a second line.
-  Hovering over a point shows its reported accuracy and any note. On a phone,
-  tapping the point opens the same tooltip.
-- **Da rilevamento** offers a dropdown of existing tree surveys with mappable
-  data in this compresa. Each entry shows the survey name, whether it is free
-  or structured, and how many positions are available. The editor identifies
-  measurements by their recorded parcel or sample area. A position just outside
-  an incorrect boundary is therefore still available to help correct it.
-
-For a free survey, the editor imports individual tree positions and reports how
-many measurements lack coordinates. A structured survey contributes one point
-at the center of each visited plot, labeled with the sample area number. In
-either case the operator chooses which points to connect and in what order
-when tracing. Both survey types are described on the
-[survey page](page-campionamenti.md).
-
-On the first import of an Ipso point set, Abies saves the original fixes,
-segments, notes and accuracy under the session ID. The operator can then delete
-the processed upload from the inbox, along with its staging files. The saved
-set remains available in **Da Ipso**. An upload discarded before import leaves
-no saved set.
-
-**Elimina disegni** clears the working copies from the map and sidebar.
-Choosing the set again in **Da Ipso** restores missing drawings and preserves
-any edits to drawings still present. When the operator no longer needs the
-saved source, a separate delete action in the picker removes just that source.
-Survey imports can likewise identify previously imported points by their survey
-and measurement or plot IDs. The [Ipso guide](ipso-abies.md) describes how
-point sets are recorded and uploaded.
-
-## Publishing a map
-
-**Pubblica** applies the pending road and parcel edits for one compresa. It is
-an explicit action even for a single moved road vertex. The operator can leave
-the editor and return to the draft. Before publication, the editor lists the
-roads and parcels that will be added, changed or removed. Raw drawings can
-stay alongside them for the next visit.
-
-While an edit or deletion is pending, other maps display the last published
-version. For example, if an operator moves and renames a road, Bosco continues
-to show it in its original position under its original name until **Pubblica**
-succeeds.
-
-Each `MapFeature` has a `published` flag. The migration marks existing features
-as published, including outlines imported before their parcel catalog. The
-shared GeoJSON reader serves only published features to Bosco, Ipso and the
-other maps.
-
-A draft holds both geometry and catalog changes. At publication, Abies checks
-that the versions the operator edited are still current and applies the changes
-in one transaction. SQLite stores geometry per feature, so a correction to a
-shared edge updates only the affected pieces.
-
-### Map coverage and background work
+## Map coverage and background work
 
 Bosco opens on the parcels. Imagery and terrain also cover the roads leading
 to them. The required coverage for a compresa is the bounding box of all its
@@ -225,13 +270,3 @@ Hillshade from that terrain model would also help staff read the terrain on
 screen. Elevation coloring and a rotatable 3D view with roads and parcels
 overlaid are later possibilities. The first print map can use the existing
 [contour rendering and label placement](ui-maps.md#local-vector-context).
-
-## First end-to-end test
-
-In the first test, an operator walks a road while recording a trace in Ipso.
-In the editor, the operator imports the point set, adjusts the line, chooses
-**Crea strada**, assigns the road type and publishes the road. The road then
-appears in Bosco and can be hidden with the filter for its type. Back in the
-editor, the operator clears the drawings and recovers the original walk from
-**Da Ipso**. Survey import and shared parcel boundary corrections are also
-part of the first version.
