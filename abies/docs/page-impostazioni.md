@@ -55,7 +55,8 @@ and import tools.
 
 ### Testing the road workflow
 
-The browser test starts a local Django test server with a temporary database.
+The browser test starts a local Django test server with a temporary SQLite
+file so concurrent map requests use the same WAL mode as a running instance.
 It records a short walk using simulated GPS fixes. At desktop width it opens
 the upload from the Ipso inbox. At portrait width it imports the same kind of
 walk from the editor. Both runs trim and join an interrupted walk, promote the road, check that

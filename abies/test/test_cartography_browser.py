@@ -1,9 +1,36 @@
 """Opt-in Chromium run of the field-to-office workflow against the test DB."""
 import os
+import sqlite3
 import subprocess
+from contextlib import closing
 from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture
+def live_server(transactional_db, tmp_path, monkeypatch, request):
+    """Run this browser and its assertions on the same private WAL snapshot."""
+    from django.db import connections
+    from pytest_django.live_server_helper import LiveServer
+
+    original = connections['default']
+    original.ensure_connection()
+    path = tmp_path / 'browser.sqlite3'
+    with closing(sqlite3.connect(path)) as snapshot:
+        original.connection.backup(snapshot)
+    monkeypatch.setitem(connections.databases, 'default', {**original.settings_dict, 'NAME': str(path)})
+    del connections['default']
+    try:
+        address = request.config.getoption('liveserver') or os.getenv('DJANGO_LIVE_TEST_SERVER_ADDRESS')
+        server = LiveServer(address or 'localhost')
+        try:
+            yield server
+        finally:
+            server.stop()
+    finally:
+        connections['default'].close()
+        connections['default'] = original
 
 
 @pytest.mark.skipif(not os.environ.get('ABIES_PLAYWRIGHT_MODULE'), reason='requires Playwright and Chromium')

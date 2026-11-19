@@ -15,7 +15,16 @@ async function walk(browser) {
     ? route.continue() : route.abort());
   const page = await context.newPage();
   const errors = [];
-  page.on('pageerror', e => errors.push(e.message));
+  page.on('pageerror', e => {
+    errors.push(e.message);
+    console.error(e.stack);
+  });
+  page.on('response', response => {
+    const path = new URL(response.url());
+    if (path.origin === url && response.status() >= 400 && path.pathname.startsWith('/api/')) {
+      console.error(response.status(), path.pathname);
+    }
+  });
   page.setDefaultTimeout(7000);
   const loc = selector => page.locator(selector);
   const action = name => loc(`#settings-cartografia [data-action="${name}"]`);

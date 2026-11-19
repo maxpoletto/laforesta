@@ -336,13 +336,15 @@ def test_pending_legacy_page_with_known_region_leaves_other_regions_editable(cli
     assert region_details(client, regions[1])['deletion'] is not None
 
 
-def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, eclasses):
+def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, eclasses, settings):
     from apps.base.digests import build_parcel_record
-    from apps.base.map_data import map_geojson
     from apps.base.models import Parcel
 
     client.force_login(writer_user)
     region = regions[0]
+    settings.IPSO_SECRET = 'field-token'
+    auth = {'HTTP_AUTHORIZATION': 'Bearer field-token'}
+    original_version = client.get('/ipso/reference.json', **auth).json()['reference_version']
     form = client.get(f'{ROOT}{region.pk}/parcel-form/')
     assert form.status_code == 200
     import re
@@ -361,7 +363,11 @@ def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, ecl
     parcel = Parcel.objects.get(region=region)
     assert parcel.name == '2a' and parcel.area_ha is None
     assert build_parcel_record(parcel)
-    assert map_geojson()['features'][0]['properties']['name'] == region.name + '-2a'
+    feature, = client.get('/api/geo/map.geojson').json()['features']
+    assert feature['properties']['name'] == region.name + '-2a'
+    reference = client.get('/ipso/reference.json', **auth).json()
+    assert reference['reference_version'] != original_version
+    assert [row['parcel_id'] for row in reference['parcels']] == [parcel.pk]
     assert workspace(client, region)['drawings'] == []
     next_piece = {'type': 'Polygon', 'coordinates': [[[17, 38], [17.1, 38], [17, 38.1], [17, 38]]]}
     other = draw(next_piece)
