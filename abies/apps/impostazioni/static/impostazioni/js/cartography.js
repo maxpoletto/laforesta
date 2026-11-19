@@ -11,6 +11,10 @@ import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
+import { closeLine, handPart, insertVertex, joinParts, moveVertex } from './drawing-parts.js';
+
+// Unsaved edits belong to this browser tab and compresa.
+const drafts = new Map();
 const API = '/api/impostazioni/cartography/';
 const tab = 'cartografia';
 const selectionKey = 'abies.cartography.region';
@@ -32,9 +36,11 @@ export class CartographyEditor {
     this.parcels = panel.querySelector('#cartography-parcels');
     this.uploads = panel.querySelector('#cartography-uploads');
     this.sources = panel.querySelector('#cartography-sources');
+    this.parts = panel.querySelector('#cartography-parts');
     this.status = panel.querySelector('[role=status]');
     this.buttons = Object.fromEntries([...panel.querySelectorAll('[data-action]')].map(b => [b.dataset.action, b]));
     const listen = (element, event, fn) => element.addEventListener(event, fn, {signal: this.life.signal});
+    listen(this.parts, 'change', () => this.selectPart(Number(this.parts.value)));
     listen(this.region, 'change', () => this.navigate(this.region.value));
     listen(this.drawings, 'change', () => this.select('drawing', Number(this.drawings.value), true));
     listen(this.parcels, 'change', () => this.select('parcel', this.parcels.value, true));
@@ -91,18 +97,21 @@ export class CartographyEditor {
       this.region.value = String(region.id);
       this.map?.destroy();
       this.map = new CartographyMap(this.panel.querySelector('#cartography-map'), this.geo, region.name,
-        (kind, id) => this.select(kind, id), mapTypeName(params.mt));
+        (kind, id) => this.select(kind, id), mapTypeName(params.mt), ll => this.place(ll));
       this.parcels.replaceChildren(...[...this.map.parcelLayers.keys()].map(name => new Option(name, name)));
       this.map.map.on('basemapchange', e => this.navigate(region.id, mapTypeToken(e.name)));
       this.state = null;
-      this.editing = false;
+      this.draft = null;
       this.busy = false;
       this.status.textContent = '';
       this.updateButtons();
       await this.reload(generation);
       if (this.current(generation)) {
         this.map.fitRegion();
-        if (params.fonte) this.map.fitSource(this.state.drawings, Number(params.fonte), true);
+        if (params.fonte && !this.draft) {
+          const drawing = this.state.drawings.find(d => d.source_id === Number(params.fonte));
+          if (drawing) this.select('drawing', drawing.id, true);
+        }
       }
     } catch (error) {
       if (this.current(generation)) modals.showError(S.ERROR_NETWORK);
@@ -119,16 +128,23 @@ export class CartographyEditor {
     this.state = data;
     fill(this.uploads, data.uploads, sourceLabel);
     fill(this.sources, data.sources, sourceLabel);
-    fill(this.drawings, data.drawings, row => S.CARTOGRAPHY_DRAWING(row.name, row.sequence,
-      row.geometry.type === 'Point' ? S.IPSO_POINT_LABEL : S.IPSO_TRACE_LABEL));
-    fill(this.roads, data.roads, row => row.published ? row.name : S.CARTOGRAPHY_DRAFT(row.name));
+    const byName = (a, b) => a.name.localeCompare(b.name, document.documentElement.lang, {numeric: true});
+    fill(this.drawings, data.drawings.sort(byName));
+    fill(this.roads, data.roads.sort(byName));
     this.map.render(data);
-    this.editing = false;
-    this.select(selection?.kind, selection?.id);
+    const draft = drafts.get(this.regionId);
+    this.draft = null;
+    if (draft && (draft.tool || data.drawings.some(d => d.id === draft.id))) {
+      this.select('drawing', draft.id);
+      this.startEdit(draft);
+    } else {
+      drafts.delete(this.regionId);
+      this.select(selection?.kind, selection?.id);
+    }
   }
 
   select(kind, id, frame = false) {
-    if (!this.state || this.editing) return;
+    if (!this.state || this.draft) return;
     this.kind = kind;
     const rows = kind === 'drawing' ? this.state.drawings : this.state.roads;
     this.selected = kind === 'parcel' ? {id} : rows.find(row => row.id === id);
@@ -141,23 +157,70 @@ export class CartographyEditor {
   }
 
   updateButtons() {
-    const b = this.buttons;
-    const locked = this.busy || this.editing;
+    const b = this.buttons, draft = this.draft;
+    const locked = !!(this.busy || draft);
     const drawing = this.kind === 'drawing' && this.selected;
+    const parts = draft?.parts ?? drawing?.parts;
+    const part = draft?.parts?.[draft.active];
     b.edit.disabled = locked || !drawing;
-    b.edit.hidden = !!this.editing;
-    b.save.hidden = b.cancel.hidden = !this.editing;
-    b.save.disabled = b.cancel.disabled = !!this.busy;
-    b.road.disabled = locked || drawing?.geometry?.type !== 'LineString' || !this.catalog?.road_types.length;
+    b.line.disabled = b.polygon.disabled = locked || !this.state;
+    b.promote.disabled = !!this.busy || !(parts?.length === 1 && parts[0].type === 'LineString'
+      && this.catalog?.road_types.length);
+    this.panel.querySelector('[data-role=edit-actions]').hidden = !draft;
+    this.panel.querySelector('[data-role=parts]').hidden = !part;
+    b.save.disabled = !!this.busy || !!(draft?.tool && draft.vertices.length < (draft.tool === 'Polygon' ? 3 : 2));
+    b.undo.disabled = !!this.busy || !(draft?.tool ? draft.vertices.length : draft?.previous);
+    b.cancel.disabled = b.copy.disabled = !!this.busy;
+    b['remove-part'].disabled = !!this.busy || !part || parts.length < 2;
+    b.join.disabled = !!this.busy || part?.type !== 'LineString' || parts[draft.active + 1]?.type !== 'LineString';
+    b['close-line'].disabled = !!this.busy || part?.type !== 'LineString' || part.coordinates.length < 3;
     b['remove-drawing'].disabled = locked || !drawing;
-    b['discard-road'].disabled = locked || this.kind !== 'road' || !this.selected || this.selected.published;
     b.clear.disabled = locked || !this.state?.drawings.length;
-    b.publish.disabled = locked || !this.state?.roads.some(r => !r.published);
     b.import.disabled = locked || !this.state?.uploads.length;
     b.restore.disabled = b.forget.disabled = locked || !this.state?.sources.length;
-    b['new-region'].disabled = !!locked;
+    b['new-region'].disabled = locked;
     b['edit-region'].disabled = locked || !this.state;
-    this.region.disabled = this.parcels.disabled = this.drawings.disabled = this.roads.disabled = !!locked;
+    this.region.disabled = this.parcels.disabled = this.drawings.disabled = this.roads.disabled = locked;
+  }
+
+  startEdit(draft) {
+    this.draft = draft;
+    drafts.set(this.regionId, draft);
+    this.status.textContent = draft.tool ? S.CARTOGRAPHY_PLACE : S.CARTOGRAPHY_DRAG;
+    this.refreshEdit();
+  }
+
+  selectPart(index) {
+    this.draft.active = index;
+    this.refreshEdit();
+  }
+
+  changeParts(change) {
+    const d = this.draft;
+    d.previous = {parts: structuredClone(d.parts), active: d.active};
+    change(d);
+    this.refreshEdit();
+  }
+
+  place(ll) {
+    if (!this.draft?.tool || this.busy) return false;
+    this.draft.vertices.push([ll.wrap().lng, ll.lat]);
+    this.refreshEdit();
+    return true;
+  }
+
+  refreshEdit() {
+    const d = this.draft;
+    if (!d.tool) {
+      this.parts.replaceChildren(...d.parts.map((p, i) => new Option(S.CARTOGRAPHY_PART(i + 1, p.type), i)));
+      this.parts.value = String(d.active);
+    }
+    this.map.edit(d, {
+      selectPart: i => this.selectPart(i), place: ll => this.place(ll),
+      move: (r, i, pt) => this.changeParts(d => moveVertex(d.parts[d.active], r, i, pt)),
+      insert: (r, i, pt) => this.changeParts(d => insertVertex(d.parts[d.active], r, i, pt)),
+    });
+    this.updateButtons();
   }
 
   form(template, submit) {
@@ -204,43 +267,73 @@ export class CartographyEditor {
         showConfirmModal(S.CARTOGRAPHY_FORGET(source.name), () => this.write(action, {source_id: id}));
         break;
       }
+      case 'line':
+      case 'polygon':
+        this.select(null);
+        this.startEdit({tool: action === 'line' ? 'LineString' : 'Polygon', vertices: []});
+        break;
       case 'edit':
-        this.editing = true;
-        this.map.select('drawing', row, true);
-        this.status.textContent = S.CARTOGRAPHY_DRAG;
-        this.updateButtons();
+        this.startEdit({id: row.id, version: row.version, parts: structuredClone(row.parts), active: 0});
         break;
-      case 'cancel':
-        this.editing = false;
-        this.map.render(this.state);
-        this.select('drawing', row.id);
-        this.status.textContent = '';
+      case 'join':
+        this.changeParts(d => joinParts(d.parts, d.active));
         break;
-      case 'save':
-        this.write('adjust', {id: row.id, version: row.version, geometry: this.map.geometry(row.geometry.type)});
+      case 'close-line':
+        this.changeParts(d => { d.parts[d.active] = closeLine(d.parts[d.active]); });
         break;
-      case 'road':
-        this.form('tmpl-cartography-road', body => this.write(action, {...body, id: row.id, version: row.version}));
+      case 'remove-part':
+        this.changeParts(d => {
+          d.parts.splice(d.active, 1);
+          d.active = Math.min(d.active, d.parts.length - 1);
+        });
         break;
-      case 'remove-drawing':
-      case 'discard-road': {
-        const label = action === 'remove-drawing' ? this.drawings.selectedOptions[0].textContent : row.name;
-        showConfirmModal(S.DELETE_REFERENCE_CONFIRM(label), () => this.write(action, {id: row.id, version: row.version}));
+      case 'undo': {
+        const d = this.draft;
+        if (d.tool) d.vertices.pop();
+        else { Object.assign(d, d.previous); d.previous = null; }
+        this.refreshEdit();
         break;
       }
+      case 'cancel':
+        showConfirmModal(S.CARTOGRAPHY_CANCEL, () => {
+          drafts.delete(this.regionId);
+          this.draft = null;
+          this.map.render(this.state);
+          this.select(row ? 'drawing' : null, row?.id);
+          this.status.textContent = '';
+        }, {confirmLabel: S.CARTOGRAPHY_DISCARD});
+        break;
+      case 'copy': {
+        const d = this.draft;
+        this.form('tmpl-cartography-drawing', body => this.write('copy', {
+          ...body, id: d.id, version: d.version, parts: [d.parts[d.active]],
+        }));
+        break;
+      }
+      case 'save': {
+        const d = this.draft;
+        if (d.tool) this.form('tmpl-cartography-drawing', body =>
+          this.write('create', {...body, parts: [handPart(d.tool, d.vertices)]}));
+        else this.write('adjust', {id: d.id, version: d.version, parts: d.parts});
+        break;
+      }
+      case 'promote': {
+        const drawing = this.draft || row;
+        this.form('tmpl-cartography-road', body => this.write('road', {
+          ...body, id: drawing.id, version: drawing.version, parts: drawing.parts,
+        }));
+        break;
+      }
+      case 'remove-drawing':
+        showConfirmModal(S.DELETE_REFERENCE_CONFIRM(row.name), () => this.write(action, {id: row.id, version: row.version}));
+        break;
       case 'clear': {
         const snapshot = versions(this.state.drawings);
         const name = this.region.selectedOptions[0].textContent;
         showConfirmModal(S.CARTOGRAPHY_CLEAR(name, snapshot.length), () => this.write(action, {versions: snapshot}));
         break;
       }
-      case 'publish': {
-        const drafts = this.state.roads.filter(r => !r.published);
-        const snapshot = versions(drafts);
-        showConfirmModal(S.CARTOGRAPHY_PUBLISH(drafts.map(r => r.name)), () => this.write(action, {versions: snapshot}),
-          {confirmLabel: S.CARTOGRAPHY_PUBLISH_LABEL, intent: 'confirm'});
-        break;
-      }
+
     }
   }
 
@@ -275,7 +368,7 @@ export class CartographyEditor {
       const {data, status} = await postJSON(API + path + '/', {...body, nonce: crypto.randomUUID()});
       if (status >= 400) {
         if (this.current(generation)) {
-          await this.reload(generation);
+          if (!this.draft) await this.reload(generation);
           modals.showError(data.message || S.ERROR_GENERIC);
         }
         return;
@@ -283,14 +376,15 @@ export class CartographyEditor {
       cache.applyResponseChanges(data);
       if (action === 'import') updateInboxDot(data);
       if (!this.current(generation)) return;
-      let selection;
+      if (['adjust', 'road', 'create', 'parcel'].includes(action)) drafts.delete(this.regionId);
+      let selection = data.drawing_id && {kind: 'drawing', id: data.drawing_id};
       if (action === 'adjust') selection = {kind: 'drawing', id: body.id};
       if (action === 'road') selection = {kind: 'road', id: data.road_id};
       const firstImport = !this.state.drawings.length && !this.state.roads.length
         && !this.map.parcels.parcelLayer.getBounds().isValid();
       await this.reload(generation, selection);
       if (!this.current(generation)) return;
-      this.status.textContent = data.added == null ? '' : S.CARTOGRAPHY_IMPORT_COUNT(data.added);
+      if (!this.draft) this.status.textContent = data.added == null ? '' : S.CARTOGRAPHY_IMPORT_COUNT(data.added);
       if (data.added) this.map.fitSource(this.state.drawings, data.source_id || body.source_id, firstImport);
     } catch (error) {
       if (this.current(generation)) modals.showError(S.ERROR_NETWORK);

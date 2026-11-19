@@ -23,21 +23,26 @@ directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
 The **Compresa** dropdown at the top of the sidebar lists regions alphabetically.
 It remembers the last selection when the operator returns to Cartografia in the
 same browser tab. A link to a specific compresa opens that compresa.
-**Nuova** and **Modifica** open a form with a required name and optional
+**Nuova** and **Proprietà** open a form with a required name and optional
 description. Saving a new name makes it available to Ipso on the next sync.
-For a compresa containing only map data, **Modifica → Elimina** lists how
+For a compresa containing only map data, **Proprietà → Elimina** lists how
 many parcels, outlines, roads and drawings will be deleted. Plans, surveys,
 observations, saved walks and pending field uploads protect the compresa.
 If an unfinished upload received before the server upgrade has no region ID in
 its saved records, deletion becomes available again once Abies can identify
 the compresa on completion or the unfinished transfer expires.
 
-Writers and admins can import an Ipso walk, drag
-its vertices, and create a typed road. **Pubblica** lists the pending roads
-before making them visible in Bosco. **Elimina disegni** clears working copies
-for the selected compresa. Previously imported walks are available under
-**Importa da Ipso → Già importati**, including after inbox deletion. The
-selected compresa uses the `c` query parameter and the basemap uses `mt`.
+An imported Ipso walk appears as one drawing. **Modifica** lets the operator
+select a trace or point, move a vertex, copy a side road into a new drawing,
+remove parts, or join consecutive lines. **Promuovi** turns the resulting line
+into a classified road immediately. Canceling the promotion returns to the
+drawing with its edits intact.
+
+**Elimina disegni** clears the working copies in the selected compresa.
+**Importa da Ipso → Già importati** reopens the edited copy if one exists.
+After deletion or promotion it restores the original field measurements, even
+after inbox cleanup. The selected compresa uses the `c` query parameter and
+the basemap uses `mt`.
 The [cartography design](cartography.md) also describes later parcel editing
 and import tools.
 
@@ -46,7 +51,7 @@ and import tools.
 The browser test starts a local Django test server with a temporary database.
 It records a short walk using simulated GPS fixes. At desktop width it opens
 the upload from the Ipso inbox. At portrait width it imports the same kind of
-walk from the editor. Both runs move a vertex, publish the road, check that
+walk from the editor. Both runs trim and join an interrupted walk, promote the road, check that
 Bosco remembers the road filter after a reload and recover the original fixes.
 With the Playwright Node module and its Chromium installed, the command is
 

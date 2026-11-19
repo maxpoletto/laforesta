@@ -24,6 +24,8 @@ def test_field_walk_in_browser(live_server, client, writer_user, settings, tmp_p
     road = MapFeature.objects.get(published=True, name='Strada nord')
     source = MapPointSet.objects.get()
     original = [[row['lon'], row['lat']] for row in source.records if row['segment']]
-    assert MapDrawing.objects.get(sequence=1).geometry['coordinates'] == original
-    assert MapDrawing.objects.get(sequence=2).fixes[0][1] == 'Cancello'
-    assert road.geometry['coordinates'] != original
+    first, gate, second, side = MapDrawing.objects.get(source=source).parts
+    assert first['coordinates'] + second['coordinates'] + side['coordinates'] == original
+    assert gate['fixes'][0][1] == 'Cancello'
+    assert len(road.geometry['coordinates']) == len(first['coordinates']) + len(second['coordinates'])
+    assert road.geometry['coordinates'][0] != first['coordinates'][0]

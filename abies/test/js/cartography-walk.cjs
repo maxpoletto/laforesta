@@ -76,10 +76,19 @@ async function walk(browser) {
     await context.setGeolocation({ latitude: lat, longitude: 16, accuracy: 2 });
     await page.waitForTimeout(1150);
   }
-  await loc('#trace-toggle').click();
   await loc('#point-add').click();
   await loc('#point-note').fill('Cancello');
   await loc('#point-save').click();
+  async function record(latitudes, lon = 16) {
+    for (const lat of latitudes) {
+      await context.setGeolocation({latitude: lat, longitude: lon, accuracy: 2});
+      await page.waitForTimeout(1150);
+    }
+  }
+  await record([38.0005, 38.0006, 38.0007]);
+  await loc('#trace-toggle').click();
+  await loc('#trace-toggle').click();
+  await record([38.0008, 38.0009], 16.0002);
   await loc('#btn-end').click();
   await loc('#end-confirm').click();
   await loc('#screen-done').waitFor();
@@ -100,11 +109,26 @@ async function walk(browser) {
   await modal.getByLabel('Nome', {exact: true}).waitFor();
   assert.equal(await modal.getByRole('button', {name: 'Elimina', exact: true}).count(), 0);
   await modal.getByRole('button', {name: 'Annulla'}).click();
-  assert.ok(await action('road').isDisabled());
-  await loc('#cartography-drawings').selectOption({ index: 1 });
-  assert.ok(await action('road').isDisabled());
-  await loc('#cartography-drawings').selectOption({ index: 0 });
+  assert.equal(await loc('#cartography-drawings option').count(), 1);
+  assert.ok(await action('promote').isDisabled());
+  await loc('#cartography-drawings').selectOption({index: 0});
   await action('edit').click();
+  assert.deepEqual(await loc('#cartography-parts option').allTextContents(),
+    ['1. Linea', '2. Punto', '3. Linea', '4. Linea']);
+  await loc('#cartography-parts').selectOption('3');
+  await action('copy').click();
+  await modal.getByLabel('Nome').fill('Laterale');
+  await modal.locator('button[type=submit]').click();
+  await page.waitForFunction(() => document.querySelector('#cartography-drawings').options.length === 2);
+  await action('remove-part').click();
+  await loc('#cartography-parts').selectOption('1');
+  await action('remove-part').click();
+  await loc('#cartography-parts').selectOption('0');
+  assert.ok(await action('promote').isDisabled());
+  await action('join').click();
+  await action('undo').click();
+  assert.ok(await action('promote').isDisabled());
+  await action('join').click();
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
   if (width < 800) await sidebarToggle.click();
   const handle = loc('.cartography-vertex').first();
@@ -116,20 +140,17 @@ async function walk(browser) {
   await page.mouse.move(x + 28, y + 12, { steps: 5 });
   await page.mouse.up();
   if (width < 800) await sidebarToggle.click();
-  await action('save').click();
-  await action('road').click();
+  await action('promote').click();
+  await modal.getByRole('button', {name: 'Annulla'}).click();
+  assert.equal(await loc('#cartography-parts option').count(), 1);
+  await action('promote').click();
   await modal.locator('input[name=name]').fill('Strada nord');
   await modal.locator('select').selectOption({label: 'Pista di prova'});
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/road/') && r.request().method() === 'POST' && r.ok()),
     modal.locator('button[type=submit]').click(),
   ]);
-  assert.equal((await (await page.request.get(url + '/api/geo/roads.geojson')).json()).features.length, 0);
-  await action('publish').click();
-  await Promise.all([
-    page.waitForResponse(r => r.url().endsWith('/publish/') && r.request().method() === 'POST' && r.ok()),
-    modal.locator('[data-action=confirm]').click(),
-  ]);
+  assert.equal((await (await page.request.get(url + '/api/geo/roads.geojson')).json()).features.length, 1);
   await page.goto(url + '/bosco');
   const filter = page.getByRole('checkbox', {name: 'Pista di prova'});
   await filter.waitFor();

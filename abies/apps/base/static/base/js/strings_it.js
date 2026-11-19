@@ -715,12 +715,14 @@ export const CARTOGRAPHY_EDIT_REGION = 'Modifica compresa';
 export const CARTOGRAPHY_DELETE_REGION = (name, counts) =>
   `Eliminare la compresa «${name}» e tutto il suo contenuto cartografico? `
   + `Particelle: ${counts.parcels}. Contorni: ${counts.outlines}. Strade: ${counts.roads}. Disegni: ${counts.drawings}.`;
-export const CARTOGRAPHY_DRAFT = name => `${name} (bozza)`;
-export const CARTOGRAPHY_DRAWING = (name, seq, kind) => `${name} · ${seq} · ${kind}`;
 export const CARTOGRAPHY_IMPORT_COUNT = n => `Disegni aggiunti: ${n}.`;
 export const CARTOGRAPHY_CLEAR = (region, n) => `Eliminare tutti i disegni di ${region} (${n})?`;
 export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${name}»?`;
-export const CARTOGRAPHY_PUBLISH = names => `Pubblicare le seguenti strade? ${names.join(', ')}`;
-export const CARTOGRAPHY_PUBLISH_LABEL = 'Pubblica';
 export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
 export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';
+
+export const CARTOGRAPHY_PART = (index, type) =>
+  `${index}. ${({Point: 'Punto', LineString: 'Linea', Polygon: 'Poligono'})[type]}`;
+export const CARTOGRAPHY_PLACE = 'Tocca la mappa per aggiungere i vertici, poi premi Salva.';
+export const CARTOGRAPHY_CANCEL = 'Abbandonare le modifiche al disegno?';
+export const CARTOGRAPHY_DISCARD = 'Abbandona modifiche';

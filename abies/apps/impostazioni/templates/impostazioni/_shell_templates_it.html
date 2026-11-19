@@ -180,8 +180,8 @@ S (string constants) provided by the shell's render context.
           <label for="cartography-region">Compresa</label>
           <select id="cartography-region"></select>
           <div class="cartography-buttons">
-            <button class="btn" data-action="edit-region" disabled>Modifica</button>
-            <button class="btn" data-action="new-region" disabled>Nuova</button>
+            <button class="btn" data-action="edit-region" disabled>Proprietà</button>
+            <button class="btn btn-save" data-action="new-region" disabled>Nuova</button>
           </div>
           <p role="status" data-role="status"></p>
           <details data-role="imports">
@@ -197,26 +197,37 @@ S (string constants) provided by the shell's render context.
               <button class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
             </details>
           </details>
-          <details>
-            <summary>Particelle</summary>
-            <select id="cartography-parcels" size="3" aria-label="Particelle"></select>
+          <details open>
+            <summary>Disegni</summary>
+            <select id="cartography-drawings" size="4" aria-label="Disegni"></select>
+            <div class="cartography-buttons">
+              <button class="btn" data-action="line" disabled>Linea</button>
+              <button class="btn" data-action="polygon" disabled>Poligono</button>
+              <button class="btn" data-action="edit" disabled>Modifica</button>
+              <button class="btn btn-save" data-action="promote" disabled>Promuovi</button>
+              <button class="btn btn-delete" data-action="remove-drawing" disabled>Elimina disegno</button>
+              <button class="btn btn-delete" data-action="clear" disabled>Elimina disegni</button>
+            </div>
+            <div data-role="parts" hidden>
+              <label for="cartography-parts">Parte del disegno</label>
+              <select id="cartography-parts"></select>
+              <div class="cartography-buttons">
+                <button class="btn" data-action="copy">Copia in un nuovo disegno</button>
+                <button class="btn" data-action="remove-part">Rimuovi parte</button>
+                <button class="btn" data-action="join">Unisci alla linea successiva</button>
+                <button class="btn" data-action="close-line">Chiudi poligono</button>
+              </div>
+            </div>
+            <div class="cartography-buttons" data-role="edit-actions" hidden>
+              <button class="btn" data-action="undo">Annulla ultimo passo</button>
+              <button class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+              <button class="btn btn-save" data-action="save">{{ S.SAVE }}</button>
+            </div>
           </details>
-          <label for="cartography-drawings">Disegni</label>
-          <select id="cartography-drawings" size="4"></select>
-          <div class="cartography-buttons">
-            <button class="btn" data-action="edit" disabled>Modifica vertici</button>
-            <button class="btn btn-save" data-action="save" hidden>{{ S.SAVE }}</button>
-            <button class="btn" data-action="cancel" hidden>{{ S.CANCEL }}</button>
-            <button class="btn" data-action="road" disabled>Crea strada</button>
-            <button class="btn" disabled>Crea particella</button>
-            <button class="btn" disabled>Aggiungi a particella esistente</button>
-            <button class="btn btn-delete" data-action="remove-drawing" disabled>Elimina disegno selezionato</button>
-            <button class="btn btn-delete" data-action="clear" disabled>Elimina disegni</button>
-          </div>
+          <label for="cartography-parcels">Particelle</label>
+          <select id="cartography-parcels" size="3"></select>
           <label for="cartography-roads">Strade</label>
           <select id="cartography-roads" size="3"></select>
-          <button class="btn btn-delete" data-action="discard-road" disabled>Scarta bozza</button>
-          <button class="btn btn-save" data-action="publish" disabled>Pubblica</button>
         </aside>
       </div>
     </div>
@@ -269,4 +280,15 @@ S (string constants) provided by the shell's render context.
       </div>
     </form>
   </div>
+</template>
+
+<template id="tmpl-cartography-drawing">
+  <form class="form-card">
+    <h2>Nuovo disegno</h2>
+    <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+    </div>
+  </form>
 </template>
