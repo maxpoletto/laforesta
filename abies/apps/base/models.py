@@ -628,6 +628,17 @@ class Parcel(TimestampedModel):
         return f'{self.region.name}-{self.name}'
 
 
+def region_cadastral_areas(region_ids=None) -> dict[int, Decimal]:
+    parcels = Parcel.objects.all()
+    if region_ids is not None:
+        parcels = parcels.filter(region_id__in=region_ids)
+    # SUM skips nulls. Only a complete set of measurements is a regional total.
+    complete = parcels.values('region_id').annotate(
+        area=models.Sum('area_ha'), measured=models.Count('area_ha'), parcels=models.Count('pk'),
+    ).filter(measured=models.F('parcels'))
+    return dict(complete.values_list('region_id', 'area'))
+
+
 class MapCollection(models.Model):
     """Original collection-level GeoJSON members, without the features array."""
     members = models.JSONField(default=dict)

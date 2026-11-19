@@ -251,3 +251,16 @@ def test_blank_cadastral_area_remains_unknown(regions, eclasses):
     parcel = Parcel.objects.get(region=regions[0], name='7')
     assert parcel.area_ha is None
     assert build_parcel_record(parcel)[7:9] == [None, None]
+
+
+def test_region_area_requires_a_measurement_for_every_parcel(regions, eclasses):
+    from apps.base.models import region_cadastral_areas
+
+    region, other = regions[:2]
+    Parcel.objects.create(region=other, eclass=eclasses[0], name='1', area_ha='10')
+    Parcel.objects.create(region=region, eclass=eclasses[0], name='1', area_ha='8')
+    missing = Parcel.objects.create(region=region, eclass=eclasses[0], name='2')
+    assert region_cadastral_areas() == {other.pk: 10}
+    missing.area_ha = Decimal('4.5')
+    missing.save()
+    assert region_cadastral_areas([region.pk]) == {region.pk: 12.5}

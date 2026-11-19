@@ -23,14 +23,14 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Q
 from django.utils import formats, timezone
 
 from apps.base.dendrometry import (
     basal_area_m2, current_diameter_class_mode, diameter_class_cm,
 )
 from apps.base.http import CACHE_NO_STORE, conditional_file_response
-from apps.base.models import DigestStatus, render_flag_note
+from apps.base.models import DigestStatus, region_cadastral_areas, render_flag_note
 from apps.base.numparse import float_or_none
 from apps.base.selectors import (
     active_or_default_harvest_plan, active_or_default_survey_ids,
@@ -1250,18 +1250,6 @@ def _hpi_turno(item) -> int | str:
     return ppd.harvest_detail.interval
 
 
-def _region_area_by_id(region_ids=None) -> dict[int, float]:
-    from apps.base.models import Parcel
-    qs = Parcel.objects
-    if region_ids is not None:
-        qs = qs.filter(region_id__in=region_ids)
-    return {
-        row['region_id']: float(row['area'])
-        for row in qs.values('region_id').annotate(area=Sum('area_ha'))
-        if row['area'] is not None
-    }
-
-
 def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) -> list:
     """Build one row of the `harvest_plan_items` digest.
 
@@ -1278,8 +1266,9 @@ def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) 
         # Whole-region marker — also the CSV round-trip representation.
         parcel_name = S.PARCEL_WHOLE_REGION_MARK
         if region_area_by_id is None:
-            region_area_by_id = _region_area_by_id([item.region_id])
-        parcel_area = region_area_by_id.get(item.region_id, '')
+            region_area_by_id = region_cadastral_areas([item.region_id])
+        area = region_area_by_id.get(item.region_id)
+        parcel_area = float(area) if area is not None else ''
 
     return [
         item.id, item.version, item.harvest_plan_id,
@@ -1310,7 +1299,7 @@ def generate_harvest_plan_items() -> None:
           .select_related('parcel__region', 'parcel__eclass', 'region',
                           'harvest_plan')
           .order_by('harvest_plan_id', 'year_planned', 'id'))
-    region_area_by_id = _region_area_by_id()
+    region_area_by_id = region_cadastral_areas()
     rows = [build_harvest_plan_item_record(it, region_area_by_id) for it in qs]
     _write_gzip_json(
         {'columns': HARVEST_PLAN_ITEM_COLUMNS, 'rows': rows},

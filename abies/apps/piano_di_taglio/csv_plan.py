@@ -12,7 +12,6 @@ from datetime import date as date_type
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
 
 from apps.base import csv_io
 from apps.base.csv_validation import CsvRow
@@ -24,7 +23,7 @@ from apps.base.models import (
     Parcel,
     ParcelPlanDetail,
     Region,
-    render_flag_note,
+    region_cadastral_areas, render_flag_note,
 )
 from apps.piano_di_taglio.plan_item_validation import (
     plan_item_invariant_errors,
@@ -514,13 +513,7 @@ def _plan_export_context(plan: HarvestPlan) -> PlanExportContext:
         if ppd.harvest_detail.interval is not None
     }
     region_ids = {item.region_id for item in items if item.region_id is not None}
-    region_area_by_id = {
-        row['region_id']: row['area']
-        for row in Parcel.objects.filter(region_id__in=region_ids)
-                                 .values('region_id')
-                                 .annotate(area=Sum('area_ha'))
-        if row['area'] is not None
-    }
+    region_area_by_id = region_cadastral_areas(region_ids)
     delimiter, decimal_sep = csv_io.export_format()
     return PlanExportContext(
         items=items,

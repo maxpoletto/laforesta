@@ -185,6 +185,8 @@ const meta = D.regionMetadata([
   { displayAreaHa: 5, cadastralAreaHa: 6, aveAge: 70, altMin: 600, altMax: 800, type: S.TYPE_COPPICE },
 ]);
 assertEqual(meta.count, 2, 'regionMetadata: count');
+assertEqual(D.regionMetadata([{cadastralAreaHa: 8}, {cadastralAreaHa: null}]).cadastralAreaHa,
+  null, 'regionMetadata: cannot total cadastral areas until every parcel has one');
 assertEqual(meta.areaHa, 15, 'regionMetadata: area sum');
 assertEqual(meta.cadastralAreaHa, 17, 'regionMetadata: cadastral area sum');
 assertEqual('aveAge' in meta, false, 'regionMetadata: omits region age');

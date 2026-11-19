@@ -34,7 +34,8 @@ export function parcelNavigation(entries, parcelId) {
 export function regionMetadata(entries) {
   const count = entries.length;
   const areaHa = sum(entries.map(e => e.displayAreaHa));
-  const cadastralAreaHa = sum(entries.map(e => e.cadastralAreaHa));
+  const cadastralAreaHa = count && entries.every(e => e.cadastralAreaHa != null)
+    ? sum(entries.map(e => e.cadastralAreaHa)) : null;
   const altMin = min(entries.map(e => e.altMin));
   const altMax = max(entries.map(e => e.altMax));
   const typeCounts = new Map();
