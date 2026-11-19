@@ -394,11 +394,12 @@ def build_parcel_record(p, *, stumps_per_ha=_STUMPS_UNSET) -> list:
     elif stumps_per_ha is _STUMPS_UNSET:
         stumps_per_ha = _coppice_stumps_per_ha().get(p.id)
 
+    area = float(p.area_ha) if p.area_ha is not None else None
     # The geometric/cadastral area columns intentionally share the model
     # value until a separate cadastral source is available.
     return [
         p.id, p.version, p.region_id, p.region.name, p.name, p.eclass.name,
-        p.eclass.coppice, float(p.area_ha), float(p.area_ha), p.ave_age,
+        p.eclass.coppice, area, area, p.ave_age,
         p.location_name,
         p.altitude_min_m, p.altitude_max_m, p.aspect, p.grade_pct,
         S.TYPE_COPPICE if p.eclass.coppice else S.TYPE_HIGHFOREST,
@@ -1271,7 +1272,7 @@ def build_harvest_plan_item_record(item, region_area_by_id: dict | None = None) 
     if item.parcel_id is not None:
         region_name = item.parcel.region.name
         parcel_name = item.parcel.name
-        parcel_area = float(item.parcel.area_ha)
+        parcel_area = float(item.parcel.area_ha) if item.parcel.area_ha is not None else ''
     else:
         region_name = item.region.name
         # Whole-region marker — also the CSV round-trip representation.

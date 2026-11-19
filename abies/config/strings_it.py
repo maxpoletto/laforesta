@@ -554,7 +554,7 @@ ERR_MARK_ROW_TARGET_MISMATCH = (
     'Riga {}: particella fuori dalla destinazione selezionata.'
 )
 ERR_TREE_DENDROMETRY_ROW_IDS = 'Selezione alberi non valida.'
-ERR_BOSCO_AREA_REQUIRED = 'Superficie obbligatoria.'
+ERR_BOSCO_AREA_INVALID = 'Inserisci una superficie valida maggiore di zero.'
 ERR_BOSCO_GOVERNANCE_REQUIRED = 'Governo obbligatorio.'
 ERR_BOSCO_GOVERNANCE_INVALID = 'Governo non valido.'
 ERR_BOSCO_INTEGER_REQUIRED = '{} deve essere un numero intero.'

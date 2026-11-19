@@ -604,7 +604,7 @@ class Parcel(TimestampedModel):
     name = models.CharField(max_length=20)
     region = models.ForeignKey(Region, on_delete=models.PROTECT)
     eclass = models.ForeignKey(Eclass, on_delete=models.PROTECT)
-    area_ha = models.DecimalField(max_digits=7, decimal_places=2)
+    area_ha = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     ave_age = models.IntegerField(null=True, blank=True)
     location_name = models.CharField(max_length=200, blank=True)
     altitude_min_m = models.IntegerField(null=True, blank=True)

@@ -57,6 +57,7 @@ from apps.base.responses import (
     conflict_response, parse_json_body, row_delete, row_patch, submitted_version,
     success_response, validation_error,
 )
+from apps.base.validation import decimal_field_value
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
@@ -1053,9 +1054,10 @@ def _parse_parcel_metadata_body(body: dict):
         if eclass is None:
             errors.append(S.ERR_BOSCO_GOVERNANCE_INVALID)
 
-    area_ha = parse_decimal(body.get(FIELD_AREA_HA))
-    if area_ha is None or area_ha <= 0:
-        errors.append(S.ERR_BOSCO_AREA_REQUIRED)
+    raw_area = body.get(FIELD_AREA_HA)
+    area_ha = decimal_field_value(parse_decimal(raw_area), 'base.Parcel', FIELD_AREA_HA)
+    if raw_area not in (None, '') and (area_ha is None or area_ha <= 0):
+        errors.append(S.ERR_BOSCO_AREA_INVALID)
 
     values = {
         'eclass': eclass,

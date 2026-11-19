@@ -130,7 +130,7 @@ def validate_rows(reader, idx: ParcelIndexes):
             errors.append(S.ERR_CSV_DUPLICATE_KEY.format(i, S.CSV_COL_PARCEL, name))
             continue
         cells = CsvRow(reader, row, i)
-        area_ha = cells.decimal(S.CSV_COL_AREA_HA, storage=('base.Parcel', 'area_ha'))
+        area_ha = cells.decimal(S.CSV_COL_AREA_HA, required=False, storage=('base.Parcel', 'area_ha'))
         optional_ints = {
             field_name: cells.integer(column, required=False)
             for field_name, column in (

@@ -188,14 +188,14 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
     An empty catalog starts with the six [settings defaults](page-impostazioni.md#reference-tables).
 
 - parcel: (id:int, name:string, region_id:int, eclass_id:int,
-  area_ha:decimal, ave_age:int nullable, location_name:string,
+  area_ha:decimal nullable, ave_age:int nullable, location_name:string,
   altitude_min_m:int nullable, altitude_max_m:int nullable, aspect:string,
   grade_pct:int nullable, desc_veg:string, desc_geo:string,
   cutting_plan:string, harvest_mechanism:string,
   intervention_interval:int nullable, standards_per_ha:int nullable)
   - Represents a forest parcel. `name` is typically an alphanumeric string like
     "11" or "2a".
-  - `area_ha` is surface area in hectares.
+  - `area_ha` is cadastral area in hectares, or null when it is unknown.
   - `ave_age` is the stated (official) average age of trees in the parcel. It
     may differ from the computed average of the age of sampled trees.
   - altitudes are in meters; `grade_pct` is the parcel's average slope.

@@ -746,7 +746,7 @@ def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels)
     parcel = parcels[0]
     body = {
         ROW_ID: str(parcel.id), VERSION: str(parcel.version),
-        'eclass_id': str(parcel.eclass_id), 'area_ha': '',
+        'eclass_id': str(parcel.eclass_id), 'area_ha': 'abc',
         'ave_age': 'abc', 'location_name': '', 'altitude_min_m': '',
         'altitude_max_m': '', 'aspect': '', 'grade_pct': '',
         'desc_veg': '', 'desc_geo': '', FIELD_NONCE: 'parcel-invalid',
@@ -757,7 +757,7 @@ def test_parcel_metadata_save_validation_error_rerenders(writer_client, parcels)
 
     assert resp.status_code == 400
     data = resp.json()
-    assert S.ERR_BOSCO_AREA_REQUIRED in data[MESSAGE]
+    assert S.ERR_BOSCO_AREA_INVALID in data[MESSAGE]
     assert (S.ERR_BOSCO_INTEGER_REQUIRED.format(S.LABEL_BOSCO_AVE_AGE)
             in data[MESSAGE])
     assert 'bosco-parcel-metadata-form' in data[HTML]

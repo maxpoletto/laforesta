@@ -239,3 +239,15 @@ def test_export_import_export_import_round_trip(regions, eclasses, csv_locale):
     Parcel.objects.all().delete()
     import_text(second_export)
     assert snapshot() == expected
+
+
+def test_blank_cadastral_area_remains_unknown(regions, eclasses):
+    from apps.base.digests import build_parcel_record
+
+    reader = _reader(f'{HEADER}\n{regions[0].name},A,7,,40\n')
+    parsed, errors = csv_parcels.validate_rows(reader, csv_parcels.db_indexes())
+    assert errors == []
+    csv_parcels.apply(parsed)
+    parcel = Parcel.objects.get(region=regions[0], name='7')
+    assert parcel.area_ha is None
+    assert build_parcel_record(parcel)[7:9] == [None, None]
