@@ -2,12 +2,14 @@
 
 import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models, router, transaction
 from simple_history.models import HistoricalRecords
 
+from apps.base.map_keys import initial_map_key
 from config import strings as S
 from config.constants import (
     DEFAULT_RADIUS_M, DIAMETER_CLASS_CENTERED, PRESSLER_DEFAULT,
@@ -197,9 +199,23 @@ class SiteSettings(models.Model):
 # Reference tables
 # ---------------------------------------------------------------------------
 
-class Region(models.Model):
+class Region(TimestampedModel):
     """Forest region (compresa)."""
     name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    map_key = models.UUIDField(unique=True, editable=False)
+    history = HistoricalRecords(excluded_fields=['map_key'], verbose_name=S.REGION_REVISION,
+                                verbose_name_plural=S.REGION_REVISIONS)
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.map_key is None:
+            key = initial_map_key(self.name)
+            alias = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+            # A new compresa reusing an old name must never inherit its rasters.
+            reserved = (Region.history.using(alias).filter(name=self.name).exists()
+                        or Region.objects.using(alias).filter(map_key=key).exists())
+            self.map_key = uuid4() if reserved else key
+        return super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = S.REGION

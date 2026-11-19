@@ -15,6 +15,7 @@ from shapely import make_valid
 from shapely.geometry import LineString, Polygon, box, mapping
 from shapely.ops import polygonize_full, unary_union
 
+from apps.base.map_keys import initial_map_key
 from .map_context_data import (
     CONTEXT_FILE, SCHEMA_VERSION, MapContextError, publish_context, read_context,
     region_directory, region_geometry,
@@ -202,17 +203,19 @@ def contour_features(data, transform, bounds, interval):
     return features
 
 
-def build_region(geojson, region, output_dir, *, buffer_m=500, interval=20,
+def build_region(geojson, region, output_dir, *, region_key=None, buffer_m=500, interval=20,
                  osm_file=None, dem=None, force=False, endpoint=OVERPASS_URL):
     fingerprint, parcel_bounds = region_geometry(geojson, region)
     bounds = buffered_bounds(parcel_bounds, buffer_m)
-    target = region_directory(output_dir, region) / CONTEXT_FILE
+    key = str(region_key or initial_map_key(region))
+    target = region_directory(output_dir, key) / CONTEXT_FILE
     parameters = {'geometry_hash': fingerprint, 'buffer_m': buffer_m, 'contour_interval_m': interval,
                   'dem_source': str(dem) if dem else 'copernicus-glo-30',
                   'osm_source': str(osm_file) if osm_file else endpoint}
     if target.is_file() and not force:
         previous = read_context(target)
-        if previous.get('schema_version') == SCHEMA_VERSION and previous.get('build') == parameters:
+        if (previous.get('schema_version') == SCHEMA_VERSION and previous.get('region_key') == key
+                and previous.get('build') == parameters):
             return previous, False
     osm = json.loads(Path(osm_file).read_text()) if osm_file else fetch_osm(bounds, endpoint)
     if not isinstance(osm.get('elements'), list) or osm.get('remark'):
@@ -221,7 +224,8 @@ def build_region(geojson, region, output_dir, *, buffer_m=500, interval=20,
     data, transform = elevation_grid(bounds, dem)
     features.extend(contour_features(data, transform, bounds, interval))
     payload = {'type': 'FeatureCollection', 'available': True, 'schema_version': SCHEMA_VERSION,
-               'region': region, 'bbox': bounds, 'parcel_bbox': parcel_bounds, 'build': parameters,
+               'region': region, 'region_key': key,
+               'bbox': bounds, 'parcel_bbox': parcel_bounds, 'build': parameters,
                'built_at': datetime.now(timezone.utc).isoformat(),
                'osm_timestamp': osm.get('osm3s', {}).get('timestamp_osm_base'),
                'features': features}

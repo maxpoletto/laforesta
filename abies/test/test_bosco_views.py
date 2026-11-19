@@ -1105,7 +1105,7 @@ def _write_test_tif(path, values):
 
 
 def test_satellite_manifest_reader_access(reader_client, regions, tmp_path, settings):
-    region_dir = tmp_path / regions[0].name
+    region_dir = tmp_path / str(regions[0].map_key)
     region_dir.mkdir()
     (region_dir / 'manifest.json').write_text(
         '{"dates":["2026-01-01"],"bbox":[[38,16],[39,17]]}',
@@ -1121,7 +1121,7 @@ def test_satellite_manifest_reader_access(reader_client, regions, tmp_path, sett
 
 
 def test_satellite_timeseries_reader_access(reader_client, regions, tmp_path, settings):
-    region_dir = tmp_path / regions[0].name
+    region_dir = tmp_path / str(regions[0].map_key)
     region_dir.mkdir()
     (region_dir / 'timeseries.json').write_text(
         '{"dates":["2026-01-01"],"means":{"parcels":{}}}',
@@ -1135,7 +1135,7 @@ def test_satellite_timeseries_reader_access(reader_client, regions, tmp_path, se
 
 
 def test_satellite_raw_reader_access(reader_client, regions, tmp_path, settings):
-    region_dir = tmp_path / regions[0].name
+    region_dir = tmp_path / str(regions[0].map_key)
     _write_test_tif(region_dir / '2026-07-01' / 'ndvi.tif', [[100, 150], [80, 100]])
     settings.SATELLITE_DIR = tmp_path
 
@@ -1153,7 +1153,7 @@ def test_satellite_raw_reader_access(reader_client, regions, tmp_path, settings)
 
 
 def test_satellite_mask_raw_reader_access(reader_client, regions, tmp_path, settings):
-    region_dir = tmp_path / regions[0].name
+    region_dir = tmp_path / str(regions[0].map_key)
     _write_test_tif(region_dir / 'parcel-mask.tif', [[1, 0], [1, 1]])
     settings.SATELLITE_DIR = tmp_path
 
@@ -1182,7 +1182,7 @@ def test_satellite_raster_endpoints_reject_invalid_segments(reader_client, regio
 
 
 def test_satellite_manifest_conditional_get(reader_client, regions, tmp_path, settings):
-    region_dir = tmp_path / regions[0].name
+    region_dir = tmp_path / str(regions[0].map_key)
     region_dir.mkdir()
     (region_dir / 'manifest.json').write_text('{"dates":["2026-01-01"]}')
     settings.SATELLITE_DIR = tmp_path
@@ -1218,7 +1218,7 @@ def test_satellite_endpoints_require_login(client, regions, path_suffix):
 
 
 def test_satellite_endpoint_404s_for_missing_file(reader_client, regions, tmp_path, settings):
-    (tmp_path / regions[0].name).mkdir()
+    (tmp_path / str(regions[0].map_key)).mkdir()
     settings.SATELLITE_DIR = tmp_path
 
     resp = reader_client.get(f'/api/bosco/satellite/{regions[0].id}/manifest/')

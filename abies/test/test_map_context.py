@@ -10,6 +10,7 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import Point, shape
 
+from apps.base.map_keys import initial_map_key
 from apps.bosco import map_context as M
 from apps.bosco.map_context_data import (
     CONTEXT_FILE, MapContextError, publish_context, read_context, region_directory, region_geometry,
@@ -127,7 +128,7 @@ def test_build_atomic_reuse_and_failure_preserves_snapshot(geojson, tmp_path, mo
     output = tmp_path / 'context'
     payload, changed = M.build_region(geojson, 'Forest', output, buffer_m=0, osm_file=osm, dem=dem)
     assert changed and payload['features']
-    target = output / 'Forest' / CONTEXT_FILE
+    target = output / str(initial_map_key('Forest')) / CONTEXT_FILE
     before = target.read_bytes()
     assert read_context(target) == payload
     assert M.build_region(geojson, 'Forest', output, buffer_m=0, osm_file=osm, dem=dem)[1] is False
@@ -149,9 +150,9 @@ def test_context_reader_access_conditional_get_and_stale_geometry(client, reader
     from apps.base.models import MapFeature
     feature = MapFeature.objects.create(members={'type': 'Feature', 'properties': {'layer': region.name}},
                                         geometry=polygon())
-    target = settings.MAP_CONTEXT_DIR / region.name / CONTEXT_FILE
+    target = settings.MAP_CONTEXT_DIR / str(region.map_key) / CONTEXT_FILE
     fingerprint = region_geometry(geojson, region.name)[0]
-    publish_context(target, {'available': True, 'schema_version': 1, 'region': region.name,
+    publish_context(target, {'available': True, 'schema_version': 1, 'region_key': str(region.map_key),
                             'build': {'geometry_hash': fingerprint}, 'features': []})
     url = reverse('bosco-map-context', args=[region.id])
     assert client.get(url).status_code == 302
@@ -169,8 +170,9 @@ def test_context_reader_access_conditional_get_and_stale_geometry(client, reader
     assert client.get(reverse('bosco-map-context', args=[999999])).status_code == 404
 
 
-def test_command_builds_selected_regions_and_keeps_reusable_output(geojson, tmp_path, monkeypatch):
+def test_command_builds_selected_regions_and_keeps_reusable_output(db, geojson, tmp_path, monkeypatch):
     from django.core.management import call_command, CommandError
+    from apps.base.models import Region
     from apps.bosco.management.commands import build_map_context as command
     source = tmp_path / 'geo.json'
     source.write_text(json.dumps(geojson))
@@ -180,8 +182,18 @@ def test_command_builds_selected_regions_and_keeps_reusable_output(geojson, tmp_
     assert builder.call_args.args[:2] == (geojson, 'Forest')
     assert builder.call_args.kwargs['buffer_m'] == 500
     assert builder.call_args.kwargs['interval'] == 20
+    assert builder.call_args.kwargs['region_key'] == initial_map_key('Forest')
+    region = Region.objects.create(name='Old name')
+    region.name = 'Forest'
+    region.save()
+    call_command('build_map_context', geojson=source, output_dir=tmp_path / 'output')
+    assert builder.call_args.kwargs['region_key'] == region.map_key
     builder.side_effect = MapContextError('Remote data incomplete')
     with pytest.raises(CommandError, match='incomplete'):
+        call_command('build_map_context', geojson=source, output_dir=tmp_path / 'output')
+    geojson['features'][0]['properties']['layer'] = 'Old name'
+    source.write_text(json.dumps(geojson))
+    with pytest.raises(CommandError, match='Forest'):
         call_command('build_map_context', geojson=source, output_dir=tmp_path / 'output')
 
 
@@ -298,7 +310,7 @@ def test_default_source_build_rebuilds_changed_metadata_and_rejects_partial_osm(
     payload, _ = M.build_region(geojson, 'Forest', tmp_path)
     assert payload['build']['dem_source'] == 'copernicus-glo-30'
     assert payload['osm_timestamp'] == '2026-11-16T00:00:00Z'
-    target = tmp_path / 'Forest' / CONTEXT_FILE
+    target = tmp_path / str(initial_map_key('Forest')) / CONTEXT_FILE
     previous = dict(payload, schema_version=0)
     publish_context(target, previous)
     assert M.build_region(geojson, 'Forest', tmp_path)[1] is True
@@ -329,7 +341,7 @@ def test_corrupt_snapshots_and_failed_publication_keep_previous_file(tmp_path, m
 def test_context_corrupt_file_falls_back_to_plain_map(client, reader_user, regions, settings):
     from django.urls import reverse
     region = regions[0]
-    target = settings.MAP_CONTEXT_DIR / region.name / CONTEXT_FILE
+    target = settings.MAP_CONTEXT_DIR / str(region.map_key) / CONTEXT_FILE
     target.parent.mkdir(parents=True)
     target.write_bytes(b'Not a gzip file')
     client.force_login(reader_user)

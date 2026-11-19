@@ -16,3 +16,5 @@ from config.settings import *  # noqa: F401,F403
 
 # Schema setup must never import the developer's installed parcel map.
 GEO_DIR = None
+# Filesystem migrations must also leave the developer's generated layers alone.
+SATELLITE_DIR = MAP_CONTEXT_DIR = None

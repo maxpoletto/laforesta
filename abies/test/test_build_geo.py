@@ -282,6 +282,9 @@ def test_builders_default_to_the_database_map(tmp_path, parcels, import_parcel_m
     call_command('build_map_context', output_dir=tmp_path)
     assert dates.call_args.args[:2] == (data, parcels[0].region.name)
     assert build.call_args.args[:2] == (data, parcels[0].region.name)
+    key = parcels[0].region.map_key
+    assert (tmp_path / str(key) / 'dates.txt').is_file()
+    assert build.call_args.kwargs['region_key'] == key
 
 
 def test_canonical_bootstrap_commits_map_and_catalog_together(tmp_path, db):

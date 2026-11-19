@@ -5,7 +5,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.base.map_data import map_geojson
+from apps.base.map_data import map_geojson, region_map_keys
 from apps.bosco.map_context import OVERPASS_URL, build_region
 from apps.bosco.map_context_data import MapContextError, region_names
 
@@ -29,11 +29,11 @@ class Command(BaseCommand):
             path = options['geojson']
             geojson = json.loads(path.read_text(encoding='utf-8')) if path else map_geojson()
             regions = options['region'] or region_names(geojson)
-            for region in regions:
+            for region, key in region_map_keys(regions, file_input=bool(path)).items():
                 self.stdout.write(f'{region}: preparing roads, water and contours…', ending='\n')
                 payload, changed = build_region(
                     geojson, region, options['output_dir'], buffer_m=options['buffer_m'],
-                    interval=options['contour_interval'], force=options['force'],
+                    region_key=key, interval=options['contour_interval'], force=options['force'],
                     osm_file=options['osm_file'], dem=options['dem'], endpoint=options['overpass_url'],
                 )
                 self.stdout.write(f'{region}: {"built" if changed else "kept"} {len(payload["features"])} vector features')

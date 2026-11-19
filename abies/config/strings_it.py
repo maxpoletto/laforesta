@@ -902,6 +902,8 @@ USER = 'utente'
 USERS = 'utenti'
 
 REGION = 'compresa'
+REGION_REVISION = 'revisione di una compresa'
+REGION_REVISIONS = 'revisioni delle comprese'
 REGIONS = 'comprese'
 
 ECLASS = 'classe economica'

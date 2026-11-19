@@ -2,16 +2,40 @@
 
 import hashlib
 import json
+from pathlib import Path
 
 from django.apps import apps
-from django.db import DEFAULT_DB_ALIAS, transaction
+from django.core.management.base import CommandError
+from django.db import DEFAULT_DB_ALIAS, connection, transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from django.utils.cache import get_conditional_response, patch_vary_headers
 from django.views.decorators.gzip import gzip_page
 
 from apps.base.http import CACHE_NO_CACHE, apply_cache_control
 from apps.base.map_import_v1 import import_initial_map, parcel_key
-from apps.base.models import MapCollection, MapFeature, Parcel
+from apps.base.map_keys import initial_map_key
+from apps.base.models import MapCollection, MapFeature, Parcel, Region
+
+
+def region_map_keys(names, *, file_input=False):
+    """Resolve build inputs, including a standalone GeoJSON without a catalog."""
+    keys = {name: initial_map_key(name) for name in names}
+    if file_input:
+        db = connection.settings_dict['NAME']
+        if ((not connection.is_in_memory_db() and not Path(db).is_file())
+                or Region._meta.db_table not in connection.introspection.table_names()):
+            return keys
+    catalog = Region.objects.filter(Q(name__in=keys) | Q(map_key__in=keys.values()))
+    owners = {}
+    for name, key in catalog.values_list('name', 'map_key'):
+        owners[key] = name
+        if name in keys:
+            keys[name] = key
+    for name, key in keys.items():
+        if key in owners and owners[key] != name:
+            raise CommandError(f'Map layer {name!r} was renamed to {owners[key]!r}. Use its current name.')
+    return keys
 
 
 def import_parcel_map(path):

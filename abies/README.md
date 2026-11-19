@@ -107,9 +107,16 @@ make satellite
 ```
 
 This writes dates, downloaded rasters, `manifest.json`, `parcel-mask.tif`, and
-`timeseries.json` under `data/satellite/<Compresa>/`. For smaller steps, use
+`timeseries.json` under `data/satellite/<map_key>/`. For smaller steps, use
 `make satellite-dates`, `make satellite-fetch`, and
 `make satellite-precompute`.
+
+Satellite and printable-map directories use the same permanent UUID for a
+compresa. On upgrade, make any existing generated-map directories available
+for writing during the usual `make migrate`. It moves the old directories in
+place and updates the parcel labels in the summaries. The existing rasters
+can be used immediately.
+For a rollback, restore the previous database and generated directories together.
 
 To regenerate the complete dataset, build into an empty output directory:
 
@@ -120,7 +127,9 @@ make satellite SATELLITE_DIR=data/satellite-build
 The build downloads the selected dates and regenerates masks, manifests and
 time series. Each region uses a single WGS84 raster grid derived from its
 geometry and nominal resolution; precomputation rejects incompatible rasters.
-After validating the build, publish it with the desired instance's sync target:
+Initial builds of the same named compresa use the same UUID on separate
+installations. After renaming a compresa or reusing a name, use the target
+catalog for builds you intend to sync. To publish a validated build:
 
 ```sh
 make sync-satellite-dev SATELLITE_DIR=data/satellite-build
@@ -139,7 +148,7 @@ make map-context MAP_CONTEXT_ARGS='--region Capistrano --force'
 
 Each compresa uses its parcel bounding box plus a 500 m buffer. The builder
 extracts contours every 20 m, clips and simplifies vectors, then atomically
-publishes `data/map-context/<Compresa>/context.json.gz`. Matching builds are
+publishes `data/map-context/<map_key>/context.json.gz`. Matching builds are
 reused; `--force` refreshes them. A failed refresh preserves the last complete
 snapshot. Copernicus is a DSM including vegetation, rather than bare terrain.
 Use `--dem path/to/wgs84-elevation.tif` for a local elevation source and

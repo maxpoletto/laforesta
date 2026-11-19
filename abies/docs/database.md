@@ -167,8 +167,13 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
 
 ## Geographic concepts
 
-- region: (id:int, name:string)
-  - Denotes a forest region or "compresa".
+- region: (id:int, name:string, description:text, map_key:uuid,
+  version:int, created_at:datetime, modified_at:datetime)
+  - A compresa has a unique name and an optional description. Cartografia
+    records edits in the audit history. Its ID stays the same after a rename.
+  - Satellite imagery and printable-map context use the immutable, unique
+    `map_key` as their directory name. Renaming a compresa preserves both
+    datasets. A new compresa can reuse a name and gets its own directory.
 
 - eclass: (id:int, name:string, description:string, coppice:bool,
   min_harvest_volume:int, version:int, created_at:datetime, modified_at:datetime)

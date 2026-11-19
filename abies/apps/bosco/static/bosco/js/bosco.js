@@ -1124,7 +1124,7 @@ function renderSatelliteCharacteristic(seq) {
 
   clearSatelliteRasterOverlay();
   const entries = mapEntries;
-  const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.key, layer, date));
+  const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.parcel, layer, date));
   if (!continuousDomain(values)) {
     resetParcelStyles();
     renderMessageLegend(S.BOSCO_NO_SATELLITE);
@@ -1132,7 +1132,7 @@ function renderSatelliteCharacteristic(seq) {
   }
 
   for (const entry of entries) {
-    const value = satelliteValue(satelliteData.timeseries, entry.key, layer, date);
+    const value = satelliteValue(satelliteData.timeseries, entry.parcel, layer, date);
     applyEntryStyle(entry, value == null ? NO_DATA_STYLE : satelliteValueStyle(value), value);
   }
   renderSatelliteLegend(legendEl, layer, date);
@@ -1270,7 +1270,7 @@ function signedHarvestDeltaDisplay(value) {
 function renderEvolutionParcelAverages(metric, date1, date2) {
   clearSatelliteRasterOverlay();
   const values = mapEntries.map(entry => (
-    satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2)
+    satelliteDiffValue(satelliteData.timeseries, entry.parcel, metric.layer, date1, date2)
   ));
   const domain = divergingDomain(values);
   if (!domain) {
@@ -1280,7 +1280,7 @@ function renderEvolutionParcelAverages(metric, date1, date2) {
   }
 
   for (const entry of mapEntries) {
-    const value = satelliteDiffValue(satelliteData.timeseries, entry.key, metric.layer, date1, date2);
+    const value = satelliteDiffValue(satelliteData.timeseries, entry.parcel, metric.layer, date1, date2);
     applyEntryStyle(
       entry,
       value == null ? NO_DATA_STYLE : satelliteDiffStyle(value, domain.maxAbs),

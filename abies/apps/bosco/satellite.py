@@ -426,6 +426,8 @@ def rasterize_parcels(
     for feature in features:
         name = (feature.get('properties') or {}).get('name')
         if isinstance(name, str) and name and feature.get('geometry'):
+            if region:
+                name = name.removeprefix(region + '-')
             named_shapes.append((name, feature['geometry']))
     named_shapes.sort(key=lambda item: item[0])
     parcel_names = sorted({name for name, geometry in named_shapes})
@@ -501,6 +503,7 @@ def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str) 
     save_geotiff(output_dir / 'parcel-mask.tif', mask, bbox, width, height)
 
     timeseries = compute_timeseries(mask, parcel_names, dates, output_dir)
+    timeseries['schema_version'] = 2
     with open(output_dir / 'timeseries.json', 'w', encoding='utf-8') as f:
         json.dump(timeseries, f, indent=2)
         f.write('\n')

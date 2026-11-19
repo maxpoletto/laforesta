@@ -529,7 +529,7 @@ def _audit_configs() -> list:
     """
     from apps.base.models import (
         Crew, Eclass, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
-        MapFeature, Observation, ObservationCategory, Parcel, RoadType, SampleArea, SampleGrid,
+        MapFeature, Observation, ObservationCategory, Parcel, Region, RoadType, SampleArea, SampleGrid,
         SiteSettings, Species, Survey,
         Tractor, User, VolumeEquation,
     )
@@ -585,6 +585,7 @@ def _audit_configs() -> list:
             'sort_order': S.CSV_COL_SORT_ORDER,
             'active': S.COL_ACTIVE,
         }),
+        (Region, S.COL_REGION, {'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION}),
         (MapFeature, S.MAP_FEATURE.capitalize(), {
             'id': 'ID', 'parcel_id': S.COL_PARCEL, 'version': S.COL_MAP_REVISION,
             'name': S.LABEL_NAME, 'road_type_id': S.TABLE_ROAD_TYPE, 'region_id': S.COL_REGION,

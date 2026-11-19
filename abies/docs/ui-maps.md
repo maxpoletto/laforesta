@@ -434,7 +434,7 @@ never generate connecting contour segments. These are DSM surface heights,
 including canopy; they are not a terrain survey. The vertical reference
 remains the input elevation model's orthometric reference.
 
-Each `MAP_CONTEXT_DIR/<Compresa>/context.json.gz` is a complete, atomically
+Each `MAP_CONTEXT_DIR/<map_key>/context.json.gz` is a complete, atomically
 published snapshot with source/build metadata and a parcel geometry hash.
 An unchanged build is reused; an explicit `--force` refreshes it. Errors leave
 the last complete snapshot untouched. `--dem` and `--osm-file` accept local

@@ -104,12 +104,13 @@ def map_context_data(request, region_id):
         return response
 
     try:
-        path = region_directory(settings.MAP_CONTEXT_DIR, region.name) / CONTEXT_FILE
+        path = region_directory(settings.MAP_CONTEXT_DIR, str(region.map_key)) / CONTEXT_FILE
         if not path.is_file():
             return unavailable()
         payload = read_context(path)
         fingerprint, _ = region_geometry(map_geojson(), region.name)
-        if (payload.get('schema_version') != SCHEMA_VERSION or payload.get('region') != region.name
+        if (payload.get('schema_version') != SCHEMA_VERSION
+                or payload.get('region_key') != str(region.map_key)
                 or payload.get('build', {}).get('geometry_hash') != fingerprint):
             return unavailable(stale=True)
         return conditional_file_response(request, path, content_type='application/geo+json',
@@ -1327,18 +1328,12 @@ def _satellite_file_path(region_id, *parts, required=True):
 
 
 def _satellite_region_dir(region_id):
+    from apps.bosco.map_context_data import MapContextError, region_directory
+    region = get_object_or_404(Region, pk=region_id)
     try:
-        region = Region.objects.get(pk=region_id)
-    except Region.DoesNotExist as exc:
+        return region_directory(settings.SATELLITE_DIR, str(region.map_key))
+    except MapContextError as exc:
         raise Http404 from exc
-
-    base = Path(settings.SATELLITE_DIR).resolve()
-    path = (base / region.name).resolve()
-    try:
-        path.relative_to(base)
-    except ValueError as exc:
-        raise Http404 from exc
-    return path
 
 
 def _satellite_raw_response(request, path):

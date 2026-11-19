@@ -7,7 +7,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.base.map_data import map_geojson
+from apps.base.map_data import map_geojson, region_map_keys
 from apps.bosco import satellite
 from apps.bosco.map_context_data import MapContextError, region_directory
 
@@ -67,6 +67,7 @@ class Command(BaseCommand):
             if not regions:
                 raise satellite.SatelliteError('no regions found in parcel map')
 
+            regions = region_map_keys(regions, file_input=options['geojson'] is not None)
             action = options['action']
             if action in {'dates', 'all'}:
                 self._build_dates(geojson, output_dir, regions, options)
@@ -90,8 +91,8 @@ class Command(BaseCommand):
                 options['max_cloud_winter'],
             ),
         ]
-        for region in regions:
-            region_dir = region_directory(output_dir, region)
+        for region, key in regions.items():
+            region_dir = region_directory(output_dir, str(key))
             all_dates = set()
             for label, months, max_cloud in windows:
                 dates = satellite.find_region_dates(
@@ -108,8 +109,8 @@ class Command(BaseCommand):
             self.stdout.write(f'{region}: wrote {len(all_dates)} total date(s)')
 
     def _fetch(self, geojson, output_dir, regions, options):
-        for region in regions:
-            region_dir = region_directory(output_dir, region)
+        for region, key in regions.items():
+            region_dir = region_directory(output_dir, str(key))
             dates = options['date'] or satellite.read_dates_file(region_dir / 'dates.txt')
             fetched, skipped = satellite.fetch_region(
                 geojson, region_dir, region, dates, force=options['force'],
@@ -120,7 +121,7 @@ class Command(BaseCommand):
             )
 
     def _precompute(self, geojson, output_dir, regions):
-        for region in regions:
-            region_dir = region_directory(output_dir, region)
+        for region, key in regions.items():
+            region_dir = region_directory(output_dir, str(key))
             count = satellite.precompute_region(geojson, region_dir, region)
             self.stdout.write(f'{region}: precomputed {count} date(s)')

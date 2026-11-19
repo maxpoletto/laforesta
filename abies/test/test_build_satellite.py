@@ -5,7 +5,9 @@ from io import StringIO
 
 import numpy as np
 from django.core.management import call_command
+from django.db import connection
 
+from apps.base.map_keys import initial_map_key
 from apps.bosco import satellite
 
 
@@ -51,7 +53,18 @@ def test_regions_from_geojson_returns_sorted_layers(tmp_path):
     assert satellite.regions_from_geojson(geojson) == ['Capistrano', 'Serra']
 
 
-def test_build_satellite_dates_writes_window_and_combined_files(tmp_path, monkeypatch):
+def test_file_only_build_without_an_installed_database(tmp_path, monkeypatch):
+    missing_db = tmp_path / 'uninstalled' / 'db.sqlite3'
+    monkeypatch.setitem(connection.settings_dict, 'NAME', missing_db)
+    geojson = tmp_path / 'map.geojson'
+    _write_geojson(geojson, [_feature('Serra', '1')])
+    monkeypatch.setattr(satellite, 'find_region_dates', lambda *args, **kwargs: [])
+    call_command('build_satellite', 'dates', geojson=geojson, output_dir=tmp_path)
+    assert (tmp_path / str(initial_map_key('Serra')) / 'dates.txt').is_file()
+    assert not missing_db.exists()
+
+
+def test_build_satellite_dates_writes_window_and_combined_files(db, tmp_path, monkeypatch):
     geojson = tmp_path / 'terreni.geojson'
     output = tmp_path / 'satellite'
     _write_geojson(geojson, [_feature('Serra', '1')])
@@ -76,7 +89,7 @@ def test_build_satellite_dates_writes_window_and_combined_files(tmp_path, monkey
         '--year-start', '2024', '--year-end', '2025', stdout=StringIO(),
     )
 
-    region_dir = output / 'Serra'
+    region_dir = output / str(initial_map_key('Serra'))
     assert _read_lines(region_dir / 'dates-summer.txt') == ['2024-07-01', '2025-06-20']
     assert _read_lines(region_dir / 'dates-winter.txt') == ['2024-02-15', '2025-01-12']
     assert _read_lines(region_dir / 'dates.txt') == [
@@ -84,10 +97,10 @@ def test_build_satellite_dates_writes_window_and_combined_files(tmp_path, monkey
     ]
 
 
-def test_build_satellite_fetch_skips_complete_dates_without_token(tmp_path, monkeypatch):
+def test_build_satellite_fetch_skips_complete_dates_without_token(db, tmp_path, monkeypatch):
     geojson = tmp_path / 'terreni.geojson'
     output = tmp_path / 'satellite'
-    region_dir = output / 'Serra'
+    region_dir = output / str(initial_map_key('Serra'))
     _write_geojson(geojson, [_feature('Serra', '1')])
     _write_complete_date(region_dir, geojson, 'Serra', '2026-07-01')
     satellite.write_dates_file(region_dir / 'dates.txt', ['2026-07-01'])
@@ -106,10 +119,10 @@ def test_build_satellite_fetch_skips_complete_dates_without_token(tmp_path, monk
     assert 'fetched 0 date(s); skipped 1' in stdout.getvalue()
 
 
-def test_build_satellite_precompute_writes_manifest_mask_and_timeseries(tmp_path):
+def test_build_satellite_precompute_writes_manifest_mask_and_timeseries(db, tmp_path):
     geojson = tmp_path / 'terreni.geojson'
     output = tmp_path / 'satellite'
-    region_dir = output / 'Serra'
+    region_dir = output / str(initial_map_key('Serra'))
     _write_geojson(geojson, [_feature('Serra', '1')])
     _write_complete_date(region_dir, geojson, 'Serra', '2026-07-01', value=192)
 
@@ -123,7 +136,8 @@ def test_build_satellite_precompute_writes_manifest_mask_and_timeseries(tmp_path
     assert manifest['dates'] == ['2026-07-01']
     assert manifest['bands'] == ['b02', 'b04', 'b08', 'b11']
     assert (region_dir / 'parcel-mask.tif').is_file()
+    assert timeseries['schema_version'] == 2
     assert timeseries['dates'] == ['2026-07-01']
-    assert timeseries['parcels'] == ['Serra-1']
+    assert timeseries['parcels'] == ['1']
     assert timeseries['means']['forest']['ndvi'] == [round(192 / 127.5 - 1, 4)]
-    assert timeseries['means']['parcels']['Serra-1']['b02'] == [round(192 / 255, 4)]
+    assert timeseries['means']['parcels']['1']['b02'] == [round(192 / 255, 4)]

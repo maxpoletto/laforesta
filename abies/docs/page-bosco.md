@@ -612,10 +612,12 @@ mode-switch.
 ### Map data
 
 - **Printable-map context** — `/api/bosco/map-context/<region_id>/` serves the
-  local `MAP_CONTEXT_DIR/<Compresa>/context.json.gz` to authenticated readers,
+  local `MAP_CONTEXT_DIR/<map_key>/context.json.gz` to authenticated readers,
   using gzip, ETags and conditional GET. The GeoJSON FeatureCollection includes
-  `schema_version`, `available`, `region`, `bbox`, `parcel_bbox`, `build`,
-  `built_at`, `osm_timestamp` and `features`. Feature `properties.layer` is
+  `schema_version`, `available`, `region`, `region_key`, `bbox`, `parcel_bbox`, `build`,
+  `built_at`, `osm_timestamp` and `features`. The `region` field records the name
+  at build time. The reader uses `region_key` to identify the compresa after a
+  rename. Feature `properties.layer` is
   `roads`, `water` or `contours`; roads/water have `kind`, contours `elevation`
   in meters. The build metadata records the parcel-geometry hash, buffer,
   contour interval and input sources. Missing data returns `available: false`;
@@ -631,7 +633,9 @@ mode-switch.
   `/api/bosco/satellite/<region_id>/...`.  Built from the database map with
   `manage.py build_satellite`; satellite metrics in both Caratteristiche and
   Evoluzione render raster pixels by default and use the precomputed per-parcel
-  means in `timeseries.json` when `fa=1`. Raster-mode overlays and
+  means in `timeseries.json` when `fa=1`. The summary identifies parcels by
+  their name within the compresa. The parcel list order matches the pixel
+  indices in the mask. Raster-mode overlays and
   tooltips are rendered in the browser from the same prefetched raw raster
   values.
   Raster dimensions use WGS84 ellipsoidal ground distances for the nominal
