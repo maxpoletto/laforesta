@@ -34,7 +34,7 @@ the compresa on completion or the unfinished transfer expires.
 
 An imported Ipso walk appears as one drawing. **Modifica** lets the operator
 select a trace or point, move a vertex, copy a side road into a new drawing,
-remove parts, or join consecutive lines. **Promuovi** turns the resulting line
+split a line at a selected vertex, remove parts, or join consecutive lines. **Promuovi** turns the resulting line
 into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 

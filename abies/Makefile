@@ -269,6 +269,7 @@ test-print-js-coverage:
 
 # Pure-JS tests for shared client-side modules.
 test-js:
+	node apps/impostazioni/static/impostazioni/js/drawing-parts.test.mjs
 	node apps/base/static/base/js/geodesy.test.mjs
 	node apps/base/static/base/js/metric-geometry.test.mjs
 	node apps/ipso/static/ipso/pwa/ipso.test.mjs

@@ -13,7 +13,7 @@ import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
-import { closeLine, handPart, insertVertex, joinParts, moveVertex } from './drawing-parts.js';
+import { closeLine, handPart, insertVertex, joinParts, moveVertex, openPolygon, splitLine } from './drawing-parts.js';
 
 // Unsaved edits belong to this browser tab and compresa.
 const drafts = new Map();
@@ -182,6 +182,9 @@ export class CartographyEditor {
     b.cancel.disabled = b.copy.disabled = !!this.busy;
     b['remove-part'].disabled = !!this.busy || !part || parts.length < 2;
     b.join.disabled = !!this.busy || part?.type !== 'LineString' || parts[draft.active + 1]?.type !== 'LineString';
+    b.split.disabled = !!this.busy || part?.type !== 'LineString'
+      || !(draft.vertex > 0 && draft.vertex < part.coordinates.length - 1);
+    b['open-polygon'].disabled = !!this.busy || part?.type !== 'Polygon';
     b['close-line'].disabled = !!this.busy || part?.type !== 'LineString' || part.coordinates.length < 3;
     b['remove-drawing'].disabled = locked || !drawing;
     b.clear.disabled = locked || !this.state?.drawings.length;
@@ -201,6 +204,7 @@ export class CartographyEditor {
 
   selectPart(index) {
     this.draft.active = index;
+    this.draft.vertex = null;
     this.refreshEdit();
   }
 
@@ -208,6 +212,7 @@ export class CartographyEditor {
     const d = this.draft;
     d.previous = {parts: structuredClone(d.parts), active: d.active};
     change(d);
+    d.vertex = null;
     this.refreshEdit();
   }
 
@@ -225,6 +230,8 @@ export class CartographyEditor {
       this.parts.value = String(d.active);
     }
     this.map.edit(d, {
+      vertex: d.vertex,
+      selectVertex: i => { d.vertex = i; this.updateButtons(); },
       selectPart: i => this.selectPart(i), place: ll => this.place(ll),
       move: (r, i, pt) => this.changeParts(d => moveVertex(d.parts[d.active], r, i, pt)),
       insert: (r, i, pt) => this.changeParts(d => insertVertex(d.parts[d.active], r, i, pt)),
@@ -315,6 +322,12 @@ export class CartographyEditor {
       case 'join':
         this.changeParts(d => joinParts(d.parts, d.active));
         break;
+      case 'split':
+        this.changeParts(d => d.parts.splice(d.active, 1, ...splitLine(d.parts[d.active], d.vertex)));
+        break;
+      case 'open-polygon':
+        this.changeParts(d => d.parts.splice(d.active, 1, ...openPolygon(d.parts[d.active])));
+        break;
       case 'close-line':
         this.changeParts(d => { d.parts[d.active] = closeLine(d.parts[d.active]); });
         break;
@@ -332,12 +345,17 @@ export class CartographyEditor {
         break;
       }
       case 'cancel':
-        showConfirmModal(S.CARTOGRAPHY_CANCEL, () => {
+        showConfirmModal(S.CARTOGRAPHY_CANCEL, async () => {
+          const refresh = this.draft.refreshOnCancel;
           drafts.delete(this.regionId);
           this.draft = null;
           this.map.render(this.state);
           this.select(row ? 'drawing' : null, row?.id);
           this.status.textContent = '';
+          if (refresh) {
+            try { await this.reload(this.generation, {kind: 'drawing', id: row?.id}); }
+            catch { modals.showError(S.ERROR_NETWORK); }
+          }
         }, {confirmLabel: S.CARTOGRAPHY_DISCARD});
         break;
       case 'copy': {
@@ -402,6 +420,7 @@ export class CartographyEditor {
   async write(action, body) {
     if (this.busy || this.life.signal.aborted) return;
     const generation = this.generation;
+    const regionId = this.regionId, submitted = this.draft;
     this.busy = true;
     this.updateButtons();
     try {
@@ -409,15 +428,18 @@ export class CartographyEditor {
       const {data, status} = await postJSON(API + path + '/', {...body, nonce: crypto.randomUUID()});
       if (status >= 400) {
         if (this.current(generation)) {
-          if (!this.draft) await this.reload(generation);
+          if (this.draft) this.draft.refreshOnCancel = true;
+          else await this.reload(generation);
           modals.showError(data.message || S.ERROR_GENERIC);
         }
         return;
       }
       cache.applyResponseChanges(data);
       if (action === 'import') updateInboxDot(data);
+      if (['adjust', 'road', 'create', 'parcel'].includes(action) && drafts.get(regionId) === submitted) {
+        drafts.delete(regionId);
+      }
       if (!this.current(generation)) return;
-      if (['adjust', 'road', 'create', 'parcel'].includes(action)) drafts.delete(this.regionId);
       let selection = data.drawing_id && {kind: 'drawing', id: data.drawing_id};
       if (action === 'adjust') selection = {kind: 'drawing', id: body.id};
       if (action === 'road') selection = {kind: 'road', id: data.road_id};

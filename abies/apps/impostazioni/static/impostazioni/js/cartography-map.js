@@ -53,6 +53,7 @@ export class CartographyMap {
         const parts = kind === 'drawing' ? row.parts : [row.geometry];
         for (const part of parts) {
           const layer = this.partLayer(part, kind === 'road' ? roadStyle : drawingStyle).addTo(group);
+          if (part.type === 'Point' && part.fixes?.[0]) layer.bindTooltip(fixLabel(part.fixes[0]));
           layer.on('click', () => this.onSelect(kind, row.id));
         }
         this.layers.set(kind + row.id, group);
@@ -122,6 +123,7 @@ export class CartographyMap {
     }
     draft.parts.forEach((part, i) => {
       const layer = this.partLayer(part, i === draft.active ? selectedStyle : drawingStyle).addTo(this.preview);
+      if (i === draft.active) this.activeLayer = layer;
       layer.on('click', () => callbacks.selectPart(i));
     });
     this.watchHandles([draft.parts[draft.active]], callbacks);
@@ -152,10 +154,33 @@ export class CartographyMap {
             }) : L.circleMarker(ll, {radius: 4, color: drawingStyle.color, bubblingMouseEvents: false});
             marker.addTo(this.handles);
             if (fix) marker.bindTooltip(fixLabel(fix)).on('click', () => marker.openTooltip());
-            if (callbacks) marker.on('dragend', () => {
-              const end = marker.getLatLng();
-              callbacks.move(r, i, [end.lng, end.lat]);
-            });
+            if (callbacks) {
+              const selectVertex = () => {
+                this.handles.eachLayer(handle => handle.getElement()?.classList.remove('cartography-active-vertex'));
+                marker.getElement()?.classList.add('cartography-active-vertex');
+                callbacks.vertex = i;
+                callbacks.selectVertex(i);
+              };
+              if (part.type === 'LineString') {
+                if (callbacks.vertex === i) marker.getElement()?.classList.add('cartography-active-vertex');
+                marker.on('click', selectVertex);
+              }
+              marker.on('drag', () => {
+                const layer = this.activeLayer;
+                const end = marker.getLatLng();
+                if (part.type === 'Point') layer.setLatLng(end);
+                else {
+                  const positions = layer.getLatLngs();
+                  const ring = part.type === 'Polygon' ? positions[r] : positions;
+                  ring[i] = end;
+                  layer.setLatLngs(positions);
+                }
+              });
+              marker.on('dragend', () => {
+                const end = marker.getLatLng();
+                callbacks.move(r, i, [end.lng, end.lat]);
+              });
+            }
           });
           offset += ring.length;
         });

@@ -49,3 +49,19 @@ export function insertVertex(part, ringIndex, i, coord) {
   all[ringIndex].splice(i, 0, coord);
   part.fixes?.splice(offset + i, 0, null);
 }
+
+export function splitLine(part, i) {
+  return [[0, i + 1], [i, part.coordinates.length]].map(([start, end]) => ({
+    type: 'LineString', coordinates: part.coordinates.slice(start, end),
+    ...(part.fixes && {fixes: part.fixes.slice(start, end)}),
+  }));
+}
+
+export function openPolygon(part) {
+  let offset = 0;
+  return part.coordinates.map(ring => {
+    const fixes = part.fixes?.slice(offset, offset + ring.length - 1);
+    offset += ring.length;
+    return {type: 'LineString', coordinates: ring.slice(0, -1), ...(fixes && {fixes})};
+  });
+}

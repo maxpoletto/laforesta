@@ -131,6 +131,16 @@ async function walk(browser) {
   await action('join').click();
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
   if (width < 800) await sidebarToggle.click();
+  await loc('.cartography-vertex').nth(1).click();
+  if (width < 800) await sidebarToggle.click();
+  await action('split').click();
+  assert.equal(await loc('#cartography-parts option').count(), 2);
+  await action('undo').click();
+  await page.getByRole('link', {name: 'Dati di base', exact: true}).click();
+  await page.getByRole('link', {name: 'Cartografia', exact: true}).click();
+  await action('save').waitFor();
+  assert.equal(await loc('#cartography-parts option').count(), 1);
+  if (width < 800) await sidebarToggle.click();
   const handle = loc('.cartography-vertex').first();
   const box = await handle.boundingBox();
   assert.ok(box);
