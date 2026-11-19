@@ -19,9 +19,9 @@ left and a sidebar on the right. On a phone, the sidebar can open as a panel and
 keep the current selection when the operator returns to the map.
 
 Users can edit existing parcels (particelle) and roads (strade). They can also
-import points, lines, and polygons from various sources. These we call drawings
-(disegni). They may be edited and upgraded to parcels and roads that then become
-visible throughout Abies.
+draw lines and polygons by hand or import points, lines and polygons. These
+drawings (disegni) can be edited and promoted to roads or parcels that then
+become visible throughout Abies.
 
 Parcels and roads belong to regions (comprese). The only required feature of
 region is its name. A region's parcels may be non-contiguous. A region does not
@@ -85,9 +85,11 @@ Below the list are two buttons that become enabled when a parcel is selected:
 
 **Proprietà** opens a modal identical to that used in the Bosco parcel detail
 page, with the addition that the parcel name is editable also. [Implementation
-note: the modal code should be reused, not duplicated.] The only required
-property is name. In particular, cadastral area may be undefined initially (null
-in the database, rendered as '-' in the UI).
+note: the modal code should be reused, not duplicated.] A parcel requires a
+name and an economic class (**Comparto**). For a new parcel, the dropdown
+selects the first configured class in alphabetical order by name (for example,
+A). For an existing parcel, it shows the assigned class. Cadastral area may be
+undefined (null in the database, rendered as '-' in the UI).
 
 If the parcel is still unused, **Proprietà** also offers a red **Elimina**
 button, analogously to the region workflow. On save or delete, changes
@@ -96,8 +98,8 @@ immediately becoming visible throughout Abies.
 **Confini** makes the parcel's map editable:
 - The parcel is highlighted and vertices become visible and movable. Edges
   acquire "insert vertex" controls [Implementation note: as in bosco/ep].
-- A "new polygon" tool appears on the map, and can be used to add a new region
-  to the parcel.
+- The **Poligono** tool adds a piece to the highlighted parcel. The new piece
+  may be separate from the rest of the parcel and is saved with **Salva**.
 - A "undo" button appears on the map, to undo just the last step.
 - Two buttons appear below **Proprietà** and **Confini**: **Annulla** (grey) **Salva** (green)
 
@@ -144,12 +146,16 @@ Any map changes are persistent across tab navigation.
 
 The drawing control is a foldable section.
 
-Drawing's attributes are their name (chosen on import) and their geometry.
+When no object is being edited, the map offers **Linea** and **Poligono**, even
+in an empty compresa. Finishing a shape adds it to **Disegni** in the selected
+compresa. The operator can draw a boundary this way and promote it to the
+compresa's first parcel.
 
-The top part is a list of drawings that have been imported but neither deleted
-nor promoted to roads or parcels. The list has the same hide/unhide affordance
-as the other lists, as well as a delete affordance (garbage icon on each row and
-at the top). Deletion is gated by the standard warning modal.
+Each drawing has a name and geometry. For imported drawings, the name is
+chosen on import. The list includes hand-drawn and imported drawings until
+they are deleted or promoted. It has the same hide/unhide affordance as the
+other lists, as well as a delete affordance (garbage icon on each row and at
+the top). Deletion is gated by the standard warning modal.
 
 The list interacts bidirectionally with the map just like for parcels and roads.
 
@@ -158,16 +164,31 @@ Below the list are the following buttons: **Modifica** **Promuovi**.
 **Modifica** makes the drawing editable, and makes visible  the usual editing
 map controls and **Annulla** and **Salva** buttons.
 
-**Promuovi** open a modal that allows the user to save the drawing as a road
-(for polylines) or a parcel (for polygons). The modals are exactly those used to
-edit the **Proprietà** of the two types of objects.
+**Promuovi** opens a modal with the destinations available for the selected
+drawing. A line can become a new road. A polygon can become a new parcel or,
+if the compresa already has parcels, the operator can choose **Aggiungi a
+particella esistente** and select the parcel that will gain the piece. New
+roads and parcels use the same property fields as **Proprietà**. The button
+is disabled when there is no eligible drawing selected.
 
-Clicking **Promuovi** before **Salva** during an ongoing edit is allowed and
-implicitly saves the result. So then clicking **Annulla** in the modal still
-preserves the drawing changes.
+The operator can open **Promuovi** while editing. **Annulla** in the modal
+returns to the drawing with the edits still on screen. The drawing's own
+**Salva** and **Annulla** are still available. Confirming the promotion saves
+the new road, new parcel or additional parcel piece and removes the drawing
+in one operation. If it fails, the drawing remains available to edit.
 
-After a promotion, the drawing is removed from the set of drawings, and the
-corresponding road or parcel is added to appropriate list.
+**Promuovi** uses the whole drawing as it appears in the editor. In
+**Modifica**, the operator can remove unwanted parts and use the rest for one
+road or parcel. For example, if a walk follows a road through a gate and then
+turns onto a side road, the operator can remove the side-road segment and the
+gate point, join the traces on either side of the gate, and inspect the
+connection before promoting the road. For a parcel, the operator can keep the
+traces that follow its boundary and close the outline.
+
+If the side road is also needed, the operator can copy that segment into a
+separate drawing before trimming the walk and promote each drawing in turn.
+After promotion, the complete walk is also available for a fresh import under
+**Da Ipso → Già importati**.
 
 As always, map changes are persistent across tab navigation.
 
@@ -183,13 +204,15 @@ There are three optins:
   Waypoints appear as points, each track segment appears as a separate line,
   and the rings of a polygon stay together. If the coordinate system of a DXF
   file is unknown, the editor asks for it before placing the drawing.
-- **Da Ipso** opens on new uploads for this compresa. Previously imported point
-  sets are available under **Già importati**. Each session appears once, with
-  its name, date and operator. An import from the Ipso inbox can open the same
-  drawings directly. Drawings appear in the order they were recorded. A trace
-  interrupted by a manual point appears as a line, a point and a second line.
-  Hovering over a point shows its reported accuracy and any note. On a phone,
-  tapping the point opens the same tooltip.
+- **Da Ipso** opens on new uploads for this compresa. Previously imported walks
+  are available under **Già importati**. Each walk appears once, with its name,
+  date and operator. Importing it adds one named drawing to **Disegni**. An
+  import from the Ipso inbox can open the same drawing directly. For example,
+  if the operator pauses a trace to mark a gate and then resumes, that drawing
+  contains the first line, the gate point and the second line, in recording
+  order. The gap is visible on the map. **Modifica** lets the operator edit
+  the parts individually. Hovering over a recorded point shows its accuracy
+  and any note. On a phone, tapping the point opens the same tooltip.
 - **Da rilevamento** offers a dropdown of existing tree surveys with mappable
   data in this compresa. Each entry shows the survey name, whether it is free or
   structured, and how many positions are available. Free surveys contribute
@@ -197,14 +220,18 @@ There are three optins:
 
 #### Deleting drawings
 
-As mentioned, drawings can be deleted from the drawing list.
+The trash icon on a row deletes that drawing. For an Ipso walk this removes
+the whole working copy. Removing a single trace segment is an edit within
+**Modifica**. The original field recording remains available under **Da Ipso
+→ Già importati**, even after the processed upload is cleared from the inbox.
+Survey drawings can likewise be imported again from the original survey.
+Restoring a drawing imported from a file requires the original file.
 
-Deleting a GPX or DXF remove it from Abies entirely.
-
-Deleting an Ipso import or a survey deletes the drawing from the current
-region's drawing list, but does not delete the collected data. The survey
-remains unchanged, and the Ipso import remains visible in the Import tab. Both
-types of objects could be reimported as drawings.
+The proposed behavior when importing the same walk again is to open its
+existing working copy. For example, if the operator corrected the first
+segment and removed the second, both decisions are preserved. Once the whole
+drawing has been deleted or promoted, importing the walk again creates a
+fresh drawing from the complete original recording.
 
 ## Working with vertices
 
