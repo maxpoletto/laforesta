@@ -534,6 +534,8 @@ async function walk(browser) {
   await modal.locator('#cartography-surveys option').first().waitFor({state: 'attached'});
   assert.deepEqual(await modal.locator('#cartography-surveys option').allTextContents(),
     ['Alberi da preservare · Libero · 1 posizione']);
+  assert.deepEqual(await modal.locator('form[data-path=survey] .form-actions button').allTextContents(),
+    ['Annulla', 'Importa']);
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/import-survey/') && r.ok()),
     modal.getByRole('button', {name: 'Importa', exact: true}).click(),
@@ -543,6 +545,8 @@ async function walk(browser) {
   await action('open-import').click();
   await modal.getByRole('button', {name: 'Da file', exact: true}).click();
   const file = modal.locator('input[type=file]');
+  assert.deepEqual(await modal.locator('form[data-path=file] .form-actions button').allTextContents(),
+    ['Annulla', 'Importa']);
   await file.setInputFiles({name: 'confini.dxf', mimeType: 'application/dxf', buffer: Buffer.from('')});
   assert.ok(await modal.getByLabel('Codice EPSG del DXF').isVisible());
   await file.setInputFiles({name: 'Traccia.geojson', mimeType: 'application/geo+json',

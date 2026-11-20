@@ -30,7 +30,7 @@
     {% endif %}
     {% if promotion or edit_name %}
       <div class="form-row"><div class="form-group">
-        <label for="id_parcel_name">Nome</label>
+        <label for="id_parcel_name">{{ S.LABEL_NAME }}</label>
         <input type="text" id="id_parcel_name" name="name" maxlength="20" required value="{{ parcel.name }}">
       </div></div>
     {% endif %}

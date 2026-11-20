@@ -6,7 +6,7 @@ import { sortFeaturesByArea } from '../../base/js/geo.js';
 import * as modals from '../../base/js/modals.js';
 import { navigateWithParams } from '../../base/js/page-sync.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { showConfirmModal } from '../../base/js/ui-widgets.js';
+import { showConfirmModal, wireCancelButtons } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
@@ -562,8 +562,9 @@ export class CartographyEditor {
       save: (action, body, form) => this.write(action, body, form),
       loadSurveys: async () => (await fetchJSON(`${API}${regionId}/surveys/`)).data.surveys,
     });
-    modal.querySelector('[data-action=cancel]').onclick = modals.dismiss;
-    for (const button of modal.querySelectorAll('.modal-tab-body[data-path=ipso] [data-action]')) {
+    wireCancelButtons(modal, modals.dismiss);
+    const ipso = modal.querySelector('.modal-tab-body[data-path=ipso]');
+    for (const button of ipso.querySelectorAll('[data-action]:not([data-action=cancel])')) {
       const {action} = button.dataset;
       const select = action === 'import' ? uploads : sources;
       button.disabled = !select.options.length;
@@ -583,7 +584,7 @@ export class CartographyEditor {
     }
     modals.show(modal);
     (uploads.options.length ? uploads : sources.options.length ? sources
-      : modal.querySelector('[data-action=cancel]')).focus();
+      : ipso.querySelector('[data-action=cancel]')).focus();
   }
 
   async act(button) {

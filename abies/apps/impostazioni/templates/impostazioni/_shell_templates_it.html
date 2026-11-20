@@ -224,7 +224,7 @@ S (string constants) provided by the shell's render context.
             <label for="cartography-region">Compresa</label>
             <select id="cartography-region"></select>
             <div class="cartography-sidebar-actions">
-              <button class="btn" data-action="edit-region" disabled>Proprietà</button>
+              <button class="btn" data-action="edit-region" disabled>{{ S.ACTION_PROPERTIES }}</button>
               <button class="btn btn-create" data-action="new-region" disabled>Nuova</button>
             </div>
             <p role="status" data-role="status"></p>
@@ -240,7 +240,7 @@ S (string constants) provided by the shell's render context.
             <ul class="map-workspace-list" id="cartography-parcels"
                 aria-labelledby="cartography-parcels-label" hidden></ul>
             <div class="cartography-sidebar-actions">
-              <button class="btn" data-action="parcel-properties" disabled>Proprietà</button>
+              <button class="btn" data-action="parcel-properties" disabled>{{ S.ACTION_PROPERTIES }}</button>
               <button class="btn" data-action="boundaries" disabled>Confini</button>
             </div>
           </section>
@@ -255,7 +255,7 @@ S (string constants) provided by the shell's render context.
             <ul class="map-workspace-list" id="cartography-roads"
                 aria-labelledby="cartography-roads-label" hidden></ul>
             <div class="cartography-sidebar-actions">
-              <button class="btn" data-action="road-properties" disabled>Proprietà</button>
+              <button class="btn" data-action="road-properties" disabled>{{ S.ACTION_PROPERTIES }}</button>
               <button class="btn" data-action="points" disabled>Punti</button>
             </div>
           </section>
@@ -270,13 +270,13 @@ S (string constants) provided by the shell's render context.
             </div>
             <div class="cartography-sidebar-actions cartography-drawing-entry-actions">
               <button class="btn btn-create" data-action="new-drawing" disabled>Nuovo</button>
-              <button class="btn" data-action="open-import" disabled>Importa…</button>
+              <button class="btn" data-action="open-import" disabled>{{ S.IMPORT_LABEL }}…</button>
             </div>
             <p class="cartography-empty" data-empty="drawing">Nessun disegno</p>
             <ul class="map-workspace-list" id="cartography-drawings"
                 aria-labelledby="cartography-drawings-label" hidden></ul>
             <div class="cartography-sidebar-actions">
-              <button class="btn" data-action="edit" disabled>Modifica</button>
+              <button class="btn" data-action="edit" disabled>{{ S.ACTION_EDIT }}</button>
               <button class="btn btn-save" data-action="promote" disabled>Promuovi</button>
             </div>
             <div data-role="parts" hidden>
@@ -348,7 +348,8 @@ S (string constants) provided by the shell's render context.
           <input id="cartography-epsg" type="text" name="epsg" inputmode="numeric" pattern="[0-9]{1,6}" disabled>
         </div>
         <div class="form-actions">
-          <button type="submit" class="btn btn-import">Importa</button>
+          <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+          <button type="submit" class="btn btn-import">{{ S.IMPORT_LABEL }}</button>
         </div>
       </form>
       <div class="modal-tab-body" data-path="ipso">
@@ -357,7 +358,7 @@ S (string constants) provided by the shell's render context.
             <label for="cartography-uploads">Nuovi rilievi</label>
             <select id="cartography-uploads"></select>
           </div>
-          <button type="button" class="btn btn-save" data-action="import" disabled>Importa</button>
+          <button type="button" class="btn btn-import" data-action="import" disabled>{{ S.IMPORT_LABEL }}</button>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -369,6 +370,9 @@ S (string constants) provided by the shell's render context.
             <button type="button" class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
           </div>
         </div>
+        <div class="form-actions">
+          <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+        </div>
       </div>
       <form class="modal-tab-body" data-path="survey">
         <div class="form-group">
@@ -377,12 +381,10 @@ S (string constants) provided by the shell's render context.
         </div>
         <p role="status"></p>
         <div class="form-actions">
-          <button type="submit" class="btn btn-import" disabled>Importa</button>
+          <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+          <button type="submit" class="btn btn-import" disabled>{{ S.IMPORT_LABEL }}</button>
         </div>
       </form>
-    </div>
-    <div class="form-actions">
-      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
     </div>
   </div>
 </template>

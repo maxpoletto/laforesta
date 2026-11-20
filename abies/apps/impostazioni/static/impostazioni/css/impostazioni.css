@@ -211,14 +211,11 @@ details.cartography-section > .cartography-list-header {
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid #aaa;
   border-radius: 4px;
-  background: white;
 }
-.cartography-map-tools .cartography-map-icon.btn-save:not(:disabled) {
-  background: var(--color-bosco-green);
-  border-color: var(--color-bosco-green);
-  color: white;
+.cartography-map-icon:where(:not(.btn-save)) {
+  border: 1px solid #aaa;
+  background: white;
 }
 .cartography-map-icon svg {
   width: 21px;
