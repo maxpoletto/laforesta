@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { breakPart, canRemoveVertex, closeLine, insertVertex, joinEndpoints, moveVertex, removeVertex } from './drawing-parts.js';
+import {
+  breakPart, canJoinEndpoints, canRemoveVertex, closeLine, insertVertex, joinEndpoints,
+  moveVertex, removeVertex,
+} from './drawing-parts.js';
 import { boundaryVertexRemoval, removeBoundaryVertex } from './parcel-boundaries.js';
 
 const track = {type: 'LineString', coordinates: [[16, 38], [16.1, 38], [16, 38.2]],
@@ -25,6 +28,13 @@ assert.equal(joinEndpoints([track], {part: 0, index: 0}, {part: 0, index: 0}), n
 const closed = [track];
 joinEndpoints(closed, {part: 0, index: 2}, {part: 0, index: 0});
 assert.deepEqual(closed, [closeLine(track)]);
+assert.equal(canJoinEndpoints([]), false);
+assert.equal(canJoinEndpoints([...closed, point]), false);
+assert.equal(canJoinEndpoints([forward, point]), false);
+assert.equal(canJoinEndpoints([line([[16, 38], [17, 38], [16, 38]])]), false);
+assert.equal(canJoinEndpoints([track]), true);
+assert.equal(canJoinEndpoints([track], {close: false}), false);
+assert.equal(canJoinEndpoints([forward, point, reverse], {close: false}), true);
 
 const polygon = closeLine(track);
 polygon.coordinates.push([[16.01, 38.02], [16.02, 38.02], [16.01, 38.03], [16.01, 38.02]]);
@@ -47,7 +57,13 @@ removeVertex(polygon, 1, 0);
 assert.deepEqual(polygon.coordinates[1][0], polygon.coordinates[1].at(-1));
 assert.deepEqual(polygon.fixes, [...oldOuterFixes, null, null, [2, 'Interno'], null]);
 
-assert.equal(canRemoveVertex(track, 0, 1), false);
+const shortened = structuredClone(track);
+assert.equal(canRemoveVertex(shortened, 0, 0), false);
+assert.equal(canRemoveVertex(shortened, 0, 2), false);
+assert.equal(canRemoveVertex(shortened, 0, 1), true);
+removeVertex(shortened, 0, 1);
+assert.deepEqual(shortened, line([[16, 38], [16, 38.2]], [[2, ''], [2, '']]));
+assert.equal(canRemoveVertex(shortened, 0, 1), false);
 
 const west = {type: 'Polygon', coordinates: [[[16, 38], [17, 38], [17.1, 38.5], [17, 39], [16, 39], [16, 38]]]};
 const east = {type: 'Polygon', coordinates: [[[17, 38], [18, 38], [18, 39], [17, 39], [17.1, 38.5], [17, 38]]]};

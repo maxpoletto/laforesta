@@ -15,7 +15,10 @@ import { addSketchPoint, cancelSketch, changeGeometry, undoEdit } from './draft-
 import { boundaryVertexRemoval, detachBoundary, editBoundary, removeBoundaryVertex } from './parcel-boundaries.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
-import { breakPart, canBreakPart, canRemoveVertex, handPart, insertVertex, joinEndpoints, moveVertex, removeVertex } from './drawing-parts.js';
+import {
+  breakPart, canBreakPart, canJoinEndpoints, canRemoveVertex, handPart, insertVertex,
+  joinEndpoints, moveVertex, removeVertex,
+} from './drawing-parts.js';
 
 // Unsaved edits belong to this browser tab and compresa.
 const drafts = new Map();
@@ -251,13 +254,15 @@ export class CartographyEditor {
       ? !!boundaryVertexRemoval(draft, selectedVertex.ring, selectedVertex.index)
       : canRemoveVertex(activePart, selectedVertex.ring, selectedVertex.index));
     const remove = b['remove-vertex'];
-    remove.hidden = !draft || !!draft.tool || !!draft.returnSelection;
+    const editingVertices = draft && !draft.tool && !draft.returnSelection;
+    remove.hidden = !editingVertices;
     remove.disabled = !!this.busy || !canRemove;
     remove.title = selectedVertex && !canRemove ? S.CARTOGRAPHY_VERTEX_REQUIRED : S.CARTOGRAPHY_REMOVE_VERTEX;
     b['break-link'].hidden = b['join-link'].hidden = remove.hidden;
     b['break-link'].disabled = !!this.busy || !selectedVertex
       || !canBreakPart(activePart, selectedVertex.ring, selectedVertex.index);
-    b['join-link'].disabled = !!this.busy;
+    b['join-link'].disabled = !!this.busy || !editingVertices
+      || !canJoinEndpoints(draft.parts, {close: draft.kind !== 'road'});
     b['join-link'].setAttribute('aria-pressed', String(!!draft?.join));
     b.finish.hidden = draft?.tool !== 'LineString';
     b.finish.disabled = !!this.busy || !draft?.tool || draft.vertices.length < 2;
@@ -352,11 +357,12 @@ export class CartographyEditor {
   removeSelectedVertex() {
     const d = this.draft;
     const {ring, index} = d.vertex;
-    if (d.kind === 'parcel') {
+    const part = d.parts[d.active];
+    if (d.kind === 'parcel' && part.type === 'Polygon') {
       const removal = boundaryVertexRemoval(d, ring, index);
       if (removal) this.changeParts(draft => removeBoundaryVertex(draft, ring, index, removal));
-    } else if (canRemoveVertex(d.parts[d.active], ring, index)) {
-      this.changeParts(draft => removeVertex(draft.parts[draft.active], ring, index));
+    } else if (canRemoveVertex(part, ring, index)) {
+      this.changeParts(() => removeVertex(part, ring, index));
     }
   }
 

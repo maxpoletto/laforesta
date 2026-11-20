@@ -197,7 +197,7 @@ async function walk(browser) {
   await joinWalk();
   assert.equal(await loc('.cartography-vertex').first().getAttribute('aria-pressed'), null);
   await loc('.cartography-vertex').nth(1).click();
-  assert.ok(await action('remove-vertex').isDisabled());
+  assert.ok(await action('remove-vertex').isEnabled());
   await action('break-link').click();
   if (width < 800) await sidebarToggle.click();
   assert.equal(await loc('#cartography-parts option').count(), 2);
@@ -236,6 +236,7 @@ async function walk(browser) {
   await action('points').click();
   await action('save-road').waitFor();
   if (width < 800) await sidebarToggle.click();
+  assert.ok(await action('join-link').isDisabled());
   await loc('.cartography-insert-vertex').first().click();
   const roadVertices = loc('.cartography-vertex');
   const insertedCount = await roadVertices.count();
@@ -249,8 +250,13 @@ async function walk(browser) {
   await roadVertices.nth(1).click();
   assert.equal(await roadVertices.nth(1).getAttribute('aria-pressed'), 'true');
   assert.equal(await roadVertices.count(), insertedCount);
-  assert.ok(await action('remove-vertex').isDisabled());
+  await action('remove-vertex').click();
+  assert.equal(await roadVertices.count(), insertedCount - 1);
+  await action('undo').click();
+  assert.equal(await roadVertices.count(), insertedCount);
+  await roadVertices.nth(1).click();
   await action('break-link').click();
+  assert.ok(await action('join-link').isEnabled());
   assert.ok(await action('save-road').isDisabled());
   await action('undo').click();
   assert.equal(await roadVertices.count(), insertedCount);
@@ -345,6 +351,7 @@ async function walk(browser) {
   await action('save-parcel').waitFor();
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('line').isHidden());
+  assert.ok(await action('join-link').isDisabled());
   const parcelVertices = loc('.cartography-vertex');
   await parcelVertices.first().press('Enter');
   assert.equal(await parcelVertices.first().getAttribute('aria-pressed'), 'true');
@@ -384,6 +391,7 @@ async function walk(browser) {
   assert.ok(await action('remove-vertex').isDisabled());
   await action('break-link').click();
   assert.equal(await parcelVertices.count(), 2);
+  assert.ok(await action('join-link').isDisabled());
   if (width < 800) await sidebarToggle.click();
   await action('save-parcel').click();
   await Promise.all([

@@ -4,11 +4,22 @@ export function isEndpoint(part, index) {
   return part?.type === 'LineString' && (index === 0 || index === part.coordinates.length - 1);
 }
 
+function canCloseLine(part) {
+  const [first] = part.coordinates;
+  const second = part.coordinates.find(point => !samePosition(point, first));
+  return !!second && part.coordinates.some(point => !samePosition(point, first) && !samePosition(point, second));
+}
+
+export function canJoinEndpoints(parts, {close = true} = {}) {
+  const lines = parts.filter(part => part.type === 'LineString');
+  return lines.length > 1 || (close && lines.length === 1 && canCloseLine(lines[0]));
+}
+
 export function joinEndpoints(parts, a, b, {close = true} = {}) {
   if (!isEndpoint(parts[a.part], a.index) || !isEndpoint(parts[b.part], b.index)) return null;
   if (a.part === b.part) {
     const part = parts[a.part];
-    if (!close || a.index === b.index || new Set(part.coordinates.map(point => point.join(','))).size < 3) return null;
+    if (!close || a.index === b.index || !canCloseLine(part)) return null;
     parts[a.part] = closeLine(part);
     return a.part;
   }
@@ -78,6 +89,7 @@ export function insertVertex(part, ringIndex, i, coord) {
 }
 
 export function canRemoveVertex(part, ringIndex, index) {
+  if (part?.type === 'LineString') return canBreakPart(part, ringIndex, index);
   const ring = part?.type === 'Polygon' && part.coordinates[ringIndex];
   return !!ring && ring.length > 4 && index >= 0 && index < ring.length - 1;
 }
@@ -103,7 +115,7 @@ function splitLine(part, i) {
 
 export function canBreakPart(part, ringIndex, index) {
   if (index < 0) return false;
-  if (part?.type === 'LineString') return index > 0 && index < part.coordinates.length - 1;
+  if (part?.type === 'LineString') return ringIndex === 0 && index > 0 && index < part.coordinates.length - 1;
   return part?.type === 'Polygon' && index < (part.coordinates[ringIndex]?.length ?? 0) - 1;
 }
 

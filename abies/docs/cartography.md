@@ -252,15 +252,18 @@ boundary change is one action and undo restores both sides.
 A drawing can be reshaped by moving or removing vertices, split at a vertex,
 or joined to another line at an endpoint. Three map tools work with vertices.
 
-- **Rimuovi vertice** (trash) removes the selected vertex from a polygon and
-  reconnects its neighbors. The ring must have at least three vertices afterward.
+- **Rimuovi vertice** (trash) removes the selected vertex from a polygon or the
+  interior of a line and reconnects its neighbors. A polygon ring must keep at
+  least three vertices and a line must keep both endpoints.
 - **Interrompi al vertice** (broken link) splits a line at an interior vertex,
   which becomes an endpoint of both pieces. On a polygon, it removes the
   selected vertex and leaves its neighbors as the two ends of an open line.
   Other rings remain visible as separate lines.
 - **Unisci estremi** (link) displays the endpoints of every line in the edit.
   Selecting two endpoints joins their lines or closes one line into a polygon.
-  An edit in **Punti** must result in a single line for the road.
+  The tool is available when there are two lines to join or one line with
+  at least three distinct vertices to close. In **Punti**, the tool joins
+  separate lines into a single line for the road.
 
 When correcting a shared boundary,  the operator can select the common edge and
 show both affected parcels. Moving, inserting or removing a vertex along that
