@@ -45,8 +45,10 @@ deletion. Road properties include the name, type and delete action.
 
 Use **Confini** for parcel outlines or **Punti** for a road. Drag a vertex
 to move it or click the small handle between vertices to insert one. Select an
-existing vertex and use **Rimuovi vertice** on the map to remove it. Undo
-restores the last vertex edit. Activate
+existing vertex and use **Rimuovi vertice** on the map to remove it and reconnect
+its neighbors. The broken-link icon opens an outline at the selected vertex.
+Saving with an open outline asks for confirmation before leaving it out.
+A parcel in use must keep at least one polygon. Undo restores the last edit. Activate
 **Poligono** during a parcel edit to sketch another piece. Click the first
 vertex again to close the outline and add the piece to the edit. A coincident
 edge shared by parcels in the compresa is edited on both sides and the affected
@@ -58,7 +60,9 @@ tabs within a browser session.
 
 An imported Ipso walk appears as one drawing. **Modifica** lets the operator
 select a trace or point, move a vertex, copy a side road into a new drawing,
-split a line at a selected vertex, remove parts, or join consecutive lines. **Promuovi** turns the resulting line
+split a line at a selected vertex with the broken-link icon, or remove parts.
+The link icon lets the operator choose two line endpoints to join. Choosing
+both ends of one line closes a polygon. **Promuovi** turns the resulting line
 into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 

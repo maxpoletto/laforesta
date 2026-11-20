@@ -195,7 +195,15 @@ S (string constants) provided by the shell's render context.
             </button>
             <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
                     aria-label="Rimuovi vertice" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/></svg>
+            </button>
+            <button class="btn cartography-map-icon" data-action="break-link" title="Interrompi al vertice"
+                    aria-label="Interrompi al vertice" hidden disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3M5 7l2-2m10 14 2-2M9 5l1-2m10 11 2-1"/></svg>
+            </button>
+            <button class="btn cartography-map-icon" data-action="join-link" title="Unisci estremi"
+                    aria-label="Unisci estremi" aria-pressed="false" hidden disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/></svg>
             </button>
             <div class="cartography-buttons" data-role="sketch-tools" hidden>
               <button class="btn" data-action="cancel-sketch">{{ S.CANCEL }}</button>
@@ -273,10 +281,6 @@ S (string constants) provided by the shell's render context.
               <div class="cartography-buttons">
                 <button class="btn" data-action="copy">Copia in un nuovo disegno</button>
                 <button class="btn" data-action="remove-part">Rimuovi parte</button>
-                <button class="btn" data-action="join">Unisci alla linea successiva</button>
-                <button class="btn" data-action="split">Dividi al vertice selezionato</button>
-                <button class="btn" data-action="open-polygon">Apri contorno</button>
-                <button class="btn" data-action="close-line">Chiudi poligono</button>
               </div>
             </div>
             <div class="cartography-buttons" data-role="edit-actions" hidden>

@@ -498,3 +498,42 @@ def test_boundary_edit_can_add_piece_and_reject_overlap(client, writer_user, par
     assert parcel.version == 2 and parcel.map_features.count() == 2
     assert write(client, parcel.region, 'remove-parcel', id=parcel.pk, version=2).status_code == 200
     assert not MapFeature.objects.filter(parcel_id=parcel.pk).exists()
+
+
+def test_opening_boundary_pieces_preserves_parcel_and_protects_its_last_outline(client, writer_user, parcels):
+    from apps.base.models import HarvestPlan, HarvestPlanItem, MapFeature
+
+    parcel, neighbor = parcels[:2]
+    client.force_login(writer_user)
+    first = [[[16, 38], [17, 38], [17, 39], [16, 38]]]
+    second = [[[18, 38], [19, 38], [19, 39], [18, 38]]]
+    outline = MapFeature.objects.create(parcel=parcel,
+        geometry={'type': 'MultiPolygon', 'coordinates': [first, second]})
+    other = MapFeature.objects.create(parcel=neighbor, geometry={'type': 'Polygon',
+        'coordinates': [[[17, 38], [18, 38], [17, 39], [17, 38]]]})
+    plan = HarvestPlan.objects.create(name='Prova', year_start=2027, year_end=2030)
+    item = HarvestPlanItem.objects.create(harvest_plan=plan, parcel=parcel, year_planned=2028)
+    path = f'{ROOT}{parcel.region_id}/parcels/{parcel.pk}/boundaries/'
+
+    def detach(fid, part=0):
+        return {'id': fid, 'part': part, 'operation': 'detach'}
+
+    def save(*edits, added=()):
+        return write(client, parcel.region, 'parcel-boundaries', id=parcel.pk,
+                     review=client.get(path).json()['review'], edits=list(edits), added=list(added))
+
+    assert save(detach(other.pk)).status_code == 400
+    assert save(detach(outline.pk, 1)).status_code == 200
+    outline.refresh_from_db()
+    other.refresh_from_db()
+    assert outline.geometry == {'type': 'Polygon', 'coordinates': first}
+    assert other.version == 1
+    response = save(detach(outline.pk))
+    assert response.status_code == 400
+    assert outline.pk == parcel.map_features.get().pk
+    assert save(detach(outline.pk), added=[{'type': 'Polygon', 'coordinates': second}]).status_code == 200
+    assert not parcel.map_features.filter(pk=outline.pk).exists()
+    item.delete()
+    assert save(detach(parcel.map_features.get().pk)).status_code == 200
+    assert not parcel.map_features.exists()
+    parcel.refresh_from_db()

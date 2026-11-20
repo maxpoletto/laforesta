@@ -179,16 +179,23 @@ async function walk(browser) {
   await action('remove-part').click();
   await loc('#cartography-parts').selectOption('0');
   assert.ok(await action('promote').isDisabled());
-  await action('join').click();
   if (width < 800) await sidebarToggle.click();
+  const joinWalk = async () => {
+    await action('join-link').click();
+    await loc('.cartography-endpoint[title="Linea 2: inizio"]').click();
+    await loc('.cartography-endpoint[title="Linea 1: fine"]').click();
+  };
+  await joinWalk();
   await action('undo').click();
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('promote').isDisabled());
-  await action('join').click();
   if (width < 800) await sidebarToggle.click();
+  await joinWalk();
+  assert.equal(await loc('.cartography-vertex').first().getAttribute('aria-pressed'), null);
   await loc('.cartography-vertex').nth(1).click();
+  assert.ok(await action('remove-vertex').isDisabled());
+  await action('break-link').click();
   if (width < 800) await sidebarToggle.click();
-  await action('split').click();
   assert.equal(await loc('#cartography-parts option').count(), 2);
   if (width < 800) await sidebarToggle.click();
   await action('undo').click();
@@ -232,8 +239,9 @@ async function walk(browser) {
   await roadVertices.nth(1).click();
   assert.equal(await roadVertices.nth(1).getAttribute('aria-pressed'), 'true');
   assert.equal(await roadVertices.count(), insertedCount);
-  await action('remove-vertex').click();
-  assert.equal(await roadVertices.count(), insertedCount - 1);
+  assert.ok(await action('remove-vertex').isDisabled());
+  await action('break-link').click();
+  assert.ok(await action('save-road').isDisabled());
   await action('undo').click();
   assert.equal(await roadVertices.count(), insertedCount);
   if (width < 800) await sidebarToggle.click();
@@ -267,6 +275,8 @@ async function walk(browser) {
   await action('new-region').click();
   await saveRegion('Costa alta', '');
   if (width < 800) await sidebarToggle.click();
+  // At world zoom the viewport can include repeated copies of a longitude.
+  for (let i = 0; i < 4; i++) await loc('#cartography-map .leaflet-control-zoom-in').click();
   const lineIcon = await action('line').boundingBox();
   const polygonIcon = await action('polygon').boundingBox();
   assert.equal(lineIcon.x, polygonIcon.x);
@@ -345,7 +355,24 @@ async function walk(browser) {
   const editedRing = outline.features[0].geometry.coordinates[0];
   assert.equal(editedRing.length, 4);
   assert.deepEqual(editedRing[0], editedRing.at(-1));
-  const [lon, lat] = outline.features[0].geometry.coordinates[0][0];
+
+  await action('boundaries').click();
+  await action('save-parcel').waitFor();
+  if (width < 800) await sidebarToggle.click();
+  await parcelVertices.first().click();
+  assert.ok(await action('remove-vertex').isDisabled());
+  await action('break-link').click();
+  assert.equal(await parcelVertices.count(), 2);
+  if (width < 800) await sidebarToggle.click();
+  await action('save-parcel').click();
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/parcel-boundaries/') && r.ok()),
+    modal.locator('[data-action=confirm]').click(),
+  ]);
+  await action('save-parcel').waitFor({state: 'hidden'});
+  const remaining = await (await page.request.get(url + '/api/geo/map.geojson')).json();
+  assert.deepEqual(remaining.features, [outline.features[1]]);
+  const [lon, lat] = remaining.features[0].geometry.coordinates[0][0];
   const tree = await page.request.post(url + '/api/bosco/pai/save/', {
     headers, data: {parcel_id: parcelId, species_id: Number(process.env.TEST_SPECIES),
       number: 1, d_cm: 42, h_m: 18.5, date: '2026-11-19', lat, lon, nonce: 'list-pai'},

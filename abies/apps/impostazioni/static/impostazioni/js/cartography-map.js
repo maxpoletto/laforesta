@@ -3,7 +3,7 @@ import { parcelIdentity } from '../../base/js/geo.js';
 import { fmtDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
-import { handPart, rings } from './drawing-parts.js';
+import { handPart, isEndpoint, rings } from './drawing-parts.js';
 
 const drawingStyle = { color: '#ad4c00', weight: 4 };
 const roadStyle = { color: '#244c86', weight: 4 };
@@ -139,7 +139,7 @@ export class CartographyMap {
     }
     if (!row || kind === 'parcel' || !this.isVisible(kind, row.id)) return;
     this.layers.get(kind + row.id).bringToFront();
-    if (kind === 'drawing') this.watchHandles(row.parts);
+    if (kind === 'drawing') this.showVertexHandles(row.parts);
   }
 
   showEditedParcels(names) {
@@ -174,12 +174,17 @@ export class CartographyMap {
     draft.parts?.forEach((part, i) => {
       const layer = this.partLayer(part, i === draft.active ? selectedStyle : drawingStyle).addTo(this.preview);
       if (i === draft.active) this.activeLayer = layer;
-      layer.on('click', e => draft.tool ? callbacks.place(e.latlng) : callbacks.selectPart(i));
+      layer.on('click', e => {
+        if (draft.tool) callbacks.place(e.latlng);
+        else if (!draft.join) callbacks.selectPart(i);
+      });
     });
     if (draft.tool) {
       this.drawSketch(draft, callbacks);
+    } else if (draft.join) {
+      this.watchHandles(() => this.drawEndpoints(draft, callbacks.endpoint));
     } else if (draft.parts[draft.active]) {
-      this.watchHandles([draft.parts[draft.active]], callbacks);
+      this.showVertexHandles([draft.parts[draft.active]], callbacks);
     }
   }
 
@@ -214,9 +219,55 @@ export class CartographyMap {
     }
   }
 
-  watchHandles(parts, callbacks) {
+  drawEndpoints(draft, select) {
+    const visible = this.map.getBounds().pad(0.1);
+    draft.parts.forEach((part, i) => {
+      if (part.type !== 'LineString') return;
+      for (const index of [0, part.coordinates.length - 1]) {
+        const [lon, lat] = part.coordinates[index];
+        if (!visible.contains([lat, lon])) continue;
+        const title = S.CARTOGRAPHY_JOIN_ENDPOINT(i, index === 0);
+        const selected = draft.join.first?.part === i && draft.join.first.index === index;
+        const icon = L.divIcon({
+          className: selected ? 'cartography-endpoint cartography-active-vertex' : 'cartography-endpoint',
+          iconSize: [19, 19],
+        });
+        // Split lines can have coincident endpoints. Put the selected one
+        // behind its neighbors so they can be chosen by pointer as well.
+        const marker = L.marker([lat, lon], {icon, title, zIndexOffset: selected ? -1000 : 0})
+          .addTo(this.handles);
+        const handle = marker.getElement();
+        handle.dataset.part = i;
+        handle.dataset.index = index;
+        this.selectableHandle(marker, title, selected, () => select(i, index));
+      }
+    });
+  }
+
+  selectableHandle(marker, label, selected, select) {
+    const handle = marker.getElement();
+    handle.setAttribute('aria-label', label);
+    handle.setAttribute('aria-pressed', String(selected));
+    marker.on('click', select);
+    handle.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      event.stopPropagation();
+      select();
+    });
+  }
+
+  watchHandles(render) {
     this.refreshHandles = () => {
       this.handles.clearLayers();
+      render();
+    };
+    this.refreshHandles();
+    this.map.on('moveend', this.refreshHandles);
+  }
+
+  showVertexHandles(parts, callbacks) {
+    this.watchHandles(() => {
       const visible = this.map.getBounds().pad(0.1);
       for (const part of parts) {
         let offset = 0;
@@ -240,11 +291,9 @@ export class CartographyMap {
             marker.addTo(this.handles);
             if (fix) marker.bindTooltip(fixLabel(fix)).on('click', () => marker.openTooltip());
             if (callbacks) {
-              if (part.type !== 'Point') {
+              if (part.type !== 'Point' && !isEndpoint(part, i)) {
                 const handle = marker.getElement();
                 const selected = callbacks.vertex?.ring === r && callbacks.vertex?.index === i;
-                handle.setAttribute('aria-label', S.CARTOGRAPHY_SELECT_VERTEX);
-                handle.setAttribute('aria-pressed', String(selected));
                 handle.classList.toggle('cartography-active-vertex', selected);
                 const selectVertex = () => {
                   this.handles.eachLayer(layer => {
@@ -257,13 +306,7 @@ export class CartographyMap {
                   callbacks.vertex = {ring: r, index: i};
                   callbacks.selectVertex(r, i);
                 };
-                marker.on('click', selectVertex);
-                handle.addEventListener('keydown', event => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  selectVertex();
-                });
+                this.selectableHandle(marker, S.CARTOGRAPHY_SELECT_VERTEX, selected, selectVertex);
               }
               marker.on('drag', () => {
                 const layer = this.activeLayer;
@@ -285,9 +328,7 @@ export class CartographyMap {
           offset += ring.length;
         });
       }
-    };
-    this.refreshHandles();
-    this.map.on('moveend', this.refreshHandles);
+    });
   }
 
   stopEdit() {

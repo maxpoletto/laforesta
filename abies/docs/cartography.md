@@ -107,6 +107,9 @@ immediately becoming visible throughout Abies.
 to what it was before the user pressed **Confini**.
 
 **Salva** saves the changes and makes them visible throughout Abies.
+Only closed polygons are saved as parcel outlines. If any contours are open,
+a confirmation explains that they will be left out. A parcel referenced by
+forestry records must keep at least one polygon.
 
 Any map changes are persistent across tab navigation.
 
@@ -243,9 +246,17 @@ vertices along an existing line or parcel edge. While drawing, offer undo last
 point, finish and cancel. Full undo and redo can wait.
 
 A drawing can be reshaped by moving or removing vertices, split at a vertex,
-or joined to another line at an endpoint. Selecting a vertex enables **Rimuovi
-vertice** when the shape has enough vertices to continue. Closing a line makes a polygon. Opening a polygon
-makes a line. Keep disconnected pieces and interior holes when editing parcels.
+or joined to another line at an endpoint. Three map tools work with vertices.
+
+- **Rimuovi vertice** (trash) removes the selected vertex from a polygon and
+  reconnects its neighbors. The ring must have at least three vertices afterward.
+- **Interrompi al vertice** (broken link) splits a line at an interior vertex,
+  which becomes an endpoint of both pieces. On a polygon, it removes the
+  selected vertex and leaves its neighbors as the two ends of an open line.
+  Other rings remain visible as separate lines.
+- **Unisci estremi** (link) displays the endpoints of every line in the edit.
+  Selecting two endpoints joins their lines or closes one line into a polygon.
+  An edit in **Punti** must result in a single line for the road.
 
 When correcting a shared boundary,  the operator can select the common edge and
 show both affected parcels. Moving, inserting or removing a vertex along that

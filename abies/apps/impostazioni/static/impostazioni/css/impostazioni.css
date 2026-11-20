@@ -242,6 +242,13 @@ details.cartography-section > .cartography-list-header {
 
 .cartography-parcel-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .cartography-buttons[hidden] { display: none; }
+.cartography-map-icon[aria-pressed="true"] { background: var(--color-abies-yellow, #ffcc00); }
+.cartography-endpoint {
+  border: 2px solid #182e43;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+}
 .cartography-active-vertex { background: var(--color-abies-yellow, #ffcc00); }
 
 .cartography-map-tools [data-action="finish"][hidden] { display: none; }

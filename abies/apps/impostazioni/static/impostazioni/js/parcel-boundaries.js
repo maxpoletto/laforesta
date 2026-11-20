@@ -8,6 +8,17 @@ function markNeighbor(draft, feature) {
   }
 }
 
+export function detachBoundary(draft, source) {
+  const owner = draft.features.find(feature => feature.parts.includes(source));
+  if (owner) {
+    const part = owner.parts.indexOf(source);
+    draft.edits.push({id: owner.id, part, operation: 'detach'});
+    owner.parts.splice(part, 1);
+  } else {
+    draft.added.splice(draft.added.indexOf(source), 1);
+  }
+}
+
 export function boundaryVertexRemoval(draft, ringIndex, index) {
   const source = draft.parts[draft.active];
   if (!canRemoveVertex(source, ringIndex, index)) return null;

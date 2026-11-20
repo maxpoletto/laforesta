@@ -5,7 +5,7 @@ import json
 from copy import deepcopy
 
 from shapely import STRtree, make_valid
-from shapely.geometry import LineString, Point, shape
+from shapely.geometry import LineString, Point, Polygon, shape
 
 from apps.base.models import MapFeature, Parcel
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, position
@@ -15,6 +15,14 @@ from config import strings as S
 def parcel_outlines(region_id):
     return list(MapFeature.objects.filter(parcel__region_id=region_id, published=True)
                 .select_related('parcel').order_by('pk'))
+
+
+def parcel_used(parcel):
+    # Do not orphan a grid, plan or other forestry record.
+    return any(
+        relation.related_model._base_manager.filter(**{relation.field.name: parcel}).exists()
+        for relation in Parcel._meta.related_objects if relation.get_accessor_name() != 'map_features'
+    )
 
 
 def polygon_parts(geometry):
@@ -120,28 +128,42 @@ def boundary_results(parcel, data, outlines):
     rings = list(feature_rings(features))
     try:
         for edit in edits:
-            index = edit['index']
-            point = edit.get('point')
             operation = edit['operation']
-            identifiers = [edit[key] for key in ('id', 'part', 'ring', 'index')]
+            fid, part = edit['id'], edit['part']
+            if any(type(value) is not int or value < 0 for value in (fid, part)):
+                raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
+            pieces = owned[fid]
+            if operation == 'detach':
+                del pieces[part]
+                rings = list(feature_rings(features))
+                continue
+            ring_index, index = edit['ring'], edit['index']
+            point = edit.get('point')
+            identifiers = (ring_index, index)
             if (any(type(value) is not int or value < 0 for value in identifiers)
                     or operation not in ('move', 'insert', 'remove')
                     or (operation != 'remove' and not position(point))
                     or (operation == 'insert' and index == 0)):
                 raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
-            ring = owned[edit['id']][edit['part']]['coordinates'][edit['ring']]
+            ring = pieces[part]['coordinates'][ring_index]
             if operation == 'remove':
                 remove_boundary_vertex(rings, ring, index)
             else:
                 apply_boundary_edit(rings, ring, index, operation, point)
     except (IndexError, KeyError, TypeError):
         raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID) from None
-    updates = {f['id']: feature_geometry(checked_parts(f['parts']), 'Polygon') for f in features
+    updates = {f['id']: feature_geometry(checked_parts(f['parts']), 'Polygon') if f['parts'] else None
+               for f in features
                if f['parts'] != original_parts[f['id']]}
     raw_added = data.get('added', [])
     if not isinstance(raw_added, list):
         raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
     added = [feature_geometry(checked_parts([part]), 'Polygon') for part in raw_added]
+    if None in updates.values() and not added:
+        has_outline = any(row.parcel_id == parcel.pk and updates.get(row.pk, row.geometry) is not None
+                          for row in outlines)
+        if not has_outline and parcel_used(parcel):
+            raise ValueError(S.CARTOGRAPHY_PARCEL_OUTLINE_REQUIRED)
     validate_intersections(outlines, updates, added)
     return updates, added
 
@@ -149,8 +171,10 @@ def boundary_results(parcel, data, outlines):
 def validate_intersections(outlines, updates, added):
     """Allow correction of legacy overlap, and reject any newly overlapping area."""
     before = [make_valid(shape(planar_polygon(row.geometry))) for row in outlines]
-    after = [shape(updates[row.pk]) if row.pk in updates else geometry
-             for row, geometry in zip(outlines, before)]
+    # An empty geometry keeps indices aligned with the original snapshot.
+    shapes = {pk: shape(geometry) if geometry is not None else Polygon()
+              for pk, geometry in updates.items()}
+    after = [shapes.get(row.pk, geometry) for row, geometry in zip(outlines, before)]
     after.extend(shape(geometry) for geometry in added)
     tree = STRtree(after)
     changed = [i for i, row in enumerate(outlines) if row.pk in updates]
@@ -171,10 +195,14 @@ def save_boundaries(parcel, body):
     touched = {parcel.pk} if added else set()
     for outline in outlines:
         if outline.pk in updates:
-            outline.geometry = updates[outline.pk]
-            outline.version += 1
-            outline.save(update_fields=['geometry', 'version'])
             touched.add(outline.parcel_id)
+            geometry = updates[outline.pk]
+            if geometry is None:
+                outline.delete()
+            else:
+                outline.geometry = geometry
+                outline.version += 1
+                outline.save(update_fields=['geometry', 'version'])
     for geometry in added:
         MapFeature.objects.create(parcel=parcel, geometry=geometry, members={'type': 'Feature'})
     for item in Parcel.objects.filter(pk__in=touched):

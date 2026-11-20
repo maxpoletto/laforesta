@@ -19,7 +19,7 @@ from apps.base.responses import parse_json_body, success_response, validation_er
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
-from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, save_boundaries
+from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, parcel_used, save_boundaries
 from apps.impostazioni.regions import invalidate_map_labels, required_name, unlinked_outlines
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
@@ -41,14 +41,6 @@ def catalog(request):
 def parcel_form(request, region_id):
     parcel = Parcel(region=get_object_or_404(Region, pk=region_id))
     return JsonResponse({HTML: render_parcel_metadata_form(request, parcel, promotion=True)})
-
-
-def parcel_used(parcel):
-    # Do not let a deletion cascade through an otherwise unprotected grid or plan.
-    return any(
-        relation.related_model._base_manager.filter(**{relation.field.name: parcel}).exists()
-        for relation in Parcel._meta.related_objects if relation.get_accessor_name() != 'map_features'
-    )
 
 
 @login_required

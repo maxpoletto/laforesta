@@ -1,20 +1,47 @@
-// A walk keeps the recording order. Joins are deliberate and follow that order.
-export function joinParts(parts, index) {
-  const first = parts[index], next = parts[index + 1];
-  const coordinates = first.coordinates.concat(next.coordinates);
-  const fixes = [first, next].flatMap(part => part.fixes ?? part.coordinates.map(() => null));
-  const end = first.coordinates.at(-1);
-  if (end.every((v, i) => v === next.coordinates[0][i])) {
-    coordinates.splice(first.coordinates.length, 1);
-    fixes.splice(first.coordinates.length, 1);
+const samePosition = (a, b) => a[0] === b[0] && a[1] === b[1];
+
+export function isEndpoint(part, index) {
+  return part?.type === 'LineString' && (index === 0 || index === part.coordinates.length - 1);
+}
+
+export function joinEndpoints(parts, a, b, {close = true} = {}) {
+  if (!isEndpoint(parts[a.part], a.index) || !isEndpoint(parts[b.part], b.index)) return null;
+  if (a.part === b.part) {
+    const part = parts[a.part];
+    if (!close || a.index === b.index || new Set(part.coordinates.map(point => point.join(','))).size < 3) return null;
+    parts[a.part] = closeLine(part);
+    return a.part;
   }
-  parts.splice(index, 2, {type: 'LineString', coordinates, fixes});
+
+  const start = Math.min(a.part, b.part), end = Math.max(a.part, b.part);
+  // Keep both recording directions when an end meets a start. If one
+  // segment must be reversed, preserve the direction of the earlier part.
+  let [first, next] = a.part === start ? [a, b] : [b, a];
+  if (!first.index) [first, next] = [next, first];
+  const orient = (endpoint, reverse) => {
+    const part = parts[endpoint.part];
+    const fixes = part.fixes ?? part.coordinates.map(() => null);
+    return reverse ? {coordinates: part.coordinates.toReversed(), fixes: fixes.toReversed()}
+      : {coordinates: part.coordinates, fixes};
+  };
+  const left = orient(first, !first.index), right = orient(next, !!next.index);
+  const coordinates = left.coordinates.concat(right.coordinates);
+  const fixes = left.fixes.concat(right.fixes);
+  if (samePosition(left.coordinates.at(-1), right.coordinates[0])) {
+    const i = left.coordinates.length;
+    fixes[i - 1] ??= fixes[i];
+    coordinates.splice(i, 1);
+    fixes.splice(i, 1);
+  }
+  parts.splice(end, 1);
+  parts.splice(start, 1, {type: 'LineString', coordinates, fixes});
+  return start;
 }
 
 export function closeLine(part) {
   const ring = part.coordinates.slice();
   const fixes = part.fixes?.slice();
-  if (!ring[0].every((v, i) => v === ring.at(-1)[i])) {
+  if (!samePosition(ring[0], ring.at(-1))) {
     ring.push(ring[0].slice());
     fixes?.push(fixes[0]);
   }
@@ -51,10 +78,8 @@ export function insertVertex(part, ringIndex, i, coord) {
 }
 
 export function canRemoveVertex(part, ringIndex, index) {
-  if (!part || part.type === 'Point') return false;
-  const ring = rings(part)[ringIndex];
-  const closed = part.type === 'Polygon';
-  return !!ring && ring.length > (closed ? 4 : 2) && index >= 0 && index < ring.length - Number(closed);
+  const ring = part?.type === 'Polygon' && part.coordinates[ringIndex];
+  return !!ring && ring.length > 4 && index >= 0 && index < ring.length - 1;
 }
 
 export function removeVertex(part, ringIndex, index) {
@@ -69,18 +94,27 @@ export function removeVertex(part, ringIndex, index) {
   }
 }
 
-export function splitLine(part, i) {
+function splitLine(part, i) {
   return [[0, i + 1], [i, part.coordinates.length]].map(([start, end]) => ({
     type: 'LineString', coordinates: part.coordinates.slice(start, end),
     ...(part.fixes && {fixes: part.fixes.slice(start, end)}),
   }));
 }
 
-export function openPolygon(part) {
+export function canBreakPart(part, ringIndex, index) {
+  if (index < 0) return false;
+  if (part?.type === 'LineString') return index > 0 && index < part.coordinates.length - 1;
+  return part?.type === 'Polygon' && index < (part.coordinates[ringIndex]?.length ?? 0) - 1;
+}
+
+export function breakPart(part, ringIndex, index) {
+  if (!canBreakPart(part, ringIndex, index)) return null;
+  if (part.type === 'LineString') return splitLine(part, index);
   let offset = 0;
-  return part.coordinates.map(ring => {
-    const fixes = part.fixes?.slice(offset, offset + ring.length - 1);
+  return part.coordinates.map((ring, r) => {
+    const fixes = part.fixes?.slice(offset, offset + ring.length);
     offset += ring.length;
-    return {type: 'LineString', coordinates: ring.slice(0, -1), ...(fixes && {fixes})};
+    const cut = values => r === ringIndex ? values.slice(index + 1, -1).concat(values.slice(0, index)) : values;
+    return {type: 'LineString', coordinates: cut(ring), ...(fixes && {fixes: cut(fixes)})};
   });
 }
