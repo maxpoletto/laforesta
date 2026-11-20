@@ -112,6 +112,17 @@ async function walk(browser) {
   await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
   await page.waitForFunction(() => document.querySelector('#cartography-region')?.options.length === 1);
   assert.equal(await selected.textContent(), 'Costa');
+  assert.deepEqual(await sidebar.locator('.cartography-sidebar-actions').evaluateAll(rows => rows.map(row =>
+    [...row.children].map(button => button.textContent.trim()))), [
+    ['Proprietà', 'Nuova'], ['Proprietà', 'Confini'], ['Proprietà', 'Punti'],
+    ['Nuovo', 'Importa…'], ['Modifica', 'Promuovi'],
+  ]);
+  const sidebarSizes = await sidebar.locator('.cartography-sidebar-actions button').evaluateAll(buttons =>
+    buttons.map(button => [button.offsetWidth, button.offsetHeight].join('×')));
+  assert.equal(new Set(sidebarSizes).size, 1);
+  const drawingList = loc('#cartography-drawings');
+  assert.ok(await drawingList.evaluate(list => list.previousElementSibling.previousElementSibling
+    .querySelector('[data-action=new-drawing]') && list.nextElementSibling.querySelector('[data-action=edit]')));
 
   await page.goto(url + '/ipso/#secret=cartography-browser-test');
   await loc('#btn-mode-points').click();

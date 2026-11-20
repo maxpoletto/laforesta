@@ -223,9 +223,9 @@ S (string constants) provided by the shell's render context.
           <section class="cartography-section">
             <label for="cartography-region">Compresa</label>
             <select id="cartography-region"></select>
-            <div class="cartography-buttons">
+            <div class="cartography-sidebar-actions">
               <button class="btn" data-action="edit-region" disabled>Proprietà</button>
-              <button class="btn btn-save" data-action="new-region" disabled>Nuova</button>
+              <button class="btn btn-create" data-action="new-region" disabled>Nuova</button>
             </div>
             <p role="status" data-role="status"></p>
           </section>
@@ -239,7 +239,7 @@ S (string constants) provided by the shell's render context.
             <p class="cartography-empty" data-empty="parcel">Nessuna particella</p>
             <ul class="map-workspace-list" id="cartography-parcels"
                 aria-labelledby="cartography-parcels-label" hidden></ul>
-            <div class="cartography-buttons">
+            <div class="cartography-sidebar-actions">
               <button class="btn" data-action="parcel-properties" disabled>Proprietà</button>
               <button class="btn" data-action="boundaries" disabled>Confini</button>
             </div>
@@ -254,7 +254,7 @@ S (string constants) provided by the shell's render context.
             <p class="cartography-empty" data-empty="road">Nessuna strada</p>
             <ul class="map-workspace-list" id="cartography-roads"
                 aria-labelledby="cartography-roads-label" hidden></ul>
-            <div class="cartography-buttons">
+            <div class="cartography-sidebar-actions">
               <button class="btn" data-action="road-properties" disabled>Proprietà</button>
               <button class="btn" data-action="points" disabled>Punti</button>
             </div>
@@ -268,10 +268,14 @@ S (string constants) provided by the shell's render context.
               <button class="cartography-icon action-delete" data-action="clear"
                       aria-label="Elimina disegni" title="Elimina disegni" hidden disabled>🗑︎</button>
             </div>
+            <div class="cartography-sidebar-actions">
+              <button class="btn btn-create" data-action="new-drawing" disabled>Nuovo</button>
+              <button class="btn" data-action="open-import" disabled>Importa…</button>
+            </div>
             <p class="cartography-empty" data-empty="drawing">Nessun disegno</p>
             <ul class="map-workspace-list" id="cartography-drawings"
                 aria-labelledby="cartography-drawings-label" hidden></ul>
-            <div class="cartography-buttons">
+            <div class="cartography-sidebar-actions">
               <button class="btn" data-action="edit" disabled>Modifica</button>
               <button class="btn btn-save" data-action="promote" disabled>Promuovi</button>
             </div>
@@ -282,10 +286,6 @@ S (string constants) provided by the shell's render context.
                 <button class="btn" data-action="copy">Copia in un nuovo disegno</button>
                 <button class="btn" data-action="remove-part">Rimuovi parte</button>
               </div>
-            </div>
-            <div class="cartography-buttons">
-              <button class="btn" data-action="new-drawing" disabled>Nuovo</button>
-              <button class="btn" data-action="open-import" disabled>Importa…</button>
             </div>
           </details>
         </aside>

@@ -201,9 +201,8 @@ As always, map changes are persistent across tab navigation.
 
 #### Importing new drawings
 
-Within the foldable drawing control, below the drawing list and its controls, is
-an **Importa ...** button. It opens a modal where users can add drawings to the
-current view.
+Above the drawing list, **Importa…** sits beside **Nuovo**. It opens a modal
+where users can add drawings to the current view.
 
 There are three optins:
 
