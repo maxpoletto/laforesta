@@ -5,6 +5,7 @@
 import * as api from '../../base/js/api.js';
 import * as cache from '../../base/js/cache.js';
 import { downloadFromURL } from '../../base/js/csv-export.js';
+import { showFormError } from '../../base/js/forms.js';
 import { TableWrapper } from '../../base/js/table.js';
 import {
   applyTableState, createPage, navigateWithParams, readTableState,
@@ -32,6 +33,7 @@ import * as S from '../../base/js/strings.js';
 import {
   DATA_ID_IPSO_UPLOADS, FIELD_ACC_M, FIELD_D_CM, FIELD_DATE,
   FIELD_ERROR_SUMMARY, FIELD_ERRORS, FIELD_CATEGORIES,
+  FIELD_REGIONS, FIELD_REGION_ID,
   FIELD_H_M, FIELD_ID, FIELD_HARVEST_PLAN_ITEM_ID, FIELD_LAT, FIELD_LON,
   FIELD_MODE, FIELD_MODE_LABEL, FIELD_NONCE, FIELD_NUMBER, FIELD_OPERATOR,
   FIELD_PARCEL, FIELD_PHOTO_COUNT, FIELD_RECEIVED_AT, FIELD_RECORD_DATE,
@@ -414,6 +416,39 @@ async function saveUploadMode(id, mode) {
   if (selectedId === id) await openUpload(id);
 }
 
+async function importPointSet(uploadId, regionId, button, form = null) {
+  const name = form?.elements.name.value.trim();
+  const error = message => form ? showFormError(form, message) : showError(message);
+  button.disabled = true;
+  try {
+    const body = {upload_id: uploadId, ...(form && {name})};
+    const {data: result, status} = await api.postJSON(
+      `/api/impostazioni/cartography/${regionId}/import/`, mutationBody('points', body));
+    if (status >= 400) { error(result[MESSAGE] || S.ERROR_GENERIC); return; }
+    cache.applyResponseChanges(result);
+    updateInboxDot(result);
+    if (form?.isConnected) dismissModal();
+    navigate(`/impostazioni?scheda=cartografia&c=${regionId}&fonte=${result.source_id}`);
+  } catch { error(S.ERROR_NETWORK); }
+  finally { button.disabled = false; }
+}
+
+function choosePointDestination(data, uploadId) {
+  const form = cloneTemplate('tmpl-ipso-point-destination').querySelector('form');
+  const select = form.elements[FIELD_REGION_ID];
+  const submit = form.querySelector('[type=submit]');
+  select.add(new Option('', ''));
+  for (const region of data[FIELD_REGIONS]) select.add(new Option(region.name, region.id));
+  form.elements.name.value = data.session.name;
+  wireCancelButtons(form, dismissModal);
+  form.onsubmit = event => {
+    event.preventDefault();
+    if (!submit.disabled && form.reportValidity()) importPointSet(uploadId, select.value, submit, form);
+  };
+  showModal(form);
+  select.focus();
+}
+
 function renderDetail(data) {
   detailEl.classList.remove('is-loading');
   detailEl.removeAttribute('aria-busy');
@@ -435,24 +470,17 @@ function renderDetail(data) {
     rejectBtn.addEventListener('click', () => confirmReject(upload[FIELD_ID]));
     actions.appendChild(rejectBtn);
   }
-  const regionId = data.session?.region_id;
-  if (canRejectUpload(upload) && upload[FIELD_MODE] === IPSO_MODE_POINTS && regionId && !data[FILE_ERROR]) {
+  const regionId = data.session?.[FIELD_REGION_ID];
+  const destinations = data[FIELD_REGIONS];
+  if (canRejectUpload(upload) && upload[FIELD_MODE] === IPSO_MODE_POINTS && !data[FILE_ERROR]) {
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'btn btn-save';
     open.textContent = S.CARTOGRAPHY_OPEN;
-    open.onclick = async () => {
-      open.disabled = true;
-      try {
-        const {data: result, status} = await api.postJSON(
-          `/api/impostazioni/cartography/${regionId}/import/`, mutationBody('points', {upload_id: upload[FIELD_ID]}));
-        if (status >= 400) { showError(result[MESSAGE] || S.ERROR_GENERIC); return; }
-        cache.applyResponseChanges(result);
-        updateInboxDot(result);
-        navigate(`/impostazioni?scheda=cartografia&c=${regionId}&fonte=${result.source_id}`);
-      } catch { showError(S.ERROR_NETWORK); }
-      finally { open.disabled = false; }
-    };
+    open.disabled = destinations ? !destinations.length : !regionId;
+    if (open.disabled) open.title = S.CARTOGRAPHY_NO_DESTINATION;
+    open.onclick = () => destinations ? choosePointDestination(data, upload[FIELD_ID])
+      : importPointSet(upload[FIELD_ID], regionId, open);
     actions.appendChild(open);
   }
   const closeBtn = document.createElement('button');

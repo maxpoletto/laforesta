@@ -277,6 +277,7 @@ const S = {
   UPLOAD_ERROR_RATE_LIMITED: 'Server occupato. Riprovo…',
   UPLOAD_NEXT_RETRY_IN: (s) => `Prossimo tentativo fra ${s} s`,
   UPLOAD_ERROR_CONTEXT_MISSING: 'Contesto caricamento mancante.',
+  UPLOAD_ERROR_POINT_REGION_REQUIRED: 'Per inviare un rilievo di punti occorre una compresa valida.',
   UPLOAD_ERROR_MODE_UNSUPPORTED: 'Modalità non supportata per il caricamento.',
   UPLOAD_ERROR_SPECIES_ID_MISSING: (name) =>
     `Specie senza ID Abies: ${name || ''}`,

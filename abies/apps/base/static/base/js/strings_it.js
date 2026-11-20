@@ -726,6 +726,7 @@ export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
 export const CARTOGRAPHY_EMPTY_EDIT = 'Non ci sono più punti in questa modifica.';
 export const CARTOGRAPHY_ROAD_NEEDS_LINE = 'Per salvare la strada, la geometria deve essere una sola linea.';
 export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';
+export const CARTOGRAPHY_NO_DESTINATION = 'Crea una compresa in Cartografia per importare il rilievo.';
 
 export const CARTOGRAPHY_PART = (index, type) =>
   `${index}. ${({Point: 'Punto', LineString: 'Linea', Polygon: 'Poligono'})[type]}`;

@@ -199,28 +199,30 @@ def restore_drawings(source):
     return {'drawing_id': drawing.pk, 'added': int(created)}
 
 
-def prepare_point_import(region_id, body):
+def prepare_point_import(body):
     upload = get_object_or_404(IpsoUpload, pk=int_or_none(body.get('upload_id')))
     if upload.mode != IpsoUploadMode.POINTS or upload.state != IpsoUploadState.RECEIVED:
         raise ValueError(S.IPSO_ERR_UPLOAD_NOT_RECEIVED)
     payload, error = read_staged_payload(upload)
     if error:
         raise ValueError(error)
+    name = required_name(body) if 'name' in body else payload['session']['name']
+    return upload, payload, name
+
+
+def import_points(region_id, upload, payload, user, name):
     session = payload['session']
-    if session.get('region_id') != region_id:
+    original_region = session.get('region_id')
+    if original_region != region_id and Region.objects.filter(pk=original_region).exists():
         raise ValueError(S.CARTOGRAPHY_WRONG_REGION)
-    return upload, payload
-
-
-def import_points(region_id, upload, payload, user):
-    session = payload['session']
     source, _ = MapPointSet.objects.get_or_create(session_id=upload.session_id, defaults={
-        'region_id': region_id, 'name': session['name'], 'date': upload.record_date,
+        'region_id': region_id, 'name': name, 'date': upload.record_date,
         'operator': upload.operator, 'records': payload['records'],
     })
     if source.region_id != region_id or source.records != payload['records']:
         raise ValueError(S.IPSO_ERR_IMPORT_CONTEXT_CHANGED)
     result = restore_drawings(source)
+    upload.import_result = {'point_set_name': source.name}
     claim_upload_import(upload, user, IpsoUploadTargetType.POINT_SET, source.pk)
     mark_stale('audit')
     return {**result, 'source_id': source.pk,
@@ -289,7 +291,7 @@ def change(request, region_id, action):
         return error
     try:
         if action == 'import':
-            prepared, payload = prepare_point_import(region_id, body)
+            prepared, payload, name = prepare_point_import(body)
         elif action == 'import-file':
             name, parts = required_name(body), file_parts(body)
         begin_nonce_write(request)
@@ -301,7 +303,7 @@ def change(request, region_id, action):
                 upload, error = lock_prepared_upload(prepared)
                 if error:
                     return error
-                extra = import_points(region_id, upload, payload, request.user)
+                extra = import_points(region_id, upload, payload, request.user, name)
             elif action == 'import-file':
                 extra = create_drawing(region_id, name, parts)
             else:

@@ -3479,12 +3479,12 @@ def test_import_rejects_reader(reader_client, parcels, species, settings, tmp_pa
 
 @pytest.mark.django_db
 @override_settings(IPSO_SECRET='test-token')
-def test_paged_point_survey_replays_and_previews_contiguous_segments(settings, tmp_path, writer_client):
+def test_paged_point_survey_replays_and_previews_contiguous_segments(settings, tmp_path, writer_client, regions):
     settings.IPSO_INBOX_DIR = tmp_path
     session_id = 'c766fb79-575d-471c-82d5-7bd7408ff9bf'
     session = {
         'session_id': session_id, 'mode': 'points', 'schema_version': 1,
-        'damaged': False, 'name': 'Pista nord',
+        'damaged': False, 'name': 'Pista nord', 'region_id': regions[0].pk,
     }
     segments = [session_id] * 501 + [None, '10000000-0000-4000-8000-000000000002',
                                         None, '10000000-0000-4000-8000-000000000003']

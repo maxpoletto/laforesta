@@ -964,6 +964,9 @@ function wirePreSession() {
 
     try {
       const region = sessionRegions().find(row => row.name === regionName);
+      if (points && (!Number.isSafeInteger(region?.id) || region.id <= 0)) {
+        throw new Error(S.UPLOAD_ERROR_POINT_REGION_REQUIRED);
+      }
       const sess = await Store.startSession(State.db, {
         mode: modeId,
         point_set_name: points ? pointName : undefined,

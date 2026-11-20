@@ -698,6 +698,11 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
     records = payload.get(RECORDS, []) if payload else []
     preview = _preview_records(records, upload.mode)
     targets, suggested_target_id = _upload_targets(upload)
+    recovery = {}
+    if (request.user.can_modify and upload.mode == IPSO_MODE_POINTS
+            and upload.state == IpsoUploadState.RECEIVED and not file_error
+            and not Region.objects.filter(pk=session.get(FIELD_REGION_ID)).exists()):
+        recovery[FIELD_REGIONS] = list(Region.objects.order_by('name').values('id', 'name'))
     return _api_json({
         UPLOAD: _upload_metadata(upload),
         SESSION: session,
@@ -706,6 +711,7 @@ def upload_detail(request: HttpRequest, upload_id: int) -> JsonResponse:
         FILE_ERROR: file_error,
         TARGETS: targets,
         SUGGESTED_TARGET_ID: suggested_target_id,
+        **recovery,
     })
 
 
@@ -1329,7 +1335,7 @@ def _target_label(upload: IpsoUpload, labels: dict | None = None) -> str:
         if survey is not None:
             return _survey_label(survey)
     if upload.target_type == IpsoUploadTargetType.POINT_SET:
-        return upload.work_package_id
+        return upload.import_result.get('point_set_name') or upload.work_package_id
     if upload.target_type and upload.target_id:
         return f'{upload.target_type}:{upload.target_id}'
     return ''
@@ -2146,6 +2152,8 @@ def _normalize_session(session: dict) -> dict:
             raise UploadValidationError(S.IPSO_ERR_FIELD_STRING.format(FIELD_NAME))
         normalized[FIELD_NAME] = name
     region_id = session.get(FIELD_REGION_ID)
+    if mode == IPSO_MODE_POINTS and (type(region_id) is not int or not 0 < region_id <= 2**53 - 1):
+        raise UploadValidationError(S.IPSO_ERR_POINT_REGION_REQUIRED)
     if region_id is not None:
         normalized[FIELD_REGION_ID] = _int(session, FIELD_REGION_ID)
     return normalized

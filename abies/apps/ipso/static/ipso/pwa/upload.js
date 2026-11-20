@@ -71,6 +71,9 @@ function buildUploadPayload(sess, trees, reference, csvText) {
   const regionId = Number.isInteger(sess[FIELD_REGION_ID])
     ? sess[FIELD_REGION_ID]
     : mode === IPSO_MODE_POINTS ? null : regionIdForName(reference, sess.compresa);
+  if (mode === IPSO_MODE_POINTS && (!Number.isSafeInteger(regionId) || regionId <= 0)) {
+    throw new Error(S.UPLOAD_ERROR_POINT_REGION_REQUIRED);
+  }
   const records = mode === IPSO_MODE_POINTS
     ? trees.map(t => ({
       client_record_id: String(t.seq), date: sess.data, segment: t.segment,
@@ -557,6 +560,10 @@ async function transferDigest(payload) {
 
 async function uploadSession(args) {
   const { payload, reference, maxBytes } = args;
+  const region = payload.session[FIELD_REGION_ID];
+  if (payload.session[FIELD_MODE] === IPSO_MODE_POINTS && (!Number.isSafeInteger(region) || region <= 0)) {
+    throw new UploadError('hard:invalid_csv', S.UPLOAD_ERROR_POINT_REGION_REQUIRED);
+  }
   let ends;
   try {
     ends = payload.page_ends || planUploadPages(payload, reference, maxBytes);

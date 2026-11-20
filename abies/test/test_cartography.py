@@ -158,6 +158,45 @@ def walk(client, writer_user, settings, tmp_path, regions):
     return IpsoUpload.objects.get(session_id=session_id)
 
 
+def test_offline_walk_requires_a_region_id_and_can_recover_a_deleted_region(
+        client, writer_user, regions, settings, tmp_path):
+    from apps.base.models import MapPointSet, Region
+
+    client.force_login(writer_user)
+    settings.IPSO_SECRET = 'field-token'
+    settings.IPSO_INBOX_DIR = tmp_path
+    old_region = Region.objects.create(name='Compresa cancellata')
+    old_id = old_region.pk
+    old_region.delete()
+    session_id = str(uuid.uuid4())
+    session = {'session_id': session_id, 'mode': 'points', 'schema_version': 1, 'damaged': False, 'name': 'Prima'}
+    data = {'session': session, 'records': [
+        {'client_record_id': '1', 'date': '2026-11-18', 'lat': 38, 'lon': 16, 'acc_m': 2,
+         'taken_at': '2026-11-18T10:00:00Z'},
+    ], 'offset': 0, 'total': 1, 'transfer': 'a' * 64}
+    url = reverse('ipso-upload-page')
+    for invalid in [None, 0, -1, True, 2**53]:
+        session['region_id'] = invalid
+        assert client.post(url, data, content_type='application/json',
+                           HTTP_AUTHORIZATION='Bearer field-token').status_code == 422
+    assert not IpsoUpload.objects.exists()
+    session['region_id'] = old_id
+    response = client.post(url, data, content_type='application/json', HTTP_AUTHORIZATION='Bearer field-token')
+    assert response.status_code == 200, response.content
+    upload = IpsoUpload.objects.get(session_id=session_id)
+    detail_url = f'/api/ipso/uploads/{upload.pk}/'
+    detail = client.get(detail_url).json()
+    assert detail['session']['region_id'] == old_id
+    assert {row['id'] for row in detail['regions']} == {region.pk for region in regions}
+    response = write(client, regions[0], 'import', upload_id=upload.pk, name='Dopo')
+    assert response.status_code == 200, response.content
+    source = MapPointSet.objects.get(pk=response.json()['source_id'])
+    assert source.region == regions[0] and source.name == 'Dopo'
+    assert source.records[0]['lon'] == 16
+    detail = client.get(detail_url).json()
+    assert detail['session']['name'] == 'Prima' and 'regions' not in detail
+
+
 def test_import_restore_after_inbox_cleanup(client, walk, regions, admin_user):
     region, other = regions[:2]
     assert workspace(client, region)['uploads'][0]['id'] == walk.pk

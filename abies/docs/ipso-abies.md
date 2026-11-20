@@ -377,6 +377,10 @@ point gets its own row and note. The complete point set remains available for
 download. A writer can import it from the inbox or the cartography editor.
 The editor retains the measured fixes separately from editable drawings. Ipso
 can record points in an empty named compresa after the next reference sync.
+Point uploads require the numeric compresa ID. When a recording refers to a
+deleted compresa, the inbox asks the reviewer to choose a current compresa
+and lets them change the drawing name. The recorded session and fixes remain
+in the original upload.
 
 The unauthenticated upload endpoint validates size, schema, session UUID,
 record count, field types, known species/parcels/sample areas/hypsometric sets,

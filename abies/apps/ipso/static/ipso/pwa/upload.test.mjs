@@ -103,6 +103,15 @@ const martellatePayload = upload.buildUploadPayload(
   'csv',
 );
 
+{
+  const session = {...sess('points'), point_set_name: 'Traccia', region_id: null};
+  assert.throws(() => upload.buildUploadPayload(session, [], reference(), ''), /compresa valida/);
+  await assert.rejects(upload.uploadSession({payload: {session, records: []}}), /compresa valida/);
+  const payload = upload.buildUploadPayload({...session, region_id: 1}, [], reference(), '');
+  assert.equal(payload.session.region_id, 1);
+  pass += 3;
+}
+
 // Legacy coordinate-based area inference uses WGS84 ellipsoidal distances.
 {
   const refs = reference();

@@ -2,4 +2,4 @@
 // classic <script>) and by sw.js (via importScripts). Bump before tagging
 // and deploying a release.
 'use strict';
-const APP_VERSION = '1.7.6';
+const APP_VERSION = '1.7.7';

@@ -33,6 +33,22 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
   </form>
 </template>
 
+<template id="tmpl-ipso-point-destination">
+  <form class="form-card">
+    <h2>Importa in Cartografia</h2>
+    <p class="form-help">Scegli una compresa per questo rilievo.</p>
+    <div class="form-group">
+      <label for="ipso-point-region">{{ S.COL_REGION }}</label>
+      <select id="ipso-point-region" name="region_id" required></select>
+    </div>
+    <div class="form-group">
+      <label for="ipso-point-name">{{ S.LABEL_NAME }}</label>
+      <input id="ipso-point-name" type="text" name="name" maxlength="100" required>
+    </div>
+    {% include "base/_partials/_form_actions.html" with submit_label=S.IMPORT_LABEL %}
+  </form>
+</template>
+
 <template id="tmpl-ipso-import-review-modal">
   <div class="ipso-import-review">
     <h2>Controlla importazione</h2>
