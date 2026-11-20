@@ -770,8 +770,14 @@ export class CartographyEditor {
     this.updateButtons();
     try {
       const path = this.regionId + '/' + action;
-      const {data, status} = await postJSON(API + path + '/', {...body, nonce: crypto.randomUUID()});
+      const key = JSON.stringify([path, body]);
+      const nonce = this.pendingWrite?.key === key ? this.pendingWrite.nonce : crypto.randomUUID();
+      // A lost response can follow a successful commit. Keep its receipt
+      // token available until the editor has processed a definite outcome.
+      this.pendingWrite = {key, nonce};
+      const {data, status} = await postJSON(API + path + '/', {...body, nonce});
       if (status >= 400) {
+        if (status < 500) this.pendingWrite = null;
         if (this.current(generation)) {
           if (form?.isConnected) {
             showFormError(form, data.message || S.ERROR_GENERIC);
@@ -811,6 +817,7 @@ export class CartographyEditor {
       if (action === 'import-file' || action === 'import-survey') {
         this.map.frame('drawing', data.drawing_id, firstImport);
       }
+      this.pendingWrite = null;
     } catch (error) {
       if (this.current(generation)) {
         if (form?.isConnected) showFormError(form, S.ERROR_NETWORK);

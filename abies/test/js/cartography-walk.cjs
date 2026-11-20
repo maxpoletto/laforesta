@@ -549,11 +549,24 @@ async function walk(browser) {
     buffer: Buffer.from(JSON.stringify({type: 'LineString', coordinates: [[16, 38], [16, 38.1]]}))});
   assert.ok(await modal.getByLabel('Codice EPSG del DXF').isHidden());
   assert.equal(await modal.getByLabel('Nome', {exact: true}).inputValue(), 'Traccia');
+  const importNonces = [];
+  await page.route('**/import-file/', async route => {
+    importNonces.push(route.request().postDataJSON().nonce);
+    if (importNonces.length > 1) return route.continue();
+    assert.equal((await route.fetch()).status(), 200);
+    await route.abort('failed');
+  });
+  await modal.getByRole('button', {name: 'Importa', exact: true}).click();
+  await modal.locator('.form-error').waitFor();
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/import-file/') && r.ok()),
     modal.getByRole('button', {name: 'Importa', exact: true}).click(),
   ]);
-  await drawings.getByRole('button', {name: 'Traccia', exact: true}).waitFor();
+  const traces = drawings.getByRole('button', {name: 'Traccia', exact: true});
+  await traces.waitFor();
+  assert.equal(await traces.count(), 1);
+  assert.equal(importNonces.length, 2);
+  assert.equal(importNonces[0], importNonces[1]);
 
   async function checkFilterList(target, hasSwatch = false) {
     const row = loc(`ul[data-target="${target}"] li.map-workspace-list-row`).first();
