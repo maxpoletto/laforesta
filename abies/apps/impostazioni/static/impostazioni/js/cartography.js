@@ -55,6 +55,9 @@ export class CartographyEditor {
     const listen = (element, event, fn) => element.addEventListener(event, fn, {signal: this.life.signal});
     listen(this.parts, 'change', () => this.selectPart(Number(this.parts.value)));
     listen(this.region, 'change', () => this.navigate(this.region.value));
+    listen(panel.querySelector('#cartography-sidebar'), 'click', e => {
+      if (!this.busy && !e.target.closest('button, label, select, input, .map-workspace-list')) this.select(null);
+    });
     listen(panel, 'click', e => {
       const button = e.target.closest('button[data-action]');
       if (button && !button.disabled && !this.busy) this.act(button);

@@ -202,6 +202,10 @@ async function walk(browser) {
   await sidebar.locator('[data-kind=drawing] [data-action=toggle-all]').click();
   assert.equal(await visibleDrawing.getAttribute('aria-pressed'), 'true');
   await drawings.first().locator('[data-action=select-item]').click();
+  await loc('#cartography-roads-label').click();
+  assert.equal(await sidebar.locator('[data-action=select-item][aria-pressed=true]').count(), 0);
+  assert.ok(await action('edit').isDisabled());
+  await drawings.first().locator('[data-action=select-item]').click();
   await action('edit').click();
   assert.deepEqual(await loc('#cartography-parts option').allTextContents(),
     ['1. Linea', '2. Punto', '3. Linea', '4. Linea']);
