@@ -1,7 +1,8 @@
+{% load l10n %}
 <div class="form-card">
   <form id="bosco-parcel-metadata-form">
-    <input type="hidden" name="row_id" value="{{ parcel.id }}">
-    <input type="hidden" name="version" value="{{ version }}">
+    <input type="hidden" name="row_id" value="{{ parcel.id|unlocalize }}">
+    <input type="hidden" name="version" value="{{ version|unlocalize }}">
 
     {% if promotion %}
       <h2>Promuovi disegno a particella</h2>
@@ -12,7 +13,7 @@
             <option value="">Nuova particella</option>
             <optgroup label="Aggiungi a particella esistente">
               {% for target in destinations %}
-                <option value="{{ target.pk }}" data-version="{{ target.version }}">{{ target.name }}</option>
+                <option value="{{ target.pk|unlocalize }}" data-version="{{ target.version|unlocalize }}">{{ target.name }}</option>
               {% endfor %}
             </optgroup>
           </select>
@@ -39,7 +40,7 @@
         <label for="id_parcel_eclass">{{ S.CSV_COL_CLASS }}</label>
         <select id="id_parcel_eclass" name="eclass_id" required>
           {% for eclass in eclasses %}
-            <option value="{{ eclass.id }}"
+            <option value="{{ eclass.id|unlocalize }}"
                     data-coppice="{% if eclass.coppice %}1{% else %}0{% endif %}"
                     {% if eclass.id == selected_eclass_id %}selected{% endif %}>
               {{ eclass.name }} — {% if eclass.coppice %}{{ S.TYPE_COPPICE }}{% else %}{{ S.TYPE_HIGHFOREST }}{% endif %}
@@ -55,7 +56,7 @@
       <div class="form-group">
         <label for="id_parcel_ave_age">Età media (a)</label>
         <input type="number" id="id_parcel_ave_age" name="ave_age"
-               min="0" value="{{ values.ave_age }}">
+               min="0" value="{{ values.ave_age|unlocalize }}">
       </div>
     </div>
 
@@ -71,12 +72,12 @@
       <div class="form-group">
         <label for="id_parcel_alt_min">Alt. min. (m)</label>
         <input type="number" id="id_parcel_alt_min" name="altitude_min_m"
-               value="{{ values.altitude_min_m }}">
+               value="{{ values.altitude_min_m|unlocalize }}">
       </div>
       <div class="form-group">
         <label for="id_parcel_alt_max">Alt. max. (m)</label>
         <input type="number" id="id_parcel_alt_max" name="altitude_max_m"
-               value="{{ values.altitude_max_m }}">
+               value="{{ values.altitude_max_m|unlocalize }}">
       </div>
       <div class="form-group">
         <label for="id_parcel_aspect">Esposizione</label>
@@ -86,7 +87,7 @@
       <div class="form-group">
         <label for="id_parcel_grade">Pendenza (%)</label>
         <input type="number" id="id_parcel_grade" name="grade_pct"
-               value="{{ values.grade_pct }}">
+               value="{{ values.grade_pct|unlocalize }}">
       </div>
     </div>
 
@@ -126,13 +127,13 @@
         <label for="id_parcel_interval">{{ S.COL_INTERVENTION_INTERVAL }}</label>
         <input type="number" id="id_parcel_interval"
                name="intervention_interval" {% if is_coppice %}required{% endif %}
-               value="{{ values.intervention_interval }}">
+               value="{{ values.intervention_interval|unlocalize }}">
       </div>
       <div class="form-group">
         <label for="id_parcel_standards">{{ S.COL_STANDARDS_PER_HA }}</label>
         <input type="number" id="id_parcel_standards"
                name="standards_per_ha" {% if is_coppice %}required{% endif %}
-               value="{{ values.standards_per_ha }}">
+               value="{{ values.standards_per_ha|unlocalize }}">
       </div>
     </div>
 

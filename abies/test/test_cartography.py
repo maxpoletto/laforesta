@@ -544,6 +544,30 @@ def test_parcel_promotion_lists_destinations_in_natural_order(client, writer_use
     assert re.findall(r'<option[^>]*>([^<]+)</option>', options) == ['1', '2', '2a', '2b', '10']
 
 
+def test_parcel_form_uses_canonical_machine_values(client, writer_user, regions, settings):
+    from django.utils.formats import number_format
+    from django.utils.translation import override
+
+    from apps.base.models import Eclass, Parcel
+
+    client.force_login(writer_user)
+    settings.LANGUAGE_CODE = 'it'
+    settings.USE_THOUSAND_SEPARATOR = True
+    region = regions[0]
+    eclass = Eclass.objects.create(pk=3456, name='Z')
+    parcel = Parcel.objects.create(pk=1234, region=region, name='1', version=2345,
+                                   eclass=eclass, altitude_max_m=1600)
+    with override('it'):
+        assert number_format(1234) == '1.234'
+        html = client.get(f'{ROOT}{region.pk}/parcel-form/').json()['html']
+        assert '<option value="1234" data-version="2345">' in html
+        assert '<option value="3456"' in html
+        html = client.get(f'{ROOT}{region.pk}/parcels/{parcel.pk}/properties/').json()['html']
+        assert 'name="row_id" value="1234"' in html
+        assert 'name="version" value="2345"' in html
+        assert 'value="1600"' in html
+
+
 def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, eclasses, settings):
     from apps.base.digests import build_parcel_record
     from apps.base.models import Parcel
