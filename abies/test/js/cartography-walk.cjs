@@ -235,6 +235,12 @@ async function walk(browser) {
   await loc('.cartography-insert-vertex').first().click();
   const roadVertices = loc('.cartography-vertex');
   const insertedCount = await roadVertices.count();
+  await loc('.cartography-insert-vertex').first().click();
+  await loc('.cartography-insert-vertex').first().click();
+  assert.equal(await roadVertices.count(), insertedCount + 2);
+  await action('undo').click();
+  await action('undo').click();
+  assert.equal(await roadVertices.count(), insertedCount);
   assert.ok(await action('remove-vertex').isDisabled());
   await roadVertices.nth(1).click();
   assert.equal(await roadVertices.nth(1).getAttribute('aria-pressed'), 'true');

@@ -48,7 +48,8 @@ to move it or click the small handle between vertices to insert one. Select an
 existing vertex and use **Rimuovi vertice** on the map to remove it and reconnect
 its neighbors. The broken-link icon opens an outline at the selected vertex.
 Saving with an open outline asks for confirmation before leaving it out.
-A parcel in use must keep at least one polygon. Undo restores the last edit. Activate
+A parcel in use must keep at least one polygon. The undo button steps back
+through the last ten actions in the current edit. Activate
 **Poligono** during a parcel edit to sketch another piece. Click the first
 vertex again to close the outline and add the piece to the edit. A coincident
 edge shared by parcels in the compresa is edited on both sides and the affected

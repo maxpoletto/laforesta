@@ -11,6 +11,7 @@ import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
+import { addSketchPoint, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
 import { boundaryVertexRemoval, detachBoundary, editBoundary, removeBoundaryVertex } from './parcel-boundaries.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
@@ -241,7 +242,7 @@ export class CartographyEditor {
     }
     this.mapTools.querySelector('[data-role=sketch-tools]').hidden = !draft?.tool;
     b.undo.hidden = !draft;
-    b.undo.disabled = !!this.busy || !(draft?.tool ? draft.vertices.length : draft?.previous);
+    b.undo.disabled = !!this.busy || !draft?.history?.length;
     const activePart = draft?.parts?.[draft.active];
     const selectedVertex = !draft?.join && draft?.vertex;
     const canRemove = selectedVertex && (draft.kind === 'parcel' && activePart?.type === 'Polygon'
@@ -283,14 +284,7 @@ export class CartographyEditor {
 
   changeParts(change) {
     const d = this.draft;
-    const previous = {parts: d.parts, active: d.active, dirty: d.dirty};
-    if (d.kind === 'parcel') Object.assign(previous, {
-      features: d.features, edits: d.edits, added: d.added, neighbors: d.neighbors,
-    });
-    const snapshot = structuredClone(previous);
-    if (change(d) === false) return;
-    d.previous = snapshot;
-    d.dirty = true;
+    if (!changeGeometry(d, change)) return;
     d.vertex = null;
     d.join = null;
     this.refreshEdit();
@@ -298,11 +292,7 @@ export class CartographyEditor {
 
   place(ll) {
     if (!this.draft?.tool || this.busy) return false;
-    const vertex = [ll.wrap().lng, ll.lat];
-    const last = this.draft.vertices.at(-1);
-    if (last?.[0] === vertex[0] && last[1] === vertex[1]) return true;
-    this.draft.vertices.push(vertex);
-    this.refreshEdit();
+    if (addSketchPoint(this.draft, [ll.wrap().lng, ll.lat])) this.refreshEdit();
     return true;
   }
 
@@ -311,9 +301,9 @@ export class CartographyEditor {
     if (this.busy || !d?.tool || d.vertices.length < (d.tool === 'Polygon' ? 3 : 2)) return;
     const part = handPart(d.tool, d.vertices);
     if (d.kind === 'parcel') {
-      delete d.tool;
-      delete d.vertices;
       this.changeParts(draft => {
+        delete draft.tool;
+        delete draft.vertices;
         draft.added.push(part);
         draft.parts.push(part);
         draft.active = draft.parts.length - 1;
@@ -651,9 +641,8 @@ export class CartographyEditor {
         break;
       case 'undo': {
         const d = this.draft;
+        if (!undoEdit(d)) break;
         d.vertex = d.join = null;
-        if (d.tool) d.vertices.pop();
-        else { Object.assign(d, d.previous); d.previous = null; }
         this.refreshEdit();
         break;
       }
@@ -667,8 +656,7 @@ export class CartographyEditor {
           action === 'cancel-road' ? S.CARTOGRAPHY_CANCEL_POINTS : S.CARTOGRAPHY_CANCEL;
         showConfirmModal(message, async () => {
           if (action === 'cancel-sketch' && kind === 'parcel') {
-            delete d.tool;
-            delete d.vertices;
+            cancelSketch(d);
             this.startEdit(d);
             return;
           }

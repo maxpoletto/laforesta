@@ -100,7 +100,7 @@ immediately becoming visible throughout Abies.
   acquire "insert vertex" controls [Implementation note: as in bosco/ep].
 - The **Poligono** tool adds a piece to the highlighted parcel. The new piece
   may be separate from the rest of the parcel and is saved with **Salva**.
-- A "undo" button appears on the map, to undo just the last step.
+- The undo button on the map restores up to ten editing actions.
 - Two buttons appear below **Proprietà** and **Confini**: **Annulla** (grey) **Salva** (green)
 
 **Annulla** prompts with the standard modal, and then resets the parcel's state
@@ -135,7 +135,7 @@ its type, or delete it. Changes immediately become visible throughout Abies.
 **Punti** makes the road editable on the map:
 - Vertices become visible and movable, and segments provide insert-vertex
   controls [Implementation note: like in bosco/ep].
-- A "undo" button appears on the map, to undo just the last step.
+- The undo button on the map restores up to ten editing actions.
 - Two buttons appear below **Proprietà** and **Punti**: **Annulla** **Salva**
 
 **Annulla** prompts with the standard modal, and then resets the road's state
@@ -242,8 +242,10 @@ fresh drawing from the complete original recording.
 
 The [parcel editor prototype](../../bosco/ep/) is the design starting point. The
 operator can place vertices by hand, snap to measured points, or trace a run of
-vertices along an existing line or parcel edge. While drawing, offer undo last
-point, finish and cancel. Full undo and redo can wait.
+vertices along an existing line or parcel edge. The undo button steps back
+through the last ten actions in the current edit, including placing or moving
+a vertex, cutting or joining a line, and closing a parcel sketch. A shared
+boundary change is one action and undo restores both sides.
 
 A drawing can be reshaped by moving or removing vertices, split at a vertex,
 or joined to another line at an endpoint. Three map tools work with vertices.
