@@ -269,6 +269,7 @@ async function walk(browser) {
   ]);
   assert.equal((await (await page.request.get(url + '/api/geo/roads.geojson')).json()).features.length, 1);
   await action('road-properties').click();
+  assert.equal(await modal.locator('[data-action=delete]').count(), 0);
   await modal.getByLabel('Nome').fill('Via nord');
   await modal.getByRole('button', {name: 'Salva', exact: true}).click();
   await loc('#cartography-roads').getByRole('button', {name: 'Via nord', exact: true}).waitFor();
@@ -415,8 +416,13 @@ async function walk(browser) {
   assert.equal((await selectedParcel.textContent()).trim(), '2a');
   assert.equal(await drawings.count(), 0);
   assert.equal(await bulkButtons.count(), 1);
+  const parcelTrash = loc('#cartography-parcels [data-action=remove-item]');
+  await parcelTrash.click();
+  assert.match(await modal.textContent(), /«2a»/);
+  await modal.getByRole('button', {name: 'Annulla', exact: true}).click();
 
   await action('parcel-properties').click();
+  assert.equal(await modal.locator('[data-action=delete]').count(), 0);
   await modal.getByLabel('Nome', {exact: true}).fill('2b');
   const rename = modal.locator('[name=confirm_rename]');
   assert.equal(await rename.getAttribute('required'), '');
@@ -507,6 +513,10 @@ async function walk(browser) {
       lat, lon, category_ids: process.env.TEST_CATEGORY, nonce: 'list-observation'},
   });
   assert.ok(observation.ok(), await observation.text());
+  await page.goto(editor + `&c=${regionId}`);
+  await parcelTrash.waitFor({state: 'attached'});
+  assert.ok(await parcelTrash.isDisabled());
+  assert.equal(await parcelTrash.getAttribute('title'), 'Questa particella è in uso');
 
   async function checkFilterList(target, hasSwatch = false) {
     const row = loc(`ul[data-target="${target}"] li.map-workspace-list-row`).first();

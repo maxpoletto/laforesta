@@ -4,6 +4,7 @@ import hashlib
 import json
 from copy import deepcopy
 
+from django.db.models import Exists, OuterRef, Q
 from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, Polygon, shape
 
@@ -17,12 +18,15 @@ def parcel_outlines(region_id):
                 .select_related('parcel').order_by('pk'))
 
 
-def parcel_used(parcel):
-    # Do not orphan a grid, plan or other forestry record.
-    return any(
-        relation.related_model._base_manager.filter(**{relation.field.name: parcel}).exists()
+def parcel_usage():
+    return Q(*(
+        Exists(relation.related_model._base_manager.filter(**{relation.field.name: OuterRef('pk')}))
         for relation in Parcel._meta.related_objects if relation.get_accessor_name() != 'map_features'
-    )
+    ), _connector=Q.OR)
+
+
+def parcel_used(parcel):
+    return Parcel.objects.filter(parcel_usage(), pk=parcel.pk).exists()
 
 
 def polygon_parts(geometry):

@@ -414,8 +414,14 @@ def test_rename_parcel_keeps_records_and_requires_confirmation(client, writer_us
     parcel = parcels[0]
     region = parcel.region
     client.force_login(writer_user)
+    row = next(row for row in workspace(client, region)['parcels'] if row['id'] == parcel.pk)
+    assert row['in_use'] is False and row['version'] == parcel.version
+    properties = client.get(f'{ROOT}{region.pk}/parcels/{parcel.pk}/properties/')
+    assert 'data-action="delete"' not in properties.json()['html']
     plan = HarvestPlan.objects.create(name='Prova', year_start=2027, year_end=2030)
     item = HarvestPlanItem.objects.create(harvest_plan=plan, parcel=parcel, year_planned=2028)
+    row = next(row for row in workspace(client, region)['parcels'] if row['id'] == parcel.pk)
+    assert row['in_use'] is True
     body = {'id': parcel.pk, 'version': parcel.version, 'name': 'Nuova', 'eclass_id': parcel.eclass_id}
     assert write(client, region, 'parcel-properties', **body).status_code == 400
     assert write(client, region, 'parcel-properties', **body, confirm_rename=True).status_code == 200

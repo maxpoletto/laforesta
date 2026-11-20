@@ -23,8 +23,8 @@ directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
 The sidebar starts with **Compresa**, then shows **Particelle**, **Strade**,
 and **Disegni**. Only **Disegni** can be collapsed. Each list grows with its
 contents and scrolls after six rows. The eye icons control map visibility
-for individual rows or the entire list. Drawings also have trash icons for
-individual and bulk deletion. Bulk icons appear when their list has entries.
+for individual rows or the entire list. The trash icon on a row deletes the
+selected item after confirmation. **Disegni** also offers bulk deletion.
 
 The **Compresa** dropdown at the top of the sidebar lists regions alphabetically.
 It remembers the last selection when the operator returns to Cartografia in the
@@ -41,7 +41,8 @@ the compresa on completion or the unfinished transfer expires.
 Selecting a parcel or road enables its **Proprietà** button. Parcel properties
 use the Bosco form. Renaming asks for confirmation that the existing records
 follow the same parcel, and a parcel with dependent records is protected from
-deletion. Road properties include the name, type and delete action.
+deletion. Its row has a disabled trash icon. Road properties include the name
+and type.
 
 Use **Confini** for parcel outlines or **Punti** for a road. Drag a vertex
 to move it or click the small handle between vertices to insert one. Select an

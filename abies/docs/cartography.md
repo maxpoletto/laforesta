@@ -91,9 +91,9 @@ selects the first configured class in alphabetical order by name (for example,
 A). For an existing parcel, it shows the assigned class. Cadastral area may be
 undefined (null in the database, rendered as '-' in the UI).
 
-If the parcel is still unused, **Proprietà** also offers a red **Elimina**
-button, analogously to the region workflow. On save or delete, changes
-immediately becoming visible throughout Abies.
+The trash icon on the parcel row asks for confirmation before deleting it.
+The icon is muted and disabled on a parcel in use. Saved changes become
+visible throughout Abies.
 
 **Confini** makes the parcel's map editable:
 - The parcel is highlighted and vertices become visible and movable. Edges
@@ -129,8 +129,9 @@ the road on the map, and vice-versa.
 Below the list are two buttons that become enabled when a road is selected:
 **Proprietà** **Punti**
 
-**Proprietà** opens a standard modal where the user can edit the road's name or
-its type, or delete it. Changes immediately become visible throughout Abies.
+**Proprietà** opens a modal to edit the road's name or type. The trash icon on
+the road row asks for confirmation before deleting it. Saved changes become
+visible throughout Abies.
 
 **Punti** makes the road editable on the map:
 - Vertices become visible and movable, and segments provide insert-vertex

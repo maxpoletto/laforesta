@@ -144,14 +144,6 @@
       </div>
     {% endif %}
     {% if promotion %}</fieldset>{% endif %}
-    {% if can_delete %}
-      <div class="form-actions">
-        <button type="button" class="btn btn-delete" data-action="delete">{{ S.ACTION_DELETE }}</button>
-        <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-        <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
-      </div>
-    {% else %}
-      {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
-    {% endif %}
+    {% include "base/_partials/_form_actions.html" with submit_label=S.SAVE %}
   </form>
 </div>

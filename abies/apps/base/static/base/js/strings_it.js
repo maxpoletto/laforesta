@@ -731,7 +731,9 @@ export const CARTOGRAPHY_CANCEL = 'Abbandonare le modifiche al disegno?';
 export const CARTOGRAPHY_DISCARD = 'Abbandona modifiche';
 
 export const CARTOGRAPHY_VISIBILITY = name => `Mostra/nascondi «${name}»`;
-export const CARTOGRAPHY_REMOVE_DRAWING = name => `Elimina disegno «${name}»`;
+export const CARTOGRAPHY_REMOVE_ITEM = name => `Elimina «${name}»`;
+export const CARTOGRAPHY_PARCEL_IN_USE = 'Questa particella è in uso';
+export const CARTOGRAPHY_PARCEL_UNLINKED = 'Questa particella è priva di scheda catastale';
 
 export const CARTOGRAPHY_ROAD_PROPERTIES = 'Proprietà strada';
 export const CARTOGRAPHY_CANCEL_BOUNDARIES = 'Abbandonare le modifiche ai confini?';

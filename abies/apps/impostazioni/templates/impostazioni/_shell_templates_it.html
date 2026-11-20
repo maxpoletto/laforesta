@@ -321,7 +321,7 @@ S (string constants) provided by the shell's render context.
     </button>
     <button class="cartography-icon cartography-eye" data-action="toggle-item"
             aria-pressed="true"></button>
-    <button class="cartography-icon action-delete" data-action="remove-drawing" disabled>🗑︎</button>
+    <button class="cartography-icon action-delete" data-action="remove-item" disabled>🗑︎</button>
   </li>
 </template>
 
@@ -368,7 +368,6 @@ S (string constants) provided by the shell's render context.
       <select id="cartography-road-type" name="road_type_id" required></select>
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-delete" data-action="delete" hidden>{{ S.ACTION_DELETE }}</button>
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
       <button type="submit" class="btn btn-save">Crea strada</button>
     </div>

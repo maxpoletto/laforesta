@@ -19,7 +19,7 @@ from apps.base.responses import parse_json_body, success_response, validation_er
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
-from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, parcel_used, save_boundaries
+from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, parcel_usage, parcel_used, save_boundaries
 from apps.impostazioni.regions import invalidate_map_labels, required_name, unlinked_outlines
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
@@ -52,8 +52,7 @@ def parcel_details(request, region_id, parcel_id, *, boundaries=False):
                                region_id=region_id, pk=parcel_id)
     if boundaries:
         return JsonResponse(boundary_workspace(parcel, parcel_outlines(region_id)))
-    return JsonResponse({HTML: render_parcel_metadata_form(request, parcel, edit_name=True,
-                                                          can_delete=not parcel_used(parcel))})
+    return JsonResponse({HTML: render_parcel_metadata_form(request, parcel, edit_name=True)})
 
 
 def parcel_name(body, region, existing_id=None):
@@ -176,7 +175,8 @@ def workspace(request, region_id):
             'id', 'source_id', 'name', 'parts', 'version')),
         'roads': list(MapFeature.objects.filter(region=region).values(
             'id', 'name', 'road_type_id', 'road_type__name', 'geometry', 'published', 'version')),
-        'parcels': list(Parcel.objects.filter(region=region).values('id', 'name')),
+        'parcels': list(Parcel.objects.filter(region=region).annotate(in_use=parcel_usage())
+                        .values('id', 'name', 'version', 'in_use')),
     })
 
 

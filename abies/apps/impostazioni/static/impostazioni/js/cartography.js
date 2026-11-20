@@ -149,13 +149,10 @@ export class CartographyEditor {
       const toggle = item.querySelector('[data-action=toggle-item]');
       toggle.title = S.CARTOGRAPHY_VISIBILITY(row.name);
       toggle.setAttribute('aria-label', toggle.title);
-      const remove = item.querySelector('[data-action=remove-drawing]');
-      if (kind === 'drawing') {
-        remove.title = S.CARTOGRAPHY_REMOVE_DRAWING(row.name);
-        remove.setAttribute('aria-label', remove.title);
-      } else {
-        remove.remove();
-      }
+      const remove = item.querySelector('[data-action=remove-item]');
+      remove.title = row.deleteBlock || S.CARTOGRAPHY_REMOVE_ITEM(row.name);
+      remove.setAttribute('aria-label', remove.title);
+      remove.toggleAttribute('data-unavailable', !!row.deleteBlock);
       return item;
     }));
     list.hidden = !rows.length;
@@ -171,7 +168,9 @@ export class CartographyEditor {
         const id = item.dataset.id;
         const visible = this.map.isVisible(kind, id);
         anyVisible ||= visible;
-        for (const button of item.querySelectorAll('button')) button.disabled = locked;
+        for (const button of item.querySelectorAll('button')) {
+          button.disabled = locked || button.hasAttribute('data-unavailable');
+        }
         item.querySelector('[data-action=toggle-item]').setAttribute('aria-pressed', visible);
         item.querySelector('[data-action=select-item]').setAttribute('aria-pressed',
           this.kind === kind && String(this.selected?.id) === id);
@@ -191,8 +190,12 @@ export class CartographyEditor {
     if (!this.current(generation)) return;
     this.state = data;
     const byName = (a, b) => a.name.localeCompare(b.name, document.documentElement.lang, {numeric: true});
-    const names = new Set([...this.map.parcelLayers.keys(), ...data.parcels.map(row => row.name)]);
-    this.renderList('parcel', [...names].map(name => ({id: name, name})).sort(byName));
+    const parcels = new Map(data.parcels.map(row => [row.name, row]));
+    const names = new Set([...this.map.parcelLayers.keys(), ...parcels.keys()]);
+    this.renderList('parcel', [...names].map(name => ({
+      id: name, name, deleteBlock: !parcels.has(name) ? S.CARTOGRAPHY_PARCEL_UNLINKED
+        : parcels.get(name).in_use ? S.CARTOGRAPHY_PARCEL_IN_USE : null,
+    })).sort(byName));
     this.renderList('drawing', data.drawings.sort(byName));
     this.renderList('road', data.roads.sort(byName));
     this.map.render(data);
@@ -456,7 +459,6 @@ export class CartographyEditor {
     const name = form.elements.name;
     const oldName = name.value;
     const rename = form.elements.confirm_rename;
-    const remove = form.querySelector('[data-action=delete]');
     const submit = form.querySelector('[type=submit]');
     form.querySelector('[data-action=cancel]').onclick = modals.dismiss;
     if (rename) {
@@ -466,11 +468,6 @@ export class CartographyEditor {
         rename.required = changed;
         rename.checked = false;
       };
-    }
-    if (remove) {
-      remove.hidden = false;
-      remove.onclick = () => showConfirmModal(S.DELETE_REFERENCE_CONFIRM(oldName),
-        () => this.write(`remove-${kind}`, {id, version}));
     }
     form.onsubmit = async event => {
       event.preventDefault();
@@ -509,7 +506,6 @@ export class CartographyEditor {
 
   form(template, submit) {
     const form = cloneTemplate(template).querySelector('form');
-    form.querySelector('[data-action=delete]')?.remove();
     const select = form.querySelector('select');
     if (select) fill(select, this.catalog.road_types);
     form.querySelector('[data-action=cancel]').onclick = modals.dismiss;
@@ -721,10 +717,12 @@ export class CartographyEditor {
         }));
         break;
       }
-      case 'remove-drawing': {
-        const drawing = this.state.drawings.find(item => item.id === Number(target.id));
-        showConfirmModal(S.DELETE_REFERENCE_CONFIRM(drawing.name),
-          () => this.write(action, {id: drawing.id, version: drawing.version}));
+      case 'remove-item': {
+        const {kind, id} = target;
+        const item = kind === 'parcel' ? this.state.parcels.find(parcel => parcel.name === id)
+          : this.state[kind === 'road' ? 'roads' : 'drawings'].find(entry => entry.id === Number(id));
+        showConfirmModal(S.DELETE_REFERENCE_CONFIRM(item.name),
+          () => this.write(`remove-${kind}`, {id: item.id, version: item.version}));
         break;
       }
       case 'clear': {

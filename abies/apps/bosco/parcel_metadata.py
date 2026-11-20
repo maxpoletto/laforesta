@@ -32,7 +32,7 @@ PARCEL_METADATA_TEXT_FIELDS = {
     FIELD_HARVEST_MECHANISM: (S.LABEL_BOSCO_HARVEST_MECHANISM, 200),
 }
 
-def render_parcel_metadata_form(request, parcel, values=None, *, promotion=False, edit_name=False, can_delete=False):
+def render_parcel_metadata_form(request, parcel, values=None, *, promotion=False, edit_name=False):
     form_values = _parcel_metadata_form_values(parcel, values)
     eclasses = list(Eclass.objects.order_by('name') if promotion else Eclass.objects.order_by('coppice', 'name'))
     selected_eclass_id = int_or_none(values.get(FIELD_ECLASS_ID)) if values else None
@@ -46,7 +46,6 @@ def render_parcel_metadata_form(request, parcel, values=None, *, promotion=False
         'parcel': parcel,
         'promotion': promotion,
         'edit_name': edit_name,
-        'can_delete': can_delete,
         'destinations': Parcel.objects.filter(region=parcel.region).order_by('name') if promotion else (),
         'version': parcel.version,
         'values': form_values,
