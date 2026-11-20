@@ -628,7 +628,7 @@ export class CartographyEditor {
         const {parcelId, review, edits, added, parts} = this.draft;
         const save = () => this.write('parcel-boundaries', {id: parcelId, review, edits, added});
         if (parts.some(part => part.type !== 'Polygon')) {
-          showConfirmModal(S.CARTOGRAPHY_SAVE_OPEN_BOUNDARIES, save);
+          showConfirmModal(S.CARTOGRAPHY_SAVE_OPEN_BOUNDARIES, save, {confirmLabel: S.SAVE, intent: 'confirm'});
         } else {
           save();
         }

@@ -744,7 +744,7 @@ export const CARTOGRAPHY_JOIN_SECOND = 'Seleziona il secondo estremo da unire.';
 export const CARTOGRAPHY_JOIN_ENDPOINT = (i, start) => `Linea ${i + 1}: ${start ? 'inizio' : 'fine'}`;
 export const CARTOGRAPHY_JOIN_NEEDS_VERTICES = 'Servono almeno tre vertici distinti per chiudere un poligono.';
 export const CARTOGRAPHY_JOIN_ROAD = 'Per unire i tratti della strada, seleziona gli estremi di due linee diverse.';
-export const CARTOGRAPHY_SAVE_OPEN_BOUNDARIES = 'I contorni aperti e i singoli punti saranno esclusi dal salvataggio. Continuare?';
+export const CARTOGRAPHY_SAVE_OPEN_BOUNDARIES = 'Solo i poligoni verranno salvati. Continuare?';
 export const CARTOGRAPHY_VERTEX_REQUIRED = 'Questo vertice serve a mantenere un contorno valido o un confine condiviso.';
 
 export const CARTOGRAPHY_PLACE_POLYGON = 'Aggiungi almeno tre vertici, poi tocca il primo per chiudere il poligono.';

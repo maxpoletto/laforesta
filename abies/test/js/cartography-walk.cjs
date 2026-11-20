@@ -449,9 +449,11 @@ async function walk(browser) {
   assert.equal(await parcelVertices.count(), 1);
   if (width < 800) await sidebarToggle.click();
   await action('save-parcel').click();
+  assert.equal(await modal.locator('[data-field=message]').textContent(), 'Solo i poligoni verranno salvati. Continuare?');
+  assert.ok(await modal.getByRole('button', {name: 'Annulla', exact: true}).isVisible());
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/parcel-boundaries/') && r.ok()),
-    modal.locator('[data-action=confirm]').click(),
+    modal.getByRole('button', {name: 'Salva', exact: true}).click(),
   ]);
   await action('save-parcel').waitFor({state: 'hidden'});
   const remaining = await (await page.request.get(url + '/api/geo/map.geojson')).json();
