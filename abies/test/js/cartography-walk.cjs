@@ -360,6 +360,11 @@ async function walk(browser) {
   await map.click({position: {x: 100, y: 340}});
   assert.ok(await modal.isHidden());
   await startVertex.press('Enter');
+  await modal.getByLabel('Nome').waitFor();
+  assert.ok(await startVertex.isHidden());
+  await modal.getByRole('button', {name: 'Annulla', exact: true}).click();
+  await startVertex.waitFor();
+  await startVertex.press('Enter');
   await modal.getByLabel('Nome').fill('Confine');
   await modal.locator('[type=submit]').click();
   if (width < 800) await sidebarToggle.click();

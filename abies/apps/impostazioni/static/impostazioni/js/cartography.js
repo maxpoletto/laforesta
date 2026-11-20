@@ -314,7 +314,13 @@ export class CartographyEditor {
     if (this.busy || !d?.tool || d.vertices.length < (d.tool === 'Polygon' ? 3 : 2)) return;
     const part = handPart(d.tool, d.vertices);
     if (d.returnSelection) {
+      d.completedSketch = part;
+      this.refreshEdit();
       this.form('tmpl-cartography-drawing', body => this.write('create', {...body, parts: [part]}));
+      modals.onDismiss(() => {
+        delete d.completedSketch;
+        if (this.draft === d && !this.life.signal.aborted) this.refreshEdit();
+      });
     } else {
       this.changeParts(draft => {
         delete draft.tool;

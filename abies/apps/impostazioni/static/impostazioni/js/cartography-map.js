@@ -189,6 +189,10 @@ export class CartographyMap {
 
   drawSketch(draft, callbacks) {
     const {tool, vertices} = draft;
+    if (draft.completedSketch) {
+      this.partLayer(draft.completedSketch, selectedStyle).addTo(this.preview);
+      return;
+    }
     const path = handPart('LineString', vertices);
     if (!path) return;
     this.partLayer(path, selectedStyle).addTo(this.preview).on('click', e => callbacks.place(e.latlng));
