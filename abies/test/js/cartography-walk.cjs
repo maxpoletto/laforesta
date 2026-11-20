@@ -226,8 +226,16 @@ async function walk(browser) {
   await action('save-road').waitFor();
   if (width < 800) await sidebarToggle.click();
   await loc('.cartography-insert-vertex').first().click();
+  const roadVertices = loc('.cartography-vertex');
+  const insertedCount = await roadVertices.count();
+  assert.ok(await action('remove-vertex').isDisabled());
+  await roadVertices.nth(1).click();
+  assert.equal(await roadVertices.nth(1).getAttribute('aria-pressed'), 'true');
+  assert.equal(await roadVertices.count(), insertedCount);
+  await action('remove-vertex').click();
+  assert.equal(await roadVertices.count(), insertedCount - 1);
   await action('undo').click();
-  await loc('.cartography-insert-vertex').first().click();
+  assert.equal(await roadVertices.count(), insertedCount);
   if (width < 800) await sidebarToggle.click();
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/road-points/') && r.ok()),
@@ -265,12 +273,17 @@ async function walk(browser) {
   assert.ok(lineIcon.y + lineIcon.height <= polygonIcon.y);
   await action('polygon').click();
   assert.ok(await action('line').isHidden());
-  assert.ok(await action('finish').isDisabled());
+  assert.ok(await action('finish').isHidden());
   const map = loc('#cartography-map .leaflet-container');
-  for (const [x, y] of [[100, 295], [165, 295], [145, 360]]) {
-    await map.click({position: {x, y}});
-  }
-  await action('finish').click();
+  const startVertex = loc('.cartography-sketch-start button');
+  await map.click({position: {x: 100, y: 295}});
+  await map.click({position: {x: 165, y: 295}});
+  assert.ok(await startVertex.isDisabled());
+  assert.ok(await modal.isHidden());
+  await map.click({position: {x: 145, y: 360}});
+  await map.click({position: {x: 100, y: 340}});
+  assert.ok(await modal.isHidden());
+  await startVertex.press('Enter');
   await modal.getByLabel('Nome').fill('Confine');
   await modal.locator('[type=submit]').click();
   if (width < 800) await sidebarToggle.click();
@@ -301,16 +314,20 @@ async function walk(browser) {
   await action('save-parcel').waitFor();
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('line').isHidden());
-  await loc('.cartography-insert-vertex').first().click();
-  await action('undo').click();
-  await loc('.cartography-insert-vertex').first().click();
+  const parcelVertices = loc('.cartography-vertex');
+  await parcelVertices.first().press('Enter');
+  assert.equal(await parcelVertices.first().getAttribute('aria-pressed'), 'true');
+  await action('remove-vertex').click();
+  assert.equal(await parcelVertices.count(), 3);
+  await parcelVertices.first().click();
+  assert.ok(await action('remove-vertex').isDisabled());
   await action('polygon').click();
   const size = await map.boundingBox();
   const corner = [size.width - 95, size.height - 105];
   for (const [dx, dy] of [[0, 0], [55, 0], [40, 42]]) {
     await map.click({position: {x: corner[0] + dx, y: corner[1] + dy}});
   }
-  await action('finish').click();
+  await startVertex.click();
   assert.ok(await modal.isHidden());
   if (width < 800) await sidebarToggle.click();
   await Promise.all([
@@ -324,6 +341,10 @@ async function walk(browser) {
   const outline = await (await page.request.get(url + '/api/geo/map.geojson')).json();
   assert.equal(outline.features.length, 2);
   assert.ok(outline.features.every(feature => feature.properties.name === 'Costa alta-2b'));
+  // Removing the first vertex leaves a closed triangle.
+  const editedRing = outline.features[0].geometry.coordinates[0];
+  assert.equal(editedRing.length, 4);
+  assert.deepEqual(editedRing[0], editedRing.at(-1));
   const [lon, lat] = outline.features[0].geometry.coordinates[0][0];
   const tree = await page.request.post(url + '/api/bosco/pai/save/', {
     headers, data: {parcel_id: parcelId, species_id: Number(process.env.TEST_SPECIES),

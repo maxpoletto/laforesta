@@ -148,8 +148,10 @@ The drawing control is a foldable section.
 
 When no object is being edited, the map offers **Linea** and **Poligono**, even
 in an empty compresa. Finishing a shape adds it to **Disegni** in the selected
-compresa. The operator can draw a boundary this way and promote it to the
-compresa's first parcel.
+compresa. The polygon outline stays open while the operator places vertices. After
+placing at least three vertices, clicking the first one closes the outline.
+The operator can draw a boundary this way and promote it to the compresa's
+first parcel.
 
 Each drawing has a name and geometry. For imported drawings, the name is
 chosen on import. The list includes hand-drawn and imported drawings until
@@ -240,15 +242,16 @@ operator can place vertices by hand, snap to measured points, or trace a run of
 vertices along an existing line or parcel edge. While drawing, offer undo last
 point, finish and cancel. Full undo and redo can wait.
 
-A drawing can be reshaped by moving vertices, split at a vertex, or joined to
-another line at an endpoint. Closing a line makes a polygon. Opening a polygon
+A drawing can be reshaped by moving or removing vertices, split at a vertex,
+or joined to another line at an endpoint. Selecting a vertex enables **Rimuovi
+vertice** when the shape has enough vertices to continue. Closing a line makes a polygon. Opening a polygon
 makes a line. Keep disconnected pieces and interior holes when editing parcels.
 
 When correcting a shared boundary,  the operator can select the common edge and
-show both affected parcels. Moving or inserting a vertex changes both outlines
-together. Both polygons are validated and changed in one transaction, so a strip
-of land cannot accidentally disappear between them. Where surveyed edges are
-close but do not coincide, the operator can choose the edge to follow.
+show both affected parcels. Moving, inserting or removing a vertex along that
+edge changes both outlines together. Vertices at junctions stay in place when
+removing them would separate the outlines. Both polygons are validated and
+changed in one transaction.
 
 An ordinary boundary correction keeps the parcel identity and its records.
 Renaming or splitting a management parcel needs a separate step to review its

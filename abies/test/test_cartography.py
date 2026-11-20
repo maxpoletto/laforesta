@@ -369,6 +369,11 @@ def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, ecl
     assert reference['reference_version'] != original_version
     assert [row['parcel_id'] for row in reference['parcels']] == [parcel.pk]
     assert workspace(client, region)['drawings'] == []
+    # Appending a piece also compares against imported outlines with elevations.
+    existing = parcel.map_features.get()
+    existing.geometry['coordinates'][0][1].append(100)
+    existing.save(update_fields=['geometry'])
+    original = existing.geometry
     next_piece = {'type': 'Polygon', 'coordinates': [[[17, 38], [17.1, 38], [17, 38.1], [17, 38]]]}
     other = draw(next_piece)
     append = {'id': other, 'version': 1, 'parcel_id': parcel.pk}
@@ -377,6 +382,8 @@ def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, ecl
     assert write(client, region, 'parcel', id=other, version=1, name='2a', eclass_id=eclasses[0].pk).status_code == 400
     assert write(client, region, 'parcel', **append, parcel_version=parcel.version).status_code == 200
     assert parcel.map_features.count() == 2
+    existing.refresh_from_db()
+    assert existing.geometry == original
     parcel.refresh_from_db()
     assert parcel.version == 2
 
@@ -424,8 +431,10 @@ def test_shared_boundary_moves_both_parcels_and_preserves_pieces(client, writer_
     client.force_login(writer_user)
     left = MapFeature.objects.create(parcel=west, geometry={'type': 'Polygon',
         'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 39], [16, 38]]]})
+    # The importer accepts elevations on individual positions. A neighboring
+    # outline with a mix of 2D and 3D positions must still join the workspace.
     right = MapFeature.objects.create(parcel=east, geometry={'type': 'Polygon',
-        'coordinates': [[[17, 38], [18, 38], [18, 39], [17, 39], [17, 38.5], [17, 38]]]})
+        'coordinates': [[[17, 38, 100], [18, 38], [18, 39], [17, 39], [17, 38.5, 110], [17, 38, 100]]]})
     path = f'{ROOT}{west.region_id}/parcels/{west.pk}/boundaries/'
     snapshot = client.get(path).json()
     outline = next(row for row in snapshot['features'] if row['id'] == left.pk)
@@ -446,21 +455,45 @@ def test_shared_boundary_moves_both_parcels_and_preserves_pieces(client, writer_
         assert [17.1, 38.5] in outline.geometry['coordinates'][0]
     assert write(client, west.region, 'parcel-boundaries', **body).status_code == 400
 
+    snapshot = client.get(path).json()
+    ring = next(row for row in snapshot['features'] if row['id'] == left.pk)['parts'][0]['coordinates'][0]
+    remove = {'id': left.pk, 'part': 0, 'ring': 0, 'operation': 'remove'}
+    body = {'id': west.pk, 'review': snapshot['review']}
+    junction = {**remove, 'index': ring.index([17, 38])}
+    assert write(client, west.region, 'parcel-boundaries', **body, edits=[junction]).status_code == 400
+    left.refresh_from_db()
+    right.refresh_from_db()
+    assert left.version == right.version == 2
+
+    interior = {**remove, 'index': ring.index([17.1, 38.5])}
+    assert write(client, west.region, 'parcel-boundaries', **body, edits=[interior]).status_code == 200
+    left.refresh_from_db()
+    right.refresh_from_db()
+    for outline in (left, right):
+        assert outline.version == 3
+        assert [17.1, 38.5] not in outline.geometry['coordinates'][0]
+        assert len(outline.geometry['coordinates'][0]) == 5
+
 
 def test_boundary_edit_can_add_piece_and_reject_overlap(client, writer_user, parcels):
     from apps.base.models import MapFeature
 
-    parcel = parcels[0]
+    parcel, neighbor = parcels[:2]
     client.force_login(writer_user)
     first = {'type': 'Polygon', 'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 38]]]}
     second = {'type': 'Polygon', 'coordinates': [[[18, 38], [19, 38], [19, 39], [18, 38]]]}
     existing = MapFeature.objects.create(parcel=parcel, geometry=first)
+    distant = {'type': 'MultiPolygon',
+               'coordinates': [[[[20, 38, 100], [21, 38], [21, 39], [20, 38, 100]]]]}
+    imported = MapFeature.objects.create(parcel=neighbor, geometry=distant)
     snapshot = client.get(f'{ROOT}{parcel.region_id}/parcels/{parcel.pk}/boundaries/').json()
     body = {'id': parcel.pk, 'review': snapshot['review']}
     assert write(client, parcel.region, 'parcel-boundaries', **body, added=[first]).status_code == 400
     assert write(client, parcel.region, 'parcel-boundaries', **body, added=[second]).status_code == 200
     existing.refresh_from_db()
     assert existing.geometry == first and existing.version == 1
+    imported.refresh_from_db()
+    assert imported.geometry == distant and imported.version == 1
     parcel.refresh_from_db()
     assert parcel.version == 2 and parcel.map_features.count() == 2
     assert write(client, parcel.region, 'remove-parcel', id=parcel.pk, version=2).status_code == 200

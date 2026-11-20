@@ -8,7 +8,7 @@ from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, shape
 
 from apps.base.models import MapFeature, Parcel
-from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, position
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, position
 from config import strings as S
 
 
@@ -17,13 +17,11 @@ def parcel_outlines(region_id):
                 .select_related('parcel').order_by('pk'))
 
 
-def parts_for(outline):
-    geometry = outline.geometry
+def polygon_parts(geometry):
     polygons = geometry['coordinates']
     if geometry['type'] == 'Polygon':
         polygons = [polygons]
-    return [{'type': 'Polygon', 'coordinates': [[point[:2] for point in ring] for ring in polygon]}
-            for polygon in polygons]
+    return [{'type': 'Polygon', 'coordinates': polygon} for polygon in polygons]
 
 
 def feature_rings(features):
@@ -54,7 +52,8 @@ def node_boundaries(features):
 def boundary_workspace(parcel, outlines):
     signature = [parcel.version, [(row.pk, row.version, row.parcel.version) for row in outlines]]
     review = hashlib.sha256(json.dumps(signature, separators=(',', ':')).encode()).hexdigest()
-    shapes = [shape(row.geometry) for row in outlines]
+    geometries = [planar_polygon(row.geometry) for row in outlines]
+    shapes = [shape(geometry) for geometry in geometries]
     tree = STRtree(shapes)
     owned = [geom for row, geom in zip(outlines, shapes) if row.parcel_id == parcel.pk]
     if not owned:
@@ -63,10 +62,33 @@ def boundary_workspace(parcel, outlines):
     # include parcels whose surveys overlap by a small amount.
     neighbors = {outlines[i].parcel_id for i in tree.query(owned)[1]}
     features = [{'id': outline.pk, 'parcel_id': outline.parcel_id,
-                 'name': outline.parcel.name, 'parts': parts_for(outline)}
-                for outline in outlines if outline.parcel_id in neighbors]
+                 'name': outline.parcel.name, 'parts': polygon_parts(geometry)}
+                for outline, geometry in zip(outlines, geometries) if outline.parcel_id in neighbors]
     node_boundaries(features)
     return {'review': review, 'features': features}
+
+
+def remove_boundary_vertex(rings, original, index):
+    if index >= len(original) - 1:
+        raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
+    source = original[:-1]
+    vertex = source[index]
+    adjacent = (source[index - 1], source[(index + 1) % len(source)])
+    targets = []
+    for ring in rings:
+        open_ring = ring[:-1]
+        matches = [i for i, point in enumerate(open_ring) if point == vertex]
+        if not matches:
+            continue
+        i = matches[0]
+        edges = (open_ring[i - 1], open_ring[(i + 1) % len(open_ring)])
+        # At a junction, merging one pair of edges would break the shared border.
+        if len(matches) != 1 or len(open_ring) <= 3 or edges not in (adjacent, adjacent[::-1]):
+            raise ValueError(S.CARTOGRAPHY_VERTEX_REQUIRED)
+        targets.append((ring, i))
+    for ring, i in targets:
+        del ring[i]
+        ring[-1] = ring[0]
 
 
 def apply_boundary_edit(rings, original, index, operation, point):
@@ -99,14 +121,19 @@ def boundary_results(parcel, data, outlines):
     try:
         for edit in edits:
             index = edit['index']
-            point = edit['point']
+            point = edit.get('point')
             operation = edit['operation']
             identifiers = [edit[key] for key in ('id', 'part', 'ring', 'index')]
-            if (not position(point) or any(type(value) is not int or value < 0 for value in identifiers)
-                    or operation not in ('move', 'insert') or (operation == 'insert' and index == 0)):
+            if (any(type(value) is not int or value < 0 for value in identifiers)
+                    or operation not in ('move', 'insert', 'remove')
+                    or (operation != 'remove' and not position(point))
+                    or (operation == 'insert' and index == 0)):
                 raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
             ring = owned[edit['id']][edit['part']]['coordinates'][edit['ring']]
-            apply_boundary_edit(rings, ring, index, operation, point)
+            if operation == 'remove':
+                remove_boundary_vertex(rings, ring, index)
+            else:
+                apply_boundary_edit(rings, ring, index, operation, point)
     except (IndexError, KeyError, TypeError):
         raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID) from None
     updates = {f['id']: feature_geometry(checked_parts(f['parts']), 'Polygon') for f in features
@@ -121,7 +148,7 @@ def boundary_results(parcel, data, outlines):
 
 def validate_intersections(outlines, updates, added):
     """Allow correction of legacy overlap, and reject any newly overlapping area."""
-    before = [make_valid(shape(row.geometry)) for row in outlines]
+    before = [make_valid(shape(planar_polygon(row.geometry))) for row in outlines]
     after = [shape(updates[row.pk]) if row.pk in updates else geometry
              for row, geometry in zip(outlines, before)]
     after.extend(shape(geometry) for geometry in added)

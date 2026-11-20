@@ -50,6 +50,25 @@ export function insertVertex(part, ringIndex, i, coord) {
   part.fixes?.splice(offset + i, 0, null);
 }
 
+export function canRemoveVertex(part, ringIndex, index) {
+  if (!part || part.type === 'Point') return false;
+  const ring = rings(part)[ringIndex];
+  const closed = part.type === 'Polygon';
+  return !!ring && ring.length > (closed ? 4 : 2) && index >= 0 && index < ring.length - Number(closed);
+}
+
+export function removeVertex(part, ringIndex, index) {
+  const all = rings(part);
+  const ring = all[ringIndex];
+  const offset = all.slice(0, ringIndex).reduce((sum, previous) => sum + previous.length, 0);
+  ring.splice(index, 1);
+  part.fixes?.splice(offset + index, 1);
+  if (part.type === 'Polygon' && index === 0) {
+    ring[ring.length - 1] = ring[0];
+    if (part.fixes) part.fixes[offset + ring.length - 1] = part.fixes[offset];
+  }
+}
+
 export function splitLine(part, i) {
   return [[0, i + 1], [i, part.coordinates.length]].map(([start, end]) => ({
     type: 'LineString', coordinates: part.coordinates.slice(start, end),

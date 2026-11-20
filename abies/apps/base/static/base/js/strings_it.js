@@ -734,3 +734,10 @@ export const CARTOGRAPHY_ROAD_PROPERTIES = 'Proprietà strada';
 export const CARTOGRAPHY_CANCEL_BOUNDARIES = 'Abbandonare le modifiche ai confini?';
 export const CARTOGRAPHY_CANCEL_POINTS = 'Abbandonare le modifiche ai punti della strada?';
 export const CARTOGRAPHY_INSERT_VERTEX = 'Inserisci vertice';
+export const CARTOGRAPHY_SELECT_VERTEX = 'Seleziona vertice';
+export const CARTOGRAPHY_REMOVE_VERTEX = 'Rimuovi vertice';
+export const CARTOGRAPHY_VERTEX_REQUIRED = 'Questo vertice serve a mantenere un contorno valido o un confine condiviso.';
+
+export const CARTOGRAPHY_PLACE_POLYGON = 'Aggiungi almeno tre vertici, poi tocca il primo per chiudere il poligono.';
+export const CARTOGRAPHY_FIRST_VERTEX = 'Primo vertice';
+export const CARTOGRAPHY_CLOSE_SKETCH = 'Chiudi il poligono';

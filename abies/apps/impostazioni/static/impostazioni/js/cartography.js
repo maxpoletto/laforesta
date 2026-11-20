@@ -11,10 +11,10 @@ import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
-import { editBoundary } from './parcel-boundaries.js';
+import { boundaryVertexRemoval, editBoundary, removeBoundaryVertex } from './parcel-boundaries.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
-import { closeLine, handPart, insertVertex, joinParts, moveVertex, openPolygon, splitLine } from './drawing-parts.js';
+import { canRemoveVertex, closeLine, handPart, insertVertex, joinParts, moveVertex, openPolygon, removeVertex, splitLine } from './drawing-parts.js';
 
 // Unsaved edits belong to this browser tab and compresa.
 const drafts = new Map();
@@ -42,10 +42,8 @@ export class CartographyEditor {
     this.mapTools = panel.querySelector('[data-role=map-tools]');
     this.parts = panel.querySelector('#cartography-parts');
     this.status = panel.querySelector('[role=status]');
-    this.snap = panel.querySelector('[data-role=parcel-snap] input');
     this.buttons = Object.fromEntries([...panel.querySelectorAll('[data-action]')].map(b => [b.dataset.action, b]));
     const listen = (element, event, fn) => element.addEventListener(event, fn, {signal: this.life.signal});
-    listen(this.snap, 'change', () => { this.draft.snap = this.snap.checked; });
     listen(this.parts, 'change', () => this.selectPart(Number(this.parts.value)));
     listen(this.region, 'change', () => this.navigate(this.region.value));
     listen(panel, 'click', e => {
@@ -240,18 +238,25 @@ export class CartographyEditor {
       b[`save-${kind}`].disabled = !!this.busy || !draft?.dirty;
       b[`cancel-${kind}`].disabled = !!this.busy;
     }
-    this.snap.parentElement.hidden = draft?.kind !== 'parcel';
-    this.snap.checked = !!draft?.snap;
-    this.snap.disabled = !!this.busy;
     this.mapTools.querySelector('[data-role=sketch-tools]').hidden = !draft?.tool;
     b.undo.hidden = !draft;
     b.undo.disabled = !!this.busy || !(draft?.tool ? draft.vertices.length : draft?.previous);
-    b.finish.disabled = !!this.busy || !draft?.tool || draft.vertices.length < (draft.tool === 'Polygon' ? 3 : 2);
+    const activePart = draft?.parts?.[draft.active];
+    const selectedVertex = draft?.vertex;
+    const canRemove = selectedVertex && (draft.kind === 'parcel'
+      ? !!boundaryVertexRemoval(draft, selectedVertex.ring, selectedVertex.index)
+      : canRemoveVertex(activePart, selectedVertex.ring, selectedVertex.index));
+    const remove = b['remove-vertex'];
+    remove.hidden = !activePart || activePart.type === 'Point' || !!draft.tool;
+    remove.disabled = !!this.busy || !canRemove;
+    remove.title = selectedVertex && !canRemove ? S.CARTOGRAPHY_VERTEX_REQUIRED : S.CARTOGRAPHY_REMOVE_VERTEX;
+    b.finish.hidden = draft?.tool === 'Polygon';
+    b.finish.disabled = !!this.busy || !draft?.tool || draft.vertices.length < 2;
     b.save.disabled = b.cancel.disabled = b.copy.disabled = b['cancel-sketch'].disabled = !!this.busy;
     b['remove-part'].disabled = !!this.busy || !part || parts.length < 2;
     b.join.disabled = !!this.busy || part?.type !== 'LineString' || parts[draft.active + 1]?.type !== 'LineString';
     b.split.disabled = !!this.busy || part?.type !== 'LineString'
-      || !(draft.vertex > 0 && draft.vertex < part.coordinates.length - 1);
+      || !(draft.vertex?.index > 0 && draft.vertex.index < part.coordinates.length - 1);
     b['open-polygon'].disabled = !!this.busy || part?.type !== 'Polygon';
     b['close-line'].disabled = !!this.busy || part?.type !== 'LineString' || part.coordinates.length < 3;
     b.clear.disabled = locked || !this.state?.drawings.length;
@@ -265,7 +270,8 @@ export class CartographyEditor {
   startEdit(draft) {
     this.draft = draft;
     drafts.set(this.regionId, draft);
-    this.status.textContent = draft.tool ? S.CARTOGRAPHY_PLACE : S.CARTOGRAPHY_DRAG;
+    this.status.textContent = draft.tool === 'Polygon' ? S.CARTOGRAPHY_PLACE_POLYGON
+      : draft.tool ? S.CARTOGRAPHY_PLACE : S.CARTOGRAPHY_DRAG;
     this.refreshEdit();
   }
 
@@ -290,10 +296,30 @@ export class CartographyEditor {
 
   place(ll) {
     if (!this.draft?.tool || this.busy) return false;
-    const point = [ll.wrap().lng, ll.lat];
-    this.draft.vertices.push(this.draft.snap ? this.map.nearestParcelVertex(this.draft.id, point) : point);
+    const vertex = [ll.wrap().lng, ll.lat];
+    const last = this.draft.vertices.at(-1);
+    if (last?.[0] === vertex[0] && last[1] === vertex[1]) return true;
+    this.draft.vertices.push(vertex);
     this.refreshEdit();
     return true;
+  }
+
+  finishSketch() {
+    const d = this.draft;
+    if (this.busy || !d?.tool || d.vertices.length < (d.tool === 'Polygon' ? 3 : 2)) return;
+    const part = handPart(d.tool, d.vertices);
+    if (d.kind === 'parcel') {
+      delete d.tool;
+      delete d.vertices;
+      this.status.textContent = S.CARTOGRAPHY_DRAG;
+      this.changeParts(draft => {
+        draft.added.push(part);
+        draft.parts.push(part);
+        draft.active = draft.parts.length - 1;
+      });
+    } else {
+      this.form('tmpl-cartography-drawing', body => this.write('create', {...body, parts: [part]}));
+    }
   }
 
   refreshEdit() {
@@ -304,8 +330,9 @@ export class CartographyEditor {
     }
     this.map.edit(d, {
       vertex: d.vertex,
-      selectVertex: i => { d.vertex = i; this.updateButtons(); },
+      selectVertex: (ring, index) => { d.vertex = {ring, index}; this.updateButtons(); },
       selectPart: i => this.selectPart(i), place: ll => this.place(ll),
+      finish: () => this.finishSketch(),
       move: (r, i, pt) => this.editVertex('move', r, i, pt),
       insert: (r, i, pt) => this.editVertex('insert', r, i, pt),
     });
@@ -316,14 +343,23 @@ export class CartographyEditor {
     if (this.busy) return;
     this.changeParts(draft => {
       if (draft.kind === 'parcel') {
-        const destination = operation === 'move' && draft.snap
-          ? this.map.nearestParcelVertex(draft.id, point) : point;
-        editBoundary(draft, operation, ring, index, destination);
+        editBoundary(draft, operation, ring, index, point);
       } else {
         const edit = operation === 'move' ? moveVertex : insertVertex;
         edit(draft.parts[draft.active], ring, index, point);
       }
     });
+  }
+
+  removeSelectedVertex() {
+    const d = this.draft;
+    const {ring, index} = d.vertex;
+    if (d.kind === 'parcel') {
+      const removal = boundaryVertexRemoval(d, ring, index);
+      if (removal) this.changeParts(draft => removeBoundaryVertex(draft, ring, index, removal));
+    } else if (canRemoveVertex(d.parts[d.active], ring, index)) {
+      this.changeParts(draft => removeVertex(draft.parts[draft.active], ring, index));
+    }
   }
 
   async loadParcel(row, view) {
@@ -551,7 +587,7 @@ export class CartographyEditor {
         this.changeParts(d => joinParts(d.parts, d.active));
         break;
       case 'split':
-        this.changeParts(d => d.parts.splice(d.active, 1, ...splitLine(d.parts[d.active], d.vertex)));
+        this.changeParts(d => d.parts.splice(d.active, 1, ...splitLine(d.parts[d.active], d.vertex.index)));
         break;
       case 'open-polygon':
         this.changeParts(d => d.parts.splice(d.active, 1, ...openPolygon(d.parts[d.active])));
@@ -564,6 +600,9 @@ export class CartographyEditor {
           d.parts.splice(d.active, 1);
           d.active = Math.min(d.active, d.parts.length - 1);
         });
+        break;
+      case 'remove-vertex':
+        this.removeSelectedVertex();
         break;
       case 'undo': {
         const d = this.draft;
@@ -607,26 +646,11 @@ export class CartographyEditor {
         break;
       }
       case 'save':
-      case 'finish': {
-        const d = this.draft;
-        if (d.tool && d.kind === 'parcel') {
-          const part = handPart(d.tool, d.vertices);
-          delete d.tool;
-          delete d.vertices;
-          this.status.textContent = S.CARTOGRAPHY_DRAG;
-          this.changeParts(draft => {
-            draft.added.push(part);
-            draft.parts.push(part);
-            draft.active = draft.parts.length - 1;
-          });
-        } else if (d.tool) {
-          this.form('tmpl-cartography-drawing', body =>
-            this.write('create', {...body, parts: [handPart(d.tool, d.vertices)]}));
-        } else {
-          this.write('adjust', {id: d.id, version: d.version, parts: d.parts});
-        }
+        this.write('adjust', {id: this.draft.id, version: this.draft.version, parts: this.draft.parts});
         break;
-      }
+      case 'finish':
+        this.finishSketch();
+        break;
       case 'promote': {
         const drawing = this.draft || row;
         if (drawing.parts[0].type === 'Polygon') {

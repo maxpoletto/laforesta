@@ -227,13 +227,6 @@ details.cartography-section > .cartography-list-header {
 .cartography-import select { max-width: 100%; }
 .cartography-import .form-group { min-width: 0; }
 
-#cartography-sidebar .cartography-snap {
-  margin-top: 6px;
-  font-size: 0.9rem;
-  font-weight: 400;
-}
-#cartography-sidebar .cartography-snap[hidden] { display: none; }
-
 .cartography-insert-vertex {
   background: white;
   border: 1px solid #ad4c00;
@@ -250,3 +243,19 @@ details.cartography-section > .cartography-list-header {
 .cartography-parcel-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .cartography-buttons[hidden] { display: none; }
 .cartography-active-vertex { background: var(--color-abies-yellow, #ffcc00); }
+
+.cartography-map-tools [data-action="finish"][hidden] { display: none; }
+.cartography-sketch-start button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #ffe082;
+  border: 2px solid #8f5400;
+  border-radius: 50%;
+}
+.cartography-sketch-start.can-close button {
+  background: var(--color-bosco-green);
+  border-color: white;
+  box-shadow: 0 0 0 2px var(--color-bosco-green);
+  cursor: pointer;
+}

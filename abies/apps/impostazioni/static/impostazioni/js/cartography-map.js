@@ -8,7 +8,6 @@ import { handPart, rings } from './drawing-parts.js';
 const drawingStyle = { color: '#ad4c00', weight: 4 };
 const roadStyle = { color: '#244c86', weight: 4 };
 const selectedStyle = { color: '#db9500', weight: 6 };
-const SNAP_RADIUS_PX = 10;
 
 function fixLabel(fix) {
   const label = document.createElement('span');
@@ -143,35 +142,6 @@ export class CartographyMap {
     if (kind === 'drawing') this.watchHandles(row.parts);
   }
 
-  nearestParcelVertex(name, point) {
-    const location = this.map.latLngToContainerPoint([point[1], point[0]]);
-    const nearby = this.map.getBounds().pad(0.1);
-    let distance = SNAP_RADIUS_PX;
-    let nearest = point;
-    for (const [other, layers] of this.parcelLayers) {
-      if (other === name || !this.isVisible('parcel', other)) continue;
-      for (const layer of layers) {
-        if (!layer.getBounds().intersects(nearby)) continue;
-        const geometry = layer.feature.geometry;
-        const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
-        for (const coordinates of polygons) {
-          for (const ring of coordinates) {
-            for (const [lon, lat] of ring) {
-              const vertex = L.latLng(lat, lon);
-              if (!nearby.contains(vertex)) continue;
-              const pixels = this.map.latLngToContainerPoint(vertex).distanceTo(location);
-              if (pixels < distance) {
-                nearest = [lon, lat];
-                distance = pixels;
-              }
-            }
-          }
-        }
-      }
-    }
-    return nearest;
-  }
-
   showEditedParcels(names) {
     const layer = this.parcels.parcelLayer;
     for (const name of this.editedParcels) {
@@ -207,10 +177,40 @@ export class CartographyMap {
       layer.on('click', e => draft.tool ? callbacks.place(e.latlng) : callbacks.selectPart(i));
     });
     if (draft.tool) {
-      const part = handPart(draft.tool, draft.vertices);
-      if (part) this.partLayer(part, selectedStyle).addTo(this.preview).on('click', e => callbacks.place(e.latlng));
+      this.drawSketch(draft, callbacks);
     } else if (draft.parts[draft.active]) {
       this.watchHandles([draft.parts[draft.active]], callbacks);
+    }
+  }
+
+  drawSketch(draft, callbacks) {
+    const {tool, vertices} = draft;
+    const path = handPart('LineString', vertices);
+    if (!path) return;
+    this.partLayer(path, selectedStyle).addTo(this.preview).on('click', e => callbacks.place(e.latlng));
+
+    if (tool === 'Polygon') {
+      const [lon, lat] = vertices[0];
+      const canClose = vertices.length >= 3;
+      const title = canClose ? S.CARTOGRAPHY_CLOSE_SKETCH : S.CARTOGRAPHY_FIRST_VERTEX;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.title = title;
+      button.setAttribute('aria-label', title);
+      if (!canClose) {
+        button.setAttribute('aria-disabled', 'true');
+        button.tabIndex = -1;
+      }
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        if (canClose) callbacks.finish();
+      });
+      const icon = L.divIcon({
+        className: canClose ? 'cartography-sketch-start can-close' : 'cartography-sketch-start',
+        html: button,
+        iconSize: [16, 16],
+      });
+      L.marker([lat, lon], {icon, keyboard: false, bubblingMouseEvents: false}).addTo(this.handles);
     }
   }
 
@@ -240,15 +240,30 @@ export class CartographyMap {
             marker.addTo(this.handles);
             if (fix) marker.bindTooltip(fixLabel(fix)).on('click', () => marker.openTooltip());
             if (callbacks) {
-              const selectVertex = () => {
-                this.handles.eachLayer(handle => handle.getElement()?.classList.remove('cartography-active-vertex'));
-                marker.getElement()?.classList.add('cartography-active-vertex');
-                callbacks.vertex = i;
-                callbacks.selectVertex(i);
-              };
-              if (part.type === 'LineString') {
-                if (callbacks.vertex === i) marker.getElement()?.classList.add('cartography-active-vertex');
+              if (part.type !== 'Point') {
+                const handle = marker.getElement();
+                const selected = callbacks.vertex?.ring === r && callbacks.vertex?.index === i;
+                handle.setAttribute('aria-label', S.CARTOGRAPHY_SELECT_VERTEX);
+                handle.setAttribute('aria-pressed', String(selected));
+                handle.classList.toggle('cartography-active-vertex', selected);
+                const selectVertex = () => {
+                  this.handles.eachLayer(layer => {
+                    const element = layer.getElement();
+                    if (!element?.hasAttribute('aria-pressed')) return;
+                    const active = element === handle;
+                    element.classList.toggle('cartography-active-vertex', active);
+                    element.setAttribute('aria-pressed', String(active));
+                  });
+                  callbacks.vertex = {ring: r, index: i};
+                  callbacks.selectVertex(r, i);
+                };
                 marker.on('click', selectVertex);
+                handle.addEventListener('keydown', event => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  selectVertex();
+                });
               }
               marker.on('drag', () => {
                 const layer = this.activeLayer;

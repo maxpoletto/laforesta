@@ -193,6 +193,10 @@ S (string constants) provided by the shell's render context.
                     aria-label="Annulla ultimo passo" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
             </button>
+            <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
+                    aria-label="Rimuovi vertice" hidden disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 12h8"/></svg>
+            </button>
             <div class="cartography-buttons" data-role="sketch-tools" hidden>
               <button class="btn" data-action="cancel-sketch">{{ S.CANCEL }}</button>
               <button class="btn btn-save" data-action="finish">Termina</button>
@@ -223,9 +227,6 @@ S (string constants) provided by the shell's render context.
               <button class="btn" data-action="parcel-properties" disabled>Proprietà</button>
               <button class="btn" data-action="boundaries" disabled>Confini</button>
             </div>
-            <label class="cartography-snap" data-role="parcel-snap" hidden>
-              <input type="checkbox"> Aggancia ai vertici delle altre particelle
-            </label>
             <div class="cartography-buttons" data-role="parcel-edit-actions" hidden>
               <button class="btn" data-action="cancel-parcel">{{ S.CANCEL }}</button>
               <button class="btn btn-save" data-action="save-parcel">{{ S.SAVE }}</button>

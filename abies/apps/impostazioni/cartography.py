@@ -16,7 +16,7 @@ from apps.base.idempotency import begin_nonce_write
 from apps.base.models import MapDrawing, MapFeature, MapPointSet, Parcel, Region, RoadType
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
-from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, walk_parts
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
 from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, save_boundaries
@@ -141,7 +141,7 @@ def promote_parcel(drawing, parts, body):
             raise ValueError(S.CARTOGRAPHY_STALE)
         piece = shape(geometry)
         existing = parcel.map_features.filter(published=True).values_list('geometry', flat=True)
-        if any(piece.relate_pattern(shape(outline), 'T********') for outline in existing):
+        if any(piece.relate_pattern(shape(planar_polygon(outline)), 'T********') for outline in existing):
             raise ValueError(S.CARTOGRAPHY_PIECE_OVERLAPS)
         parcel.version += 1
         parcel.save(update_fields=['version'])

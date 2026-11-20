@@ -44,12 +44,15 @@ follow the same parcel, and a parcel with dependent records is protected from
 deletion. Road properties include the name, type and delete action.
 
 Use **Confini** for parcel outlines or **Punti** for a road. Drag a vertex
-to move it or click the small handle between vertices to insert one. Activate
-**Poligono** during a parcel edit to sketch another piece, then use **Termina**
-to add it to the edit. A coincident edge shared by parcels in the compresa
-is edited on both sides and the affected outlines are highlighted. **Aggancia
-ai vertici delle altre particelle** lets the operator align nearby outlines by
-dropping vertices near the reference vertices. **Salva** publishes the edit and
+to move it or click the small handle between vertices to insert one. Select an
+existing vertex and use **Rimuovi vertice** on the map to remove it. Undo
+restores the last vertex edit. Activate
+**Poligono** during a parcel edit to sketch another piece. Click the first
+vertex again to close the outline and add the piece to the edit. A coincident
+edge shared by parcels in the compresa is edited on both sides and the affected
+outlines are highlighted. Removing a vertex along a shared edge removes it
+from both outlines. The editor keeps vertices needed for a valid shape or
+where shared edges meet other edges. **Salva** publishes the edit and
 **Annulla** discards it after confirmation. The unsaved edit survives switching
 tabs within a browser session.
 
@@ -60,8 +63,9 @@ into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 
 **Linea** and **Poligono** on the map start a drawing in the selected
-compresa. Click or tap the map to place vertices, then use **Termina** to
-name the drawing. Undo is on the map during drawing and editing. The
+compresa. Click or tap the map to place vertices. Use **Termina** for a line,
+or return to the first vertex to close a polygon. Abies then asks for the
+drawing's name. Undo is on the map during drawing and editing. The
 **Annulla** and **Salva** controls for an existing drawing are in **Disegni**.
 Promoting a polygon opens Bosco’s parcel properties form. The first economic
 class by name is selected, and the cadastral area can be left blank. In a
