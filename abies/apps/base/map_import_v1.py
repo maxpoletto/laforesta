@@ -5,6 +5,8 @@ from pathlib import Path
 
 from django.db import transaction
 
+from apps.base.geodesy import valid_position
+
 
 def initial_map_path(directory):
     for name in ('map.geojson', 'terreni.geojson'):
@@ -28,16 +30,9 @@ def parcel_key(feature):
     return region, name.split('-', 1)[-1]
 
 
-def _valid_position(point):
-    if not isinstance(point, list) or len(point) < 2:
-        return False
-    return (all(type(value) in (int, float) for value in point)
-            and -180 <= point[0] <= 180 and -90 <= point[1] <= 90)
-
-
 def _valid_ring(ring):
     return (isinstance(ring, list) and len(ring) >= 4
-            and ring[0] == ring[-1] and all(map(_valid_position, ring)))
+            and ring[0] == ring[-1] and all(valid_position(point, extra_dimensions=True) for point in ring))
 
 
 def read_collection(path):

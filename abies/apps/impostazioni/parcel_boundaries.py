@@ -8,8 +8,9 @@ from django.db.models import Exists, OuterRef, Q
 from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, Polygon, shape
 
+from apps.base.geodesy import valid_position
 from apps.base.models import MapFeature, Parcel
-from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, position
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon
 from apps.impostazioni.regions import unlinked_outlines
 from config import strings as S
 
@@ -147,7 +148,7 @@ def boundary_results(parcel, data, outlines):
             identifiers = (ring_index, index)
             if (any(type(value) is not int or value < 0 for value in identifiers)
                     or operation not in ('move', 'insert', 'remove')
-                    or (operation != 'remove' and not position(point))
+                    or (operation != 'remove' and not valid_position(point))
                     or (operation == 'insert' and index == 0)):
                 raise ValueError(S.CARTOGRAPHY_GEOMETRY_INVALID)
             ring = pieces[part]['coordinates'][ring_index]

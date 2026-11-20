@@ -266,8 +266,7 @@ def edit_workspace(region_id, action, body):
             return {}
         parts = checked_parts(body.get('parts', drawing.parts if action in ('road', 'parcel') else None))
         if action == 'copy':
-            copy = drawings.create(region_id=region_id, name=required_name(body), parts=parts)
-            return {'drawing_id': copy.pk}
+            return create_drawing(region_id, required_name(body), parts)
         if action == 'parcel':
             return promote_parcel(drawing, parts, body)
         if action == 'road':

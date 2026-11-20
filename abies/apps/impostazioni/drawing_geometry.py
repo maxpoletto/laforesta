@@ -3,6 +3,7 @@ from itertools import groupby
 
 from shapely.geometry import shape
 
+from apps.base.geodesy import valid_position
 from config import strings as S
 
 
@@ -16,12 +17,6 @@ def walk_parts(records):
                       'coordinates': coords[0] if len(rows) == 1 else coords,
                       'fixes': [[r['acc_m'], r['note']] for r in rows]})
     return parts
-
-
-def position(point):
-    return (isinstance(point, list) and len(point) == 2
-            and all(type(v) in (int, float) for v in point)
-            and -180 <= point[0] <= 180 and -90 <= point[1] <= 90)
 
 
 def valid_part(part):
@@ -39,7 +34,7 @@ def valid_part(part):
         points = [p for ring in coords for p in ring]
     else:
         return False
-    if not all(map(position, points)):
+    if not all(map(valid_position, points)):
         return False
     fixes = part.get('fixes')
     if fixes is not None and not (isinstance(fixes, list) and len(fixes) == len(points)

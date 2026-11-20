@@ -304,10 +304,7 @@ export class CartographyEditor {
 
   changeParts(change) {
     const d = this.draft;
-    if (!changeGeometry(d, change)) return;
-    d.vertex = null;
-    d.join = null;
-    this.refreshEdit();
+    if (changeGeometry(d, change)) this.selectPart(d.active);
   }
 
   place(ll) {
@@ -667,9 +664,7 @@ export class CartographyEditor {
         break;
       case 'undo': {
         const d = this.draft;
-        if (!undoEdit(d)) break;
-        d.vertex = d.join = null;
-        this.refreshEdit();
+        if (undoEdit(d)) this.selectPart(d.active);
         break;
       }
       case 'cancel': {
