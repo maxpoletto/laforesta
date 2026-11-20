@@ -38,6 +38,9 @@ async function walk(browser) {
   const modal = loc('#modal-container');
   const sidebar = loc('#cartography-sidebar');
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
+  assert.equal(await sidebar.locator('[data-action=save], [data-action=cancel], [data-action=finish]').count(), 0);
+  assert.equal(await loc('#cartography-map [data-action=save] svg').count(), 1);
+  assert.equal(await loc('#cartography-map [data-action=cancel] svg').count(), 1);
   const drawings = loc('#cartography-drawings li');
   const visibleDrawing = loc('#cartography-drawings [data-action=toggle-item]');
   const drawingSummary = loc('#cartography-drawings-label');
@@ -241,7 +244,7 @@ async function walk(browser) {
   await modal.getByRole('button', {name: 'Salva', exact: true}).click();
   await loc('#cartography-roads').getByRole('button', {name: 'Via nord', exact: true}).waitFor();
   await action('points').click();
-  await action('save-road').waitFor();
+  await action('save').waitFor();
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('join-link').isDisabled());
   await loc('.cartography-insert-vertex').first().click();
@@ -264,12 +267,12 @@ async function walk(browser) {
   await roadVertices.nth(1).click();
   await action('break-link').click();
   assert.ok(await action('join-link').isEnabled());
-  assert.ok(await action('save-road').isDisabled());
+  assert.ok(await action('save').isDisabled());
   await removeFirstVertex();
   assert.equal(await roadVertices.count(), 1);
-  assert.ok(await action('save-road').isDisabled());
+  assert.ok(await action('save').isDisabled());
   await removeFirstVertex();
-  assert.ok(await action('save-road').isEnabled());
+  assert.ok(await action('save').isEnabled());
   await action('undo').click();
   assert.equal(await roadVertices.count(), 1);
   await action('undo').click();
@@ -279,9 +282,9 @@ async function walk(browser) {
   if (width < 800) await sidebarToggle.click();
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/road-points/') && r.ok()),
-    action('save-road').click(),
+    action('save').click(),
   ]);
-  await action('save-road').waitFor({state: 'hidden'});
+  await action('save').waitFor({state: 'hidden'});
   await page.goto(url + '/bosco');
   const filter = page.getByRole('checkbox', {name: 'Pista di prova'});
   await filter.waitFor();
@@ -395,14 +398,14 @@ async function walk(browser) {
   if (width < 800) await sidebarToggle.click();
   await action('line').click();
   await map.click({position: {x: 100, y: 295}});
-  await action('cancel-sketch').click();
+  await action('cancel').click();
   await modal.locator('[data-action=confirm]').click();
   if (width < 800) await sidebarToggle.click();
   assert.equal((await selectedParcel.textContent()).trim(), '2b');
   assert.ok(await action('polygon').isHidden());
 
   await action('boundaries').click();
-  await action('save-parcel').waitFor();
+  await action('save').waitFor();
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('line').isHidden());
   assert.ok(await action('join-link').isDisabled());
@@ -424,9 +427,9 @@ async function walk(browser) {
   if (width < 800) await sidebarToggle.click();
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/parcel-boundaries/') && r.ok()),
-    action('save-parcel').click(),
+    action('save').click(),
   ]);
-  await action('save-parcel').waitFor({state: 'hidden'});
+  await action('save').waitFor({state: 'hidden'});
 
   const regionId = await loc('#cartography-region').inputValue();
   const headers = {'X-CSRFToken': await page.locator('body').getAttribute('data-csrf')};
@@ -439,7 +442,7 @@ async function walk(browser) {
   assert.deepEqual(editedRing[0], editedRing.at(-1));
 
   await action('boundaries').click();
-  await action('save-parcel').waitFor();
+  await action('save').waitFor();
   if (width < 800) await sidebarToggle.click();
   await parcelVertices.first().click();
   assert.ok(await action('remove-vertex').isDisabled());
@@ -453,14 +456,14 @@ async function walk(browser) {
   await action('undo').click();
   assert.equal(await parcelVertices.count(), 1);
   if (width < 800) await sidebarToggle.click();
-  await action('save-parcel').click();
+  await action('save').click();
   assert.equal(await modal.locator('[data-field=message]').textContent(), 'Solo i poligoni verranno salvati. Continuare?');
   assert.ok(await modal.getByRole('button', {name: 'Annulla', exact: true}).isVisible());
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/parcel-boundaries/') && r.ok()),
     modal.getByRole('button', {name: 'Salva', exact: true}).click(),
   ]);
-  await action('save-parcel').waitFor({state: 'hidden'});
+  await action('save').waitFor({state: 'hidden'});
   const remaining = await (await page.request.get(url + '/api/geo/map.geojson')).json();
   assert.deepEqual(remaining.features, [outline.features[1]]);
   const [lon, lat] = remaining.features[0].geometry.coordinates[0][0];

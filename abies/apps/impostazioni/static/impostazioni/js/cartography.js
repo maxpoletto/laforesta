@@ -241,17 +241,13 @@ export class CartographyEditor {
     const promotableLine = parts?.length === 1 && parts[0].type === 'LineString' && this.catalog?.road_types.length;
     const promotablePolygon = parts?.length && parts.every(piece => piece.type === 'Polygon');
     b.promote.disabled = !!this.busy || !!draft?.kind || !(promotableLine || promotablePolygon);
-    this.panel.querySelector('[data-role=edit-actions]').hidden = !(drawingDraft && draft.id && !draft.tool);
     this.panel.querySelector('[data-role=parts]').hidden = !part;
-    for (const kind of ['parcel', 'road']) {
-      const editing = draft?.kind === kind && !draft.tool;
-      this.panel.querySelector(`[data-role=${kind}-edit-actions]`).hidden = !editing;
-      const complete = kind === 'parcel' || !parts?.length || (parts.length === 1 && parts[0].type === 'LineString');
-      b[`save-${kind}`].disabled = !!this.busy || !draft?.dirty || !complete;
-      b[`save-${kind}`].title = editing && !complete ? S.CARTOGRAPHY_ROAD_NEEDS_LINE : '';
-      b[`cancel-${kind}`].disabled = !!this.busy;
-    }
-    this.mapTools.querySelector('[data-role=sketch-tools]').hidden = !(draft?.tool || draft?.returnSelection);
+    const incompleteRoad = draft?.kind === 'road' && parts.length
+      && (parts.length !== 1 || parts[0].type !== 'LineString');
+    b.save.hidden = !draft || !!draft.tool || !!draft.returnSelection;
+    b.save.disabled = !!this.busy || !!incompleteRoad || (!!draft?.kind && !draft.dirty);
+    b.save.title = incompleteRoad ? S.CARTOGRAPHY_ROAD_NEEDS_LINE : S.SAVE;
+    b.cancel.hidden = !draft;
     b.undo.hidden = !draft;
     b.undo.disabled = !!this.busy || !draft?.history?.length;
     const activePart = draft?.parts?.[draft.active];
@@ -272,7 +268,7 @@ export class CartographyEditor {
     b['join-link'].setAttribute('aria-pressed', String(!!draft?.join));
     b.finish.hidden = draft?.tool !== 'LineString';
     b.finish.disabled = !!this.busy || !draft?.tool || draft.vertices.length < 2;
-    b.save.disabled = b.cancel.disabled = b.copy.disabled = b['cancel-sketch'].disabled = !!this.busy;
+    b.cancel.disabled = b.copy.disabled = !!this.busy;
     b['remove-part'].disabled = !!this.busy || !part || parts.length < 2;
     b.clear.disabled = locked || !this.state?.drawings.length;
     b['new-drawing'].disabled = b['open-import'].disabled = locked || !this.state;
@@ -627,19 +623,6 @@ export class CartographyEditor {
         this.startEdit({kind: 'road', id: row.id, version: row.version,
           parts: [structuredClone(row.geometry)], active: 0});
         break;
-      case 'save-road':
-        this.saveFeature('road', 'road-points');
-        break;
-      case 'save-parcel': {
-        const {parcelId, review, edits, added, parts} = this.draft;
-        const save = () => this.write('parcel-boundaries', {id: parcelId, review, edits, added});
-        if (parts.some(part => part.type !== 'Polygon')) {
-          showConfirmModal(S.CARTOGRAPHY_SAVE_OPEN_BOUNDARIES, save, {confirmLabel: S.SAVE, intent: 'confirm'});
-        } else {
-          save();
-        }
-        break;
-      }
       case 'open-import':
         this.showImport();
         break;
@@ -677,16 +660,13 @@ export class CartographyEditor {
         this.refreshEdit();
         break;
       }
-      case 'cancel':
-      case 'cancel-road':
-      case 'cancel-parcel':
-      case 'cancel-sketch': {
+      case 'cancel': {
         const d = this.draft;
         const selection = d.returnSelection ?? {kind: d.kind || 'drawing', id: d.id};
-        const message = action === 'cancel-parcel' ? S.CARTOGRAPHY_CANCEL_BOUNDARIES :
-          action === 'cancel-road' ? S.CARTOGRAPHY_CANCEL_POINTS : S.CARTOGRAPHY_CANCEL;
+        const message = d.kind === 'parcel' ? S.CARTOGRAPHY_CANCEL_BOUNDARIES :
+          d.kind === 'road' ? S.CARTOGRAPHY_CANCEL_POINTS : S.CARTOGRAPHY_CANCEL;
         showConfirmModal(message, async () => {
-          if (action === 'cancel-sketch' && !d.returnSelection) {
+          if (d.tool && !d.returnSelection) {
             cancelSketch(d);
             this.refreshEdit();
             return;
@@ -710,9 +690,20 @@ export class CartographyEditor {
         }));
         break;
       }
-      case 'save':
-        this.saveFeature('drawing', 'adjust');
+      case 'save': {
+        const {kind, parcelId, review, edits, added, parts} = this.draft;
+        if (kind !== 'parcel') {
+          this.saveFeature(kind || 'drawing', kind === 'road' ? 'road-points' : 'adjust');
+          break;
+        }
+        const save = () => this.write('parcel-boundaries', {id: parcelId, review, edits, added});
+        if (parts.some(part => part.type !== 'Polygon')) {
+          showConfirmModal(S.CARTOGRAPHY_SAVE_OPEN_BOUNDARIES, save, {confirmLabel: S.SAVE, intent: 'confirm'});
+        } else {
+          save();
+        }
         break;
+      }
       case 'finish':
         this.finishSketch();
         break;

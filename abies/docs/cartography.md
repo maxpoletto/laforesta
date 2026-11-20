@@ -101,7 +101,7 @@ immediately becoming visible throughout Abies.
 - The **Poligono** tool adds a piece to the highlighted parcel. The new piece
   may be separate from the rest of the parcel and is saved with **Salva**.
 - The undo button on the map restores up to ten editing actions.
-- Two buttons appear below **Proprietà** and **Confini**: **Annulla** (grey) **Salva** (green)
+- The map toolbar offers **Annulla** and **Salva**.
 
 **Annulla** prompts with the standard modal, and then resets the parcel's state
 to what it was before the user pressed **Confini**.
@@ -136,7 +136,7 @@ its type, or delete it. Changes immediately become visible throughout Abies.
 - Vertices become visible and movable, and segments provide insert-vertex
   controls [Implementation note: like in bosco/ep].
 - The undo button on the map restores up to ten editing actions.
-- Two buttons appear below **Proprietà** and **Punti**: **Annulla** **Salva**
+- The map toolbar offers **Annulla** and **Salva**.
 
 **Annulla** prompts with the standard modal, and then resets the road's state
 to what it was before the user pressed **Punti**.
@@ -168,8 +168,8 @@ The list interacts bidirectionally with the map just like for parcels and roads.
 Below the list are the following buttons: **Modifica** **Promuovi**.
 
 **Modifica** makes the drawing editable. The map shows the vertex tools and
-allows new lines or polygons to be added. **Annulla** and **Salva** are below
-the drawing list. The map editing tools appear only during an edit.
+allows new lines or polygons to be added. **Annulla** and **Salva** are in the
+map toolbar. The map editing tools appear only during an edit.
 
 **Promuovi** opens a modal with the destinations available for the selected
 drawing. A line can become a new road. A polygon can become a new parcel or,

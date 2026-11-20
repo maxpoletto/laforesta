@@ -72,8 +72,8 @@ Choose **Linea** or **Poligono** on the map, then click or tap the map to
 place vertices. Use **Termina** for a line, or return to the first vertex to
 close a polygon. Abies then asks for the drawing's name. Canceling restores the
 previous selection. During **Modifica**, the same tools add another shape to
-the current drawing. The map tools are visible during drawing or editing. The
-**Annulla** and **Salva** controls for an existing drawing are in **Disegni**.
+the current drawing. The map toolbar shows **Annulla** and the applicable
+**Salva** or **Termina** action during drawing and editing.
 Promoting a polygon opens Bosco’s parcel properties form. The first economic
 class by name is selected, and the cadastral area can be left blank. In a
 compresa with cataloged parcels, the destination selector also offers to add

@@ -206,6 +206,11 @@ details.cartography-section > .cartography-list-header {
   border-radius: 4px;
   background: white;
 }
+.cartography-map-tools .cartography-map-icon.btn-save:not(:disabled) {
+  background: var(--color-bosco-green);
+  border-color: var(--color-bosco-green);
+  color: white;
+}
 .cartography-map-icon svg {
   width: 21px;
   height: 21px;
@@ -250,7 +255,6 @@ details.cartography-section > .cartography-list-header {
 }
 .cartography-active-vertex { background: var(--color-abies-yellow, #ffcc00); }
 
-.cartography-map-tools [data-action="finish"][hidden] { display: none; }
 .cartography-sketch-start button {
   display: block;
   width: 100%;
