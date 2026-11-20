@@ -71,6 +71,11 @@ async function walk(browser) {
   }
 
   assert.ok(await action('edit-region').isDisabled());
+  assert.ok(await action('edit-region').evaluate(button => {
+    const style = getComputedStyle(button);
+    return style.opacity === '1' && style.boxShadow.includes('inset')
+      && style.backgroundColor !== getComputedStyle(button.closest('aside')).backgroundColor;
+  }));
   await action('new-region').click();
   await saveRegion('Temporanea', '');
   assert.ok(await action('line').isHidden());
