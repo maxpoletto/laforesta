@@ -60,7 +60,7 @@ class Command(BaseCommand):
             geojson = options['geojson']
             output_dir = options['output_dir']
             if geojson is None:
-                geojson = map_geojson()
+                geojson = map_geojson(include_parcel_ids=options['action'] in {'precompute', 'all'})
             elif not geojson.is_file():
                 raise satellite.SatelliteError(f'{geojson} not found')
             regions = options['region'] or satellite.regions_from_geojson(geojson)
@@ -74,7 +74,7 @@ class Command(BaseCommand):
             if action in {'fetch', 'all'}:
                 self._fetch(geojson, output_dir, regions, options)
             if action in {'precompute', 'all'}:
-                self._precompute(geojson, output_dir, regions)
+                self._precompute(geojson, output_dir, regions, stable_ids=options['geojson'] is None)
         except (satellite.SatelliteError, MapContextError) as exc:
             raise CommandError(str(exc)) from exc
 
@@ -120,8 +120,8 @@ class Command(BaseCommand):
                 f'{region}: fetched {fetched} date(s); skipped {skipped}'
             )
 
-    def _precompute(self, geojson, output_dir, regions):
+    def _precompute(self, geojson, output_dir, regions, *, stable_ids):
         for region, key in regions.items():
             region_dir = region_directory(output_dir, str(key))
-            count = satellite.precompute_region(geojson, region_dir, region)
+            count = satellite.precompute_region(geojson, region_dir, region, stable_ids=stable_ids)
             self.stdout.write(f'{region}: precomputed {count} date(s)')

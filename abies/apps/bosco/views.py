@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import json
 import os
 import re
 from datetime import date as date_type
@@ -18,6 +19,7 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.cache import get_conditional_response
 from django.utils.http import http_date
 from django.views.decorators.http import require_POST
 
@@ -35,7 +37,7 @@ from apps.base.http import (
 )
 from apps.base.map_data import map_geojson
 from apps.base.models import (
-    Observation, ObservationCategory, ObservationPhoto, Parcel,
+    MapFeature, Observation, ObservationCategory, ObservationPhoto, Parcel,
     Region, Sample, Species, Tree, TreeSample,
     parcel_sort_key,
 )
@@ -58,6 +60,7 @@ from apps.base.responses import (
     success_response, validation_error,
 )
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
+from apps.bosco.satellite import PARCEL_SCHEMA_VERSION, parcel_snapshot_key
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
@@ -930,7 +933,16 @@ def satellite_manifest(request, region_id):
 
 @login_required
 def satellite_timeseries(request, region_id):
-    return _satellite_json_response(request, region_id, 'timeseries.json')
+    path = _satellite_file_path(region_id, 'timeseries.json')
+    try:
+        raw = path.read_bytes()
+        summary = json.loads(raw)
+    except (OSError, ValueError):
+        raise Http404 from None
+    if (not isinstance(summary, dict) or summary.get('schema_version') != PARCEL_SCHEMA_VERSION
+            or summary.get('parcel_snapshot') != _satellite_parcel_snapshot(region_id)):
+        raise Http404
+    return _satellite_snapshot_response(request, HttpResponse(raw, content_type='application/json'))
 
 
 @login_required
@@ -947,7 +959,23 @@ def satellite_raw(request, region_id, layer, date):
 @login_required
 def satellite_mask_raw(request, region_id):
     path = _satellite_file_path(region_id, 'parcel-mask.tif')
-    return _satellite_raw_response(request, path)
+    try:
+        payload = _satellite_raw_payload(path, parcel_snapshot=_satellite_parcel_snapshot(region_id))
+    except (OSError, rasterio.errors.RasterioError):
+        raise Http404 from None
+    return _satellite_snapshot_response(request, JsonResponse(payload))
+
+
+def _satellite_parcel_snapshot(region_id):
+    rows = MapFeature.objects.filter(published=True, parcel__region_id=region_id).values_list('parcel_id', 'geometry')
+    return parcel_snapshot_key(rows)
+
+
+def _satellite_snapshot_response(request, response):
+    etag = '"' + hashlib.sha256(response.content).hexdigest() + '"'
+    response['ETag'] = etag
+    apply_cache_control(response, CACHE_NO_CACHE)
+    return get_conditional_response(request, etag=etag, response=response)
 
 
 def _required_query_int(request, key: str) -> int:
@@ -1214,8 +1242,10 @@ def _satellite_raw_response(request, path):
     return response
 
 
-def _satellite_raw_payload(path):
+def _satellite_raw_payload(path, *, parcel_snapshot=None):
     with rasterio.open(path) as src:
+        if parcel_snapshot is not None and src.tags().get('parcel_snapshot') != parcel_snapshot:
+            raise Http404
         data = np.ascontiguousarray(src.read(1).astype(np.uint8, copy=False))
         bounds = src.bounds
         payload = {

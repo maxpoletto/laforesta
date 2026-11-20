@@ -342,6 +342,7 @@ def test_pending_and_imported_walk_protect_region(client, regions, walk):
 def test_rename_preserves_parcels_and_built_map_data(client, writer_user, parcels, import_parcel_map, settings):
     from apps.base.map_data import map_geojson
     from apps.bosco.map_context_data import CONTEXT_FILE, SCHEMA_VERSION, publish_context, region_geometry
+    from apps.bosco.satellite import parcel_snapshot_key
     from apps.base.models import MapFeature
 
     client.force_login(writer_user)
@@ -355,7 +356,10 @@ def test_rename_preserves_parcels_and_built_map_data(client, writer_user, parcel
     sat.mkdir(parents=True)
     (sat / 'manifest.json').write_text('{"dates":[]}')
     import json
-    summary = json.dumps({'schema_version': 2, 'parcels': ['1'], 'means': {'parcels': {'1': {'ndvi': [0.4]}}}})
+    key_id = str(parcels[0].pk)
+    snapshot = parcel_snapshot_key([(parcels[0].pk, feature.geometry)])
+    summary = json.dumps({'schema_version': 3, 'parcel_snapshot': snapshot,
+                          'parcels': [key_id], 'means': {'parcels': {key_id: {'ndvi': [0.4]}}}})
     (sat / 'timeseries.json').write_text(summary)
     fingerprint, _ = region_geometry(map_geojson(), region.name)
     publish_context(settings.MAP_CONTEXT_DIR / str(key) / CONTEXT_FILE, {
@@ -370,9 +374,44 @@ def test_rename_preserves_parcels_and_built_map_data(client, writer_user, parcel
     region.refresh_from_db()
     assert region.map_key == key
     series = client.get(f'/api/bosco/satellite/{region.pk}/timeseries/')
-    assert b''.join(series.streaming_content) == summary.encode()
+    assert series.content == summary.encode()
     context = client.get(reverse('bosco-map-context', args=[region.pk]))
     assert context.get('Content-Encoding') == 'gzip'
+
+
+def test_satellite_data_follows_parcel_id_and_rejects_changed_geometry(client, writer_user, parcels, settings):
+    import json
+
+    import numpy as np
+
+    from apps.base.models import MapFeature
+    from apps.bosco.satellite import parcel_snapshot_key, save_geotiff
+
+    client.force_login(writer_user)
+    parcel = parcels[0]
+    region = parcel.region
+    polygon = {'type': 'Polygon', 'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 38]]]}
+    feature = MapFeature.objects.create(parcel=parcel, geometry=polygon)
+    snapshot = parcel_snapshot_key([(parcel.pk, polygon)])
+    directory = settings.SATELLITE_DIR / str(region.map_key)
+    directory.mkdir(parents=True)
+    (directory / 'timeseries.json').write_text(json.dumps({
+        'schema_version': 3, 'parcel_snapshot': snapshot, 'means': {'parcels': {str(parcel.pk): {'ndvi': [0.4]}}},
+    }))
+    save_geotiff(directory / 'parcel-mask.tif', np.ones((2, 2), dtype=np.uint8), [16, 38, 17, 39], 2, 2,
+                 tags={'parcel_snapshot': snapshot})
+    base = f'/api/bosco/satellite/{region.pk}'
+    urls = [f'{base}/timeseries/', f'{base}/raw/parcel-mask.json']
+    assert write(client, region, 'parcel-properties', id=parcel.pk, version=parcel.version, name='Rinominata',
+                 confirm_rename=True, eclass_id=parcel.eclass_id).status_code == 200
+    etags = [client.get(url)['ETag'] for url in urls]
+    assert client.get(urls[0]).json()['means']['parcels'] == {str(parcel.pk): {'ndvi': [0.4]}}
+    review = client.get(f'{ROOT}{region.pk}/parcels/{parcel.pk}/boundaries/').json()['review']
+    assert write(client, region, 'parcel-boundaries', id=parcel.pk, review=review,
+                 edits=[{'id': feature.pk, 'part': 0, 'ring': 0, 'index': 1, 'operation': 'move',
+                         'point': [16.9, 38]}]).status_code == 200
+    for url, etag in zip(urls, etags, strict=True):
+        assert client.get(url, HTTP_IF_NONE_MATCH=etag).status_code == 404
 
 
 def test_plan_and_survey_references_prevent_region_deletion(client, writer_user, hypso_samples, parcels):

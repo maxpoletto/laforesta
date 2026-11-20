@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +32,7 @@ BANDS = ['B02', 'B04', 'B08', 'B11']
 INDICES = ['ndvi', 'ndmi', 'evi']
 EXPECTED_TIFFS = [b.lower() + '.tif' for b in BANDS] + [i + '.tif' for i in INDICES]
 RESOLUTION_M = 10
+PARCEL_SCHEMA_VERSION = 3
 FIRST_YEAR = 2015
 DATE_DIR_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 WGS84 = rasterio.CRS.from_epsg(4326)
@@ -345,7 +348,7 @@ def compute_indices(bands: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
 
 def save_geotiff(
         path: Path, data_uint8: np.ndarray, bbox: list[float],
-        width: int, height: int) -> None:
+        width: int, height: int, *, tags=None) -> None:
     west, south, east, north = bbox
     transform = from_bounds(west, south, east, north, width, height)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -354,6 +357,8 @@ def save_geotiff(
             count=1, crs=WGS84, transform=transform, compress='deflate',
     ) as dst:
         dst.write(data_uint8, 1)
+        if tags:
+            dst.update_tags(**tags)
 
 
 def fetch_one_date(
@@ -409,26 +414,30 @@ def fetch_region(
     return fetched, skipped
 
 
-def rasterize_parcels(
-        geojson_path: Path | dict, bbox: list[float], width: int, height: int,
-        region: str | None = None) -> tuple[np.ndarray, list[str]]:
-    data = _geojson_data(geojson_path)
+def parcel_snapshot_key(rows):
+    pieces = sorted(json.dumps([str(key), geometry], sort_keys=True, separators=(',', ':'))
+                    for key, geometry in rows)
+    return hashlib.sha256('\n'.join(pieces).encode()).hexdigest()
 
-    west, south, east, north = bbox
-    transform = from_bounds(west, south, east, north, width, height)
-    features = data.get('features') or []
-    if region:
-        features = [
-            f for f in features
-            if (f.get('properties') or {}).get('layer') == region
-        ]
-    named_shapes = []
-    for feature in features:
-        name = (feature.get('properties') or {}).get('name')
-        if isinstance(name, str) and name and feature.get('geometry'):
-            if region:
-                name = name.removeprefix(region + '-')
-            named_shapes.append((name, feature['geometry']))
+
+def parcel_shapes(geojson_path, region, *, stable_ids=False):
+    shapes = []
+    for feature in _geojson_data(geojson_path).get('features', []):
+        properties = feature.get('properties') or {}
+        if (region and properties.get('layer') != region) or not feature.get('geometry'):
+            continue
+        if stable_ids:
+            if properties.get('parcel_id') is not None:
+                shapes.append((str(properties['parcel_id']), feature['geometry']))
+        elif isinstance(properties.get('name'), str) and properties['name']:
+            name = properties['name']
+            shapes.append((name.removeprefix(region + '-') if region else name, feature['geometry']))
+    return shapes
+
+
+def rasterize_parcels(
+        named_shapes, bbox: list[float], width: int, height: int) -> tuple[np.ndarray, list[str]]:
+    transform = from_bounds(*bbox, width, height)
     named_shapes.sort(key=lambda item: item[0])
     parcel_names = sorted({name for name, geometry in named_shapes})
     name_to_idx = {name: idx for idx, name in enumerate(parcel_names, start=1)}
@@ -478,7 +487,7 @@ def compute_timeseries(
     }
 
 
-def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str) -> int:
+def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str, *, stable_ids=False) -> int:
     dates = discover_dates(output_dir)
     if not dates:
         raise SatelliteError(f'no complete date directories found in {output_dir}')
@@ -499,12 +508,22 @@ def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str) 
         json.dump(manifest, f, indent=2)
         f.write('\n')
 
-    mask, parcel_names = rasterize_parcels(geojson_path, bbox, width, height, region)
-    save_geotiff(output_dir / 'parcel-mask.tif', mask, bbox, width, height)
-
+    shapes = parcel_shapes(geojson_path, region, stable_ids=stable_ids)
+    if not shapes:
+        raise SatelliteError(f'no cataloged parcels for {region}')
+    mask, parcel_names = rasterize_parcels(shapes, bbox, width, height)
     timeseries = compute_timeseries(mask, parcel_names, dates, output_dir)
-    timeseries['schema_version'] = 2
-    with open(output_dir / 'timeseries.json', 'w', encoding='utf-8') as f:
-        json.dump(timeseries, f, indent=2)
-        f.write('\n')
+    tags = None
+    if stable_ids:
+        snapshot = parcel_snapshot_key(shapes)
+        tags = {'parcel_snapshot': snapshot}
+        timeseries.update(schema_version=PARCEL_SCHEMA_VERSION, parcel_snapshot=snapshot)
+    else:
+        timeseries['schema_version'] = 2
+    with tempfile.TemporaryDirectory(dir=output_dir) as stage:
+        stage = Path(stage)
+        save_geotiff(stage / 'parcel-mask.tif', mask, bbox, width, height, tags=tags)
+        (stage / 'timeseries.json').write_text(json.dumps(timeseries, indent=2) + '\n', encoding='utf-8')
+        for filename in ('parcel-mask.tif', 'timeseries.json'):
+            (stage / filename).replace(output_dir / filename)
     return len(dates)

@@ -62,15 +62,17 @@ def link_imported_parcels():
 
 
 @transaction.atomic
-def map_geojson():
+def map_geojson(*, include_parcel_ids=False):
     collection = MapCollection.objects.filter(pk=1).values_list('members', flat=True).first()
     features = []
     for row in MapFeature.objects.filter(published=True, road_type__isnull=True).values_list(
-            'members', 'geometry', 'parcel__region__name', 'parcel__name', 'parcel__eclass__coppice'):
-        members, geometry, region, parcel, coppice = row
+            'members', 'geometry', 'parcel__region__name', 'parcel__name', 'parcel__eclass__coppice', 'parcel_id'):
+        members, geometry, region, parcel, coppice, parcel_id = row
         if parcel is not None:
             members['properties'] = {**(members.get('properties') or {}), 'layer': region,
                                      'name': f'{region}-{parcel}', 'coppice': coppice}
+        if include_parcel_ids:
+            members['properties'] = {**(members.get('properties') or {}), 'parcel_id': parcel_id}
         features.append({**members, 'geometry': geometry})
     return {**(collection or {'type': 'FeatureCollection'}), 'features': features}
 

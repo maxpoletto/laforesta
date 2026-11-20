@@ -634,8 +634,12 @@ mode-switch.
   `manage.py build_satellite`; satellite metrics in both Caratteristiche and
   Evoluzione render raster pixels by default and use the precomputed per-parcel
   means in `timeseries.json` when `fa=1`. The summary identifies parcels by
-  their name within the compresa. The parcel list order matches the pixel
-  indices in the mask. Raster-mode overlays and
+  database ID. The parcel list order matches the pixel indices in the mask.
+  Both products carry a fingerprint of the parcel IDs and published geometry.
+  Renames preserve that fingerprint. Changes to the outlines or their parcel
+  assignments require a fresh precompute before Bosco serves either product.
+  Rebuild older label-based summaries and masks with
+  `manage.py build_satellite precompute` against the database map. Raster-mode overlays and
   tooltips are rendered in the browser from the same prefetched raw raster
   values.
   Raster dimensions use WGS84 ellipsoidal ground distances for the nominal

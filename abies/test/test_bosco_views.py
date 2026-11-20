@@ -1122,17 +1122,22 @@ def test_satellite_manifest_reader_access(reader_client, regions, tmp_path, sett
 
 
 def test_satellite_timeseries_reader_access(reader_client, regions, tmp_path, settings):
+    from apps.bosco.satellite import parcel_snapshot_key
+
     region_dir = tmp_path / str(regions[0].map_key)
     region_dir.mkdir()
-    (region_dir / 'timeseries.json').write_text(
-        '{"dates":["2026-01-01"],"means":{"parcels":{}}}',
-    )
+    path = region_dir / 'timeseries.json'
+    legacy = {'schema_version': 2, 'dates': ['2026-01-01'], 'means': {'parcels': {}}}
+    path.write_text(json.dumps(legacy))
     settings.SATELLITE_DIR = tmp_path
+    url = f'/api/bosco/satellite/{regions[0].id}/timeseries/'
+    assert reader_client.get(url).status_code == 404
+    path.write_text(json.dumps({**legacy, 'schema_version': 3, 'parcel_snapshot': parcel_snapshot_key([])}))
 
-    resp = reader_client.get(f'/api/bosco/satellite/{regions[0].id}/timeseries/')
+    resp = reader_client.get(url)
 
     assert resp.status_code == 200
-    assert '"means"' in _stream_text(resp)
+    assert resp.json()['means'] == {'parcels': {}}
 
 
 def test_satellite_raw_reader_access(reader_client, regions, tmp_path, settings):
@@ -1154,13 +1159,18 @@ def test_satellite_raw_reader_access(reader_client, regions, tmp_path, settings)
 
 
 def test_satellite_mask_raw_reader_access(reader_client, regions, tmp_path, settings):
-    region_dir = tmp_path / str(regions[0].map_key)
-    _write_test_tif(region_dir / 'parcel-mask.tif', [[1, 0], [1, 1]])
-    settings.SATELLITE_DIR = tmp_path
+    from apps.bosco.satellite import parcel_snapshot_key
 
-    resp = reader_client.get(
-        f'/api/bosco/satellite/{regions[0].id}/raw/parcel-mask.json',
-    )
+    region_dir = tmp_path / str(regions[0].map_key)
+    mask = region_dir / 'parcel-mask.tif'
+    _write_test_tif(mask, [[1, 0], [1, 1]])
+    settings.SATELLITE_DIR = tmp_path
+    url = f'/api/bosco/satellite/{regions[0].id}/raw/parcel-mask.json'
+    assert reader_client.get(url).status_code == 404
+    with rasterio.open(mask, 'r+') as raster:
+        raster.update_tags(parcel_snapshot=parcel_snapshot_key([]))
+
+    resp = reader_client.get(url)
 
     assert resp.status_code == 200
     assert resp['Cache-Control'] == 'no-cache'

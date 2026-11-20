@@ -36,6 +36,26 @@ def _read_lines(path):
     return path.read_text(encoding='utf-8').splitlines()
 
 
+def test_database_precompute_records_the_parcel_id_and_mask_snapshot(tmp_path, parcels):
+    import rasterio
+
+    from apps.base.models import MapFeature
+
+    parcel = parcels[0]
+    geometry = _feature(parcel.region.name, parcel.name)['geometry']
+    MapFeature.objects.create(parcel=parcel, geometry=geometry)
+    geojson = {'features': [_feature(parcel.region.name, parcel.name)]}
+    directory = tmp_path / str(parcel.region.map_key)
+    _write_complete_date(directory, geojson, parcel.region.name, '2026-07-01')
+    call_command('build_satellite', 'precompute', '--output-dir', str(tmp_path), stdout=StringIO())
+    summary = json.loads((directory / 'timeseries.json').read_text())
+    assert summary['schema_version'] == 3
+    assert summary['parcels'] == [str(parcel.pk)]
+    assert set(summary['means']['parcels']) == {str(parcel.pk)}
+    with rasterio.open(directory / 'parcel-mask.tif') as mask:
+        assert mask.tags()['parcel_snapshot'] == summary['parcel_snapshot']
+
+
 def _write_complete_date(region_dir, geojson, region, date, value=128, dimensions=None):
     bbox = satellite.bbox_from_geojson(geojson, region)
     width, height = dimensions or satellite.pixel_dims(bbox)

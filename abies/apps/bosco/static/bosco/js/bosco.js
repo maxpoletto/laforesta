@@ -303,6 +303,7 @@ const page = createPage({
   onQueryChange: applyParams,
   onUpdate: [
     [PARCELS_ID, onParcelsUpdate],
+    [TERRENI_ID, onParcelGeometryUpdate],
     [ROADS_ID, onRoadsUpdate],
     [FUTURE_ID, onFutureUpdate],
     [SPECIES_ID, onSpeciesUpdate],
@@ -314,7 +315,7 @@ const page = createPage({
   ],
   visibleIds: [
     PARCELS_ID, FUTURE_ID, SPECIES_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
-    PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID, ROADS_ID,
+    PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID, ROADS_ID, TERRENI_ID,
   ],
 });
 
@@ -484,6 +485,18 @@ function onParcelsUpdate(data) {
   parcelsData = data;
   rebuildRegionIndex();
   buildRegionOptions();
+  applyParams(Object.fromEntries(new URLSearchParams(location.search)));
+}
+
+function onParcelGeometryUpdate(data) {
+  satelliteData = satelliteRegionId = satelliteLoad = null;
+  rawRasterCache.clear();
+  characteristicRenderSeq++;
+  evolutionRenderSeq++;
+  clearSatelliteRasterOverlay();
+  if (!data) return;
+  parcelsGeo = sortFeaturesByArea(data);
+  destroyMap();
   applyParams(Object.fromEntries(new URLSearchParams(location.search)));
 }
 
@@ -1125,7 +1138,7 @@ function renderSatelliteCharacteristic(seq) {
 
   clearSatelliteRasterOverlay();
   const entries = mapEntries;
-  const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.parcel, layer, date));
+  const values = entries.map(entry => satelliteValue(satelliteData.timeseries, entry.id, layer, date));
   if (!continuousDomain(values)) {
     resetParcelStyles();
     renderMessageLegend(S.BOSCO_NO_SATELLITE);
@@ -1133,7 +1146,7 @@ function renderSatelliteCharacteristic(seq) {
   }
 
   for (const entry of entries) {
-    const value = satelliteValue(satelliteData.timeseries, entry.parcel, layer, date);
+    const value = satelliteValue(satelliteData.timeseries, entry.id, layer, date);
     applyEntryStyle(entry, value == null ? NO_DATA_STYLE : satelliteValueStyle(value), value);
   }
   renderSatelliteLegend(legendEl, layer, date);
@@ -1271,7 +1284,7 @@ function signedHarvestDeltaDisplay(value) {
 function renderEvolutionParcelAverages(metric, date1, date2) {
   clearSatelliteRasterOverlay();
   const values = mapEntries.map(entry => (
-    satelliteDiffValue(satelliteData.timeseries, entry.parcel, metric.layer, date1, date2)
+    satelliteDiffValue(satelliteData.timeseries, entry.id, metric.layer, date1, date2)
   ));
   const domain = divergingDomain(values);
   if (!domain) {
@@ -1281,7 +1294,7 @@ function renderEvolutionParcelAverages(metric, date1, date2) {
   }
 
   for (const entry of mapEntries) {
-    const value = satelliteDiffValue(satelliteData.timeseries, entry.parcel, metric.layer, date1, date2);
+    const value = satelliteDiffValue(satelliteData.timeseries, entry.id, metric.layer, date1, date2);
     applyEntryStyle(
       entry,
       value == null ? NO_DATA_STYLE : satelliteDiffStyle(value, domain.maxAbs),
@@ -1478,19 +1491,19 @@ function clearEvolutionLegend() {
 function loadSatellite(regionId) {
   if (satelliteReady(regionId)) return Promise.resolve(satelliteData);
   if (!satelliteLoad || satelliteRegionId !== regionId) {
-    const requestedRegionId = regionId;
     satelliteRegionId = regionId;
     satelliteData = null;
-    satelliteLoad = Promise.all([
+    const load = Promise.all([
       fetchJSON(`/api/bosco/satellite/${regionId}/manifest/`).then(result => result.data),
       fetchJSON(`/api/bosco/satellite/${regionId}/timeseries/`).then(result => result.data),
     ]).then(([manifest, timeseries]) => {
-      if (satelliteRegionId !== requestedRegionId) return null;
+      if (satelliteLoad !== load) return null;
       satelliteData = { manifest, timeseries };
       return satelliteData;
     }).finally(() => {
-      if (satelliteRegionId === requestedRegionId) satelliteLoad = null;
+      if (satelliteLoad === load) satelliteLoad = null;
     });
+    satelliteLoad = load;
   }
   return satelliteLoad;
 }
