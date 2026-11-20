@@ -133,6 +133,7 @@ async function walk(browser) {
   const drawingList = loc('#cartography-drawings');
   assert.ok(await drawingList.evaluate(list => list.previousElementSibling.previousElementSibling
     .querySelector('[data-action=new-drawing]') && list.nextElementSibling.querySelector('[data-action=edit]')));
+  assert.equal(await action('new-drawing').evaluate(button => getComputedStyle(button.parentElement).marginBottom), '6px');
 
   await page.goto(url + '/ipso/#secret=cartography-browser-test');
   await loc('#btn-mode-points').click();

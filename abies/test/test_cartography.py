@@ -451,6 +451,21 @@ def test_pending_legacy_page_with_known_region_leaves_other_regions_editable(cli
     assert region_details(client, regions[1])['deletion'] is not None
 
 
+def test_parcel_promotion_lists_destinations_in_natural_order(client, writer_user, parcels):
+    import re
+
+    from apps.base.models import Parcel
+
+    client.force_login(writer_user)
+    parcel = parcels[0]
+    for name in ['10', '2b', '2a']:
+        Parcel.objects.create(region=parcel.region, eclass=parcel.eclass, name=name)
+    response = client.get(f'{ROOT}{parcel.region_id}/parcel-form/')
+    assert response.status_code == 200
+    options = re.search(r'<optgroup[^>]*>(.*?)</optgroup>', response.json()['html'], re.S).group(1)
+    assert re.findall(r'<option[^>]*>([^<]+)</option>', options) == ['1', '2', '2a', '2b', '10']
+
+
 def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, eclasses, settings):
     from apps.base.digests import build_parcel_record
     from apps.base.models import Parcel

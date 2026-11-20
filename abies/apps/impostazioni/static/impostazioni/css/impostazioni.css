@@ -146,6 +146,7 @@ details.cartography-section > .cartography-list-header {
 .cartography-section [data-role="status"] { margin-top: 6px; }
 .cartography-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
 .cartography-sidebar-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.cartography-drawing-entry-actions { margin-bottom: 6px; }
 .cartography-section > .cartography-sidebar-actions,
 .cartography-section > [data-role="parts"] { margin-top: 6px; }
 .cartography-list-header {

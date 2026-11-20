@@ -1,7 +1,7 @@
 """The parcel properties form shared by Bosco and Cartografia."""
 from django.template.loader import render_to_string
 
-from apps.base.models import Eclass, Parcel
+from apps.base.models import Eclass, Parcel, natural_sort_key
 from apps.base.numparse import int_or_none, parse_decimal
 from apps.base.validation import decimal_field_value
 from config import strings as S
@@ -42,11 +42,15 @@ def render_parcel_metadata_form(request, parcel, values=None, *, promotion=False
         (eclass for eclass in eclasses if eclass.id == selected_eclass_id),
         None,
     )
+    destinations = ()
+    if promotion:
+        destinations = sorted(Parcel.objects.filter(region=parcel.region),
+                              key=lambda target: natural_sort_key(target.name))
     return render_to_string('bosco/_parcel_metadata_form.html', {
         'parcel': parcel,
         'promotion': promotion,
         'edit_name': edit_name,
-        'destinations': Parcel.objects.filter(region=parcel.region).order_by('name') if promotion else (),
+        'destinations': destinations,
         'version': parcel.version,
         'values': form_values,
         'eclasses': eclasses,
