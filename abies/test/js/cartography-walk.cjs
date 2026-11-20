@@ -112,6 +112,16 @@ async function walk(browser) {
   await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
   await page.waitForFunction(() => document.querySelector('#cartography-region')?.options.length === 1);
   assert.equal(await selected.textContent(), 'Costa');
+  await action('open-import').click();
+  const [surveyCatalog] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/surveys/')),
+    modal.getByRole('button', {name: 'Da rilevamento', exact: true}).click(),
+  ]);
+  assert.ok(surveyCatalog.ok());
+  assert.deepEqual((await surveyCatalog.json()).surveys, []);
+  await modal.getByText('Nessun rilevamento con posizioni in questa compresa.').waitFor();
+  assert.ok(await modal.locator('form[data-path=survey] [type=submit]').isDisabled());
+  await modal.getByRole('button', {name: 'Annulla', exact: true}).click();
   assert.deepEqual(await sidebar.locator('.cartography-sidebar-actions').evaluateAll(rows => rows.map(row =>
     [...row.children].map(button => button.textContent.trim()))), [
     ['Proprietà', 'Nuova'], ['Proprietà', 'Confini'], ['Proprietà', 'Punti'],
@@ -517,6 +527,32 @@ async function walk(browser) {
   await parcelTrash.waitFor({state: 'attached'});
   assert.ok(await parcelTrash.isDisabled());
   assert.equal(await parcelTrash.getAttribute('title'), 'Questa particella è in uso');
+
+  await action('open-import').click();
+  await modal.getByRole('button', {name: 'Da rilevamento', exact: true}).click();
+  await modal.locator('#cartography-surveys option').first().waitFor({state: 'attached'});
+  assert.deepEqual(await modal.locator('#cartography-surveys option').allTextContents(),
+    ['Alberi da preservare · Libero · 1 posizione']);
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/import-survey/') && r.ok()),
+    modal.getByRole('button', {name: 'Importa', exact: true}).click(),
+  ]);
+  await drawings.getByRole('button', {name: 'Alberi da preservare', exact: true}).waitFor();
+
+  await action('open-import').click();
+  await modal.getByRole('button', {name: 'Da file', exact: true}).click();
+  const file = modal.locator('input[type=file]');
+  await file.setInputFiles({name: 'confini.dxf', mimeType: 'application/dxf', buffer: Buffer.from('')});
+  assert.ok(await modal.getByLabel('Codice EPSG del DXF').isVisible());
+  await file.setInputFiles({name: 'Traccia.geojson', mimeType: 'application/geo+json',
+    buffer: Buffer.from(JSON.stringify({type: 'LineString', coordinates: [[16, 38], [16, 38.1]]}))});
+  assert.ok(await modal.getByLabel('Codice EPSG del DXF').isHidden());
+  assert.equal(await modal.getByLabel('Nome', {exact: true}).inputValue(), 'Traccia');
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/import-file/') && r.ok()),
+    modal.getByRole('button', {name: 'Importa', exact: true}).click(),
+  ]);
+  await drawings.getByRole('button', {name: 'Traccia', exact: true}).waitFor();
 
   async function checkFilterList(target, hasSwatch = false) {
     const row = loc(`ul[data-target="${target}"] li.map-workspace-list-row`).first();

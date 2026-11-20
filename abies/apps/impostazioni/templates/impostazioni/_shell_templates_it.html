@@ -329,29 +329,60 @@ S (string constants) provided by the shell's render context.
   <div class="form-card cartography-import">
     <h2>Importa disegni</h2>
     <div class="modal-tabs">
-      <button type="button" class="btn modal-tab" disabled>Da file</button>
-      <button type="button" class="btn modal-tab active" aria-current="true">Da Ipso</button>
-      <button type="button" class="btn modal-tab" disabled>Da rilevamento</button>
+      <button type="button" class="btn modal-tab" data-path="file">Da file</button>
+      <button type="button" class="btn modal-tab" data-path="ipso">Da Ipso</button>
+      <button type="button" class="btn modal-tab" data-path="survey">Da rilevamento</button>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label for="cartography-uploads">Nuovi rilievi</label>
-        <select id="cartography-uploads"></select>
+    <div class="modal-tab-bodies">
+      <form class="modal-tab-body" data-path="file">
+        <div class="form-group">
+          <label for="cartography-file">File GeoJSON, GPX o DXF</label>
+          <input id="cartography-file" type="file" name="file" accept=".geojson,.json,.gpx,.dxf" required>
+        </div>
+        <div class="form-group">
+          <label for="cartography-import-name">{{ S.LABEL_NAME }}</label>
+          <input id="cartography-import-name" type="text" name="name" maxlength="100" required>
+        </div>
+        <div class="form-group" data-role="dxf-crs" hidden>
+          <label for="cartography-epsg">Codice EPSG del DXF</label>
+          <input id="cartography-epsg" type="text" name="epsg" inputmode="numeric" pattern="[0-9]{1,6}" disabled>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-import">Importa</button>
+        </div>
+      </form>
+      <div class="modal-tab-body" data-path="ipso">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cartography-uploads">Nuovi rilievi</label>
+            <select id="cartography-uploads"></select>
+          </div>
+          <button type="button" class="btn btn-save" data-action="import" disabled>Importa</button>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cartography-sources">Già importati</label>
+            <select id="cartography-sources"></select>
+          </div>
+          <div class="cartography-buttons">
+            <button type="button" class="btn" data-action="restore" disabled>Importa di nuovo</button>
+            <button type="button" class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
+          </div>
+        </div>
       </div>
-      <button class="btn btn-save" data-action="import" disabled>Importa</button>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label for="cartography-sources">Già importati</label>
-        <select id="cartography-sources"></select>
-      </div>
-      <div class="cartography-buttons">
-        <button class="btn" data-action="restore" disabled>Importa di nuovo</button>
-        <button class="btn btn-delete" data-action="forget" disabled>Elimina originale</button>
-      </div>
+      <form class="modal-tab-body" data-path="survey">
+        <div class="form-group">
+          <label for="cartography-surveys">Rilevamento</label>
+          <select id="cartography-surveys" name="survey_id" required></select>
+        </div>
+        <p role="status"></p>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-import" disabled>Importa</button>
+        </div>
+      </form>
     </div>
     <div class="form-actions">
-      <button class="btn" data-action="cancel">{{ S.CANCEL }}</button>
+      <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
     </div>
   </div>
 </template>

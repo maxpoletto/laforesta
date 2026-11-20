@@ -14,6 +14,7 @@ urlpatterns = [
     path('cartography/regions/<int:region_id>/delete/', regions.save, {'delete': True}),
     path('cartography/<int:region_id>/', cartography.workspace),
     path('cartography/<int:region_id>/parcel-form/', cartography.parcel_form),
+    path('cartography/<int:region_id>/surveys/', cartography.surveys),
     path('cartography/<int:region_id>/parcels/<int:parcel_id>/properties/', cartography.parcel_details),
     path('cartography/<int:region_id>/parcels/<int:parcel_id>/boundaries/', cartography.parcel_details,
          {'boundaries': True}),

@@ -1,5 +1,6 @@
 """The road workflow starts with an actual field upload."""
 import uuid
+from base64 import b64encode
 
 import pytest
 from django.urls import reverse
@@ -19,6 +20,120 @@ def workspace(client, region):
     response = client.get(f'{ROOT}{region.pk}/')
     assert response.status_code == 200, response.content
     return response.json()
+
+
+def import_file(client, region, fmt, text, **values):
+    return write(client, region, 'import-file', name='Posizioni', format=fmt,
+                 file=b64encode(text.encode()).decode(), **values)
+
+
+def test_import_geojson_and_gpx_keep_distinct_parts(client, writer_user, regions):
+    from apps.base.models import MapDrawing
+
+    client.force_login(writer_user)
+    region = regions[0]
+    polygon = '[[[16,38],[17,38],[17,39],[16,38]],[[16.2,38.1],[16.8,38.1],[16.8,38.6],[16.2,38.1]]]'
+    geojson = ('{"type":"GeometryCollection","geometries":[{"type":"MultiPoint",'
+               '"coordinates":[[16,38,123],[17,39]]},{"type":"Polygon","coordinates":' + polygon + '}]}')
+    response = import_file(client, region, 'geojson', geojson)
+    assert response.status_code == 200, response.content
+    parts = MapDrawing.objects.get(pk=response.json()['drawing_id']).parts
+    assert [part['type'] for part in parts] == ['Point', 'Point', 'Polygon']
+    assert parts[0]['coordinates'] == [16, 38] and len(parts[-1]['coordinates']) == 2
+
+    gpx = '''<gpx xmlns="http://www.topografix.com/GPX/1/1">
+        <wpt lat="38" lon="16"/><trk><trkseg>
+          <trkpt lat="38.1" lon="16"/><trkpt lat="38.2" lon="16"/>
+        </trkseg><trkseg><trkpt lat="38.3" lon="16"/></trkseg></trk></gpx>'''
+    response = import_file(client, region, 'gpx', gpx)
+    assert response.status_code == 200, response.content
+    parts = MapDrawing.objects.get(pk=response.json()['drawing_id']).parts
+    assert [part['type'] for part in parts] == ['Point', 'LineString', 'Point']
+    assert parts[1]['coordinates'] == [[16, 38.1], [16, 38.2]]
+
+
+def test_dxf_import_requires_crs_and_projects_coordinates(client, writer_user, regions):
+    from apps.base.models import MapDrawing
+
+    client.force_login(writer_user)
+    region = regions[0]
+    dxf = '0\nSECTION\n2\nENTITIES\n0\nLINE\n10\n0\n20\n0\n11\n111319.490793\n21\n111325.142866\n0\nENDSEC\n0\nEOF\n'
+    assert import_file(client, region, 'dxf', dxf).status_code == 400
+    assert import_file(client, region, 'dxf', dxf, epsg='999999').status_code == 400
+    assert import_file(client, region, 'dxf', dxf, epsg='4978').status_code == 400
+    assert import_file(client, region, 'dxf', dxf.replace('111319.490793', '1e100'), epsg='3857').status_code == 400
+    assert import_file(client, region, 'dxf', dxf.replace('LINE', 'ARC'), epsg='3857').status_code == 400
+    assert not MapDrawing.objects.exists()
+    response = import_file(client, region, 'dxf', dxf, epsg='3857')
+    assert response.status_code == 200, response.content
+    part, = MapDrawing.objects.get(pk=response.json()['drawing_id']).parts
+    assert part['type'] == 'LineString'
+    assert part['coordinates'][0] == [0, 0]
+    assert part['coordinates'][1] == pytest.approx([1, 1])
+    ring = ('0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n90\n3\n70\n1\n'
+            '10\n16\n20\n38\n10\n17\n20\n38\n10\n17\n20\n39\n0\nENDSEC\n0\nEOF\n')
+    response = import_file(client, region, 'dxf', ring, epsg='4326')
+    assert response.status_code == 200, response.content
+    assert MapDrawing.objects.get(pk=response.json()['drawing_id']).parts == [
+        {'type': 'Polygon', 'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 38]]]},
+    ]
+
+
+@pytest.mark.parametrize(('fmt', 'text'), [
+    ('geojson', '{"type":"Point","coordinates":[25,390]}'),
+    ('geojson', '{"type":"MultiPoint","coordinates":[[20,39],[21,"39"]]}'),
+    ('gpx', '<!DOCTYPE gpx><gpx><wpt lat="38" lon="16"/></gpx>'),
+    ('gpx', '<gpx><wpt lat="38"/></gpx>'),
+])
+def test_bad_import_files_do_not_create_drawings(client, writer_user, regions, fmt, text):
+    client.force_login(writer_user)
+    assert import_file(client, regions[0], fmt, text).status_code == 400
+    assert workspace(client, regions[0])['drawings'] == []
+
+
+def test_import_survey_uses_local_free_trees_or_structured_plot_centers(client, writer_user, parcels):
+    from apps.base.models import MapDrawing, Sample, SampleArea, SampleGrid, Species, Survey, Tree, TreeSample
+
+    client.force_login(writer_user)
+    parcel, _, distant = parcels
+    region = parcel.region
+    species = Species.objects.create(common_name='Abete di prova')
+    free = Survey.objects.create(name='Libero')
+    sample = Sample.objects.create(survey=free, date='2026-11-19')
+
+    def tree_at(target_sample, where, number, **gps):
+        tree = Tree.objects.create(species=species)
+        return TreeSample.objects.create(sample=target_sample, parcel=where, tree=tree, number=number,
+                                         d_cm=20, h_m=12, **gps)
+
+    tree_at(sample, parcel, 1, lon=16, lat=38, acc_m=2, note='Albero')
+    tree_at(sample, parcel, 2)
+    tree_at(sample, distant, 3, lon=17, lat=39)
+    grid = SampleGrid.objects.create(name='Griglia')
+    structured = Survey.objects.create(name='Predefinito', sample_grid=grid)
+    plot = SampleArea.objects.create(sample_grid=grid, parcel=parcel, number='1', lon=16.2, lat=38.2)
+    visited = Sample.objects.create(survey=structured, sample_area=plot, date='2026-11-19')
+    tree_at(visited, parcel, 4, lon=16.25, lat=38.25)
+    SampleArea.objects.create(sample_grid=grid, parcel=parcel, number='2', lon=16.3, lat=38.3)
+    empty = Survey.objects.create(name='Senza coordinate')
+    result = client.get(f'{ROOT}{region.pk}/surveys/')
+    assert result.status_code == 200, result.content
+    assert result.json()['surveys'] == [
+        {'id': free.pk, 'name': free.name, 'structured': False, 'count': 1},
+        {'id': structured.pk, 'name': structured.name, 'structured': True, 'count': 1},
+    ]
+    for survey, coords, fix in [(free, [16, 38], [2, 'Albero']), (structured, [16.2, 38.2], [None, ''])]:
+        response = write(client, region, 'import-survey', survey_id=survey.pk)
+        assert response.status_code == 200, response.content
+        drawing = MapDrawing.objects.get(pk=response.json()['drawing_id'])
+        assert drawing.name == survey.name
+        assert drawing.parts == [{'type': 'Point', 'coordinates': coords, 'fixes': [fix]}]
+    assert write(client, distant.region, 'import-survey', survey_id=structured.pk).status_code == 400
+    assert write(client, region, 'import-survey', survey_id=empty.pk).status_code == 400
+    original = MapDrawing.objects.get(region=region, name=free.name)
+    assert write(client, region, 'remove-drawing', id=original.pk, version=original.version).status_code == 200
+    assert write(client, region, 'import-survey', survey_id=free.pk).status_code == 200
+    assert MapDrawing.objects.get(region=region, name=free.name).parts == original.parts
 
 
 @pytest.fixture

@@ -86,7 +86,10 @@ one exists.
 After deletion or promotion it restores the original field measurements, even
 after inbox cleanup. The selected compresa uses the `c` query parameter and
 the basemap uses `mt`.
-The [cartography design](cartography.md) also describes additional import tools.
+**Da file** opens GeoJSON, GPX, and ASCII DXF with an EPSG code. **Da rilevamento**
+lists surveys with positions in the selected compresa. It imports geolocated
+trees from a free survey and plot centers from a structured survey.
+The [cartography design](cartography.md) describes the supported geometries.
 
 ### Testing the road workflow
 

@@ -716,6 +716,10 @@ export const CARTOGRAPHY_DELETE_REGION = (name, counts) =>
   `Eliminare la compresa «${name}» e tutto il suo contenuto cartografico? `
   + `Particelle: ${counts.parcels}. Contorni: ${counts.outlines}. Strade: ${counts.roads}. Disegni: ${counts.drawings}.`;
 export const CARTOGRAPHY_IMPORT_COUNT = n => `Disegni aggiunti: ${n}.`;
+export const CARTOGRAPHY_IMPORT_FILE_TYPE = 'Scegli un file GeoJSON, GPX o DXF.';
+export const CARTOGRAPHY_IMPORT_NO_SURVEYS = 'Nessun rilevamento con posizioni in questa compresa.';
+export const CARTOGRAPHY_IMPORT_SURVEY_OPTION = ({name, structured, count}) =>
+  `${name} · ${structured ? 'Predefinito' : 'Libero'} · ${count} ${count === 1 ? 'posizione' : 'posizioni'}`;
 export const CARTOGRAPHY_CLEAR = (region, n) => `Eliminare tutti i disegni di ${region} (${n})?`;
 export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${name}»?`;
 export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';

@@ -205,12 +205,13 @@ As always, map changes are persistent across tab navigation.
 Above the drawing list, **Importa…** sits beside **Nuovo**. It opens a modal
 where users can add drawings to the current view.
 
-There are three optins:
+There are three tabs.
 
 - **Da file** opens a file picker for GeoJSON, GPX or georeferenced DXF.
   Waypoints appear as points, each track segment appears as a separate line,
-  and the rings of a polygon stay together. If the coordinate system of a DXF
-  file is unknown, the editor asks for it before placing the drawing.
+  and the rings of a polygon stay together. ASCII DXF supports points, lines,
+  and straight polylines. The EPSG field identifies the source coordinates
+  before Abies puts the geometry on the map.
 - **Da Ipso** opens on new uploads for this compresa. Previously imported walks
   are available under **Già importati**. Each walk appears once, with its name,
   date and operator. Importing it adds one named drawing to **Disegni**. An
@@ -223,7 +224,8 @@ There are three optins:
 - **Da rilevamento** offers a dropdown of existing tree surveys with mappable
   data in this compresa. Each entry shows the survey name, whether it is free or
   structured, and how many positions are available. Free surveys contribute
-  positions for each geolocated tree, structured surveys for each sample area.
+  one position for each geolocated tree. Structured surveys use the centers of
+  the sample areas visited in that survey.
 
 #### Deleting drawings
 

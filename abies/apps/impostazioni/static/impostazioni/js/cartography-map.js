@@ -103,9 +103,9 @@ export class CartographyMap {
     return bounds;
   }
 
-  frame(kind, id) {
+  frame(kind, id, force = false) {
     const layers = kind === 'parcel' ? this.parcelLayers.get(id) || [] : [this.layers.get(kind + id)];
-    this.fit(this.bounds(layers));
+    this.fit(this.bounds(layers), force);
   }
 
   fitSource(drawings, sourceId, firstImport = false) {

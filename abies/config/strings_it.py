@@ -1110,6 +1110,10 @@ CSV_RULE_PROXY_COEFFICIENTS = 'scegli una specie di riferimento oppure inserisci
 ERR_CSV_FIELD_VALUE = '{} (valore «{}»): {}'
 
 CARTOGRAPHY_GEOMETRY_INVALID = 'Le coordinate del disegno non sono valide.'
+CARTOGRAPHY_FILE_INVALID = 'Il file non contiene geometrie valide per il formato selezionato.'
+CARTOGRAPHY_DXF_CRS_REQUIRED = 'Indica un codice EPSG valido per il file DXF.'
+CARTOGRAPHY_DXF_UNSUPPORTED = 'Il DXF contiene geometrie non supportate. Esporta punti, linee e polilinee senza curve.'
+CARTOGRAPHY_SURVEY_NO_POINTS = 'Il rilevamento non contiene posizioni utilizzabili in questa compresa.'
 CARTOGRAPHY_WRONG_REGION = 'Il rilievo non appartiene alla compresa selezionata.'
 CARTOGRAPHY_STALE = 'La cartografia è cambiata. Ricarica i dati e riprova.'
 CARTOGRAPHY_REGION_EXISTS = 'Esiste già una compresa con questo nome.'

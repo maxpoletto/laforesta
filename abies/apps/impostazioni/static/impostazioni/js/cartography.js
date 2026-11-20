@@ -11,6 +11,7 @@ import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
+import { wireDrawingImportTabs } from './cartography-import.js';
 import { addSketchPoint, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
 import { boundaryVertexRemoval, detachBoundary, editBoundary, removeBoundaryVertex } from './parcel-boundaries.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
@@ -555,14 +556,21 @@ export class CartographyEditor {
     const sources = modal.querySelector('#cartography-sources');
     fill(uploads, this.state.uploads, sourceLabel);
     fill(sources, this.state.sources, sourceLabel);
-    for (const button of modal.querySelectorAll('[data-action]')) {
+    const regionId = this.regionId;
+    wireDrawingImportTabs(modal, {
+      current: () => modal.isConnected && this.current(generation),
+      save: (action, body, form) => this.write(action, body, form),
+      loadSurveys: async () => (await fetchJSON(`${API}${regionId}/surveys/`)).data.surveys,
+    });
+    modal.querySelector('[data-action=cancel]').onclick = modals.dismiss;
+    for (const button of modal.querySelectorAll('.modal-tab-body[data-path=ipso] [data-action]')) {
       const {action} = button.dataset;
       const select = action === 'import' ? uploads : sources;
-      button.disabled = action !== 'cancel' && !select.options.length;
+      button.disabled = !select.options.length;
       button.onclick = () => {
         const id = Number(select.value);
         modals.dismiss();
-        if (!this.current(generation) || action === 'cancel') return;
+        if (!this.current(generation)) return;
         if (action === 'forget') {
           const source = this.state.sources.find(row => row.id === id);
           showConfirmModal(S.CARTOGRAPHY_FORGET(source.name), () => {
@@ -800,6 +808,9 @@ export class CartographyEditor {
       if (!this.draft) this.status.textContent = data.added == null ? '' : S.CARTOGRAPHY_IMPORT_COUNT(data.added);
       if (data.parcel_id) this.map.frame('parcel', data.parcel_name);
       if (data.added) this.map.fitSource(this.state.drawings, data.source_id || body.source_id, firstImport);
+      if (action === 'import-file' || action === 'import-survey') {
+        this.map.frame('drawing', data.drawing_id, firstImport);
+      }
     } catch (error) {
       if (this.current(generation)) {
         if (form?.isConnected) showFormError(form, S.ERROR_NETWORK);

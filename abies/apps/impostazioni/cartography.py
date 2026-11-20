@@ -13,12 +13,13 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.base.auth import require_writer
 from apps.base.digests import mark_stale
 from apps.base.idempotency import begin_nonce_write
-from apps.base.models import MapDrawing, MapFeature, MapPointSet, Parcel, Region, RoadType
+from apps.base.models import MapDrawing, MapFeature, MapPointSet, Parcel, Region, RoadType, Survey
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
+from apps.impostazioni.cartography_import import file_parts, survey_parts, surveys_with_positions
 from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, parcel_usage, parcel_used, save_boundaries
 from apps.impostazioni.regions import invalidate_map_labels, required_name, unlinked_outlines
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
@@ -180,6 +181,20 @@ def workspace(request, region_id):
     })
 
 
+@login_required
+@require_writer
+@require_GET
+@transaction.atomic
+def surveys(request, region_id):
+    get_object_or_404(Region, pk=region_id)
+    return JsonResponse({'surveys': surveys_with_positions(region_id)})
+
+
+def create_drawing(region_id, name, parts):
+    row = MapDrawing.objects.create(region_id=region_id, name=name, parts=parts)
+    return {'drawing_id': row.pk}
+
+
 def restore_drawings(source):
     drawing, created = MapDrawing.objects.get_or_create(
         source=source, defaults={'region_id': source.region_id, 'name': source.name,
@@ -239,8 +254,10 @@ def edit_workspace(region_id, action, body):
         drawings.delete()
         return {}
     if action == 'create':
-        row = drawings.create(region_id=region_id, name=required_name(body), parts=checked_parts(body.get('parts')))
-        return {'drawing_id': row.pk}
+        return create_drawing(region_id, required_name(body), checked_parts(body.get('parts')))
+    if action == 'import-survey':
+        survey = get_object_or_404(Survey, pk=int_or_none(body.get('survey_id')))
+        return create_drawing(region_id, survey.name, survey_parts(survey, region_id))
     if action in ('adjust', 'road', 'parcel', 'copy', 'remove-drawing'):
         drawing = get_object_or_404(drawings, pk=int_or_none(body.get('id')))
         if drawing.version != int_or_none(body.get('version')):
@@ -276,6 +293,8 @@ def change(request, region_id, action):
     try:
         if action == 'import':
             prepared, payload = prepare_point_import(region_id, body)
+        elif action == 'import-file':
+            name, parts = required_name(body), file_parts(body)
         begin_nonce_write(request)
         with transaction.atomic():
             # Reserve the SQLite writer before checking the editor's snapshot.
@@ -286,6 +305,8 @@ def change(request, region_id, action):
                 if error:
                     return error
                 extra = import_points(region_id, upload, payload, request.user)
+            elif action == 'import-file':
+                extra = create_drawing(region_id, name, parts)
             else:
                 extra = edit_workspace(region_id, action, body)
             if action in ('parcel-properties', 'remove-parcel'):
