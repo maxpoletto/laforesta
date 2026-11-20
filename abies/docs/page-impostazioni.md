@@ -107,6 +107,8 @@ ABIES_PLAYWRIGHT_MODULE=playwright python -m pytest -q test/test_cartography_bro
 
 An absolute path to the installed Playwright module also works. The API
 workflow and regression tests run as part of the regular `make test` suite.
+The [large-compresa benchmark](cartography-performance.md) measures the
+workspace transfer, geometry saves and undo history.
 
 ## Personal settings
 
