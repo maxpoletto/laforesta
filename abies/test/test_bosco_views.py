@@ -577,6 +577,7 @@ def test_parcel_metadata_form_writer_access(writer_client, parcels):
     assert 'name="eclass_id"' in html
     assert f'value="{parcels[0].eclass_id}"' in html
     assert 'Comparto' in html
+    assert '<label for="id_parcel_area">Area catastale (ha)</label>' in html
     assert 'A — Fustaia' in html
     assert 'name="cutting_plan"' in html
     assert 'name="harvest_mechanism"' in html

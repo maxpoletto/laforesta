@@ -289,7 +289,7 @@ async function walk(browser) {
   if (width < 800) await sidebarToggle.click();
   await action('promote').click();
   assert.match(await modal.locator('[name=eclass_id] option:checked').textContent(), /A —/);
-  assert.equal(await modal.getByLabel('Area (ha)').inputValue(), '');
+  assert.equal(await modal.getByLabel('Area catastale (ha)').inputValue(), '');
   await modal.getByLabel('Nome', {exact: true}).fill('2a');
   const [promoted] = await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/parcel/') && r.request().method() === 'POST' && r.ok()),
