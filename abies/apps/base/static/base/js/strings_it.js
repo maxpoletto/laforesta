@@ -725,6 +725,8 @@ export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${na
 export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
 export const CARTOGRAPHY_EMPTY_EDIT = 'Non ci sono più punti in questa modifica.';
 export const CARTOGRAPHY_ROAD_NEEDS_LINE = 'Per salvare la strada, la geometria deve essere una sola linea.';
+export const CARTOGRAPHY_PROMOTE_GEOMETRY = 'Il disegno deve contenere una sola linea oppure solo poligoni.';
+export const CARTOGRAPHY_PROMOTE_ROAD_TYPE = 'Aggiungi un tipo di viabilità attivo per creare una strada.';
 export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';
 export const CARTOGRAPHY_NO_DESTINATION = 'Crea una compresa in Cartografia per importare il rilievo.';
 

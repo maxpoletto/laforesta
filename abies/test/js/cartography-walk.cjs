@@ -182,6 +182,7 @@ async function walk(browser) {
   await modal.getByRole('button', {name: 'Annulla'}).click();
   assert.equal(await drawings.count(), 1);
   assert.ok(await action('promote').isDisabled());
+  assert.equal(await action('promote').getAttribute('title'), 'Il disegno deve contenere una sola linea oppure solo poligoni.');
   const layout = await drawings.first().evaluate(row => {
     const list = row.parentElement;
     const header = list.closest('details').querySelector('[data-action=toggle-all]');
@@ -242,6 +243,7 @@ async function walk(browser) {
   assert.ok(await action('promote').isDisabled());
   if (width < 800) await sidebarToggle.click();
   await joinWalk();
+  assert.equal(await action('promote').getAttribute('title'), '');
   await vertices.first().press('Enter');
   assert.ok(await action('break-link').isDisabled());
   assert.ok(await action('remove-vertex').isEnabled());

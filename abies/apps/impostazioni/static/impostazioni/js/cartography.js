@@ -231,13 +231,14 @@ export class CartographyEditor {
     const b = this.buttons, draft = this.draft;
     const locked = !!(this.busy || draft);
     const drawing = this.state && this.kind === 'drawing' && this.selected;
-    const parcel = this.state && this.kind === 'parcel' && this.selected?.parcelId;
+    const parcel = this.state && this.kind === 'parcel' && this.selected;
     const road = this.state && this.kind === 'road' && this.selected;
     const drawingDraft = draft && !draft.kind;
     const parts = draft?.parts ?? drawing?.parts;
     const part = drawingDraft && !draft.tool && parts[draft.active];
     b.edit.disabled = locked || !drawing;
-    b['parcel-properties'].disabled = b.boundaries.disabled = locked || !parcel;
+    b['parcel-properties'].disabled = b.boundaries.disabled = locked || !parcel?.parcelId;
+    b['parcel-properties'].title = b.boundaries.title = parcel && !parcel.parcelId ? S.CARTOGRAPHY_PARCEL_UNLINKED : '';
     b['road-properties'].disabled = b.points.disabled = locked || !road;
     const drawingTools = draft && !draft.tool && draft.kind !== 'road';
     this.mapTools.hidden = !draft;
@@ -245,9 +246,12 @@ export class CartographyEditor {
     b.line.disabled = !!this.busy || !this.state;
     b.polygon.disabled = !!this.busy || !this.state;
     this.mapTools.querySelector('[data-role=draw-tools]').hidden = !drawingTools;
-    const promotableLine = parts?.length === 1 && parts[0].type === 'LineString' && this.catalog?.road_types.length;
+    const singleLine = parts?.length === 1 && parts[0].type === 'LineString';
+    const promotableLine = singleLine && this.catalog?.road_types.length;
     const promotablePolygon = parts?.length && parts.every(piece => piece.type === 'Polygon');
     b.promote.disabled = !!this.busy || !!draft?.kind || !(promotableLine || promotablePolygon);
+    b.promote.title = !draft?.kind && parts?.length && !promotableLine && !promotablePolygon
+      ? (singleLine ? S.CARTOGRAPHY_PROMOTE_ROAD_TYPE : S.CARTOGRAPHY_PROMOTE_GEOMETRY) : '';
     this.panel.querySelector('[data-role=parts]').hidden = !part;
     const incompleteRoad = draft?.kind === 'road' && parts.length
       && (parts.length !== 1 || parts[0].type !== 'LineString');
