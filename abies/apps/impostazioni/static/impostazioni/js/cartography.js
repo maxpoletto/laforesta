@@ -32,6 +32,11 @@ function fill(select, rows, label = row => row.name) {
   select.replaceChildren(...rows.map(row => new Option(label(row), String(row.id))));
 }
 
+function removeActivePart(draft) {
+  draft.parts.splice(draft.active, 1);
+  draft.active = Math.min(draft.active, draft.parts.length - 1);
+}
+
 export class CartographyEditor {
   constructor(panel) {
     this.panel = panel;
@@ -236,13 +241,14 @@ export class CartographyEditor {
     const promotableLine = parts?.length === 1 && parts[0].type === 'LineString' && this.catalog?.road_types.length;
     const promotablePolygon = parts?.length && parts.every(piece => piece.type === 'Polygon');
     b.promote.disabled = !!this.busy || !!draft?.kind || !(promotableLine || promotablePolygon);
-    this.panel.querySelector('[data-role=edit-actions]').hidden = !part;
+    this.panel.querySelector('[data-role=edit-actions]').hidden = !(drawingDraft && draft.id && !draft.tool);
     this.panel.querySelector('[data-role=parts]').hidden = !part;
     for (const kind of ['parcel', 'road']) {
       const editing = draft?.kind === kind && !draft.tool;
       this.panel.querySelector(`[data-role=${kind}-edit-actions]`).hidden = !editing;
-      const complete = kind === 'parcel' || (parts?.length === 1 && parts[0].type === 'LineString');
+      const complete = kind === 'parcel' || !parts?.length || (parts.length === 1 && parts[0].type === 'LineString');
       b[`save-${kind}`].disabled = !!this.busy || !draft?.dirty || !complete;
+      b[`save-${kind}`].title = editing && !complete ? S.CARTOGRAPHY_ROAD_NEEDS_LINE : '';
       b[`cancel-${kind}`].disabled = !!this.busy;
     }
     this.mapTools.querySelector('[data-role=sketch-tools]').hidden = !(draft?.tool || draft?.returnSelection);
@@ -325,7 +331,8 @@ export class CartographyEditor {
     this.status.textContent = d.join ? (d.join.first ? S.CARTOGRAPHY_JOIN_SECOND : S.CARTOGRAPHY_JOIN_FIRST)
       : d.tool === 'Polygon' ? S.CARTOGRAPHY_PLACE_POLYGON
       : d.tool ? S.CARTOGRAPHY_PLACE
-      : d.returnSelection ? S.CARTOGRAPHY_CHOOSE_TOOL : S.CARTOGRAPHY_DRAG;
+      : d.returnSelection ? S.CARTOGRAPHY_CHOOSE_TOOL
+      : d.parts.length ? S.CARTOGRAPHY_DRAG : S.CARTOGRAPHY_EMPTY_EDIT;
     if (!d.tool && !d.kind) {
       this.parts.replaceChildren(...d.parts.map((p, i) => new Option(S.CARTOGRAPHY_PART(i + 1, p.type), i)));
       this.parts.value = String(d.active);
@@ -362,7 +369,19 @@ export class CartographyEditor {
       const removal = boundaryVertexRemoval(d, ring, index);
       if (removal) this.changeParts(draft => removeBoundaryVertex(draft, ring, index, removal));
     } else if (canRemoveVertex(part, ring, index)) {
-      this.changeParts(() => removeVertex(part, ring, index));
+      this.changeParts(draft => {
+        if (removeVertex(part, ring, index) === null) removeActivePart(draft);
+      });
+    }
+  }
+
+  saveFeature(kind, action) {
+    const {id, version, parts} = this.draft;
+    if (parts.length) {
+      this.write(action, {id, version, parts});
+    } else {
+      showConfirmModal(S.DELETE_REFERENCE_CONFIRM(this.selected.name),
+        () => this.write(`remove-${kind}`, {id, version}));
     }
   }
 
@@ -603,12 +622,12 @@ export class CartographyEditor {
           parts: [structuredClone(row.geometry)], active: 0});
         break;
       case 'save-road':
-        this.write('road-points', {id: row.id, version: this.draft.version, parts: this.draft.parts});
+        this.saveFeature('road', 'road-points');
         break;
       case 'save-parcel': {
         const {parcelId, review, edits, added, parts} = this.draft;
         const save = () => this.write('parcel-boundaries', {id: parcelId, review, edits, added});
-        if (parts.some(part => part.type === 'LineString')) {
+        if (parts.some(part => part.type !== 'Polygon')) {
           showConfirmModal(S.CARTOGRAPHY_SAVE_OPEN_BOUNDARIES, save);
         } else {
           save();
@@ -640,10 +659,7 @@ export class CartographyEditor {
         this.refreshEdit();
         break;
       case 'remove-part':
-        this.changeParts(d => {
-          d.parts.splice(d.active, 1);
-          d.active = Math.min(d.active, d.parts.length - 1);
-        });
+        this.changeParts(removeActivePart);
         break;
       case 'remove-vertex':
         this.removeSelectedVertex();
@@ -689,7 +705,7 @@ export class CartographyEditor {
         break;
       }
       case 'save':
-        this.write('adjust', {id: this.draft.id, version: this.draft.version, parts: this.draft.parts});
+        this.saveFeature('drawing', 'adjust');
         break;
       case 'finish':
         this.finishSketch();
@@ -763,7 +779,8 @@ export class CartographyEditor {
       }
       cache.applyResponseChanges(data);
       if (action === 'import') updateInboxDot(data);
-      if (['adjust', 'road', 'create', 'parcel', 'road-points', 'parcel-boundaries'].includes(action) && drafts.get(regionId) === submitted) {
+      if (['adjust', 'road', 'create', 'parcel', 'road-points', 'parcel-boundaries',
+        'remove-drawing', 'remove-road'].includes(action) && drafts.get(regionId) === submitted) {
         drafts.delete(regionId);
       }
       if (!this.current(generation)) return;

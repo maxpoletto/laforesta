@@ -28,6 +28,11 @@ async function walk(browser) {
   page.setDefaultTimeout(7000);
   const loc = selector => page.locator(selector);
   const action = name => loc(`#settings-cartografia [data-action="${name}"]`);
+  const vertices = loc('.cartography-vertex');
+  async function removeFirstVertex() {
+    await vertices.first().press('Enter');
+    await action('remove-vertex').click();
+  }
   const editor = url + '/impostazioni?scheda=cartografia';
   await page.goto(editor);
   const modal = loc('#modal-container');
@@ -195,8 +200,10 @@ async function walk(browser) {
   assert.ok(await action('promote').isDisabled());
   if (width < 800) await sidebarToggle.click();
   await joinWalk();
-  assert.equal(await loc('.cartography-vertex').first().getAttribute('aria-pressed'), null);
-  await loc('.cartography-vertex').nth(1).click();
+  await vertices.first().press('Enter');
+  assert.ok(await action('break-link').isDisabled());
+  assert.ok(await action('remove-vertex').isEnabled());
+  await vertices.nth(1).click();
   assert.ok(await action('remove-vertex').isEnabled());
   await action('break-link').click();
   if (width < 800) await sidebarToggle.click();
@@ -258,6 +265,15 @@ async function walk(browser) {
   await action('break-link').click();
   assert.ok(await action('join-link').isEnabled());
   assert.ok(await action('save-road').isDisabled());
+  await removeFirstVertex();
+  assert.equal(await roadVertices.count(), 1);
+  assert.ok(await action('save-road').isDisabled());
+  await removeFirstVertex();
+  assert.ok(await action('save-road').isEnabled());
+  await action('undo').click();
+  assert.equal(await roadVertices.count(), 1);
+  await action('undo').click();
+  assert.equal(await roadVertices.count(), 2);
   await action('undo').click();
   assert.equal(await roadVertices.count(), insertedCount);
   if (width < 800) await sidebarToggle.click();
@@ -298,10 +314,43 @@ async function walk(browser) {
   const polygonIcon = await action('polygon').boundingBox();
   assert.equal(lineIcon.x, polygonIcon.x);
   assert.ok(lineIcon.y + lineIcon.height <= polygonIcon.y);
+  const map = loc('#cartography-map .leaflet-container');
+  await action('line').click();
+  await map.click({position: {x: 100, y: 295}});
+  await map.click({position: {x: 165, y: 295}});
+  await action('finish').click();
+  await modal.getByLabel('Nome').fill('Segmento');
+  await modal.locator('[type=submit]').click();
+  await drawings.first().waitFor({state: 'attached'});
+  if (width < 800) await sidebarToggle.click();
+  await action('edit').click();
+  if (width < 800) await sidebarToggle.click();
+  await removeFirstVertex();
+  assert.equal(await vertices.count(), 1);
+  assert.ok(await action('join-link').isDisabled());
+  if (width < 800) await sidebarToggle.click();
+  assert.deepEqual(await loc('#cartography-parts option').allTextContents(), ['1. Punto']);
+  await action('save').click();
+  await action('save').waitFor({state: 'hidden'});
+  await action('edit').click();
+  if (width < 800) await sidebarToggle.click();
+  await removeFirstVertex();
+  assert.equal(await vertices.count(), 0);
+  await action('undo').click();
+  assert.equal(await vertices.count(), 1);
+  await removeFirstVertex();
+  if (width < 800) await sidebarToggle.click();
+  await action('save').click();
+  assert.match(await modal.textContent(), /Segmento/);
+  await modal.locator('[data-action=confirm]').click();
+  await drawings.first().waitFor({state: 'detached'});
+  assert.ok(await action('save').isHidden());
+
+  await action('new-drawing').click();
+  if (width < 800) await sidebarToggle.click();
   await action('polygon').click();
   assert.ok(await action('line').isHidden());
   assert.ok(await action('finish').isHidden());
-  const map = loc('#cartography-map .leaflet-container');
   const startVertex = loc('.cartography-sketch-start button');
   await map.click({position: {x: 100, y: 295}});
   await map.click({position: {x: 165, y: 295}});
@@ -392,6 +441,12 @@ async function walk(browser) {
   await action('break-link').click();
   assert.equal(await parcelVertices.count(), 2);
   assert.ok(await action('join-link').isDisabled());
+  await removeFirstVertex();
+  assert.equal(await parcelVertices.count(), 1);
+  await removeFirstVertex();
+  assert.equal(await parcelVertices.count(), 3);
+  await action('undo').click();
+  assert.equal(await parcelVertices.count(), 1);
   if (width < 800) await sidebarToggle.click();
   await action('save-parcel').click();
   await Promise.all([

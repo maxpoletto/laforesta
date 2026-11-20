@@ -719,6 +719,8 @@ export const CARTOGRAPHY_IMPORT_COUNT = n => `Disegni aggiunti: ${n}.`;
 export const CARTOGRAPHY_CLEAR = (region, n) => `Eliminare tutti i disegni di ${region} (${n})?`;
 export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${name}»?`;
 export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
+export const CARTOGRAPHY_EMPTY_EDIT = 'Non ci sono più punti in questa modifica.';
+export const CARTOGRAPHY_ROAD_NEEDS_LINE = 'Per salvare la strada, la geometria deve essere una sola linea.';
 export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';
 
 export const CARTOGRAPHY_PART = (index, type) =>
@@ -742,7 +744,7 @@ export const CARTOGRAPHY_JOIN_SECOND = 'Seleziona il secondo estremo da unire.';
 export const CARTOGRAPHY_JOIN_ENDPOINT = (i, start) => `Linea ${i + 1}: ${start ? 'inizio' : 'fine'}`;
 export const CARTOGRAPHY_JOIN_NEEDS_VERTICES = 'Servono almeno tre vertici distinti per chiudere un poligono.';
 export const CARTOGRAPHY_JOIN_ROAD = 'Per unire i tratti della strada, seleziona gli estremi di due linee diverse.';
-export const CARTOGRAPHY_SAVE_OPEN_BOUNDARIES = 'I contorni aperti saranno esclusi dal salvataggio. Continuare?';
+export const CARTOGRAPHY_SAVE_OPEN_BOUNDARIES = 'I contorni aperti e i singoli punti saranno esclusi dal salvataggio. Continuare?';
 export const CARTOGRAPHY_VERTEX_REQUIRED = 'Questo vertice serve a mantenere un contorno valido o un confine condiviso.';
 
 export const CARTOGRAPHY_PLACE_POLYGON = 'Aggiungi almeno tre vertici, poi tocca il primo per chiudere il poligono.';

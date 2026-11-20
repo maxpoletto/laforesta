@@ -58,12 +58,19 @@ assert.deepEqual(polygon.coordinates[1][0], polygon.coordinates[1].at(-1));
 assert.deepEqual(polygon.fixes, [...oldOuterFixes, null, null, [2, 'Interno'], null]);
 
 const shortened = structuredClone(track);
-assert.equal(canRemoveVertex(shortened, 0, 0), false);
-assert.equal(canRemoveVertex(shortened, 0, 2), false);
+assert.equal(canRemoveVertex(shortened, 0, 0), true);
+assert.equal(canRemoveVertex(shortened, 0, 2), true);
 assert.equal(canRemoveVertex(shortened, 0, 1), true);
 removeVertex(shortened, 0, 1);
 assert.deepEqual(shortened, line([[16, 38], [16, 38.2]], [[2, ''], [2, '']]));
-assert.equal(canRemoveVertex(shortened, 0, 1), false);
+assert.equal(canRemoveVertex(shortened, 0, 1), true);
+
+const collapsed = structuredClone(forward);
+removeVertex(collapsed, 0, 0);
+assert.deepEqual(collapsed, {type: 'Point', coordinates: [16.1, 38], fixes: [[3, 'b']]});
+assert.equal(canRemoveVertex(collapsed, 0, 1), false);
+assert.equal(canRemoveVertex(collapsed, 0, 0), true);
+assert.equal(removeVertex(collapsed, 0, 0), null);
 
 const west = {type: 'Polygon', coordinates: [[[16, 38], [17, 38], [17.1, 38.5], [17, 39], [16, 39], [16, 38]]]};
 const east = {type: 'Polygon', coordinates: [[[17, 38], [18, 38], [18, 39], [17, 39], [17.1, 38.5], [17, 38]]]};

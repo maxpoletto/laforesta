@@ -3,7 +3,7 @@ import { parcelIdentity } from '../../base/js/geo.js';
 import { fmtDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
-import { handPart, isEndpoint, rings } from './drawing-parts.js';
+import { handPart, rings } from './drawing-parts.js';
 
 const drawingStyle = { color: '#ad4c00', weight: 4 };
 const roadStyle = { color: '#244c86', weight: 4 };
@@ -290,23 +290,21 @@ export class CartographyMap {
             marker.addTo(this.handles);
             if (fix) marker.bindTooltip(fixLabel(fix)).on('click', () => marker.openTooltip());
             if (callbacks) {
-              if (part.type !== 'Point' && !isEndpoint(part, i)) {
-                const handle = marker.getElement();
-                const selected = callbacks.vertex?.ring === r && callbacks.vertex?.index === i;
-                handle.classList.toggle('cartography-active-vertex', selected);
-                const selectVertex = () => {
-                  this.handles.eachLayer(layer => {
-                    const element = layer.getElement();
-                    if (!element?.hasAttribute('aria-pressed')) return;
-                    const active = element === handle;
-                    element.classList.toggle('cartography-active-vertex', active);
-                    element.setAttribute('aria-pressed', String(active));
-                  });
-                  callbacks.vertex = {ring: r, index: i};
-                  callbacks.selectVertex(r, i);
-                };
-                this.selectableHandle(marker, S.CARTOGRAPHY_SELECT_VERTEX, selected, selectVertex);
-              }
+              const handle = marker.getElement();
+              const selected = callbacks.vertex?.ring === r && callbacks.vertex?.index === i;
+              handle.classList.toggle('cartography-active-vertex', selected);
+              const selectVertex = () => {
+                this.handles.eachLayer(layer => {
+                  const element = layer.getElement();
+                  if (!element?.hasAttribute('aria-pressed')) return;
+                  const active = element === handle;
+                  element.classList.toggle('cartography-active-vertex', active);
+                  element.setAttribute('aria-pressed', String(active));
+                });
+                callbacks.vertex = {ring: r, index: i};
+                callbacks.selectVertex(r, i);
+              };
+              this.selectableHandle(marker, S.CARTOGRAPHY_SELECT_VERTEX, selected, selectVertex);
               marker.on('drag', () => {
                 const layer = this.activeLayer;
                 const end = marker.getLatLng();

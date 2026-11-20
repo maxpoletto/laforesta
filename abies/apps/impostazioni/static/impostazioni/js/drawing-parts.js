@@ -89,21 +89,27 @@ export function insertVertex(part, ringIndex, i, coord) {
 }
 
 export function canRemoveVertex(part, ringIndex, index) {
-  if (part?.type === 'LineString') return canBreakPart(part, ringIndex, index);
+  if (part?.type === 'Point') return ringIndex === 0 && index === 0;
+  if (part?.type === 'LineString') return ringIndex === 0 && index >= 0 && index < part.coordinates.length;
   const ring = part?.type === 'Polygon' && part.coordinates[ringIndex];
   return !!ring && ring.length > 4 && index >= 0 && index < ring.length - 1;
 }
 
 export function removeVertex(part, ringIndex, index) {
+  if (part.type === 'Point') return null;
   const all = rings(part);
   const ring = all[ringIndex];
   const offset = all.slice(0, ringIndex).reduce((sum, previous) => sum + previous.length, 0);
   ring.splice(index, 1);
   part.fixes?.splice(offset + index, 1);
-  if (part.type === 'Polygon' && index === 0) {
+  if (part.type === 'LineString' && ring.length === 1) {
+    part.type = 'Point';
+    part.coordinates = ring[0];
+  } else if (part.type === 'Polygon' && index === 0) {
     ring[ring.length - 1] = ring[0];
     if (part.fixes) part.fixes[offset + ring.length - 1] = part.fixes[offset];
   }
+  return part;
 }
 
 function splitLine(part, i) {
