@@ -36,6 +36,14 @@ async function walk(browser) {
   const editor = url + '/impostazioni?scheda=cartografia';
   await page.goto(editor);
   const modal = loc('#modal-container');
+  async function checkNameField() {
+    const field = modal.getByLabel('Nome', {exact: true});
+    assert.equal(await field.getAttribute('type'), 'text');
+    assert.ok(await field.evaluate(input => {
+      const group = input.closest('.form-row > .form-group');
+      return group && input.offsetWidth === group.clientWidth && parseFloat(getComputedStyle(input).paddingLeft) >= 8;
+    }));
+  }
   const sidebar = loc('#cartography-sidebar');
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
   assert.equal(await sidebar.locator('[data-action=save], [data-action=cancel], [data-action=finish]').count(), 0);
@@ -232,6 +240,7 @@ async function walk(browser) {
   await modal.getByRole('button', {name: 'Annulla'}).click();
   assert.equal(await loc('#cartography-parts option').count(), 1);
   await action('promote').click();
+  await checkNameField();
   await modal.locator('input[name=name]').fill('Strada nord');
   await modal.locator('select').selectOption({label: 'Pista di prova'});
   await Promise.all([
@@ -322,6 +331,7 @@ async function walk(browser) {
   await map.click({position: {x: 100, y: 295}});
   await map.click({position: {x: 165, y: 295}});
   await action('finish').click();
+  await checkNameField();
   await modal.getByLabel('Nome').fill('Segmento');
   await modal.locator('[type=submit]').click();
   await drawings.first().waitFor({state: 'attached'});

@@ -359,8 +359,14 @@ S (string constants) provided by the shell's render context.
 <template id="tmpl-cartography-road">
   <form class="form-card">
     <h2>Crea strada</h2>
-    <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
-    <div class="form-row"><label>Tipo di viabilità <select name="road_type_id" required></select></label></div>
+    <div class="form-row"><div class="form-group">
+      <label for="cartography-road-name">{{ S.LABEL_NAME }}</label>
+      <input id="cartography-road-name" type="text" name="name" maxlength="100" required>
+    </div></div>
+    <div class="form-row"><div class="form-group">
+      <label for="cartography-road-type">Tipo di viabilità</label>
+      <select id="cartography-road-type" name="road_type_id" required></select>
+    </div></div>
     <div class="form-actions">
       <button type="button" class="btn btn-delete" data-action="delete" hidden>{{ S.ACTION_DELETE }}</button>
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
@@ -393,7 +399,10 @@ S (string constants) provided by the shell's render context.
 <template id="tmpl-cartography-drawing">
   <form class="form-card">
     <h2>Nuovo disegno</h2>
-    <div class="form-row"><label>Nome <input name="name" maxlength="100" required></label></div>
+    <div class="form-row"><div class="form-group">
+      <label for="cartography-drawing-name">{{ S.LABEL_NAME }}</label>
+      <input id="cartography-drawing-name" type="text" name="name" maxlength="100" required>
+    </div></div>
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
       <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
