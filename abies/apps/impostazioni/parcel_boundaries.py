@@ -10,6 +10,7 @@ from shapely.geometry import LineString, Point, Polygon, shape
 
 from apps.base.models import MapFeature, Parcel
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, position
+from apps.impostazioni.regions import unlinked_outlines
 from config import strings as S
 
 
@@ -168,12 +169,13 @@ def boundary_results(parcel, data, outlines):
                           for row in outlines)
         if not has_outline and parcel_used(parcel):
             raise ValueError(S.CARTOGRAPHY_PARCEL_OUTLINE_REQUIRED)
-    validate_intersections(outlines, updates, added)
+    validate_intersections(parcel.region, outlines, updates, added)
     return updates, added
 
 
-def validate_intersections(outlines, updates, added):
+def validate_intersections(region, outlines, updates, added):
     """Allow correction of legacy overlap, and reject any newly overlapping area."""
+    outlines = [*outlines, *(row for row in unlinked_outlines(region.name) if row.published)]
     before = [make_valid(shape(planar_polygon(row.geometry))) for row in outlines]
     # An empty geometry keeps indices aligned with the original snapshot.
     shapes = {pk: shape(geometry) if geometry is not None else Polygon()

@@ -1123,10 +1123,9 @@ CARTOGRAPHY_ROAD_TYPE_REQUIRED = 'Seleziona un tipo di viabilità attivo.'
 MAP_PUBLISHED = 'Pubblicato'
 
 CARTOGRAPHY_PARCEL_EXISTS = 'Esiste già una particella con questo nome nella compresa.'
-CARTOGRAPHY_PIECE_OVERLAPS = 'La nuova superficie si sovrappone a una parte della stessa particella.'
 
 CARTOGRAPHY_PARCEL_IN_USE = 'Questa particella è utilizzata in piani, rilievi o altri dati forestali.'
 CARTOGRAPHY_PARCEL_OUTLINE_REQUIRED = 'Questa particella è in uso e deve conservare almeno un poligono.'
 CARTOGRAPHY_CONFIRM_RENAME = 'Conferma il cambio di nome della particella.'
-CARTOGRAPHY_BOUNDARY_OVERLAPS = 'Il nuovo confine si sovrappone a un altro contorno.'
+CARTOGRAPHY_BOUNDARY_OVERLAPS = 'Il nuovo confine si sovrappone a un altro poligono'
 CARTOGRAPHY_VERTEX_REQUIRED = 'Questo vertice serve a mantenere un contorno valido o un confine condiviso.'

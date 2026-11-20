@@ -557,6 +557,33 @@ def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, ecl
     assert parcel.version == 2
 
 
+def test_promotion_protects_other_parcels_and_legacy_outlines(client, writer_user, parcels):
+    from apps.base.models import MapFeature
+
+    west, east = parcels[:2]
+    region = west.region
+    client.force_login(writer_user)
+    def square(x):
+        return {'type': 'Polygon', 'coordinates': [[[x, 38], [x + 1, 38], [x + 1, 39], [x, 39], [x, 38]]]}
+
+    MapFeature.objects.create(parcel=west, geometry=square(16))
+    MapFeature.objects.create(geometry=square(18),
+        members={'type': 'Feature', 'properties': {'layer': region.name, 'name': '99'}})
+    drawing = write(client, region, 'create', name='Confine', parts=[square(16)]).json()['drawing_id']
+    base = {'id': drawing, 'version': 1}
+    for destination in [{'parcel_id': east.pk, 'parcel_version': east.version},
+                        {'name': 'Nuova', 'eclass_id': west.eclass_id}]:
+        for x in [16, 18]:
+            rejected = write(client, region, 'parcel', **base, parts=[square(x)], **destination)
+            assert rejected.status_code == 400, rejected.content
+            assert 'Il nuovo confine si sovrappone a un altro poligono' in rejected.json()['message']
+    assert west.map_features.count() == 1 and not east.map_features.exists()
+    response = write(client, region, 'parcel', **base, parts=[square(17)],
+                     parcel_id=east.pk, parcel_version=east.version)
+    assert response.status_code == 200, response.content
+    assert east.map_features.get().geometry == square(17)
+
+
 def test_edit_road_properties_points_and_delete(client, writer_user, regions):
     from apps.base.models import MapFeature, RoadType
 

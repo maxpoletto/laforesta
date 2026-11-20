@@ -1,7 +1,5 @@
 """Writer workspace for the selected compresa."""
 
-from shapely.geometry import shape
-
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import F, Q
@@ -16,11 +14,13 @@ from apps.base.idempotency import begin_nonce_write
 from apps.base.models import MapDrawing, MapFeature, MapPointSet, Parcel, Region, RoadType, Survey
 from apps.base.numparse import int_or_none
 from apps.base.responses import parse_json_body, success_response, validation_error
-from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon, walk_parts
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
 from apps.impostazioni.cartography_import import file_parts, survey_parts, surveys_with_positions
-from apps.impostazioni.parcel_boundaries import boundary_workspace, parcel_outlines, parcel_usage, parcel_used, save_boundaries
+from apps.impostazioni.parcel_boundaries import (
+    boundary_workspace, parcel_outlines, parcel_usage, parcel_used, save_boundaries, validate_intersections,
+)
 from apps.impostazioni.regions import invalidate_map_labels, required_name, unlinked_outlines
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
@@ -126,15 +126,12 @@ def edit_parcel(region_id, action, body):
 
 def promote_parcel(drawing, parts, body):
     geometry = feature_geometry(parts, 'Polygon')
+    validate_intersections(drawing.region, parcel_outlines(drawing.region_id), {}, [geometry])
     targets = Parcel.objects.filter(region=drawing.region)
     if body.get('parcel_id') not in (None, ''):
         parcel = get_object_or_404(targets, pk=int_or_none(body['parcel_id']))
         if parcel.version != int_or_none(body.get('parcel_version')):
             raise ValueError(S.CARTOGRAPHY_STALE)
-        piece = shape(geometry)
-        existing = parcel.map_features.filter(published=True).values_list('geometry', flat=True)
-        if any(piece.relate_pattern(shape(planar_polygon(outline)), 'T********') for outline in existing):
-            raise ValueError(S.CARTOGRAPHY_PIECE_OVERLAPS)
         parcel.version += 1
         parcel.save(update_fields=['version'])
     else:
