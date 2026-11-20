@@ -67,10 +67,12 @@ both ends of one line closes a polygon. **Promuovi** turns the resulting line
 into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 
-**Linea** and **Poligono** on the map start a drawing in the selected
-compresa. Click or tap the map to place vertices. Use **Termina** for a line,
-or return to the first vertex to close a polygon. Abies then asks for the
-drawing's name. Undo is on the map during drawing and editing. The
+**Nuovo** under **Disegni** starts a drawing in the selected compresa.
+Choose **Linea** or **Poligono** on the map, then click or tap the map to
+place vertices. Use **Termina** for a line, or return to the first vertex to
+close a polygon. Abies then asks for the drawing's name. Canceling restores the
+previous selection. During **Modifica**, the same tools add another shape to
+the current drawing. The map tools are visible during drawing or editing. The
 **Annulla** and **Salva** controls for an existing drawing are in **Disegni**.
 Promoting a polygon opens Bosco’s parcel properties form. The first economic
 class by name is selected, and the cadastral area can be left blank. In a

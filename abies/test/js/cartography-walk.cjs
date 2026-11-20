@@ -57,6 +57,10 @@ async function walk(browser) {
   assert.ok(await action('edit-region').isDisabled());
   await action('new-region').click();
   await saveRegion('Temporanea', '');
+  assert.ok(await action('line').isHidden());
+  assert.ok(await action('polygon').isHidden());
+  assert.ok(await action('join-link').isHidden());
+  await action('new-drawing').waitFor();
   await action('edit-region').click();
   await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
   await modal.getByRole('button', {name: 'Elimina', exact: true}).click();
@@ -235,8 +239,8 @@ async function walk(browser) {
   await loc('.cartography-insert-vertex').first().click();
   const roadVertices = loc('.cartography-vertex');
   const insertedCount = await roadVertices.count();
-  await loc('.cartography-insert-vertex').first().click();
-  await loc('.cartography-insert-vertex').first().click();
+  await loc('.cartography-insert-vertex').nth(2).click();
+  await loc('.cartography-insert-vertex').last().click();
   assert.equal(await roadVertices.count(), insertedCount + 2);
   await action('undo').click();
   await action('undo').click();
@@ -280,6 +284,7 @@ async function walk(browser) {
   await drawings.first().waitFor({state: 'attached'});
   await action('new-region').click();
   await saveRegion('Costa alta', '');
+  await action('new-drawing').click();
   if (width < 800) await sidebarToggle.click();
   // At world zoom the viewport can include repeated copies of a longitude.
   for (let i = 0; i < 4; i++) await loc('#cartography-map .leaflet-control-zoom-in').click();
@@ -325,6 +330,16 @@ async function walk(browser) {
   await rename.check();
   await modal.getByRole('button', {name: 'Salva', exact: true}).click();
   await loc('#cartography-parcels').getByRole('button', {name: '2b', exact: true}).waitFor();
+
+  await action('new-drawing').click();
+  if (width < 800) await sidebarToggle.click();
+  await action('line').click();
+  await map.click({position: {x: 100, y: 295}});
+  await action('cancel-sketch').click();
+  await modal.locator('[data-action=confirm]').click();
+  if (width < 800) await sidebarToggle.click();
+  assert.equal((await selectedParcel.textContent()).trim(), '2b');
+  assert.ok(await action('polygon').isHidden());
 
   await action('boundaries').click();
   await action('save-parcel').waitFor();

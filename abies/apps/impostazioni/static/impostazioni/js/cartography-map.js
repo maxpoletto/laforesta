@@ -44,7 +44,6 @@ export class CartographyMap {
     this.toolbar = L.control({position: 'topleft'});
     this.toolbar.onAdd = () => {
       L.DomEvent.disableClickPropagation(tools);
-      tools.hidden = false;
       return tools;
     };
     this.toolbar.onRemove = () => {

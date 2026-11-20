@@ -140,8 +140,7 @@ details.cartography-section > .cartography-list-header {
 .cartography-section [data-role="status"] { margin-top: 6px; }
 .cartography-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
 .cartography-section > .cartography-buttons,
-.cartography-section > [data-role="parts"],
-.cartography-section > [data-action="open-import"] { margin-top: 6px; }
+.cartography-section > [data-role="parts"] { margin-top: 6px; }
 .cartography-list-header {
   display: flex;
   align-items: center;

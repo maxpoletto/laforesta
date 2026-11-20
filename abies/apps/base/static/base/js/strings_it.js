@@ -723,6 +723,7 @@ export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';
 
 export const CARTOGRAPHY_PART = (index, type) =>
   `${index}. ${({Point: 'Punto', LineString: 'Linea', Polygon: 'Poligono'})[type]}`;
+export const CARTOGRAPHY_CHOOSE_TOOL = 'Scegli Linea o Poligono sulla mappa.';
 export const CARTOGRAPHY_PLACE = 'Tocca la mappa per aggiungere i vertici, poi premi Termina.';
 export const CARTOGRAPHY_CANCEL = 'Abbandonare le modifiche al disegno?';
 export const CARTOGRAPHY_DISCARD = 'Abbandona modifiche';

@@ -149,12 +149,13 @@ Any map changes are persistent across tab navigation.
 
 The drawing control is a foldable section.
 
-When no object is being edited, the map offers **Linea** and **Poligono**, even
-in an empty compresa. Finishing a shape adds it to **Disegni** in the selected
-compresa. The polygon outline stays open while the operator places vertices. After
-placing at least three vertices, clicking the first one closes the outline.
-The operator can draw a boundary this way and promote it to the compresa's
-first parcel.
+**Nuovo**, next to **Importa…**, opens a drawing session and makes **Linea**
+and **Poligono** available on the map, even in an empty compresa. Finishing a
+shape adds it to **Disegni** in the selected compresa. The polygon outline stays
+open while the operator places vertices. After placing at least three vertices,
+clicking the first one closes the outline. The operator can draw a boundary
+this way and promote it to the compresa's first parcel. Canceling returns to
+the previous selection.
 
 Each drawing has a name and geometry. For imported drawings, the name is
 chosen on import. The list includes hand-drawn and imported drawings until
@@ -166,8 +167,9 @@ The list interacts bidirectionally with the map just like for parcels and roads.
 
 Below the list are the following buttons: **Modifica** **Promuovi**.
 
-**Modifica** makes the drawing editable, and makes visible  the usual editing
-map controls and **Annulla** and **Salva** buttons.
+**Modifica** makes the drawing editable. The map shows the vertex tools and
+allows new lines or polygons to be added. **Annulla** and **Salva** are below
+the drawing list. The map editing tools appear only during an edit.
 
 **Promuovi** opens a modal with the destinations available for the selected
 drawing. A line can become a new road. A polygon can become a new parcel or,
