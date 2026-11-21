@@ -7,6 +7,7 @@ import os
 import re
 from datetime import date as date_type
 from pathlib import Path
+from uuid import UUID
 
 import numpy as np
 import rasterio
@@ -38,7 +39,7 @@ from apps.base.http import (
 from apps.base.map_data import map_geojson
 from apps.base.models import (
     MapFeature, Observation, ObservationCategory, ObservationPhoto, Parcel,
-    Region, Sample, Species, Tree, TreeSample,
+    Region, Sample, SatelliteRevision, Species, TerrainRefresh, Tree, TreeSample,
     parcel_sort_key,
 )
 from apps.base.numparse import coord_float, int_or_none, parse_decimal
@@ -76,7 +77,6 @@ from config.constants import (
     ROW_ID, VERSION,
 )
 
-ALLOWED_SATELLITE_JSON = {'manifest.json', 'timeseries.json'}
 ALLOWED_SATELLITE_LAYERS = {'ndvi', 'ndmi', 'evi'}
 SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
@@ -928,12 +928,16 @@ def parcel_dendrometry_points_data(request):
 
 @login_required
 def satellite_manifest(request, region_id):
-    return _satellite_json_response(request, region_id, 'manifest.json')
+    path = _satellite_file_path(request, region_id, 'manifest.json')
+    return conditional_file_response(
+        request, path, content_type='application/json', cache_control=CACHE_NO_CACHE,
+        use_etag=path.parent.parent.name == 'revisions',
+    )
 
 
 @login_required
 def satellite_timeseries(request, region_id):
-    path = _satellite_file_path(region_id, 'timeseries.json')
+    path = _satellite_file_path(request, region_id, 'timeseries.json')
     try:
         raw = path.read_bytes()
         summary = json.loads(raw)
@@ -952,13 +956,16 @@ def satellite_raw(request, region_id, layer, date):
     if not SATELLITE_DATE_RE.fullmatch(date):
         raise Http404
 
-    path = _satellite_file_path(region_id, date, f'{layer}.tif')
-    return _satellite_raw_response(request, path)
+    path = _satellite_file_path(request, region_id, date, f'{layer}.tif')
+    try:
+        return _satellite_raw_response(request, path)
+    except (OSError, rasterio.errors.RasterioError):
+        raise Http404 from None
 
 
 @login_required
 def satellite_mask_raw(request, region_id):
-    path = _satellite_file_path(region_id, 'parcel-mask.tif')
+    path = _satellite_file_path(request, region_id, 'parcel-mask.tif')
     try:
         payload = _satellite_raw_payload(path, parcel_snapshot=_satellite_parcel_snapshot(region_id))
     except (OSError, rasterio.errors.RasterioError):
@@ -1191,32 +1198,30 @@ def _mark_pai_tree_write_stale(survey_ids):
     )
 
 
-def _satellite_json_response(request, region_id, filename):
-    return conditional_file_response(
-        request,
-        _satellite_json_path(region_id, filename),
-        content_type='application/json',
-        cache_control=CACHE_NO_CACHE,
-    )
-
-
-def _satellite_json_path(region_id, filename):
-    if filename not in ALLOWED_SATELLITE_JSON:
-        raise Http404
-    return _satellite_file_path(region_id, filename)
-
-
-def _satellite_file_path(region_id, *parts, required=True):
+def _satellite_file_path(request, region_id, *parts):
     region_dir = _satellite_region_dir(region_id)
-    path = region_dir.joinpath(*parts).resolve()
+    requested = request.GET.get('revision')
+    if requested == 'legacy':
+        revision = None
+    elif requested is not None:
+        try:
+            revision = UUID(requested)
+        except ValueError:
+            raise Http404 from None
+        if not SatelliteRevision.objects.filter(pk=revision, region_id=region_id).exists():
+            raise Http404
+    else:
+        revision = TerrainRefresh.objects.filter(pk=region_id).values_list('revision_id', flat=True).first()
+    root = region_dir / 'revisions' / str(revision) if revision else region_dir
+    if requested is None and revision and not (root / 'manifest.json').is_file():
+        root = region_dir
+    path = root.joinpath(*parts).resolve()
     try:
         path.relative_to(region_dir)
     except ValueError as exc:
         raise Http404 from exc
     if not path.is_file():
-        if required:
-            raise Http404
-        return None
+        raise Http404
     return path
 
 
@@ -1246,7 +1251,10 @@ def _satellite_raw_payload(path, *, parcel_snapshot=None):
     with rasterio.open(path) as src:
         if parcel_snapshot is not None and src.tags().get('parcel_snapshot') != parcel_snapshot:
             raise Http404
-        data = np.ascontiguousarray(src.read(1).astype(np.uint8, copy=False))
+        data = src.read(1)
+        if parcel_snapshot is not None and data.dtype != np.uint8:
+            data = data != 0
+        data = np.ascontiguousarray(data.astype(np.uint8, copy=False))
         bounds = src.bounds
         payload = {
             'width': src.width,

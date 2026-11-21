@@ -531,7 +531,7 @@ def _audit_configs() -> list:
     from apps.base.models import (
         Crew, Eclass, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
         MapFeature, Observation, ObservationCategory, Parcel, Region, RoadType, SampleArea, SampleGrid,
-        SiteSettings, Species, Survey,
+        SatelliteCredentials, SiteSettings, Species, Survey,
         Tractor, User, VolumeEquation,
     )
     from apps.ipso.models import IpsoUpload
@@ -562,6 +562,7 @@ def _audit_configs() -> list:
             'default_landing_page': S.LABEL_DEFAULT_LANDING_PAGE,
             FIELD_DIAMETER_CLASS_MODE: S.LABEL_DIAMETER_CLASS_MODE,
         }),
+        (SatelliteCredentials, S.SATELLITE_CREDENTIALS, {'version': S.SATELLITE_CREDENTIALS_REVISION}),
         (Crew, S.TABLE_CREW, {
             'name': S.LABEL_NAME, 'notes': S.LABEL_NOTES,
             'active': S.COL_ACTIVE,

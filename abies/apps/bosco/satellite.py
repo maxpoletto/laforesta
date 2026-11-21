@@ -9,12 +9,17 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 import numpy as np
 import rasterio
 import requests
 from rasterio.features import rasterize
 from rasterio.transform import from_bounds
+from rasterio.windows import Window
+from django.views.decorators.debug import sensitive_variables
+from shapely.geometry import shape
+from shapely.ops import unary_union
 
 from apps.base.geodesy import distance_m
 from apps.bosco.map_context_data import region_names
@@ -39,6 +44,10 @@ WGS84 = rasterio.CRS.from_epsg(4326)
 
 class SatelliteError(Exception):
     """Raised when satellite build input or remote data is invalid."""
+
+
+class SatelliteAuthError(SatelliteError):
+    """Copernicus rejected the configured client."""
 
 
 def _geojson_data(source):
@@ -164,9 +173,9 @@ def read_dates_file(path: Path) -> list[str]:
     return dates
 
 
-def get_access_token() -> str:
-    client_id = os.environ.get('CDSE_CLIENT_ID')
-    client_secret = os.environ.get('CDSE_CLIENT_SECRET')
+@sensitive_variables()
+def get_access_token(credentials=None) -> str:
+    client_id, client_secret = credentials or (os.environ.get('CDSE_CLIENT_ID'), os.environ.get('CDSE_CLIENT_SECRET'))
     if not client_id or not client_secret:
         raise SatelliteError(
             'set CDSE_CLIENT_ID and CDSE_CLIENT_SECRET in the satellite env file'
@@ -179,13 +188,21 @@ def get_access_token() -> str:
                 'client_id': client_id,
                 'client_secret': client_secret,
             },
-            timeout=30,
+            timeout=15,
         )
     except requests.RequestException as exc:
         raise SatelliteError(f'CDSE auth failed: {exc}') from exc
+    if response.status_code in (400, 401, 403):
+        raise SatelliteAuthError(f'CDSE rejected the client ({response.status_code})')
     if response.status_code != 200:
-        raise SatelliteError(f'CDSE auth failed ({response.status_code}): {response.text}')
-    return response.json()['access_token']
+        raise SatelliteError(f'CDSE auth failed ({response.status_code})')
+    try:
+        token = response.json()['access_token']
+    except (ValueError, KeyError, TypeError) as exc:
+        raise SatelliteError('Invalid CDSE token response') from exc
+    if not isinstance(token, str) or not token:
+        raise SatelliteError('Invalid CDSE token response')
+    return token
 
 
 def find_region_dates(
@@ -259,6 +276,58 @@ def find_region_dates(
     return sorted(scene['date'] for scene in best_by_year.values())
 
 
+def catalog_dates(bounds, parcels, start, end, max_cloud):
+    """Rank the dates whose eligible tile footprints cover the parcels."""
+    west, south, east, north = bounds
+    wkt = f'POLYGON(({west} {south},{east} {south},{east} {north},{west} {north},{west} {south}))'
+    params = {
+        '$filter': ' and '.join([
+            "Collection/Name eq 'SENTINEL-2'",
+            "contains(Name, 'MSIL2A')",
+            f"OData.CSC.Intersects(area=geography'SRID=4326;{wkt}')",
+            f'ContentDate/Start ge {start}T00:00:00.000Z',
+            f'ContentDate/Start lt {end}T00:00:00.000Z',
+            "Attributes/OData.CSC.DoubleAttribute/any(att:att/Name eq 'cloudCover' and "
+            f'att/OData.CSC.DoubleAttribute/Value le {max_cloud})',
+        ]),
+        '$expand': 'Attributes',
+        '$orderby': 'ContentDate/Start asc',
+        '$top': 50,
+    }
+    by_date = {}
+    url = CATALOG_URL
+    seen = set()
+    while url:
+        if url in seen or urlsplit(url)[:2] != urlsplit(CATALOG_URL)[:2]:
+            raise SatelliteError('Invalid catalog continuation')
+        seen.add(url)
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            page = response.json()
+            for product in page['value']:
+                date = product['ContentDate']['Start'][:10]
+                cloud = next((attr['Value'] for attr in product['Attributes'] if attr['Name'] == 'cloudCover'), None)
+                if cloud is not None and 0 <= cloud <= max_cloud and str(start) <= date < str(end):
+                    footprint = shape(product['GeoFootprint'])
+                    if footprint.is_valid and footprint.intersects(parcels):
+                        by_date.setdefault(date, []).append((cloud, footprint))
+            continuation = page.get('@odata.nextLink') or page.get('@OData.nextLink')
+            url = urljoin(url, continuation) if continuation else None
+            params = None
+        except (requests.RequestException, TypeError, KeyError, ValueError) as exc:
+            raise SatelliteError('Satellite catalog search failed') from exc
+    candidates = []
+    for date, tiles in by_date.items():
+        footprints = []
+        for cloud, footprint in sorted(tiles, key=lambda tile: tile[0]):
+            footprints.append(footprint)
+            if unary_union(footprints).covers(parcels):
+                candidates.append((cloud, date))
+                break
+    return [(date, cloud) for cloud, date in sorted(candidates)]
+
+
 def reflectance_to_uint8(arr: np.ndarray) -> np.ndarray:
     return (arr.clip(0, 1) * 255).astype(np.uint8)
 
@@ -277,7 +346,7 @@ def uint8_to_index(arr: np.ndarray) -> np.ndarray:
 
 def fetch_band(
         bbox: list[float], width: int, height: int, date_str: str,
-        band_name: str, token: str) -> np.ndarray:
+        band_name: str, token: str, *, max_cloud=None) -> np.ndarray:
     evalscript = f"""//VERSION=3
 function setup() {{
   return {{
@@ -314,6 +383,10 @@ function evaluatePixel(s) {{
         },
         'evalscript': evalscript,
     }
+    if max_cloud is not None:
+        body['input']['data'][0]['dataFilter'].update(
+            maxCloudCoverage=max_cloud, mosaickingOrder='leastCC',
+        )
     try:
         response = requests.post(
             PROCESS_URL,
@@ -325,10 +398,12 @@ function evaluatePixel(s) {{
         raise SatelliteError(
             f'error fetching {band_name} for {date_str}: {exc}'
         ) from exc
+    if response.status_code in (401, 403):
+        raise SatelliteAuthError(f'CDSE refused the process request ({response.status_code})')
     if response.status_code != 200:
         raise SatelliteError(
             f'error fetching {band_name} for {date_str} '
-            f'({response.status_code}): {response.text[:500]}'
+            f'({response.status_code})'
         )
 
     with rasterio.open(io.BytesIO(response.content)) as src:
@@ -352,7 +427,7 @@ def save_geotiff(
     transform = from_bounds(west, south, east, north, width, height)
     path.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(
-            path, 'w', driver='GTiff', dtype='uint8', width=width, height=height,
+            path, 'w', driver='GTiff', dtype=data_uint8.dtype, width=width, height=height,
             count=1, crs=WGS84, transform=transform, compress='deflate',
     ) as dst:
         dst.write(data_uint8, 1)
@@ -435,9 +510,10 @@ def rasterize_parcels(
     parcel_names = sorted({name for name, geometry in named_shapes})
     name_to_idx = {name: idx for idx, name in enumerate(parcel_names, start=1)}
     shapes = [(geometry, name_to_idx[name]) for name, geometry in named_shapes]
+    dtype = np.min_scalar_type(len(parcel_names))
     mask = rasterize(
         shapes, out_shape=(height, width), transform=transform, fill=0,
-        dtype=np.uint8,
+        dtype=dtype,
     )
     return mask, parcel_names
 
@@ -448,25 +524,33 @@ def compute_timeseries(
     bands_lower = [b.lower() for b in BANDS]
     layers = bands_lower + INDICES
     index_set = set(INDICES)
-    forest_pixels = mask > 0
-    forest_count = int(np.sum(forest_pixels))
-    parcel_masks = {
-        name: (mask == idx, int(np.sum(mask == idx)))
-        for idx, name in enumerate(parcel_names, start=1)
-    }
+    height, width = mask.shape
+    block_rows = max(1, 1_000_000 // width)
+    windows = [Window(0, row, width, min(block_rows, height - row))
+               for row in range(0, height, block_rows)]
+    size = len(parcel_names) + 1
+    counts = np.zeros(size, dtype=np.int64)
+    for window in windows:
+        rows, cols = window.toslices()
+        counts += np.bincount(mask[rows, cols].ravel(), minlength=size)
+    forest_count = int(counts[1:].sum())
 
     means_forest = {layer: [] for layer in layers}
     means_parcels = {name: {layer: [] for layer in layers} for name in parcel_names}
 
     for date in dates:
         for layer in layers:
+            totals = np.zeros(size)
             with rasterio.open(output_dir / date / f'{layer}.tif') as src:
-                data = src.read(1)
-            real = uint8_to_index(data) if layer in index_set else uint8_to_reflectance(data)
-            forest_mean = float(np.mean(real[forest_pixels])) if forest_count > 0 else 0.0
+                for window in windows:
+                    rows, cols = window.toslices()
+                    data = src.read(1, window=window)
+                    real = uint8_to_index(data) if layer in index_set else uint8_to_reflectance(data)
+                    totals += np.bincount(mask[rows, cols].ravel(), weights=real.ravel(), minlength=size)
+            forest_mean = float(totals[1:].sum() / forest_count) if forest_count else 0.0
             means_forest[layer].append(round(forest_mean, 4))
-            for name, (parcel_mask, parcel_count) in parcel_masks.items():
-                value = float(np.mean(real[parcel_mask])) if parcel_count > 0 else 0.0
+            for index, name in enumerate(parcel_names, start=1):
+                value = float(totals[index] / counts[index]) if counts[index] else 0.0
                 means_parcels[name][layer].append(round(value, 4))
 
     return {
@@ -488,6 +572,15 @@ def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str, 
     bbox = bbox_from_geojson(geojson_path, region)
     width, height = pixel_dims(bbox)
     validate_raster_grid(output_dir, dates, bbox, (width, height))
+    shapes = parcel_shapes(geojson_path, region, stable_ids=stable_ids)
+    if not shapes:
+        raise SatelliteError(f'no cataloged parcels for {region}')
+    write_parcel_products(output_dir, dates, bbox, (width, height), shapes, stable_ids=stable_ids)
+    return len(dates)
+
+
+def write_parcel_products(output_dir, dates, bbox, dimensions, shapes, *, stable_ids, revision=None):
+    width, height = dimensions
     manifest = {
         'dates': dates,
         'bands': [b.lower() for b in BANDS],
@@ -497,13 +590,8 @@ def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str, 
         'height': height,
         'resolution_m': RESOLUTION_M,
     }
-    with open(output_dir / 'manifest.json', 'w', encoding='utf-8') as f:
-        json.dump(manifest, f, indent=2)
-        f.write('\n')
-
-    shapes = parcel_shapes(geojson_path, region, stable_ids=stable_ids)
-    if not shapes:
-        raise SatelliteError(f'no cataloged parcels for {region}')
+    if revision:
+        manifest['revision'] = str(revision)
     mask, parcel_names = rasterize_parcels(shapes, bbox, width, height)
     timeseries = compute_timeseries(mask, parcel_names, dates, output_dir)
     tags = None
@@ -517,6 +605,6 @@ def precompute_region(geojson_path: Path | dict, output_dir: Path, region: str, 
         stage = Path(stage)
         save_geotiff(stage / 'parcel-mask.tif', mask, bbox, width, height, tags=tags)
         (stage / 'timeseries.json').write_text(json.dumps(timeseries, indent=2) + '\n', encoding='utf-8')
-        for filename in ('parcel-mask.tif', 'timeseries.json'):
+        (stage / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+        for filename in ('parcel-mask.tif', 'timeseries.json', 'manifest.json'):
             (stage / filename).replace(output_dir / filename)
-    return len(dates)

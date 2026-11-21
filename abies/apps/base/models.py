@@ -195,6 +195,18 @@ class SiteSettings(models.Model):
         return obj
 
 
+class SatelliteCredentials(TimestampedModel):
+    """Installation credentials. History records edits without the pair."""
+    singleton_id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    client_id = models.CharField(max_length=255, blank=True)
+    encrypted_secret = models.TextField(blank=True)
+    history = HistoricalRecords(excluded_fields=['client_id', 'encrypted_secret'])
+
+    class Meta:
+        verbose_name = S.SATELLITE_CREDENTIALS
+        verbose_name_plural = S.SATELLITE_CREDENTIALS
+
+
 # ---------------------------------------------------------------------------
 # Reference tables
 # ---------------------------------------------------------------------------
@@ -223,6 +235,43 @@ class Region(TimestampedModel):
 
     def __str__(self):
         return self.name
+
+
+class TerrainRefresh(models.Model):
+    """Durable work and progress for one compresa's terrain products."""
+    class State(models.TextChoices):
+        QUEUED = 'queued'
+        RUNNING = 'running'
+        CURRENT = 'current'
+        WAITING = 'credentials'
+        FAILED = 'failed'
+        EMPTY = 'empty'
+
+    region = models.OneToOneField(Region, on_delete=models.CASCADE, primary_key=True)
+    state = models.CharField(max_length=12, choices=State.choices, default=State.QUEUED)
+    source = models.CharField(max_length=64, blank=True)
+    searched_through = models.DateField(null=True)
+    retry_at = models.DateTimeField(null=True)
+    finished_at = models.DateTimeField(null=True)
+    revision = models.ForeignKey('SatelliteRevision', on_delete=models.SET_NULL, null=True)
+
+
+class SatelliteRevision(models.Model):
+    """Immutable files that Bosco can pin across requests."""
+    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    region = models.ForeignKey(Region, on_delete=models.CASCADE)
+    superseded_at = models.DateTimeField(null=True)
+
+
+class SatelliteSeason(models.Model):
+    """Selected acquisition (or empty search) for one completed window."""
+    region = models.ForeignKey(Region, on_delete=models.CASCADE)
+    start = models.DateField()
+    date = models.DateField(null=True)
+    geometry = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['region', 'start'], name='unique_satellite_season')]
 
 
 class Eclass(TimestampedModel):
