@@ -56,6 +56,8 @@ async function walk(browser) {
     [section.tagName, section.querySelector('label, summary, h2, [data-action=refresh-terrain]').textContent.trim()])),
     [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni'],
       ['DIV', 'Aggiorna dati dei terreni']]);
+  assert.equal(await loc('#settings-generali footer a[href*="flaticon.com"]').count(), 2);
+  assert.equal(await loc('#settings-cartografia a[href*="flaticon.com"]').count(), 0);
   await drawingSummary.click();
   assert.ok(await action('open-import').isHidden());
   assert.ok(await sidebar.getByText('Nessuna particella').isVisible());

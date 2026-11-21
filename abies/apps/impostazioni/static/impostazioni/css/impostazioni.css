@@ -82,9 +82,13 @@
   margin: 0 0 8px;
 }
 
-.settings-version {
+.settings-footer {
   font-size: 0.85rem;
   margin: 16px 0 0;
+}
+
+.settings-footer p {
+  margin: 0 0 4px;
 }
 
 .settings-login-methods {
@@ -194,12 +198,6 @@ details.cartography-section > .cartography-list-header {
 }
 .cartography-eye[aria-pressed="false"]::before {
   background-image: url("../img/hidden.webp");
-}
-.cartography-credits {
-  padding-top: 4px;
-  font-size: 0.75rem;
-  color: #555;
-  text-align: right;
 }
 .cartography-empty { font-size: 0.9rem; color: #555; padding: 4px 0; }
 

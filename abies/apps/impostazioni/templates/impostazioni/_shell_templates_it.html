@@ -95,8 +95,14 @@ S (string constants) provided by the shell's render context.
         </div>
       </section>
     {% endif %}
-    {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
-      <p class="settings-version text-muted">Versione software: <code>{{ ABIES_VERSION }}</code></p>
+    {% if user.can_modify %}
+      <footer class="settings-footer text-muted">
+        {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
+          <p>Versione software: <code>{{ ABIES_VERSION }}</code></p>
+        {% endif %}
+        <p>Icone di <a href="https://www.flaticon.com/free-icon/view_709612">Kiranshastry</a>
+          e <a href="https://www.flaticon.com/free-icon/hide_2767146">th studio</a> da Flaticon.com.</p>
+      </footer>
     {% endif %}
   </div>
 
@@ -320,11 +326,6 @@ S (string constants) provided by the shell's render context.
           </div>
         </aside>
       </div>
-      <footer class="cartography-credits">
-        Icone di visibilità di
-        <a href="https://www.flaticon.com/free-icon/view_709612">Kiranshastry</a>
-        e <a href="https://www.flaticon.com/free-icon/hide_2767146">th studio</a> su Flaticon.
-      </footer>
     </div>
   {% endif %}
 </template>
