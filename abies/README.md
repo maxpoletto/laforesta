@@ -175,7 +175,10 @@ make run-local
 
 `make deploy-local` runs `make local` followed by `make run-local`. It
 rebuilds the local database and Ipso inbox from your canonical data before
-starting both processes. If port 8000 is occupied, use
+starting both processes. With `lsof` available, `make run-local` replaces an
+Abies development server listening on the chosen port from the same checkout.
+If the previous launcher has a terrain worker, both processes stop together.
+If another checkout or application owns port 8000, use
 `make run-local LOCAL_PORT=8001` and open `http://127.0.0.1:8001/`.
 
 ## Remote Dev And Production
