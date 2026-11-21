@@ -190,6 +190,7 @@ def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels,
     assert [event[S.COL_USER] for event in events] == [writer_user.get_full_name() or writer_user.username] * 4
     assert all(region.name in event[S.COL_NEW_VALUE] for event in events)
     assert S.TERRAIN_STATE_FAILED in events[0][S.COL_NEW_VALUE]
+    assert 'Stato: In elaborazione' in events[1][S.COL_NEW_VALUE]
     assert S.TERRAIN_STATE_CURRENT in events[2][S.COL_NEW_VALUE]
 
     outline.geometry = polygon(16.001)
