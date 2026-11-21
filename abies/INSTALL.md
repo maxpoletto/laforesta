@@ -55,3 +55,29 @@ Once the instance is provisioned, import forestry records with
 `make bootstrap-dev` or `make bootstrap-prod`. To import just the map, run
 `python manage.py build_geo /app/data/canonical/map.geojson` inside the
 instance container. Configure [scheduled backups](docs/backups.md).
+
+## Satellite imagery
+
+To obtain credentials for the optional Sentinel-2 layers in Bosco:
+
+1. Create or sign in to your Copernicus Data Space Ecosystem account.
+   [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
+2. Open the Sentinel Hub Dashboard and go to **User Settings → OAuth
+   clients → Create**. Give the client a name for this Abies installation
+   and leave the single-page application option unchecked. Abies makes
+   the requests on the server. [Sentinel Hub Dashboard](https://shapps.dataspace.copernicus.eu/dashboard/)
+3. Copy the **Client ID** and **Client Secret** before closing the dialog.
+   Copernicus displays the secret once.
+   [Copernicus OAuth client instructions](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html#registering-oauth-client)
+
+With the current build workflow, copy
+[`.env.satellite.example`](.env.satellite.example) to `.env.satellite`,
+set `CDSE_CLIENT_ID` and `CDSE_CLIENT_SECRET`, and run `make satellite`
+after importing parcel boundaries. See the [build and deployment instructions](README.md#local-development).
+
+The [planned live workflow](docs/satellite-refresh.md) moves the Copernicus
+pair to **Impostazioni → Generali → Credenziali API satellitare**. It uses
+the installation's existing `DJANGO_SECRET_KEY` to derive the encryption key.
+For a local instance using live credentials, set a unique, random
+`DJANGO_SECRET_KEY` in `compose/.env.local`. After rotating the Django secret,
+enter the Copernicus pair again in **Generali**.

@@ -82,6 +82,8 @@ just reference.
 - [`docs/security.md`](docs/security.md) — permission model, auth flow,
   OAuth configuration, rate limiting, CSP, auditing.  **Read before touching
   auth, user management, or any endpoint that handles credentials.**
+- [`docs/reliability.md`](docs/reliability.md) — process supervision and
+  recovery on hosted instances.
 
 ## Reference
 

@@ -646,3 +646,6 @@ mode-switch.
   10 m resolution. Every band's dimensions, CRS and transform are
   checked before replacing derived masks/manifests, preventing shifted or
   incompatible rasters from being combined.
+  The [satellite refresh proposal](satellite-refresh.md) describes how the
+  running instance would refresh those products and add dates in March and
+  August.

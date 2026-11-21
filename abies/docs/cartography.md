@@ -287,16 +287,18 @@ Deletion of parcels or roads with dependent records is not allowed.
 
 ## Map coverage and background work
 
-Bosco opens on the parcels. Imagery and terrain also cover the roads leading
-to them. The required coverage for a compresa is the bounding box of all its
-published parcels and roads, plus a margin. An access road can therefore
-extend coverage without changing Bosco’s opening view. A viabilità print of
-the whole compresa includes the road all the way to its endpoint.
+Bosco opens on the parcels and masks satellite overlays to the parcel
+polygons. The planned imagery and terrain downloads request the bounding
+box of all published parcels and roads, plus a margin. An access road can
+extend that request while the satellite overlay stays within the parcels.
+A viabilità print of the whole compresa includes the road all the way to
+its endpoint.
 
 - Changing a road name or type updates the road overlay and its print labels
   or legend. The same elevation and satellite data can be reused.
-- Correcting a parcel edge updates the affected parcel masks and satellite
-  statistics, even if the imagery already covers the corrected parcel.
+- The first refresh and published parcel boundary changes check the imagery
+  history back to 2015. The worker reuses saved rasters that already cover
+  the required area, then rebuilds the parcel mask and statistics.
 - Extending a road beyond the parcel bounds grows the required coverage.
   Abies checks the coverage already stored for each imagery date and terrain
   source. If it covers the new extent, no download is needed. If only the
@@ -306,10 +308,12 @@ the whole compresa includes the road all the way to its endpoint.
   once. Abies regenerates affected contours across the joins from the assembled
   terrain.
 
-These jobs run in the background after publication and after a new installation
-imports its initial map. The published vector map is usable while they run.
-The operator can see their progress and retry a failed job without publishing
-again.
+The proposed satellite workflow checks published changes and newly imported
+maps hourly. **Aggiorna dati terreni** at the bottom of the sidebar queues an
+immediate refresh for the selected compresa and can retry a failed job. The
+published vector map remains usable during refresh. The [satellite refresh
+proposal](satellite-refresh.md) covers credentials, progress, and seasonal
+image discovery.
 
 ## Bosco and printed maps
 

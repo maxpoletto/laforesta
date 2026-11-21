@@ -91,6 +91,11 @@ lists surveys with positions in the selected compresa. It imports geolocated
 trees from a free survey and plot centers from a structured survey.
 The [cartography design](cartography.md) describes the supported geometries.
 
+The proposed **Aggiorna dati terreni** button at the bottom of the sidebar
+lets writers and admins queue a refresh of the selected compresa and see
+its progress. See the [satellite refresh proposal](satellite-refresh.md#refreshing-a-compresa)
+for when the action is available and which data it updates.
+
 ### Testing the road workflow
 
 The browser test starts a local Django test server with a temporary SQLite
@@ -123,6 +128,11 @@ non-app paths such as `/api/...`, `/admin/...`, and `/ipso/...` are rejected.
 
 Login and `/` redirect to the effective landing page: personal value, then site
 default, then `/prelievi`.
+
+The proposed **Credenziali API satellitare** section under **Generali** lets
+admins configure the installation's Copernicus credentials. The
+[satellite refresh proposal](satellite-refresh.md#credentials) describes
+credential replacement and storage.
 
 ## Reference tables
 
