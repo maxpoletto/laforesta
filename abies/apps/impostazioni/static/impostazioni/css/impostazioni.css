@@ -194,10 +194,10 @@ details.cartography-section > .cartography-list-header {
   content: "";
   width: 20px;
   height: 20px;
-  background: url("../img/visible.webp") center / contain no-repeat;
+  background: url("../img/show.webp") center / contain no-repeat;
 }
 .cartography-eye[aria-pressed="false"]::before {
-  background-image: url("../img/hidden.webp");
+  background-image: url("../img/hide.webp");
 }
 .cartography-empty { font-size: 0.9rem; color: #555; padding: 4px 0; }
 

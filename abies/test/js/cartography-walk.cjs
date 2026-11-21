@@ -56,7 +56,9 @@ async function walk(browser) {
     [section.tagName, section.querySelector('label, summary, h2, [data-action=refresh-terrain]').textContent.trim()])),
     [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni'],
       ['DIV', 'Aggiorna dati dei terreni']]);
-  assert.equal(await loc('#settings-generali footer a[href*="flaticon.com"]').count(), 2);
+  const credits = loc('#settings-generali footer a[href*="flaticon.com"]');
+  assert.equal(await credits.getAttribute('href'), 'https://www.flaticon.com/authors/th-studio');
+  assert.equal(await credits.textContent(), 'th studio');
   assert.equal(await loc('#settings-cartografia a[href*="flaticon.com"]').count(), 0);
   await drawingSummary.click();
   assert.ok(await action('open-import').isHidden());
@@ -210,9 +212,9 @@ async function walk(browser) {
   assert.equal(layout.shortAlignment, 0);
   assert.equal(layout.longAlignment, 0);
   const eyeImage = () => visibleDrawing.evaluate(eye => getComputedStyle(eye, '::before').backgroundImage);
-  assert.match(await eyeImage(), /visible\.webp/);
+  assert.match(await eyeImage(), /show\.webp/);
   await visibleDrawing.click();
-  assert.match(await eyeImage(), /hidden\.webp/);
+  assert.match(await eyeImage(), /hide\.webp/);
   assert.equal(await visibleDrawing.getAttribute('aria-pressed'), 'false');
   await sidebar.locator('[data-kind=drawing] [data-action=toggle-all]').click();
   assert.equal(await visibleDrawing.getAttribute('aria-pressed'), 'true');
