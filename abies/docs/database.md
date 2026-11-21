@@ -180,10 +180,13 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
 
 - terrain_refresh: (region_id:int, state:string, source:string,
   searched_through:date nullable, retry_at:datetime nullable,
-  finished_at:datetime nullable, revision_id:uuid nullable)
+  finished_at:datetime nullable, revision_id:uuid nullable,
+  failure:json, requested_by_id:int nullable)
   - One durable job and status per compresa. `source` identifies the
     published map versions last processed. `revision_id` points at the
-    active on-disk satellite revision.
+    active on-disk satellite revision. `failure` stores a reason code and
+    an optional HTTP status. `requested_by_id` keeps the actor of a manual
+    job until completion. History records the manual request and its outcome.
 
 - satellite_revision: (id:uuid, region_id:int, superseded_at:datetime nullable)
   - Registry of immutable, published revision directories. Bosco pins the

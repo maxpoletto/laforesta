@@ -240,12 +240,12 @@ class Region(TimestampedModel):
 class TerrainRefresh(models.Model):
     """Durable work and progress for one compresa's terrain products."""
     class State(models.TextChoices):
-        QUEUED = 'queued'
-        RUNNING = 'running'
-        CURRENT = 'current'
-        WAITING = 'credentials'
-        FAILED = 'failed'
-        EMPTY = 'empty'
+        QUEUED = 'queued', S.TERRAIN_STATE_QUEUED
+        RUNNING = 'running', S.TERRAIN_STATE_RUNNING
+        CURRENT = 'current', S.TERRAIN_STATE_CURRENT
+        WAITING = 'credentials', S.TERRAIN_STATE_WAITING
+        FAILED = 'failed', S.TERRAIN_STATE_FAILED
+        EMPTY = 'empty', S.TERRAIN_STATE_EMPTY
 
     region = models.OneToOneField(Region, on_delete=models.CASCADE, primary_key=True)
     state = models.CharField(max_length=12, choices=State.choices, default=State.QUEUED)
@@ -254,6 +254,11 @@ class TerrainRefresh(models.Model):
     retry_at = models.DateTimeField(null=True)
     finished_at = models.DateTimeField(null=True)
     revision = models.ForeignKey('SatelliteRevision', on_delete=models.SET_NULL, null=True)
+    failure = models.JSONField(default=dict, blank=True)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    history = HistoricalRecords(excluded_fields=[
+        'source', 'searched_through', 'retry_at', 'revision', 'failure', 'requested_by',
+    ])
 
 
 class SatelliteRevision(models.Model):

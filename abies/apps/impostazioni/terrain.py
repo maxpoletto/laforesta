@@ -13,9 +13,21 @@ from config import strings as S
 
 
 def job_status(region_id, job=None):
+    if job is None:
+        job = TerrainRefresh.objects.filter(pk=region_id).first()
+    state = job.state if job else ''
+    message = S.TERRAIN_REFRESH_MESSAGES.get(state, '')
+    if state in (TerrainRefresh.State.FAILED, TerrainRefresh.State.WAITING) and job.failure:
+        message = S.TERRAIN_REFRESH_FAILURES.get(job.failure.get('kind'), message)
+        status = job.failure.get('status')
+        if status == 429:
+            message = S.TERRAIN_REFRESH_QUOTA
+        elif status:
+            message = S.TERRAIN_REFRESH_HTTP_STATUS.format(message=message.rstrip('.'), status=status)
     return {
         'available': has_parcels(region_id),
-        'state': job.state if job else '',
+        'state': state,
+        'message': message,
     }
 
 
@@ -26,9 +38,8 @@ def job_status(region_id, job=None):
 def refresh(request, region_id):
     get_object_or_404(Region, pk=region_id)
     if request.method == 'POST':
-        job = enqueue(region_id)
+        job = enqueue(region_id, requested_by=request.user)
         if job is None:
             return validation_error([S.TERRAIN_REFRESH_NO_PARCELS])
         return JsonResponse(job_status(region_id, job), status=202)
-    job = TerrainRefresh.objects.filter(pk=region_id).first()
-    return JsonResponse(job_status(region_id, job))
+    return JsonResponse(job_status(region_id))

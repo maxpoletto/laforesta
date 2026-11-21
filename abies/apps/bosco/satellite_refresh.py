@@ -21,6 +21,7 @@ from shapely.errors import ShapelyError
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
+from apps.base.digests import mark_stale
 from apps.base.geodesy import planar_polygon
 from apps.base.models import SatelliteRevision, SatelliteSeason, TerrainRefresh
 from apps.bosco import satellite, satellite_grid as rasters, terrain_queue as queue
@@ -135,7 +136,7 @@ def sync_tree(path):
 
 
 @transaction.atomic
-def finish(job, inputs, state, now, *, revision=None, outcomes=(), through=None):
+def finish(job, inputs, state, now, *, revision=None, outcomes=(), through=None, failure=None):
     rows = TerrainRefresh.objects.filter(pk=job.pk)
     if not rows.update(state=F('state')):
         return
@@ -149,9 +150,19 @@ def finish(job, inputs, state, now, *, revision=None, outcomes=(), through=None)
     for start, picked, geometry in outcomes:
         SatelliteSeason.objects.update_or_create(region_id=job.region_id, start=start,
                                                   defaults={'date': picked, 'geometry': geometry})
-    rows.update(state=state, source=inputs.source or '', finished_at=now,
-                retry_at=now + timedelta(hours=1) if state == State.FAILED else None,
-                searched_through=through or job.searched_through, revision_id=revision or job.revision_id)
+    fields = dict(state=state, source=inputs.source or '', finished_at=now, failure=failure or {},
+                  retry_at=now + timedelta(hours=1) if state == State.FAILED else None,
+                  searched_through=through or job.searched_through, revision_id=revision or job.revision_id)
+    current = rows.select_related('requested_by').get()
+    if current.requested_by:
+        for field, value in fields.items():
+            setattr(current, field, value)
+        current._history_user = current.requested_by
+        current.requested_by = None
+        current.save(update_fields=[*fields, 'requested_by'])
+        mark_stale('audit')
+    else:
+        rows.update(**fields)
 
 
 def build(job, inputs, requested_at, progress):
@@ -186,7 +197,7 @@ def build(job, inputs, requested_at, progress):
     else:
         grid = rasters.Grid(inputs.bounds, *satellite.pixel_dims(inputs.bounds))
     if grid.width * grid.height > MAX_GRID_PIXELS:
-        raise satellite.SatelliteError('Satellite grid exceeds 16 million pixels')
+        raise satellite.SatelliteError('Satellite grid exceeds 16 million pixels', kind='grid_size')
     mask, _ = satellite.rasterize_parcels(inputs.parcels.copy(), grid.bounds, *grid.dimensions)
     parcel_mask = mask != 0
     del mask
@@ -250,13 +261,22 @@ def refresh(job, now, progress=lambda: None):
     try:
         inputs = map_inputs(job.region_id)
         build(job, inputs, now, progress)
-    except (CredentialsNeeded, satellite.SatelliteAuthError):
+    except CredentialsNeeded:
         finish(job, inputs, State.WAITING, timezone.now())
+    except satellite.SatelliteAuthError as exc:
+        logger.warning('Satellite refresh needs credentials for compresa %s: %s', job.region_id, exc)
+        finish(job, inputs, State.WAITING, timezone.now(), failure={'kind': 'rejected'})
     except (OSError, ValueError, rasterio.errors.RasterioError, satellite.SatelliteError, ShapelyError) as exc:
         logger.warning('Satellite refresh failed for compresa %s: %s', job.region_id, exc)
+        if isinstance(exc, satellite.SatelliteError):
+            failure = {'kind': exc.kind, 'status': exc.status}
+        elif isinstance(exc, (ValueError, ShapelyError)):
+            failure = {'kind': 'geometry'}
+        else:
+            failure = {'kind': 'storage'}
         if inputs is None:
             inputs = MapInputs(queue.map_signatures(job.region_id).get(job.region_id), [], None)
-        finish(job, inputs, State.FAILED, timezone.now())
+        finish(job, inputs, State.FAILED, timezone.now(), failure=failure)
 
 
 def prune(now):

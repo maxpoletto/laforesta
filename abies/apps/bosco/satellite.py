@@ -45,6 +45,11 @@ WGS84 = rasterio.CRS.from_epsg(4326)
 class SatelliteError(Exception):
     """Raised when satellite build input or remote data is invalid."""
 
+    def __init__(self, message, *, kind='processing', status=None):
+        super().__init__(message)
+        self.kind = kind
+        self.status = status
+
 
 class SatelliteAuthError(SatelliteError):
     """Copernicus rejected the configured client."""
@@ -191,17 +196,17 @@ def get_access_token(credentials=None) -> str:
             timeout=15,
         )
     except requests.RequestException as exc:
-        raise SatelliteError(f'CDSE auth failed: {exc}') from exc
+        raise SatelliteError('CDSE token request failed', kind='auth') from exc
     if response.status_code in (400, 401, 403):
         raise SatelliteAuthError(f'CDSE rejected the client ({response.status_code})')
     if response.status_code != 200:
-        raise SatelliteError(f'CDSE auth failed ({response.status_code})')
+        raise SatelliteError(f'CDSE auth failed ({response.status_code})', kind='auth', status=response.status_code)
     try:
         token = response.json()['access_token']
     except (ValueError, KeyError, TypeError) as exc:
-        raise SatelliteError('Invalid CDSE token response') from exc
+        raise SatelliteError('Invalid CDSE token response', kind='auth') from exc
     if not isinstance(token, str) or not token:
-        raise SatelliteError('Invalid CDSE token response')
+        raise SatelliteError('Invalid CDSE token response', kind='auth')
     return token
 
 
@@ -299,7 +304,7 @@ def catalog_dates(bounds, parcels, start, end, max_cloud):
     seen = set()
     while url:
         if url in seen or urlsplit(url)[:2] != urlsplit(CATALOG_URL)[:2]:
-            raise SatelliteError('Invalid catalog continuation')
+            raise SatelliteError('Invalid catalog continuation', kind='catalog')
         seen.add(url)
         try:
             response = requests.get(url, params=params, timeout=30)
@@ -315,8 +320,11 @@ def catalog_dates(bounds, parcels, start, end, max_cloud):
             continuation = page.get('@odata.nextLink') or page.get('@OData.nextLink')
             url = urljoin(url, continuation) if continuation else None
             params = None
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            raise SatelliteError(f'Satellite catalog search failed ({status})', kind='catalog', status=status) from exc
         except (requests.RequestException, TypeError, KeyError, ValueError) as exc:
-            raise SatelliteError('Satellite catalog search failed') from exc
+            raise SatelliteError('Satellite catalog search failed', kind='catalog') from exc
     candidates = []
     for date, tiles in by_date.items():
         footprints = []
@@ -396,18 +404,21 @@ function evaluatePixel(s) {{
         )
     except requests.RequestException as exc:
         raise SatelliteError(
-            f'error fetching {band_name} for {date_str}: {exc}'
+            f'error fetching {band_name} for {date_str}', kind='download',
         ) from exc
     if response.status_code in (401, 403):
         raise SatelliteAuthError(f'CDSE refused the process request ({response.status_code})')
     if response.status_code != 200:
         raise SatelliteError(
             f'error fetching {band_name} for {date_str} '
-            f'({response.status_code})'
+            f'({response.status_code})', kind='download', status=response.status_code,
         )
 
-    with rasterio.open(io.BytesIO(response.content)) as src:
-        return src.read(1)
+    try:
+        with rasterio.open(io.BytesIO(response.content)) as src:
+            return src.read(1)
+    except rasterio.errors.RasterioError as exc:
+        raise SatelliteError(f'Invalid raster for {band_name} on {date_str}', kind='download') from exc
 
 
 def compute_indices(bands: dict[str, np.ndarray]) -> dict[str, np.ndarray]:

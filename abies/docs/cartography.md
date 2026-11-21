@@ -306,7 +306,7 @@ its endpoint.
   terrain.
 
 The worker checks published changes and newly imported maps hourly.
-**Aggiorna dati terreni** at the bottom of the sidebar queues an immediate
+**Aggiorna dati dei terreni** at the bottom of the sidebar queues an immediate
 refresh for the selected compresa and can retry a failed job. The published
 vector map remains usable during refresh. [Satellite refresh](satellite-refresh.md)
 

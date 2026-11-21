@@ -91,9 +91,11 @@ lists surveys with positions in the selected compresa. It imports geolocated
 trees from a free survey and plot centers from a structured survey.
 The [cartography design](cartography.md) describes the supported geometries.
 
-**Aggiorna dati terreni** at the bottom of the sidebar lets writers and admins
-queue a refresh of the selected compresa and see its progress. The compresa
-needs published parcel outlines. [What the worker refreshes](satellite-refresh.md#refreshing-a-compresa)
+**Aggiorna dati dei terreni** at the bottom of the sidebar lets writers and
+admins queue a refresh of the selected compresa. The compresa needs published
+parcel outlines. The sidebar shows progress and failure details, and
+**Controllo** records the request and its outcome.
+[What the worker refreshes](satellite-refresh.md#refreshing-a-compresa)
 
 ### Testing the road workflow
 
@@ -130,7 +132,8 @@ default, then `/prelievi`.
 
 **Credenziali API satellitare** lets admins save or remove the installation's
 Copernicus pair. **Verifica credenziali** checks the values in the form. A
-blank secret keeps the saved secret when the client ID matches.
+blank **Chiave segreta Copernicus** field keeps the saved secret when the
+**Identificativo Copernicus** matches.
 [Credential management and storage](satellite-refresh.md#credentials)
 
 ## Reference tables

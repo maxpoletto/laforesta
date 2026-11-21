@@ -55,7 +55,7 @@ async function walk(browser) {
   assert.deepEqual(await sidebar.locator(':scope > *').evaluateAll(sections => sections.map(section =>
     [section.tagName, section.querySelector('label, summary, h2, [data-action=refresh-terrain]').textContent.trim()])),
     [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni'],
-      ['DIV', 'Aggiorna dati terreni']]);
+      ['DIV', 'Aggiorna dati dei terreni']]);
   await drawingSummary.click();
   assert.ok(await action('open-import').isHidden());
   assert.ok(await sidebar.getByText('Nessuna particella').isVisible());
@@ -435,8 +435,26 @@ async function walk(browser) {
       && response.request().method() === 'POST' && response.status() === 202),
     action('refresh-terrain').click(),
   ]);
-  await page.getByText('Aggiornamento in coda.', {exact: true}).waitFor();
+  await page.getByText('Aggiornamento in elaborazione.', {exact: true}).waitFor();
   assert.ok(await action('refresh-terrain').isDisabled());
+  const terrainUrl = `/api/impostazioni/cartography/${await loc('#cartography-region').inputValue()}/terrain/`;
+  const failure = 'Impossibile scaricare le immagini da Copernicus (HTTP 503).';
+  const monitor = await sidebar.evaluateHandle(element => {
+    const changed = [];
+    const observer = new MutationObserver(records => changed.push(...records));
+    observer.observe(element, {attributes: true, childList: true, subtree: true});
+    return {observer, changed};
+  });
+  await page.route(url + terrainUrl, route => route.fulfill({json: {
+    state: 'failed', available: true, message: failure,
+  }}));
+  await sidebar.getByText(failure, {exact: true}).waitFor();
+  await page.unroute(url + terrainUrl);
+  assert.ok(await action('refresh-terrain').isEnabled());
+  assert.equal(await monitor.evaluate(({observer, changed}) => {
+    observer.disconnect();
+    return changed.filter(record => !record.target.closest('.cartography-terrain')).length;
+  }), 0);
   const parcelTrash = loc('#cartography-parcels [data-action=remove-item]');
   await parcelTrash.click();
   assert.match(await modal.textContent(), /«2a»/);

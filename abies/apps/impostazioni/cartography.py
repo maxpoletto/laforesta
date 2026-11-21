@@ -22,6 +22,7 @@ from apps.impostazioni.parcel_boundaries import (
     boundary_workspace, parcel_outlines, parcel_usage, parcel_used, save_boundaries, validate_intersections,
 )
 from apps.impostazioni.regions import invalidate_map_labels, required_name, unlinked_outlines
+from apps.impostazioni.terrain import job_status
 from apps.ipso.models import IpsoUpload, IpsoUploadMode, IpsoUploadState, IpsoUploadTargetType
 from apps.ipso.staging import claim_upload_import, lock_prepared_upload, read_staged_payload
 from config import strings as S
@@ -166,6 +167,7 @@ def pending_uploads(region_id):
 def workspace(request, region_id):
     region = get_object_or_404(Region, pk=region_id)
     return JsonResponse({
+        'terrain': job_status(region.pk),
         'uploads': pending_uploads(region.pk),
         'sources': list(MapPointSet.objects.filter(region=region).order_by('-date', '-pk')
                         .values('id', 'name', 'operator', 'date')),

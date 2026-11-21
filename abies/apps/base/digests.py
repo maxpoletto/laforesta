@@ -531,7 +531,7 @@ def _audit_configs() -> list:
     from apps.base.models import (
         Crew, Eclass, HarvestPlan, HarvestPlanItem, HarvestTransition, HypsoParam, HypsoParamSet,
         MapFeature, Observation, ObservationCategory, Parcel, Region, RoadType, SampleArea, SampleGrid,
-        SatelliteCredentials, SiteSettings, Species, Survey,
+        SatelliteCredentials, SiteSettings, Species, Survey, TerrainRefresh,
         Tractor, User, VolumeEquation,
     )
     from apps.ipso.models import IpsoUpload
@@ -588,6 +588,9 @@ def _audit_configs() -> list:
             'active': S.COL_ACTIVE,
         }),
         (Region, S.COL_REGION, {'name': S.LABEL_NAME, 'description': S.COL_DESCRIPTION}),
+        (TerrainRefresh, S.TERRAIN_REFRESH_AUDIT, {
+            'region_id': S.COL_REGION, 'state': S.COL_STATE,
+        }),
         (MapFeature, S.MAP_FEATURE.capitalize(), {
             'id': 'ID', 'parcel_id': S.COL_PARCEL, 'version': S.COL_MAP_REVISION,
             'name': S.LABEL_NAME, 'road_type_id': S.TABLE_ROAD_TYPE, 'region_id': S.COL_REGION,

@@ -12,18 +12,45 @@ SAVE_AND_CONTINUE = 'Salva e continua'
 CANCEL = 'Annulla'
 SATELLITE_CREDENTIALS = 'Credenziali API satellitare'
 SATELLITE_CREDENTIALS_REVISION = 'Revisione'
-SATELLITE_CLIENT_ID = 'ID client Copernicus'
-SATELLITE_CLIENT_SECRET = 'Segreto client Copernicus'
+SATELLITE_CLIENT_ID = 'Identificativo Copernicus'
+SATELLITE_CLIENT_SECRET = 'Chiave segreta Copernicus'
 SATELLITE_TEST_CREDENTIALS = 'Verifica credenziali'
 SATELLITE_REMOVE_CREDENTIALS = 'Elimina credenziali'
-SATELLITE_CREDENTIALS_REQUIRED = 'Inserisci l’ID client e il segreto Copernicus.'
+SATELLITE_CREDENTIALS_REQUIRED = 'Inserisci l’identificativo e la chiave segreta Copernicus.'
 SATELLITE_CREDENTIALS_REJECTED = 'Copernicus non ha accettato le credenziali.'
 SATELLITE_CREDENTIALS_TEST_FAILED = 'Non è stato possibile contattare Copernicus. Riprova.'
 SATELLITE_CREDENTIALS_TESTED = 'Credenziali verificate.'
 SATELLITE_CREDENTIALS_SAVED = 'Credenziali aggiornate.'
 SATELLITE_CREDENTIALS_STALE = 'Le credenziali sono state modificate. Controlla i valori e riprova.'
-TERRAIN_REFRESH = 'Aggiorna dati terreni'
+TERRAIN_REFRESH = 'Aggiorna dati dei terreni'
+TERRAIN_REFRESH_AUDIT = 'Aggiornamento dati dei terreni'
 TERRAIN_REFRESH_NO_PARCELS = 'La compresa deve avere almeno una particella con confini pubblicati.'
+TERRAIN_STATE_QUEUED = 'In coda'
+TERRAIN_STATE_RUNNING = 'In corso'
+TERRAIN_STATE_CURRENT = 'Completato'
+TERRAIN_STATE_WAITING = 'In attesa di credenziali'
+TERRAIN_STATE_FAILED = 'Non riuscito'
+TERRAIN_STATE_EMPTY = 'Nessuna immagine'
+TERRAIN_REFRESH_MESSAGES = {
+    'queued': 'Aggiornamento in elaborazione.',
+    'running': 'Aggiornamento in corso.',
+    'current': 'Dati dei terreni aggiornati.',
+    'credentials': 'Servono credenziali Copernicus valide.',
+    'failed': 'Aggiornamento non riuscito. Puoi riprovare.',
+    'empty': 'Nessuna immagine disponibile per questa compresa.',
+}
+TERRAIN_REFRESH_FAILURES = {
+    'auth': 'Impossibile ottenere l’accesso a Copernicus.',
+    'rejected': 'Copernicus ha rifiutato le credenziali. Un amministratore può verificarle in Impostazioni → Generali.',
+    'catalog': 'Impossibile cercare le immagini nel catalogo Copernicus.',
+    'download': 'Impossibile scaricare le immagini da Copernicus.',
+    'geometry': 'Impossibile elaborare la geometria della compresa. Verifica i confini pubblicati.',
+    'grid_size': 'L’area da aggiornare è troppo estesa. Verifica i confini e le strade della compresa.',
+    'storage': 'Impossibile leggere o scrivere i file delle immagini sul server.',
+    'processing': 'Impossibile elaborare le immagini satellitari.',
+}
+TERRAIN_REFRESH_QUOTA = 'Copernicus ha raggiunto il limite di richieste. Riprova più tardi.'
+TERRAIN_REFRESH_HTTP_STATUS = '{message} (HTTP {status}).'
 CONFIRM = 'Conferma'
 DISMISS = 'Chiudi'
 ACTION_EDIT = 'Modifica'

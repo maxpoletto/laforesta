@@ -2,7 +2,7 @@
 
 The running Abies instance refreshes Sentinel-2 imagery and parcel
 statistics for Bosco. Writers can trigger an update in Cartografia with
-**Aggiorna dati terreni**. The name also accommodates future elevation
+**Aggiorna dati dei terreni**. The name also accommodates future elevation
 and LiDAR sources.
 
 ## Credentials
@@ -49,15 +49,16 @@ publishes its imagery.
 | Trigger | Work |
 | --- | --- |
 | Hourly check | The worker checks SQLite for new maps and published changes that need a refresh. A check with no pending changes makes no Copernicus requests. |
-| **Aggiorna dati terreni** | The button at the bottom of the Cartografia sidebar immediately queues a refresh of the selected compresa. It also retries work already due for that compresa. |
+| **Aggiorna dati dei terreni** | The button at the bottom of the Cartografia sidebar immediately queues a refresh of the selected compresa. It also retries work already due for that compresa. |
 | March and August | The worker checks for new seasonal imagery overnight on or after 1 March and 1 August. |
 
 Writers and admins can request a refresh. The button is disabled when no
 compresa is selected or the selected compresa lacks published, cataloged
 parcel geometry. The sidebar shows the queued or running state and the last
-outcome, including when credentials are needed or when the data were already
-current. Published vectors remain available while a refresh runs. The
-refresh reads the map as published when the job begins.
+outcome, including the step that failed and the HTTP status from Copernicus
+when available. Published vectors remain available while a refresh runs.
+The refresh reads the map as published when the job begins. **Controllo**
+records each manually queued refresh and its outcome with the user and compresa.
 
 ### Worker process
 

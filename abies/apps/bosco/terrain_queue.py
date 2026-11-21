@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
+from apps.base.digests import mark_stale
 from apps.base.models import MapFeature, Region, TerrainRefresh
 
 
@@ -59,16 +60,24 @@ def revision_dir(map_key, revision):
 
 
 @transaction.atomic
-def enqueue(region_id):
+def enqueue(region_id, *, requested_by=None):
     # Establish the SQLite write lock before checking a concurrent request.
     if not Region.objects.filter(pk=region_id).update(name=F('name')):
         return None
     if not has_parcels(region_id):
         return None
-    job, _ = TerrainRefresh.objects.get_or_create(region_id=region_id)
-    if job.state not in (State.QUEUED, State.RUNNING):
-        job.state, job.retry_at = State.QUEUED, None
-        job.save(update_fields=['state', 'retry_at'])
+    job = TerrainRefresh.objects.filter(region_id=region_id).first()
+    if job and job.state in (State.QUEUED, State.RUNNING):
+        return job
+    job = job or TerrainRefresh(region_id=region_id)
+    job.state, job.retry_at, job.failure = State.QUEUED, None, {}
+    job.requested_by = requested_by
+    if requested_by:
+        job._history_user = requested_by
+        job.save()
+        mark_stale('audit')
+    else:
+        job.save_without_historical_record()
     return job
 
 
@@ -107,5 +116,5 @@ def claim():
     job = rows.select_related('region').order_by('finished_at', 'region_id').first()
     if job:
         job.state = State.RUNNING
-        job.save(update_fields=['state'])
+        rows.filter(pk=job.pk).update(state=State.RUNNING)
     return job

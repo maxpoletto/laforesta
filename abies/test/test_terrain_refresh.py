@@ -1,4 +1,5 @@
 """The writer, scheduler, provider and Bosco share a durable refresh."""
+import gzip
 import json
 from datetime import date, datetime, timedelta, timezone as tz
 
@@ -9,8 +10,10 @@ from django.core.management import call_command
 from django.utils import timezone
 from shapely.geometry import box, mapping
 
+from apps.base import digests
 from apps.base.models import MapFeature, SatelliteRevision, SatelliteSeason, TerrainRefresh
 from apps.bosco import satellite, satellite_grid, satellite_refresh, terrain_queue
+from config import strings as S
 
 
 pytestmark = pytest.mark.django_db
@@ -33,10 +36,15 @@ def test_writer_can_queue_only_published_parcels(client, reader_user, writer_use
     assert not client.get(url).json()['available']
     outline.published = True
     outline.save(update_fields=['published'])
+    queued = client.post(url, {}, content_type='application/json')
+    assert queued.status_code == 202
+    assert queued.json() == {'available': True, 'state': 'queued', 'message': 'Aggiornamento in elaborazione.'}
+    assert client.get(url.removesuffix('terrain/')).json()['terrain'] == queued.json()
     assert client.post(url, {}, content_type='application/json').status_code == 202
     assert terrain_queue.claim().region_id == parcel.region_id
     assert client.post(url, {}, content_type='application/json').json()['state'] == 'running'
     assert TerrainRefresh.objects.count() == 1
+    assert TerrainRefresh.history.count() == 1
 
 
 def test_nightly_schedule_checks_missed_windows_and_detects_map_edits(parcels, settings):
@@ -90,6 +98,15 @@ def test_catalog_ranks_using_every_page_and_enough_tiles(monkeypatch):
     assert get.call_args.args == (second_page,)
 
 
+def test_catalog_http_error_keeps_the_response_status(monkeypatch):
+    response = satellite.requests.Response()
+    response.status_code = 503
+    monkeypatch.setattr(satellite.requests, 'get', lambda *args, **kwargs: response)
+    with pytest.raises(satellite.SatelliteError) as error:
+        satellite.catalog_dates((0, 0, 1, 1), box(0, 0, 1, 1), date(2024, 1, 1), date(2024, 3, 1), 20)
+    assert (error.value.kind, error.value.status) == ('catalog', 503)
+
+
 def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
     old = satellite_grid.Grid((16, 38, 16.004, 38.004), 4, 4)
     new = old.expand((15.998, 37.998, 16.006, 38.006))
@@ -115,7 +132,7 @@ def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
         assert raster.read(1, window=new.window(old)).tolist() == [[123] * 4] * 4
 
 
-def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels, monkeypatch):
+def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels, monkeypatch, settings):
     parcel = parcels[0]
     region = parcel.region
     geometry = polygon()
@@ -153,13 +170,27 @@ def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels,
 
     with monkeypatch.context() as retry:
         def fail(*_):
-            raise satellite.SatelliteError('Simulated provider failure')
+            raise satellite.SatelliteError('Private upstream details', kind='download', status=503)
 
         retry.setattr(satellite_refresh, 'build', fail)
         assert client.post(refresh_url, {}, content_type='application/json').status_code == 202
         call_command('run_terrain_worker', once=True)
-        assert client.get(refresh_url).json()['state'] == 'failed'
+        assert client.get(refresh_url).json() == {
+            'available': True, 'state': 'failed',
+            'message': 'Impossibile scaricare le immagini da Copernicus (HTTP 503).',
+        }
         assert TerrainRefresh.objects.get().revision_id == SatelliteRevision.objects.get().pk
+
+    digests.generate_audit()
+    with gzip.open(settings.DIGEST_DIR / 'audit.json.gz', 'rt') as stream:
+        audit = json.load(stream)
+    events = [dict(zip(audit['columns'], row)) for row in audit['rows']
+              if S.TERRAIN_REFRESH_AUDIT in row]
+    assert len(events) == 4
+    assert [event[S.COL_USER] for event in events] == [writer_user.get_full_name() or writer_user.username] * 4
+    assert all(region.name in event[S.COL_NEW_VALUE] for event in events)
+    assert S.TERRAIN_STATE_FAILED in events[0][S.COL_NEW_VALUE]
+    assert S.TERRAIN_STATE_CURRENT in events[2][S.COL_NEW_VALUE]
 
     outline.geometry = polygon(16.001)
     outline.version += 1
