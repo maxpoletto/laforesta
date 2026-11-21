@@ -343,6 +343,8 @@ virtualenv, matching production and CI. Install with
 `data/` holds `db.sqlite3`, `canonical/`, `digests/`, `geo/`, and `ipso-inbox/`.
 
 - `make dev`: zero-to-working in one command (reset DB + migrate + bootstrap + geo + digest + admin + template links).
+- `make dev-no-reset`: apply migrations and link templates while preserving local data.
+- `make run-dev`: run Django and the terrain worker together in the foreground.
 - `make migrate`: run Django migrations.
 - `make bootstrap`: load canonical CSVs from `CANONICAL_DIR` into an empty DB.
 - `make geo`: import an optional initial parcel map into SQLite (see `INSTALL.md`).

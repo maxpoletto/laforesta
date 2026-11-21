@@ -9,6 +9,7 @@ MAP_CONTEXT_ARGS ?=
 SATELLITE_ENV_FILE ?= .env.satellite
 BRANDING_DIR ?= data/branding
 LOCAL_ENV_FILE ?= compose/.env.local
+DEV_PORT ?= 8000
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
 LANGUAGE_SUFFIX ?= _it
@@ -37,7 +38,7 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 # unsuffixed <name>.html symlinks are materialized at install time.
 
 .PHONY: help \
-        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev serve \
+        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev dev-no-reset run-dev serve \
         satellite satellite-dates satellite-fetch satellite-precompute terrain-worker \
         map-context sync-map-context sync-map-context-dev sync-map-context-prod \
         collectstatic minify \
@@ -50,6 +51,8 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 help:
 	@echo "Local development:"
 	@echo "  make dev                         reset local DB, load canonical data, create admin"
+	@echo "  make dev-no-reset                migrate local DB and link templates, preserving data"
+	@echo "  make run-dev [DEV_PORT=8000]     run Django and the terrain worker in the foreground"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
 	@echo "  make test-print-js-coverage      report print renderer/modal JS coverage"
@@ -147,6 +150,11 @@ link-templates:
 
 dev: export ABIES_LEGACY_GEO_DIR =
 dev: sync-branding reset-db load-canonical-data admin link-templates
+
+dev-no-reset: migrate link-templates
+
+run-dev:
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) bin/run-dev.py "$(DEV_PORT)"
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &
