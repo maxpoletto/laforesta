@@ -16,9 +16,9 @@ equations more clearly:
 | Height lookup in desktop/mobile UI | Region/species display names | Prefer region/species IDs in internal lookups |
 | Tabacchi volume equation | Editable species common name | An explicit equation key on the Species row |
 
-[The CSV parser](../../apps/base/hypsometry.py), `parse_param_csv()`, resolves
+[The CSV parser](../../../apps/base/hypsometry.py), `parse_param_csv()`, resolves
 `compresa` and `genere` once, into actual Region and Species objects.
-[HypsoParam](../../apps/base/models.py) then stores `region_id` and `species_id`;
+[HypsoParam](../../../apps/base/models.py) then stores `region_id` and `species_id`;
 it does not store an independent species-name string that must remain manually
 synchronized. Its uniqueness key is `(param_set, region, species)`.
 
@@ -36,25 +36,25 @@ does not break the persisted regression relationship.
 
 ## What actually breaks today
 
-1. [Python Tabacchi lookup](../../apps/base/tabacchi.py) and
-   [its JS mirror](../../apps/base/static/base/js/volume.js) use the common name as
+1. [Python Tabacchi lookup](../../../apps/base/tabacchi.py) and
+   [its JS mirror](../../../apps/base/static/base/js/volume.js) use the common name as
    their coefficient-table key. A pure-Python check confirms that `Faggio` is
    recognized and produces `0.7022 m³` for D=30 cm and h=20 m, while
    `Faggio europeo` is not recognized. Keeping the same Species ID and Latin
    name does not help that lookup.
-2. [The desktop height form](../../apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.js),
+2. [The desktop height form](../../../apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.js),
    `findHypsoParams()` / `wireHypsoAutoH()`, matches displayed region/species
-   names. [The hypso digest](../../apps/base/digests.py), `hypso_param_row()`,
+   names. [The hypso digest](../../../apps/base/digests.py), `hypso_param_row()`,
    contains those names but no region/species ID columns.
 3. There is also a specific cache dependency gap: renaming a species through
-   [`_save_species_response()`](../../apps/impostazioni/views.py) does not dirty
+   [`_save_species_response()`](../../../apps/impostazioni/views.py) does not dirty
    or invalidate `hypso_params`. If that digest was already generated, it can
    retain the old label while a newly rendered species option has the new label.
    Source inspection shows that those two strings will no longer join. This
    cache scenario has not been reproduced against a running Django instance.
-4. [Ipso's reference projection](../../apps/ipso/views.py), `_ipsometrica()`,
+4. [Ipso's reference projection](../../../apps/ipso/views.py), `_ipsometrica()`,
    publishes nested region/species-name keys, consumed by
-   [`ipso.lookup()`](../../apps/ipso/static/ipso/pwa/ipso.js). A freshly generated
+   [`ipso.lookup()`](../../../apps/ipso/static/ipso/pwa/ipso.js). A freshly generated
    reference bundle uses current names consistently, but names still serve as
    identity. Older sessions/references need compatibility treatment.
 5. An old CSV containing a former species name will no longer resolve after a

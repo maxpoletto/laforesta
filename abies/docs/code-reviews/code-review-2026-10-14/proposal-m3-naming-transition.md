@@ -780,8 +780,8 @@ rollback strategy. Do not implement a lossy reverse data migration for naming.
 
 Update the ledger after every related commit/deployment with spec revision,
 work package, exact SHA/tag/image, contract versions, tests, adapter changes and
-outstanding gates. Update [data architecture](../data-architecture.md),
-[Ipso](../ipso-abies.md), [database](../database.md), [backups](../backups.md), affected
+outstanding gates. Update [data architecture](../../data-architecture.md),
+[Ipso](../../ipso-abies.md), [database](../../database.md), [backups](../../backups.md), affected
 page docs and the code review as implementation lands. Until then, their current
 schema descriptions remain authoritative for the running code.
 
