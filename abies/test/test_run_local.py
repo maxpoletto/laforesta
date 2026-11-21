@@ -8,7 +8,7 @@ from unittest.mock import Mock, call
 
 
 def test_exited_server_group_does_not_interrupt_worker_cleanup(monkeypatch):
-    launcher = Path(__file__).resolve().parents[1] / 'bin' / 'run-dev.py'
+    launcher = Path(__file__).resolve().parents[1] / 'bin' / 'run-local.py'
     modules = runpy.run_path(str(launcher))
     server = Mock(pid=101)
     server.poll.return_value = 1

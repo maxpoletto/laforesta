@@ -99,7 +99,7 @@ def move_assets(root, known, *, satellite):
         if directory_uuid(path.name):
             continue  # Already in the new layout (possibly after an interrupted migration).
         if is_asset_directory(path, satellite):
-            # make dev and file-only builds can have imagery before the CSV catalog is loaded.
+            # Local and file-only builds can have imagery before the CSV catalog is loaded.
             moves[path.name] = str(initial_map_key(path.name))
     for old, key in moves.items():
         if not old or Path(old).name != old or old in ('.', '..'):

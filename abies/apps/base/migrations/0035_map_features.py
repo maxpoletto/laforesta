@@ -12,7 +12,7 @@ from django.db import migrations, models
 def import_installed_map(apps, schema_editor):
     from apps.base.map_import_v1 import import_initial_map
 
-    # An explicit fresh "make dev" reset uses the new canonical bundle only.
+    # A fresh local reset uses the new canonical bundle only.
     directory = os.environ.get('ABIES_LEGACY_GEO_DIR', settings.GEO_DIR)
     if directory:
         path = Path(directory) / 'terreni.geojson'

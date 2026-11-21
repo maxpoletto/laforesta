@@ -86,24 +86,24 @@ shell-sources this file for local targets only; remote dev/prod deploys use
 `compose/.env.dev` and `compose/.env.prod` instead.
 
 ```sh
-make dev
+make local
 ```
 
-`make dev` resets the local SQLite database, runs the shared canonical-data
-load sequence, creates or asks for an admin user, and materializes
+`make local` resets the local SQLite database and Ipso inbox, runs the shared
+canonical-data load sequence, creates or asks for an admin user, and materializes
 language-template symlinks. The shared sequence runs migrations, bootstraps
 the catalog and optional map from `data/canonical`, stages converted mark
 uploads if present, and regenerates JSON digests. To prepare an existing
-local database, `make dev-no-reset` applies migrations and links templates
-while preserving data and saved credentials. For smaller steps, use `make migrate`,
-`make bootstrap`, `make geo`, `make stage-marks-uploads`, `make digest`, and
-`make admin`. Run `make help` for the full local and remote target list.
+local database, `make local-no-reset` applies migrations and links templates
+while preserving data and saved credentials. For smaller steps, use
+`make migrate`, `make bootstrap`, `make geo`, `make stage-marks-uploads`,
+`make digest`, and `make admin`. Run `make help` for the full target list.
 
 For Bosco satellite layers, save the Copernicus credentials in **Impostazioni
 → Generali → Credenziali API satellitare** after following the
 [satellite setup instructions](INSTALL.md#satellite-imagery). Locally,
-`make run-dev` starts the server and terrain worker together. A hosted Compose stack
-runs the worker as the `terrain` service. Compatible rasters already under
+`make run-local` starts the server and terrain worker together. A hosted
+Compose stack runs the worker as the `terrain` service. Compatible rasters under
 `data/satellite/<map_key>/` are available for reuse during the first refresh.
 [Satellite refresh and publication](docs/satellite-refresh.md)
 
@@ -170,11 +170,13 @@ To test Ipso data uploads, also set `ABIES_IPSO_SECRET` there.
 Finally, start the development server and terrain worker with:
 
 ```sh
-make run-dev
+make run-local
 ```
 
-If port 8000 is occupied, `make run-dev DEV_PORT=8001` serves the app at
-`http://127.0.0.1:8001/`.
+`make deploy-local` runs `make local` followed by `make run-local`. It
+rebuilds the local database and Ipso inbox from your canonical data before
+starting both processes. If port 8000 is occupied, use
+`make run-local LOCAL_PORT=8001` and open `http://127.0.0.1:8001/`.
 
 ## Remote Dev And Production
 

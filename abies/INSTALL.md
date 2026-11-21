@@ -44,7 +44,7 @@ that supports SQLite WAL.
      Run `make load-canonical-data` to import them together. File formats and
      optional records are described in the [bootstrap guide](docs/bootstrap.md).
 
-5. Run `make run-dev`, open `http://127.0.0.1:8000/` and sign in. To inspect
+5. Run `make run-local`, open `http://127.0.0.1:8000/` and sign in. To inspect
    the installed map, open `/api/geo/map.geojson` while signed in.
 
 ## Hosted instance
@@ -76,7 +76,7 @@ credentials, set a unique, random `DJANGO_SECRET_KEY` in `compose/.env.local`
 before starting Abies. After rotating that key, enter the Copernicus pair
 again in **Generali**.
 
-The hosted Compose stack starts the terrain worker. Locally, `make run-dev`
+The hosted Compose stack starts the terrain worker. Locally, `make run-local`
 starts the worker and the Django development server in the same terminal.
 The worker checks for published parcel outlines and starts the historical
 backfill. **Aggiorna dati dei terreni**

@@ -9,7 +9,7 @@ MAP_CONTEXT_ARGS ?=
 SATELLITE_ENV_FILE ?= .env.satellite
 BRANDING_DIR ?= data/branding
 LOCAL_ENV_FILE ?= compose/.env.local
-DEV_PORT ?= 8000
+LOCAL_PORT ?= 8000
 DJANGO_DEBUG ?= 1
 DJANGO_SECRET_KEY ?= django-insecure-local-dev
 LANGUAGE_SUFFIX ?= _it
@@ -38,7 +38,8 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 # unsuffixed <name>.html symlinks are materialized at install time.
 
 .PHONY: help \
-        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev dev-no-reset run-dev serve \
+        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding \
+        local local-no-reset run-local deploy-local serve \
         satellite satellite-dates satellite-fetch satellite-precompute terrain-worker \
         map-context sync-map-context sync-map-context-dev sync-map-context-prod \
         collectstatic minify \
@@ -50,9 +51,10 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 
 help:
 	@echo "Local development:"
-	@echo "  make dev                         reset local DB, load canonical data, create admin"
-	@echo "  make dev-no-reset                migrate local DB and link templates, preserving data"
-	@echo "  make run-dev [DEV_PORT=8000]     run Django and the terrain worker in the foreground"
+	@echo "  make local                       reset local DB, load canonical data, create admin"
+	@echo "  make local-no-reset              migrate local DB and link templates, preserving data"
+	@echo "  make run-local [LOCAL_PORT=8000] run Django and the terrain worker in the foreground"
+	@echo "  make deploy-local                reset and initialize local data, then run both processes"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
 	@echo "  make test-print-js-coverage      report print renderer/modal JS coverage"
@@ -97,7 +99,7 @@ migrate:
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
 
-# `make dev` runs `reset-db` first so bootstrap always loads into a clean DB.
+# `make local` resets the database before loading the canonical data.
 reset-db:
 	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
 	rm -rf data/ipso-inbox
@@ -148,13 +150,20 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-dev: export ABIES_LEGACY_GEO_DIR =
-dev: sync-branding reset-db load-canonical-data admin link-templates
+local: export ABIES_LEGACY_GEO_DIR =
+local: sync-branding
+	$(MAKE) reset-db
+	$(MAKE) load-canonical-data
+	$(MAKE) admin
+	$(MAKE) link-templates
 
-dev-no-reset: migrate link-templates
+local-no-reset: migrate link-templates
 
-run-dev:
-	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) bin/run-dev.py "$(DEV_PORT)"
+run-local:
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) bin/run-local.py "$(LOCAL_PORT)"
+
+deploy-local: local
+	$(MAKE) run-local
 
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &

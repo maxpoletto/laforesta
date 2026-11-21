@@ -1,4 +1,4 @@
-"""Run the local Django server and terrain worker with a shared lifetime."""
+"""Run the local Django server and terrain worker together."""
 import os
 import signal
 import subprocess

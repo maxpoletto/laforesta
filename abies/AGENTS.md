@@ -170,7 +170,7 @@ applies at three levels:
 - **JS**: `strings_it.js` defines constants; `strings.js` re-exports via
   `export * from './strings_it.js'`.
 - **Templates**: `foo_it.html` is the real file; `foo.html` is a symlink
-  to `foo_it.html`. Docker and `make dev` materialize these aliases through
+  to `foo_it.html`. Docker and `make local` materialize these aliases through
   `bin/link-templates.py`; pytest's session fixture runs the same script so
   direct test invocations also work from a clean checkout.
 
@@ -342,9 +342,10 @@ virtualenv, matching production and CI. Install with
 `python -m pip install --require-hashes -r requirements-dev.txt`.
 `data/` holds `db.sqlite3`, `canonical/`, `digests/`, `geo/`, and `ipso-inbox/`.
 
-- `make dev`: zero-to-working in one command (reset DB + migrate + bootstrap + geo + digest + admin + template links).
-- `make dev-no-reset`: apply migrations and link templates while preserving local data.
-- `make run-dev`: run Django and the terrain worker together in the foreground.
+- `make local`: reset and initialize local data from the canonical bundle.
+- `make local-no-reset`: apply migrations and link templates while preserving local data.
+- `make run-local`: run Django and the terrain worker together in the foreground.
+- `make deploy-local`: run `make local` followed by `make run-local`.
 - `make migrate`: run Django migrations.
 - `make bootstrap`: load canonical CSVs from `CANONICAL_DIR` into an empty DB.
 - `make geo`: import an optional initial parcel map into SQLite (see `INSTALL.md`).

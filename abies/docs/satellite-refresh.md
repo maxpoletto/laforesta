@@ -67,7 +67,7 @@ the same Abies image, data volume, and runtime settings as the web service.
 Its entry point is a long-running Django management command. It uses the
 same `restart: unless-stopped` policy as the web service, so Docker starts
 it again if the process exits. On startup the worker requeues any refresh
-interrupted by its previous exit. Locally, `make run-dev` runs the command
+interrupted by its previous exit. Locally, `make run-local` runs the command
 and the Django development server with the same settings. Both stop when
 the terminal command is interrupted.
 [Process recovery](reliability.md)
