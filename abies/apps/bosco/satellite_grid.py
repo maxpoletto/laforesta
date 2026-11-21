@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import rasterio
-from rasterio.transform import from_bounds
+from rasterio.transform import from_bounds, rowcol
 from rasterio.windows import Window, bounds as window_bounds
 
 from apps.bosco import satellite
@@ -39,9 +39,7 @@ class Grid:
 
     def expand(self, extent):
         west, south, east, north = extent
-        inverse = ~self.transform
-        left, top = inverse @ (west, north)
-        right, bottom = inverse @ (east, south)
+        (top, bottom), (left, right) = rowcol(self.transform, (west, east), (north, south), op=float)
         col = min(0, math.floor(round(left, 8)))
         row = min(0, math.floor(round(top, 8)))
         width = max(self.width, math.ceil(round(right, 8))) - col
@@ -52,8 +50,8 @@ class Grid:
         return Grid(window_bounds(window, self.transform), width, height)
 
     def window(self, old):
-        col, row = ~self.transform @ (old.bounds[0], old.bounds[3])
-        return Window(round(col), round(row), old.width, old.height)
+        row, col = rowcol(self.transform, old.bounds[0], old.bounds[3], op=round)
+        return Window(col, row, old.width, old.height)
 
     @classmethod
     def read(cls, path):

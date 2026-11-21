@@ -8,6 +8,15 @@ def valid_position(point, *, extra_dimensions=False):
             and -180 <= point[0] <= 180 and -90 <= point[1] <= 90)
 
 
+def planar_polygon(geometry):
+    """Project imported parcel rings to XY before planar GIS operations."""
+    kind = geometry['type']
+    coordinates = geometry['coordinates']
+    polygons = [coordinates] if kind == 'Polygon' else coordinates
+    planar = [[[point[:2] for point in ring] for ring in polygon] for polygon in polygons]
+    return {'type': kind, 'coordinates': planar[0] if kind == 'Polygon' else planar}
+
+
 def distance_m(lat1, lon1, lat2, lon2):
     """Shortest horizontal ellipsoidal surface distance, in meters."""
     from geographiclib.geodesic import Geodesic

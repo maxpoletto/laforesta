@@ -8,9 +8,9 @@ from django.db.models import Exists, OuterRef, Q
 from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, Polygon, shape
 
-from apps.base.geodesy import valid_position
+from apps.base.geodesy import planar_polygon, valid_position
 from apps.base.models import MapFeature, Parcel
-from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, planar_polygon
+from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry
 from apps.impostazioni.regions import unlinked_outlines
 from config import strings as S
 

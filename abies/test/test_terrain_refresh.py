@@ -118,7 +118,10 @@ def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
 def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels, monkeypatch):
     parcel = parcels[0]
     region = parcel.region
-    outline = MapFeature.objects.create(parcel=parcel, geometry=polygon())
+    geometry = polygon()
+    # Imported outlines can mix coordinates with and without elevation.
+    geometry['coordinates'][0][1].append(866)
+    outline = MapFeature.objects.create(parcel=parcel, geometry=geometry)
     refresh_url = f'/api/impostazioni/cartography/{region.pk}/terrain/'
     base = f'/api/bosco/satellite/{region.pk}/'
     client.force_login(writer_user)

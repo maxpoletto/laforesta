@@ -21,6 +21,7 @@ from shapely.errors import ShapelyError
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
+from apps.base.geodesy import planar_polygon
 from apps.base.models import SatelliteRevision, SatelliteSeason, TerrainRefresh
 from apps.bosco import satellite, satellite_grid as rasters, terrain_queue as queue
 from apps.bosco.satellite_credentials import load_credentials
@@ -49,7 +50,8 @@ def map_inputs(region_id):
     parcels = [(str(row[2]), row[5]) for row in rows if row[2]]
     if not parcels:
         return MapInputs(None, [], None)
-    bounds = [shape(row[5]).bounds for row in rows]
+    bounds = [shape(planar_polygon(geometry) if parcel else geometry).bounds
+              for _, _, parcel, _, _, geometry in rows]
     west = min(box[0] for box in bounds)
     south = min(box[1] for box in bounds)
     east = max(box[2] for box in bounds)
@@ -171,7 +173,7 @@ def build(job, inputs, requested_at, progress):
     if base_grid is None and not provider.credentials:
         finish(job, inputs, State.WAITING, requested_at)
         return
-    footprint = unary_union([make_valid(shape(geom)) for _, geom in inputs.parcels])
+    footprint = unary_union([make_valid(shape(planar_polygon(geom))) for _, geom in inputs.parcels])
     if base_grid:
         grid = base_grid.expand(inputs.bounds)
         if grid != base_grid and not provider.credentials:

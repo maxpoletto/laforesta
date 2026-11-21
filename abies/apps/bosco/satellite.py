@@ -21,7 +21,7 @@ from django.views.decorators.debug import sensitive_variables
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
-from apps.base.geodesy import distance_m
+from apps.base.geodesy import distance_m, planar_polygon
 from apps.bosco.map_context_data import region_names
 from apps.bosco.satellite_data import PARCEL_SCHEMA_VERSION, parcel_snapshot_key
 
@@ -509,7 +509,7 @@ def rasterize_parcels(
     named_shapes.sort(key=lambda item: item[0])
     parcel_names = sorted({name for name, geometry in named_shapes})
     name_to_idx = {name: idx for idx, name in enumerate(parcel_names, start=1)}
-    shapes = [(geometry, name_to_idx[name]) for name, geometry in named_shapes]
+    shapes = [(planar_polygon(geometry), name_to_idx[name]) for name, geometry in named_shapes]
     dtype = np.min_scalar_type(len(parcel_names))
     mask = rasterize(
         shapes, out_shape=(height, width), transform=transform, fill=0,

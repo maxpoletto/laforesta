@@ -51,15 +51,6 @@ def checked_parts(parts):
     return parts
 
 
-def planar_polygon(geometry):
-    """Project imported parcel rings to XY before passing them to planar GIS operations."""
-    kind = geometry['type']
-    coordinates = geometry['coordinates']
-    polygons = [coordinates] if kind == 'Polygon' else coordinates
-    planar = [[[point[:2] for point in ring] for ring in polygon] for polygon in polygons]
-    return {'type': kind, 'coordinates': planar[0] if kind == 'Polygon' else planar}
-
-
 def feature_geometry(parts, kind):
     """Only completed, valid lines or polygon pieces can become live map features."""
     if not parts or any(p['type'] != kind for p in parts):
