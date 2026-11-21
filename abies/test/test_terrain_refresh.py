@@ -48,8 +48,13 @@ def test_writer_can_queue_only_published_parcels(client, reader_user, writer_use
 
 
 def test_nightly_schedule_checks_missed_windows_and_detects_map_edits(parcels, settings):
+    from apps.bosco.hillshade import output_path
+
     settings.TIME_ZONE = 'UTC'
     outline = MapFeature.objects.create(parcel=parcels[0], geometry=polygon())
+    image = output_path(parcels[0].region.map_key)
+    image.parent.mkdir(parents=True)
+    image.touch()
     region_id = parcels[0].region_id
     now = datetime(2026, 8, 2, 12, tzinfo=tz.utc)
     TerrainRefresh.objects.create(region_id=region_id, state='current',
@@ -107,6 +112,84 @@ def test_catalog_http_error_keeps_the_response_status(monkeypatch):
     assert (error.value.kind, error.value.status) == ('catalog', 503)
 
 
+def test_worker_publishes_hillshade_without_copernicus(client, reader_user, writer_user, parcels, monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    from apps.bosco import hillshade
+
+    parcel = parcels[0]
+    outline = MapFeature.objects.create(parcel=parcel, geometry=polygon())
+    region_id = parcel.region_id
+    url = f'/api/bosco/terrain/{region_id}/hillshade.png'
+    refresh_url = f'/api/impostazioni/cartography/{region_id}/terrain/'
+    calls = []
+
+    def get(url, *, params, timeout):
+        calls.append(params)
+        west, south, east, north = hillshade.native_bounds(satellite_refresh.map_inputs(region_id).bounds)
+        width, height = round((east - west) / 10), round((north - south) / 10)
+        rows, cols = np.indices((height, width), dtype=np.float32)
+        with rasterio.io.MemoryFile() as file:
+            with file.open(driver='GTiff', count=1, dtype='float32', height=height, width=width,
+                           crs='EPSG:32632', transform=rasterio.transform.from_origin(west, north, 10, 10),
+                           nodata=-9999) as output:
+                elevation = rows + cols ** 2 / width
+                elevation[height // 3:height // 2, width // 3:width // 2] = -9999
+                output.write(elevation, 1)
+            response = hillshade.requests.Response()
+            response.status_code = 200
+            response._content = file.read()
+            return response
+
+    monkeypatch.setattr(hillshade.requests, 'get', get)
+    monkeypatch.setattr(satellite_refresh, 'load_credentials', lambda: None)
+    assert client.get(url).status_code == 302
+    client.force_login(writer_user)
+    assert client.get(url).status_code == 404
+    assert client.post(refresh_url, {}, content_type='application/json').status_code == 202
+    call_command('run_terrain_worker', once=True)
+
+    client.force_login(reader_user)
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response['Content-Type'] == 'image/png'
+    (south, west), (north, east) = json.loads(response['X-Abies-Bounds'])
+    assert south < 38 < 38.004 < north and west < 16 < 16.004 < east
+    first_image = b''.join(response.streaming_content)
+    with Image.open(BytesIO(first_image)) as image:
+        pixels = np.asarray(image)
+        assert image.mode == 'LA'
+        assert set(np.unique(pixels[..., 1])) == {0, 255}
+        assert len(np.unique(pixels[pixels[..., 1] == 255, 0])) > 1
+    assert len(calls) == 1
+    assert calls[0]['coverageId'] == 'TINItaly_1_1__tinitaly_dem'
+
+    client.force_login(writer_user)
+    assert client.post(refresh_url, {}, content_type='application/json').status_code == 202
+    call_command('run_terrain_worker', once=True)
+    assert len(calls) == 1
+
+    outline.geometry = polygon(15.999)
+    outline.version += 1
+    outline.save(update_fields=['geometry', 'version'])
+
+    def unavailable(*args, **kwargs):
+        raise hillshade.requests.ConnectionError('upstream unavailable')
+
+    with monkeypatch.context() as outage:
+        outage.setattr(hillshade.requests, 'get', unavailable)
+        call_command('run_terrain_worker', once=True)
+        assert client.get(refresh_url).json()['message'] == S.TERRAIN_REFRESH_FAILURES['hillshade']
+        assert b''.join(client.get(url).streaming_content) == first_image
+
+    assert client.post(refresh_url, {}, content_type='application/json').status_code == 202
+    call_command('run_terrain_worker', once=True)
+    assert len(calls) == 2
+    assert b''.join(client.get(url).streaming_content) != first_image
+
+
 def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
     old = satellite_grid.Grid((16, 38, 16.004, 38.004), 4, 4)
     new = old.expand((15.998, 37.998, 16.006, 38.006))
@@ -133,6 +216,7 @@ def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
 
 
 def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels, monkeypatch, settings):
+    monkeypatch.setattr('apps.bosco.hillshade.refresh', lambda *args: None)
     parcel = parcels[0]
     region = parcel.region
     geometry = polygon()
@@ -211,6 +295,7 @@ def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels,
 
 
 def test_existing_imagery_is_reused_without_cloud_credentials(parcels, settings, monkeypatch):
+    monkeypatch.setattr('apps.bosco.hillshade.refresh', lambda *args: None)
     parcel = parcels[0]
     MapFeature.objects.create(parcel=parcel, geometry=polygon())
     root = settings.SATELLITE_DIR / str(parcel.region.map_key)

@@ -320,7 +320,8 @@ the upper-right selector when one is available. The viabilità print can show
 every Abies road and trail together with labeled contours derived from a
 1 m digital terrain model (DTM) (future work).
 
-Hillshade from that terrain model would also help staff read the terrain on
-screen. Elevation coloring and a rotatable 3D view with roads and parcels
-overlaid are later possibilities. The first print map can use the existing
+The 10 m INGV hillshade prototype helps staff read the terrain in Bosco.
+The same display could use a higher-resolution model when one is available.
+Elevation coloring and a rotatable 3D view with roads and parcels overlaid
+are later possibilities. The first print map can use the existing
 [contour rendering and label placement](ui-maps.md#local-vector-context).

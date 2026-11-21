@@ -354,6 +354,9 @@ export const BOSCO_REGION_SUMMARY = (region) => `${region} — riepilogo compres
 export const BOSCO_LOADING_HARVESTS = 'Caricamento prelievi...';
 export const BOSCO_HARVESTS_UNAVAILABLE = 'Prelievi non disponibili.';
 export const BOSCO_LOADING_SATELLITE = 'Caricamento dati satellitari...';
+export const BOSCO_LOADING_HILLSHADE = 'Caricamento del rilievo ombreggiato...';
+export const BOSCO_HILLSHADE_UNAVAILABLE = 'Rilievo ombreggiato non disponibile per questa compresa.';
+export const BOSCO_HILLSHADE_CREDIT = 'Rilievo elaborato da Abies su dati INGV TINITALY 1.1 (Tarquini et al., 2023 · CC BY 4.0)';
 export const BOSCO_SATELLITE_UNAVAILABLE = 'Dati satellitari non disponibili.';
 export const BOSCO_NO_SATELLITE = 'Nessun dato satellitare disponibile.';
 export const BOSCO_LOADING_RASTER = 'Caricamento raster...';

@@ -80,10 +80,18 @@ parcels opens on its roads.
     - Prelievo storico
     - Prelievo previsto
     - Calendario di taglio
-  - Dati satellitari
+  - Dati satellitari e LiDAR
     - NDVI
     - NDMI
     - EVI
+    - Rilievo ombreggiato (10 m)
+
+  **Rilievo ombreggiato (10 m)** overlays hillshade from the INGV TINITALY
+  1.1 bare-earth elevation grid. Parcel outlines and published roads appear
+  above the image. The legend credits the elevation source. The terrain
+  worker prepares the image after map changes or when a writer uses
+  **Aggiorna dati dei terreni** in Cartografia.
+  [Terrain refresh](satellite-refresh.md#ingv-hillshade)
 
   Below the pullodown, a checkbox for "Aree catastali" (default unchecked, uses
   computed surface area from parcel geometries).
@@ -443,9 +451,8 @@ Cross-mode summary:
 
 #### Caratteristiche (`m=1`)
 
-- `q=0`–`10` — metric id (`0` = boundaries only, `10` = cutting calendar),
-  matching the entries in the "caratteristica" pulldown (parcel-level metadata +
-  satellite-derived metrics; same set as Boscoscopio).
+- `q=0`–`11` — metric id (`0` = boundaries only, `10` = cutting calendar,
+  `11` = hillshade), matching the entries in the Caratteristiche pulldown.
 - `fc=1` — "aree catastali" checked.
 - `fh=1` — "valori per ettaro" checked for harvest metrics (Caratteristiche) or `q=4` Prelievo (Evoluzione).
 - `fa=1` — "media per particella" checked for satellite metrics. Unchecked satellite metrics render raster pixels; checked metrics render parcel averages from `timeseries.json`.
@@ -628,6 +635,10 @@ mode-switch.
 - **`/api/geo/map.geojson`** serves versioned parcel boundaries from SQLite,
   including the current forest type of each linked parcel. The map revalidates
   with an ETag on navigation.
+- **`/api/bosco/terrain/<region_id>/hillshade.png`** serves the prepared hillshade
+  as a PNG. `X-Abies-Bounds` contains the corresponding Leaflet bounds as
+  `[[south, west], [north, east]]`. The image and bounds come from the same
+  atomic file. If the worker has yet to publish a hillshade, the response is 404.
 - **Satellite data** — per-compresa `manifest.json`, `timeseries.json`,
   raw index rasters, and `parcel-mask.tif`, served from `SATELLITE_DIR` via
   `/api/bosco/satellite/<region_id>/...`. The terrain worker uses the

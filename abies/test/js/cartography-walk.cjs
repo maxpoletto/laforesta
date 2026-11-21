@@ -631,6 +631,23 @@ async function walk(browser) {
   await checkFilterList('pai-species', true);
   await page.goto(url + `/bosco?c=${regionId}&m=4`);
   await checkFilterList('observation-categories');
+  await page.route(url + `/api/bosco/terrain/${regionId}/hillshade.png`, route => route.fulfill({
+    contentType: 'image/png',
+    headers: {'X-Abies-Bounds': '[[37.99, 15.99], [38.01, 16.01]]'},
+    body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII=', 'base64'),
+  }));
+  await page.goto(url + `/bosco?c=${regionId}&q=11`);
+  const characteristic = loc('#bosco-characteristic-select');
+  assert.equal(await characteristic.inputValue(), '11');
+  assert.equal(await characteristic.locator('optgroup:has(option[value="11"])').getAttribute('label'),
+    'Dati satellitari e LiDAR');
+  await page.waitForFunction(() => document.querySelector('.leaflet-bosco-hillshade-pane img')?.naturalWidth === 1);
+  assert.match(await loc('[data-target="legend"]').textContent(), /INGV TINITALY 1.1/);
+  await characteristic.evaluate(select => {
+    select.value = '0';
+    select.dispatchEvent(new Event('change'));
+  });
+  await loc('.leaflet-bosco-hillshade-pane img').waitFor({state: 'detached'});
   assert.deepEqual(errors, []);
 }
 

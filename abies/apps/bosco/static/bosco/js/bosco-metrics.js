@@ -12,6 +12,7 @@ export const Q_NDMI = '7';
 export const Q_EVI = '8';
 export const Q_AVG_GRADE = '9';
 export const Q_CUTTING_CALENDAR = '10';
+export const Q_HILLSHADE = '11';
 
 export const E_NDVI = '1';
 export const E_NDMI = '2';
@@ -30,6 +31,7 @@ export const CHARACTERISTIC_METRICS = {
   [Q_NDVI]: { kind: 'satellite', layer: 'ndvi' },
   [Q_NDMI]: { kind: 'satellite', layer: 'ndmi' },
   [Q_EVI]: { kind: 'satellite', layer: 'evi' },
+  [Q_HILLSHADE]: { kind: 'hillshade' },
 };
 
 export const CHARACTERISTIC_METRIC_IDS = Object.keys(CHARACTERISTIC_METRICS);

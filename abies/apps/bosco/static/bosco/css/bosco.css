@@ -10,6 +10,11 @@
   image-rendering: pixelated;
 }
 
+.leaflet-bosco-hillshade-pane {
+  z-index: 350;
+  pointer-events: none;
+}
+
 .bosco-sidebar-inner { padding: 14px 16px 18px; }
 
 .bosco-sidebar-section {

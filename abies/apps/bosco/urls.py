@@ -45,6 +45,7 @@ urlpatterns = [
          name='bosco-parcel-dendrometry-data'),
     path('parcel-dendrometry-points/data/', views.parcel_dendrometry_points_data,
          name='bosco-parcel-dendrometry-points-data'),
+    path('terrain/<int:region_id>/hillshade.png', views.terrain_hillshade, name='bosco-terrain-hillshade'),
     path('satellite/<int:region_id>/manifest/', views.satellite_manifest,
          name='bosco-satellite-manifest'),
     path('satellite/<int:region_id>/timeseries/', views.satellite_timeseries,

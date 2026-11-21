@@ -8,7 +8,7 @@ import * as S from '../../base/js/strings.js';
 import { wirePlanSource } from './bosco-plan-source.js';
 import { showMetricPrint } from './bosco-print-ui.js';
 import { printAvailability } from './bosco-metric-print.js';
-import { Q_CUTTING_CALENDAR, usesPlanSource } from './bosco-metrics.js';
+import { Q_CUTTING_CALENDAR, Q_HILLSHADE, usesPlanSource } from './bosco-metrics.js';
 import {
   calendarColorPosition, calendarDomain, calendarYearsByParcel, calendarYearsText,
 } from './bosco-calendar.js';
@@ -271,6 +271,7 @@ let satelliteData = null;
 let satelliteRegionId = null;
 let satelliteLoad = null;
 let satelliteRasterOverlay = null;
+let hillshade = null;
 let rasterTooltipContext = null;
 let rawRasterCache = new Map();
 let paiMarkerLayer = null;
@@ -976,6 +977,7 @@ function displayAreaHa(entry, state) {
 
 function destroyMap() {
   roadOverlay = null;
+  clearHillshade();
   if (map) {
     clearSatelliteRasterOverlay();
     clearPaiMarkers();
@@ -1004,6 +1006,11 @@ function applyMapView(state) {
 function refreshCharacteristicLayer() {
   const seq = ++characteristicRenderSeq;
   if (!map || !currentState) return;
+  if (currentState.mode === MODE_CHARACTERISTICS && currentState.q === Q_HILLSHADE) {
+    renderHillshade();
+    return;
+  }
+  clearHillshade();
   if (currentState.mode !== MODE_CHARACTERISTICS) {
     clearSatelliteRasterOverlay();
     resetParcelStyles();
@@ -1074,6 +1081,43 @@ function refreshCharacteristicLayer() {
     applyEntryStyle(entry, t == null ? NO_DATA_STYLE : continuousStyle(t), value);
   }
   renderContinuousLegend(domain, currentState.q);
+}
+
+async function renderHillshade() {
+  if (hillshade) return;
+  clearSatelliteRasterOverlay();
+  resetParcelStyles(parcelBoundaryStyle(currentState.basemap));
+  renderMessageLegend(S.BOSCO_LOADING_HILLSHADE);
+  const pane = 'bosco-hillshade';
+  const leaflet = map.leaflet;
+  if (!leaflet.getPane(pane)) leaflet.createPane(pane);
+  const controller = new AbortController();
+  const view = hillshade = { controller };
+  try {
+    const url = `/api/bosco/terrain/${currentState.regionId}/hillshade.png`;
+    const response = await fetch(url, {signal: controller.signal});
+    if (!response.ok) throw new Error(response.status);
+    const bounds = JSON.parse(response.headers.get('X-Abies-Bounds'));
+    const image = await response.blob();
+    if (hillshade !== view) return;
+    view.url = URL.createObjectURL(image);
+    view.layer = L.imageOverlay(view.url, bounds, {pane}).addTo(leaflet);
+    const credit = document.createElement('a');
+    credit.className = 'bosco-legend-note';
+    credit.href = 'https://doi.org/10.13127/tinitaly/1.1';
+    credit.textContent = S.BOSCO_HILLSHADE_CREDIT;
+    legendEl?.replaceChildren(credit);
+  } catch {
+    if (hillshade === view) renderMessageLegend(S.BOSCO_HILLSHADE_UNAVAILABLE);
+  }
+}
+
+function clearHillshade() {
+  if (!hillshade) return;
+  hillshade.controller.abort();
+  hillshade.layer?.remove();
+  if (hillshade.url) URL.revokeObjectURL(hillshade.url);
+  hillshade = null;
 }
 
 function characteristicContext(metricId) {

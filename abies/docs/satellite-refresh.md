@@ -122,6 +122,26 @@ cover the new outlines, Abies reuses them. A new footprint can make a
 previously empty season eligible for another search. Renames, road-type
 changes, and edits to drawings leave imagery and statistics current.
 
+## INGV hillshade
+
+The terrain worker also builds the **Rilievo ombreggiato (10 m)** layer in
+**Bosco → Caratteristiche**. It requests the rectangle around the published
+parcels and roads from the INGV WCS as a 10 m bare-earth elevation grid.
+Abies computes hillshade in the source's metric CRS and projects the image
+to Web Mercator for Bosco. Missing elevation cells are transparent.
+[INGV TINITALY 1.1 and license](https://tinitaly.pi.ingv.it/) ·
+[INGV WCS](https://tinitaly.pi.ingv.it/wcs_service.html)
+
+**Aggiorna dati dei terreni** checks both the hillshade and satellite imagery.
+The hourly check queues eligible comprese that lack a hillshade, including
+those waiting for Copernicus credentials. INGV requests need no credentials.
+The worker reuses an image when its extent still covers the map. A failed
+update preserves the previous image and the worker retries as usual.
+
+Each compresa's `data/satellite/<region_uuid>/hillshade.png` is replaced
+atomically. The PNG stores its own map bounds, so Bosco can read the image
+and its placement together even during a refresh.
+
 ## Publishing terrain data
 
 Each compresa has a directory named for its immutable UUID (`map_key`).

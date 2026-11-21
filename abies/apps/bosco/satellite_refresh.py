@@ -24,7 +24,7 @@ from shapely.ops import unary_union
 from apps.base.digests import mark_stale
 from apps.base.geodesy import planar_polygon
 from apps.base.models import SatelliteRevision, SatelliteSeason, TerrainRefresh
-from apps.bosco import satellite, satellite_grid as rasters, terrain_queue as queue
+from apps.bosco import hillshade, satellite, satellite_grid as rasters, terrain_queue as queue
 from apps.bosco.satellite_credentials import load_credentials
 from apps.bosco.satellite_data import parcel_snapshot_key
 
@@ -167,8 +167,7 @@ def finish(job, inputs, state, now, *, revision=None, outcomes=(), through=None,
 
 def build(job, inputs, requested_at, progress):
     if not inputs.parcels:
-        finish(job, inputs, State.EMPTY, requested_at)
-        return
+        return State.EMPTY, {}
     root = settings.SATELLITE_DIR / str(job.region.map_key)
     revisions = root / 'revisions'
     revisions.mkdir(parents=True, exist_ok=True)
@@ -182,15 +181,13 @@ def build(job, inputs, requested_at, progress):
     provider = Provider()
     waiting = False
     if base_grid is None and not provider.credentials:
-        finish(job, inputs, State.WAITING, requested_at)
-        return
+        return State.WAITING, {}
     footprint = unary_union([make_valid(shape(planar_polygon(geom))) for _, geom in inputs.parcels])
     if base_grid:
         grid = base_grid.expand(inputs.bounds)
         if grid != base_grid and not provider.credentials:
             if base_grid.expand(footprint.bounds) != base_grid:
-                finish(job, inputs, State.WAITING, requested_at)
-                return
+                return State.WAITING, {}
             waiting, grid = True, base_grid
         # Legacy inputs could span multiple builds. Reuse those on the adopted grid.
         available = {name: stored for name, stored in available.items() if stored == base_grid}
@@ -242,8 +239,7 @@ def build(job, inputs, requested_at, progress):
         if not dates or (previous != root and (previous / 'parcel-mask.tif').is_file()
                          and dates == current.get('dates')
                          and grid == base_grid and geometry == previous_summary.get('parcel_snapshot')):
-            finish(job, inputs, state, timezone.now(), outcomes=outcomes, through=through)
-            return
+            return state, {'outcomes': outcomes, 'through': through}
 
         revision = uuid4()
         satellite.write_parcel_products(stage, dates, grid.bounds, grid.dimensions, inputs.parcels.copy(),
@@ -253,19 +249,26 @@ def build(job, inputs, requested_at, progress):
         _sync(revisions)
         _sync(root)
         _sync(root.parent)
-        finish(job, inputs, state, timezone.now(), revision=revision, outcomes=outcomes, through=through)
+        return state, {'revision': revision, 'outcomes': outcomes, 'through': through}
 
 
 def refresh(job, now, progress=lambda: None):
     inputs = None
+    terrain_failed = False
     try:
         inputs = map_inputs(job.region_id)
-        build(job, inputs, now, progress)
+        if inputs.bounds:
+            try:
+                hillshade.refresh(job.region.map_key, inputs.bounds)
+            except (hillshade.HillshadeError, OSError, ValueError, rasterio.errors.RasterioError) as exc:
+                terrain_failed = True
+                logger.warning('Hillshade refresh failed for compresa %s: %s', job.region_id, exc)
+        state, result = build(job, inputs, now, progress)
     except CredentialsNeeded:
-        finish(job, inputs, State.WAITING, timezone.now())
+        state, result = State.WAITING, {}
     except satellite.SatelliteAuthError as exc:
         logger.warning('Satellite refresh needs credentials for compresa %s: %s', job.region_id, exc)
-        finish(job, inputs, State.WAITING, timezone.now(), failure={'kind': 'rejected'})
+        state, result = State.WAITING, {'failure': {'kind': 'rejected'}}
     except (OSError, ValueError, rasterio.errors.RasterioError, satellite.SatelliteError, ShapelyError) as exc:
         logger.warning('Satellite refresh failed for compresa %s: %s', job.region_id, exc)
         if isinstance(exc, satellite.SatelliteError):
@@ -276,7 +279,13 @@ def refresh(job, now, progress=lambda: None):
             failure = {'kind': 'storage'}
         if inputs is None:
             inputs = MapInputs(queue.map_signatures(job.region_id).get(job.region_id), [], None)
-        finish(job, inputs, State.FAILED, timezone.now(), failure=failure)
+        state, result = State.FAILED, {'failure': failure}
+    if terrain_failed and state != State.FAILED:
+        state = State.FAILED
+        result['failure'] = {'kind': 'hillshade'}
+    elif inputs.bounds and state == State.EMPTY:
+        state = State.CURRENT
+    finish(job, inputs, state, timezone.now(), **result)
 
 
 def prune(now):
@@ -300,6 +309,7 @@ def prune(now):
 
 
 def discard_interrupted_staging():
-    for directory in settings.SATELLITE_DIR.glob('*/revisions/.staging-*'):
-        if directory.is_dir() and not directory.is_symlink():
-            rmtree(directory)
+    for pattern in ('*/revisions/.staging-*', '*/.hillshade-*'):
+        for directory in settings.SATELLITE_DIR.glob(pattern):
+            if directory.is_dir() and not directory.is_symlink():
+                rmtree(directory)

@@ -48,6 +48,7 @@ TERRAIN_REFRESH_FAILURES = {
     'grid_size': 'L’area da aggiornare è troppo estesa. Verifica i confini e le strade della compresa.',
     'storage': 'Impossibile leggere o scrivere i file delle immagini sul server.',
     'processing': 'Impossibile elaborare le immagini satellitari.',
+    'hillshade': 'Impossibile aggiornare il rilievo ombreggiato da INGV TINITALY.',
 }
 TERRAIN_REFRESH_QUOTA = 'Copernicus ha raggiunto il limite di richieste. Riprova più tardi.'
 TERRAIN_REFRESH_HTTP_STATUS = '{message} (HTTP {status}).'

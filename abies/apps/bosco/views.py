@@ -17,12 +17,12 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.cache import get_conditional_response
 from django.utils.http import http_date
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.base import csv_parcels
 from apps.base.auth import require_writer
@@ -60,6 +60,7 @@ from apps.base.responses import (
     conflict_response, parse_json_body, row_delete, row_patch, submitted_version,
     success_response, validation_error,
 )
+from apps.bosco import hillshade
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
 from apps.bosco.satellite_data import PARCEL_SCHEMA_VERSION, parcel_snapshot_key
 from config import strings as S
@@ -924,6 +925,28 @@ def parcel_dendrometry_data(request):
 @login_required
 def parcel_dendrometry_points_data(request):
     return serve_digest(request, DIGEST_PARCEL_DENDROMETRY_POINTS)
+
+
+@login_required
+@require_GET
+def terrain_hillshade(request, region_id):
+    region_dir = _satellite_region_dir(region_id)
+    path = (region_dir / hillshade.FILENAME).resolve()
+    if path.parent != region_dir:
+        raise Http404
+    try:
+        stream = path.open('rb')
+    except OSError:
+        raise Http404 from None
+    try:
+        bounds, _ = hillshade.metadata(stream)
+        stream.seek(0)
+    except (OSError, KeyError, ValueError):
+        stream.close()
+        raise Http404 from None
+    response = FileResponse(stream, content_type='image/png', headers={hillshade.BOUNDS_HEADER: bounds})
+    apply_cache_control(response, CACHE_NO_CACHE)
+    return response
 
 
 @login_required
