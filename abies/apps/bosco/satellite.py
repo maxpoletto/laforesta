@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import hashlib
 import json
 import os
 import re
@@ -19,6 +18,7 @@ from rasterio.transform import from_bounds
 
 from apps.base.geodesy import distance_m
 from apps.bosco.map_context_data import region_names
+from apps.bosco.satellite_data import PARCEL_SCHEMA_VERSION, parcel_snapshot_key
 
 
 CATALOG_URL = 'https://catalogue.dataspace.copernicus.eu/odata/v1/Products'
@@ -32,7 +32,6 @@ BANDS = ['B02', 'B04', 'B08', 'B11']
 INDICES = ['ndvi', 'ndmi', 'evi']
 EXPECTED_TIFFS = [b.lower() + '.tif' for b in BANDS] + [i + '.tif' for i in INDICES]
 RESOLUTION_M = 10
-PARCEL_SCHEMA_VERSION = 3
 FIRST_YEAR = 2015
 DATE_DIR_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 WGS84 = rasterio.CRS.from_epsg(4326)
@@ -412,12 +411,6 @@ def fetch_region(
         if fetch_one_date(date, bbox, width, height, output_dir, token, log=log):
             fetched += 1
     return fetched, skipped
-
-
-def parcel_snapshot_key(rows):
-    pieces = sorted(json.dumps([str(key), geometry], sort_keys=True, separators=(',', ':'))
-                    for key, geometry in rows)
-    return hashlib.sha256('\n'.join(pieces).encode()).hexdigest()
 
 
 def parcel_shapes(geojson_path, region, *, stable_ids=False):

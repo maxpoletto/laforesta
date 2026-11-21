@@ -1,11 +1,30 @@
 """Map delivery must work offline of the input file and revalidate actual content."""
 import gzip
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from django.test import Client, override_settings
 
 from apps.base.models import MapFeature
+
+
+def test_django_checks_without_loading_the_satellite_builder():
+    result = subprocess.run([sys.executable, '-c', """
+import os
+import sys
+
+sys.modules['geographiclib'] = None
+os.environ['DJANGO_SETTINGS_MODULE'] = 'config.test_settings'
+
+from django.core.management import execute_from_command_line
+
+execute_from_command_line(['manage.py', 'check'])
+assert 'apps.bosco.satellite' not in sys.modules
+"""], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.django_db

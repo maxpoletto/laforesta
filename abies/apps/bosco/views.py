@@ -60,7 +60,7 @@ from apps.base.responses import (
     success_response, validation_error,
 )
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
-from apps.bosco.satellite import PARCEL_SCHEMA_VERSION, parcel_snapshot_key
+from apps.bosco.satellite_data import PARCEL_SCHEMA_VERSION, parcel_snapshot_key
 from config import strings as S
 from config.constants import (
     BOSCO_TREE_DIGESTS, DIGEST_FUTURE_PRODUCTION, DIGEST_OBSERVATIONS,
