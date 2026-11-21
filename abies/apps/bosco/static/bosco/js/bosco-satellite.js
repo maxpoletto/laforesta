@@ -137,16 +137,21 @@ export function satelliteDiffValue(timeseries, parcelKey, layer, date1, date2) {
   return v1 == null || v2 == null ? null : v2 - v1;
 }
 
-export function satelliteMaskRawUrl(regionId) {
-  if (!regionId) return '';
-  return `/api/bosco/satellite/${encodeURIComponent(regionId)}/raw/parcel-mask.json`;
+export function satelliteRevisionUrl(url, revision) {
+  return revision ? url + '?revision=' + encodeURIComponent(revision) : url;
 }
 
-export function satelliteRawUrl(regionId, layer, date) {
+export function satelliteMaskRawUrl(regionId, revision) {
+  if (!regionId) return '';
+  return satelliteRevisionUrl(`/api/bosco/satellite/${encodeURIComponent(regionId)}/raw/parcel-mask.json`, revision);
+}
+
+export function satelliteRawUrl(regionId, layer, date, revision) {
   const d = normalizeDateParam(date);
   if (!regionId || !layer || !d) return '';
-  return `/api/bosco/satellite/${encodeURIComponent(regionId)}/raw/`
+  const url = `/api/bosco/satellite/${encodeURIComponent(regionId)}/raw/`
     + `${encodeURIComponent(layer)}/${encodeURIComponent(d)}.json`;
+  return satelliteRevisionUrl(url, revision);
 }
 
 export function divergingDomain(values) {

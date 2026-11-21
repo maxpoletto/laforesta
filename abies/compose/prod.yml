@@ -32,3 +32,21 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  terrain:
+    image: abies:prod
+    command: ["python", "manage.py", "run_terrain_worker"]
+    restart: unless-stopped
+    depends_on: [abies]
+    volumes:
+      - /var/lib/abies-prod/data:/app/data
+    env_file:
+      - .env.prod
+    environment:
+      ABIES_INSTANCE: prod
+      ABIES_VERSION: ${ABIES_VERSION:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

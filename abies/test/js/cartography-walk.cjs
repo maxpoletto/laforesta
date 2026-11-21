@@ -53,8 +53,9 @@ async function walk(browser) {
   const visibleDrawing = loc('#cartography-drawings [data-action=toggle-item]');
   const drawingSummary = loc('#cartography-drawings-label');
   assert.deepEqual(await sidebar.locator(':scope > *').evaluateAll(sections => sections.map(section =>
-    [section.tagName, section.querySelector('label, summary, h2').textContent.trim()])),
-    [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni']]);
+    [section.tagName, section.querySelector('label, summary, h2, [data-action=refresh-terrain]').textContent.trim()])),
+    [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni'],
+      ['DIV', 'Aggiorna dati terreni']]);
   await drawingSummary.click();
   assert.ok(await action('open-import').isHidden());
   assert.ok(await sidebar.getByText('Nessuna particella').isVisible());
@@ -429,6 +430,13 @@ async function walk(browser) {
   assert.equal((await selectedParcel.textContent()).trim(), '2a');
   assert.equal(await drawings.count(), 0);
   assert.equal(await bulkButtons.count(), 1);
+  await Promise.all([
+    page.waitForResponse(response => response.url().endsWith('/terrain/')
+      && response.request().method() === 'POST' && response.status() === 202),
+    action('refresh-terrain').click(),
+  ]);
+  await page.getByText('Aggiornamento in coda.', {exact: true}).waitFor();
+  assert.ok(await action('refresh-terrain').isDisabled());
   const parcelTrash = loc('#cartography-parcels [data-action=remove-item]');
   await parcelTrash.click();
   assert.match(await modal.textContent(), /«2a»/);

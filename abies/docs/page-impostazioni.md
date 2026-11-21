@@ -6,14 +6,14 @@ full content width.
 
 | Tab | URL | Sections in display order |
 | --- | --- | --- |
-| Generali | `/impostazioni` | Password, Utenti, Pagina iniziale |
+| Generali | `/impostazioni` | Password, Utenti, Pagina iniziale, Credenziali API satellitare |
 | Dati di base | `/impostazioni?scheda=dati-di-base` | Categorie di osservazioni, Tipi di viabilità and Classi economiche, then Specie, Parametri dendrometrici and Classi diametriche, then Mezzi |
 | Cartografia | `/impostazioni?scheda=cartografia` | Region map, Ipso drawings and road publication |
 
 Readers enter Generali directly. An unavailable or unknown tab returns to
 the default URL. Switching tabs adds a history entry and preserves open
 sections and form input while Impostazioni remains mounted. Sections start
-collapsed on entry. Admins can open all three sections in the first group.
+collapsed on entry. **Credenziali API satellitare** and **Utenti** are admin-only.
 
 The plan used for projected production and the cutting calendar is selected
 directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
@@ -91,10 +91,9 @@ lists surveys with positions in the selected compresa. It imports geolocated
 trees from a free survey and plot centers from a structured survey.
 The [cartography design](cartography.md) describes the supported geometries.
 
-The proposed **Aggiorna dati terreni** button at the bottom of the sidebar
-lets writers and admins queue a refresh of the selected compresa and see
-its progress. See the [satellite refresh proposal](satellite-refresh.md#refreshing-a-compresa)
-for when the action is available and which data it updates.
+**Aggiorna dati terreni** at the bottom of the sidebar lets writers and admins
+queue a refresh of the selected compresa and see its progress. The compresa
+needs published parcel outlines. [What the worker refreshes](satellite-refresh.md#refreshing-a-compresa)
 
 ### Testing the road workflow
 
@@ -129,10 +128,10 @@ non-app paths such as `/api/...`, `/admin/...`, and `/ipso/...` are rejected.
 Login and `/` redirect to the effective landing page: personal value, then site
 default, then `/prelievi`.
 
-The proposed **Credenziali API satellitare** section under **Generali** lets
-admins configure the installation's Copernicus credentials. The
-[satellite refresh proposal](satellite-refresh.md#credentials) describes
-credential replacement and storage.
+**Credenziali API satellitare** lets admins save or remove the installation's
+Copernicus pair. **Verifica credenziali** checks the values in the form. A
+blank secret keeps the saved secret when the client ID matches.
+[Credential management and storage](satellite-refresh.md#credentials)
 
 ## Reference tables
 

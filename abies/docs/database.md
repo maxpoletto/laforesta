@@ -171,6 +171,29 @@ run these migrations. See [Ipso integration](ipso-abies.md#server-and-mobile-sto
 
 ## Geographic concepts
 
+- satellite_credentials: (singleton_id:int, client_id:string,
+  encrypted_secret:text)
+  - The installation's Copernicus credentials occupy at most one row.
+    The encrypted secret uses a key derived from the instance's Django key.
+    The edit version advances when an admin saves or removes the pair.
+    History excludes the client ID and encrypted secret.
+
+- terrain_refresh: (region_id:int, state:string, source:string,
+  searched_through:date nullable, retry_at:datetime nullable,
+  finished_at:datetime nullable, revision_id:uuid nullable)
+  - One durable job and status per compresa. `source` identifies the
+    published map versions last processed. `revision_id` points at the
+    active on-disk satellite revision.
+
+- satellite_revision: (id:uuid, region_id:int, superseded_at:datetime nullable)
+  - Registry of immutable, published revision directories. Bosco pins the
+    revision ID across requests. A superseded revision expires after 24 hours.
+
+- satellite_season: (id:int, region_id:int, start:date, date:date nullable,
+  geometry:string)
+  - One record per compresa and seasonal window. The selected date may be
+    empty. The parcel fingerprint identifies the geometry used for the search.
+
 - region: (id:int, name:string, description:text, map_key:uuid,
   version:int, created_at:datetime, modified_at:datetime)
   - A compresa has a unique name and an optional description. Cartografia

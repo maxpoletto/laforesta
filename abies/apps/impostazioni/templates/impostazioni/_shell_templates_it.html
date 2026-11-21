@@ -69,6 +69,32 @@ S (string constants) provided by the shell's render context.
       </div>
     </section>
 
+    {% if user.role == ROLE_ADMIN %}
+      <section data-settings-section="satellite-credentials">
+        {% include "base/_partials/_collapsible_header.html" with section="" title=S.SATELLITE_CREDENTIALS %}
+        <div class="collapsible-body">
+          <form autocomplete="off">
+            <fieldset class="satellite-credential-fields" disabled>
+              <div class="form-group">
+                <label for="satellite-client-id">{{ S.SATELLITE_CLIENT_ID }}</label>
+                <input type="text" id="satellite-client-id" name="client_id" maxlength="255" required>
+              </div>
+              <div class="form-group">
+                <label for="satellite-client-secret">{{ S.SATELLITE_CLIENT_SECRET }}</label>
+                <input type="password" id="satellite-client-secret" name="client_secret"
+                       autocomplete="new-password" maxlength="4096">
+              </div>
+              <button type="button" class="btn" name="test">{{ S.SATELLITE_TEST_CREDENTIALS }}</button>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-save">{{ S.SAVE }}</button>
+                <button type="button" class="btn btn-delete" name="remove" disabled>{{ S.SATELLITE_REMOVE_CREDENTIALS }}</button>
+              </div>
+            </fieldset>
+          </form>
+          <p class="mt-1" role="status"></p>
+        </div>
+      </section>
+    {% endif %}
     {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
       <p class="settings-version text-muted">Versione software: <code>{{ ABIES_VERSION }}</code></p>
     {% endif %}
@@ -288,6 +314,10 @@ S (string constants) provided by the shell's render context.
               </div>
             </div>
           </details>
+          <div class="cartography-terrain">
+            <button type="button" class="btn btn-save" data-action="refresh-terrain" disabled>{{ S.TERRAIN_REFRESH }}</button>
+            <p class="cartography-empty" data-role="terrain-status" role="status"></p>
+          </div>
         </aside>
       </div>
       <footer class="cartography-credits">

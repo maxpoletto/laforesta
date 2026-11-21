@@ -38,7 +38,7 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 
 .PHONY: help \
         check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding dev serve \
-        satellite satellite-dates satellite-fetch satellite-precompute \
+        satellite satellite-dates satellite-fetch satellite-precompute terrain-worker \
         map-context sync-map-context sync-map-context-dev sync-map-context-prod \
         collectstatic minify \
         deploy-dev deploy-prod deploy-instance \
@@ -61,6 +61,7 @@ help:
 	@echo "  make geo [MAP_GEOJSON=path]       import an initial parcel map into SQLite"
 	@echo "  make satellite                    build satellite dates, rasters, and summaries"
 	@echo "  make satellite-precompute         rebuild satellite manifest/timeseries only"
+	@echo "  make terrain-worker               run the local Cartografia refresh worker"
 	@echo "  make map-context                  build printable-map roads, water and DSM contours"
 	@echo "  make collectstatic minify        collect static files, then minify collected JS"
 	@echo ""
@@ -150,6 +151,9 @@ dev: sync-branding reset-db load-canonical-data admin link-templates
 serve:
 	$(MANAGE) runserver > /dev/null 2>&1 &
 
+terrain-worker:
+	$(MANAGE) run_terrain_worker
+
 # --- Static assets ----------------------------------------------------------
 
 sync-branding:
@@ -199,7 +203,7 @@ sync-satellite:
 	@test -d "$(SATELLITE_DIR)" || { echo "error: SATELLITE_DIR='$(SATELLITE_DIR)' does not exist" >&2; exit 1; }
 	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-satellite INSTANCE=<dev|prod>" >&2; exit 1; }
 	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/satellite"
-	rsync -rlt --delete --rsync-path="sudo rsync" "$(SATELLITE_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/satellite/"
+	rsync -rlt --delete --exclude='.worker.lock' --exclude='revisions/' --rsync-path="sudo rsync" "$(SATELLITE_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/satellite/"
 	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/satellite"
 	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/satellite"
 

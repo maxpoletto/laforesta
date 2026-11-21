@@ -3,7 +3,7 @@
 from django.urls import path
 
 from apps.impostazioni import views
-from apps.impostazioni import cartography, equation_imports, regions
+from apps.impostazioni import cartography, equation_imports, regions, satellite_credentials, terrain
 from config.constants import DATA_ID_ECLASSES, DATA_ID_ROAD_TYPES, IPSO_REF_OBSERVATION_CATEGORIES
 
 urlpatterns = [
@@ -15,6 +15,7 @@ urlpatterns = [
     path('cartography/<int:region_id>/', cartography.workspace),
     path('cartography/<int:region_id>/parcel-form/', cartography.parcel_form),
     path('cartography/<int:region_id>/surveys/', cartography.surveys),
+    path('cartography/<int:region_id>/terrain/', terrain.refresh, name='impostazioni-terrain-refresh'),
     path('cartography/<int:region_id>/parcels/<int:parcel_id>/properties/', cartography.parcel_details),
     path('cartography/<int:region_id>/parcels/<int:parcel_id>/boundaries/', cartography.parcel_details,
          {'boundaries': True}),
@@ -24,6 +25,7 @@ urlpatterns = [
     path('equations/volume/export/', equation_imports.export_volume, name='impostazioni-volume-export'),
     # Password
     path('password/', views.password_view, name='impostazioni-password'),
+    path('satellite-credentials/', satellite_credentials.credentials, name='impostazioni-satellite-credentials'),
 
     # Landing page
     path('landing-page/data/', views.landing_page_data,

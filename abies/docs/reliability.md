@@ -16,3 +16,11 @@ Compose services use `restart: unless-stopped`, so Docker restarts them after
 an unexpected exit. A deliberately stopped service stays stopped until
 started again.
 [Docker restart policies](https://docs.docker.com/engine/containers/start-containers-automatically/)
+
+## Terrain refresh recovery
+
+The hosted terrain worker runs in a separate Compose service with the same
+restart policy. When it starts, it requeues jobs interrupted while running
+and removes their temporary staging directories. Bosco switches to a new
+revision only after the worker has completed the files and committed the
+new active revision ID. [Satellite publication](satellite-refresh.md#publishing-terrain-data)

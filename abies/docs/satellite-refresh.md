@@ -1,9 +1,9 @@
 # Satellite data refresh
 
-This proposal moves day-to-day satellite configuration and refreshes into
-the running Abies instance. It covers Sentinel-2 imagery and parcel
-statistics for Bosco. The Cartografia action is named **Aggiorna dati terreni**
-so it can also cover elevation and LiDAR when those sources are added.
+The running Abies instance refreshes Sentinel-2 imagery and parcel
+statistics for Bosco. Writers can trigger an update in Cartografia with
+**Aggiorna dati terreni**. The name also accommodates future elevation
+and LiDAR sources.
 
 ## Credentials
 
@@ -39,10 +39,9 @@ the pair and when. Both reads and writes check the admin role on the server.
 
 Admins enter the credentials once when enabling live downloads. Compatible
 imagery already present on disk is reused, including its historical dates.
-Bosco can use those data and rebuild compatible local derivatives while
-credentials are unconfigured. Generating images via `make satellite` and
-copying them into place are currently the normal workflow. With live refresh
-enabled, the running instance owns publication of its imagery.
+Bosco can use those data, and the worker can rebuild their compatible local
+derivatives while credentials are unconfigured. The running instance
+publishes its imagery.
 [Obtaining Copernicus credentials](../INSTALL.md#satellite-imagery)
 
 ## Refreshing a compresa
@@ -67,9 +66,9 @@ the same Abies image, data volume, and runtime settings as the web service.
 Its entry point is a long-running Django management command. It uses the
 same `restart: unless-stopped` policy as the web service, so Docker starts
 it again if the process exits. On startup the worker requeues any refresh
-interrupted by its previous exit. For local development the command can
-run in a second terminal alongside `make serve` with the same settings.
-[Docker restart policy](https://docs.docker.com/engine/containers/start-containers-automatically/)
+interrupted by its previous exit. Locally, `make terrain-worker` runs the
+command alongside `make serve` with the same settings.
+[Process recovery](reliability.md)
 
 The web request writes a queue entry to SQLite immediately and returns the
 queued status. The worker polls SQLite every 30 seconds while idle. It also
@@ -86,10 +85,11 @@ SQLite write transactions. A missed seasonal run is picked up on the next
 nightly check. Temporary failures retry with a delay. Jobs needing credentials
 resume when an admin supplies them.
 
-The hourly check can read a small set of pending compresa IDs. Saving or
-importing published geometry marks the affected compresa for review in the
-same operation. The worker verifies the current input and available files before
-doing expensive work, including when adopting files on an existing installation.
+The hourly check reads the IDs and versions of published map features and
+compares them with the last refresh for each compresa. This covers edits
+made in Cartografia and maps imported through the command line. The worker
+checks the input geometry and available files before downloading or
+recomputing rasters.
 
 ## Imagery coverage and historical backfill
 
@@ -105,10 +105,12 @@ opens on the parcels. When the rectangle expands, the extension keeps the
 existing pixel alignment and fetches only the missing area for each
 historical date that needs it. There are up to four non-overlapping strips
 before any request size limits are applied. A compatible legacy raster grid
-becomes the starting grid for that compresa. The current builder derives a
-new grid from the bounding box, so extending an existing grid takes
-additional work.
+becomes the starting grid for that compresa.
 [Map coverage design](cartography.md#map-coverage-and-background-work)
+
+The worker limits a compresa's raster to 16 million pixels at the nominal
+10 m resolution. If the requested extent exceeds that limit, the refresh
+fails and keeps the previous revision.
 
 The first refresh checks every completed winter and summer window from 2015
 onward and fills in available dates. A published parcel boundary or assignment
@@ -161,12 +163,13 @@ parcel fingerprint.
 ## Adding seasonal images
 
 The overnight run in March searches January and February of the same year.
-The overnight run in August searches June and July. Abies adds at most one
+The overnight run in August searches June and July. Automatic checks
+for a newly due season run between 02:00 and 06:00. Abies adds at most one
 suitable date per compresa per season to **Bosco → Evoluzione** after its
 imagery and statistics are ready. A later run checks the recorded outcome for
 that compresa and season before searching or downloading again.
 
-The proposed catalog limits are 20% cloud cover in winter and 10% in
+The catalog limits are 20% cloud cover in winter and 10% in
 summer. Abies reads all result pages and ranks qualifying dates by cloud
 cover. Copernicus reports the percentage for each tile. If several tiles
 are needed to cover the parcels on a date, Abies uses the highest reported

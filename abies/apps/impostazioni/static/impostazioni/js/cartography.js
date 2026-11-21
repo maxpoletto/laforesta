@@ -112,6 +112,10 @@ export class CartographyEditor {
       this.showRegionMap(region);
       this.state = null;
       this.draft = null;
+      this.terrain = null;
+      this.terrainPending = false;
+      clearTimeout(this.terrainPoll);
+      this.panel.querySelector('[data-role=terrain-status]').textContent = '';
       this.busy = false;
       this.status.textContent = '';
       this.updateButtons();
@@ -190,6 +194,7 @@ export class CartographyEditor {
     const {data} = await fetchJSON(API + this.regionId + '/');
     if (!this.current(generation)) return;
     this.state = data;
+    this.refreshTerrainStatus(generation);
     const byName = (a, b) => a.name.localeCompare(b.name, document.documentElement.lang, {numeric: true});
     const parcels = new Map(data.parcels.map(row => [row.name, row]));
     const names = new Set([...this.map.parcelLayers.keys(), ...parcels.keys()]);
@@ -284,9 +289,48 @@ export class CartographyEditor {
     b.clear.disabled = locked || !this.state?.drawings.length;
     b['new-drawing'].disabled = b['open-import'].disabled = locked || !this.state;
     b['new-region'].disabled = locked;
+    const terrain = b['refresh-terrain'];
+    terrain.disabled = locked || this.terrainPending || !this.terrain?.available
+      || ['queued', 'running'].includes(this.terrain?.state);
+    terrain.title = this.terrain && !this.terrain.available ? S.TERRAIN_REFRESH_NO_PARCELS : '';
     b['edit-region'].disabled = locked || !this.state;
     this.region.disabled = locked;
     this.updateLists(locked);
+  }
+
+  async refreshTerrainStatus(generation, enqueue = false) {
+    if (!this.current(generation) || (this.terrainPending && !enqueue)) return;
+    const request = this.terrainRequest = Symbol();
+    const current = () => this.current(generation) && this.terrainRequest === request;
+    clearTimeout(this.terrainPoll);
+    const url = `${API}${this.regionId}/terrain/`;
+    const status = this.panel.querySelector('[data-role=terrain-status]');
+    if (enqueue) {
+      this.terrainPending = true;
+      this.updateButtons();
+    }
+    try {
+      const {data, status: code} = enqueue ? await postJSON(url, {}) : await fetchJSON(url);
+      if (!current()) return;
+      if (code >= 400) {
+        status.textContent = data.message || S.ERROR_GENERIC;
+        return;
+      }
+      this.terrain = data;
+      status.textContent = S.TERRAIN_REFRESH_STATUS[data.state] || '';
+      this.terrainPoll = setTimeout(() => this.refreshTerrainStatus(generation),
+        ['queued', 'running'].includes(data.state) ? 5000 : 30000);
+    } catch {
+      if (current()) {
+        status.textContent = S.ERROR_NETWORK;
+        this.terrainPoll = setTimeout(() => this.refreshTerrainStatus(generation), 30000);
+      }
+    } finally {
+      if (current()) {
+        this.terrainPending = false;
+        this.updateButtons();
+      }
+    }
   }
 
   startEdit(draft) {
@@ -593,6 +637,9 @@ export class CartographyEditor {
     const target = button.closest('[data-kind]')?.dataset;
     const row = this.selected;
     switch (action) {
+      case 'refresh-terrain':
+        this.refreshTerrainStatus(this.generation, true);
+        break;
       case 'select-item':
         this.select(target.kind, target.kind === 'parcel' ? target.id : Number(target.id), true);
         break;
@@ -829,6 +876,7 @@ export class CartographyEditor {
   }
 
   destroy() {
+    clearTimeout(this.terrainPoll);
     this.life.abort();
     this.map?.destroy();
   }

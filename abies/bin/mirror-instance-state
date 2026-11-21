@@ -46,6 +46,7 @@ rm -f "$new_db"
 bin/backup --restore "/app/backup/$archive" --dest "$work"
 cp "$work/db.sqlite3" "$new_db"
 chmod 600 "$new_db"
+python -m apps.bosco.mirror_credentials prepare /app/data/db.sqlite3 "$new_db" /app/data/.mirror-credentials.json
 
 rm -f /app/data/db.sqlite3-wal /app/data/db.sqlite3-shm
 mv -f "$new_db" /app/data/db.sqlite3
@@ -267,6 +268,8 @@ def execute_plan(args: argparse.Namespace, plan: MirrorPlan, runner: Runner, arc
 
     if not args.no_migrate:
         runner.run(dc_run(args, plan.target, 'python', 'manage.py', 'migrate', '--noinput'))
+    runner.run(dc_run(args, plan.target, 'python', '-m', 'apps.bosco.mirror_credentials',
+                      'restore', '/app/data/db.sqlite3', '/app/data/.mirror-credentials.json'))
     if not args.no_digests:
         runner.run(dc_run(
             args, plan.target,

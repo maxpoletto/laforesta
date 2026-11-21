@@ -1,6 +1,9 @@
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+
+from apps.bosco.mirror_credentials import prepare, restore
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'bin' / 'mirror-instance-state'
 
@@ -67,3 +70,24 @@ def test_sanitizes_reason_for_archive_name():
 
     assert proc.returncode == 0, proc.stderr
     assert 'abies-prod-20260625T210000Z-copy-prod-now.tar.gz' in proc.stdout
+
+
+def test_mirroring_keeps_only_the_destination_credentials(tmp_path):
+    target, incoming, stash = (tmp_path / name for name in ('target', 'incoming', 'stash'))
+    for path, credential in [(target, 'dev'), (incoming, 'prod')]:
+        with sqlite3.connect(path) as connection:
+            connection.execute('CREATE TABLE base_satellitecredentials '
+                               '(singleton_id INTEGER PRIMARY KEY, version, created_at, modified_at,'
+                               ' client_id, encrypted_secret)')
+            connection.execute('INSERT INTO base_satellitecredentials VALUES (1, 1, ?, ?, ?, ?)',
+                               ('', '', credential, credential + '-ciphertext'))
+    prepare(target, incoming, stash)
+    assert 'prod' not in stash.read_text()
+    with sqlite3.connect(incoming) as connection:
+        assert connection.execute('SELECT client_id FROM base_satellitecredentials').fetchall() == []
+    restore(incoming, stash)
+    with sqlite3.connect(incoming) as connection:
+        assert connection.execute('SELECT client_id, encrypted_secret FROM base_satellitecredentials').fetchall() == [
+            ('dev', 'dev-ciphertext'),
+        ]
+    assert not stash.exists()

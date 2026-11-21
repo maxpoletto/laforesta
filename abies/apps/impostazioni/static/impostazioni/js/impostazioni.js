@@ -6,14 +6,14 @@
  */
 
 import { CartographyEditor } from './cartography.js';
-import { postJSON } from '../../base/js/api.js';
+import { fetchJSON, postJSON } from '../../base/js/api.js';
 import * as cache from '../../base/js/cache.js';
 import { TableWrapper } from '../../base/js/table.js';
 import * as modals from '../../base/js/modals.js';
 import { showError } from '../../base/js/modals.js';
 import { fetchModalForm } from '../../base/js/forms.js';
 import {
-  showLoadingIn, wireActions,
+  showConfirmModal, showLoadingIn, wireActions,
   wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import { navigate } from '../../base/js/router.js';
@@ -145,6 +145,7 @@ let cartography = null;
 
 const wireSection = {
   password: wirePasswordSection,
+  'satellite-credentials': wireSatelliteCredentials,
   'landing-page': root => wireLandingPageSection(root, document.body.dataset.role),
   tractors: root => wireEntitySection(root, ENTITY_SECTIONS.tractors),
   species: root => wireEntitySection(root, ENTITY_SECTIONS.species),
@@ -253,6 +254,61 @@ function wirePasswordSection(root) {
       msg.className = 'mt-1 text-error';
     }
   });
+}
+
+function wireSatelliteCredentials(root) {
+  const url = API + 'satellite-credentials/';
+  const body = root.querySelector('.collapsible-body');
+  const form = body.querySelector('form');
+  const fieldset = form.querySelector('fieldset');
+  const message = body.querySelector('[role=status]');
+  const {client_id: clientId, client_secret: secret, remove, test} = form.elements;
+  let version;
+
+  function render(data) {
+    version = data.version;
+    clientId.value = data.client_id;
+    secret.value = '';
+    secret.placeholder = data.configured ? S.SATELLITE_SECRET_CONFIGURED : '';
+    remove.disabled = !data.client_id;
+  }
+
+  wireCollapsibleToggle(root.querySelector('.collapsible-header'), body, async () => {
+    if (version !== undefined) return;
+    try {
+      render((await fetchJSON(url)).data);
+      message.textContent = '';
+      fieldset.disabled = false;
+    } catch {
+      message.textContent = S.ERROR_NETWORK;
+    }
+  });
+
+  async function submit(action) {
+    if (fieldset.disabled) return;
+    fieldset.disabled = true;
+    message.textContent = S.LOADING;
+    try {
+      const {data} = await postJSON(url, {
+        action, version,
+        ...(action === 'remove' ? {} : {client_id: clientId.value, client_secret: secret.value}),
+      });
+      if (data.version !== undefined) render(data);
+      message.textContent = data[MESSAGE] || S.ERROR_GENERIC;
+    } catch {
+      message.textContent = S.ERROR_NETWORK;
+    } finally {
+      fieldset.disabled = false;
+    }
+  }
+
+  form.onsubmit = event => {
+    event.preventDefault();
+    submit('save');
+  };
+  test.onclick = () => { if (form.reportValidity()) submit('test'); };
+  remove.onclick = () => showConfirmModal(S.SATELLITE_REMOVE_CONFIRM, () => submit('remove'),
+    {confirmLabel: remove.textContent});
 }
 
 // ---------------------------------------------------------------------------

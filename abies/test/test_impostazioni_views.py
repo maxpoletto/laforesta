@@ -99,6 +99,7 @@ def test_settings_page_hides_version_from_non_admin(writer_client):
     (Role.WRITER, LoginMethod.PASSWORD, ['password', 'landing-page', 'species',
                                        'dendrometry', 'diameter-classes', 'tractors']),
     (Role.ADMIN, LoginMethod.PASSWORD, ['password', 'users', 'landing-page',
+                                      'satellite-credentials',
                                       'observation-categories', 'road-types', 'eclasses', 'species',
                                       'dendrometry', 'diameter-classes', 'tractors']),
 ])

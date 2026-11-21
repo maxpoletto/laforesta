@@ -125,10 +125,16 @@
   color: #596358;
   box-shadow: inset 0 0 0 1px #b4bdb1;
 }
-.cartography-section + .cartography-section {
+.cartography-section + :is(.cartography-section, .cartography-terrain) {
   border-top: 1px solid #c9d3c7;
   margin-top: 12px;
   padding-top: 8px;
+}
+.satellite-credential-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
 }
 .cartography-section summary {
   cursor: pointer;

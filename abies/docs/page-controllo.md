@@ -87,6 +87,7 @@ dropping it from the config.
 | `base.RoadType` | `base_roadtype` | `base_historicalroadtype` | `Tipo di viabilità` | Road and trail classification. |
 | `base.SampleArea` | `base_samplearea` | `base_historicalsamplearea` | `Area di saggio` | Sample plot metadata. |
 | `base.SampleGrid` | `base_samplegrid` | `base_historicalsamplegrid` | `Griglia di campionamento` | Grid metadata. |
+| `base.SatelliteCredentials` | `base_satellitecredentials` | `base_historicalsatellitecredentials` | `Credenziali API satellitare` | Credential edits record the actor and revision. Both client ID and secret are excluded. |
 | `base.SiteSettings` | `base_sitesettings` | `base_historicalsitesettings` | `Impostazioni sito` | Site landing-page default and diameter-class convention. |
 | `base.Species` | `base_species` | `base_historicalspecies` | `Specie` | Species reference table. |
 | `base.Survey` | `base_survey` | `base_historicalsurvey` | `Rilevamento` | Survey metadata. |

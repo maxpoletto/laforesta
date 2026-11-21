@@ -630,22 +630,20 @@ mode-switch.
   with an ETag on navigation.
 - **Satellite data** — per-compresa `manifest.json`, `timeseries.json`,
   raw index rasters, and `parcel-mask.tif`, served from `SATELLITE_DIR` via
-  `/api/bosco/satellite/<region_id>/...`.  Built from the database map with
-  `manage.py build_satellite`; satellite metrics in both Caratteristiche and
+  `/api/bosco/satellite/<region_id>/...`. The terrain worker uses the
+  published database map. Satellite metrics in both Caratteristiche and
   Evoluzione render raster pixels by default and use the precomputed per-parcel
   means in `timeseries.json` when `fa=1`. The summary identifies parcels by
   database ID. The parcel list order matches the pixel indices in the mask.
   Both products carry a fingerprint of the parcel IDs and published geometry.
   Renames preserve that fingerprint. Changes to the outlines or their parcel
-  assignments require a fresh precompute before Bosco serves either product.
-  Rebuild older label-based summaries and masks with
-  `manage.py build_satellite precompute` against the database map. Raster-mode overlays and
-  tooltips are rendered in the browser from the same prefetched raw raster
-  values.
+  assignments require a fresh mask and summary before Bosco serves either
+  product. Raster-mode overlays and tooltips use the same prefetched raster
+  values. Bosco pins the revision returned in the manifest for its subsequent
+  timeseries, mask, and raw raster requests.
   Raster dimensions use WGS84 ellipsoidal ground distances for the nominal
   10 m resolution. Every band's dimensions, CRS and transform are
   checked before replacing derived masks/manifests, preventing shifted or
   incompatible rasters from being combined.
-  The [satellite refresh proposal](satellite-refresh.md) describes how the
-  running instance would refresh those products and add dates in March and
-  August.
+  The worker searches January–February in March and June–July in August and
+  adds an eligible date for each compresa. [Satellite refresh](satellite-refresh.md)

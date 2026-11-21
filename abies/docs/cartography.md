@@ -1,16 +1,13 @@
 # Cartography in Abies
 
-A new Abies instance should also be able to start with an empty map and record
-its first parcel and region (compresa) through the UI.
-
-Additionally, operators must be able to edit parcel boundaries and maintain maps
-of forest roads and trails.
+A new Abies instance can start with an empty map. Operators can create the
+first compresa and parcel through the UI, edit parcel boundaries, and
+maintain maps of forest roads and trails.
 
 Parcel outlines already live in SQLite. Bosco, Ipso and map builders read them
 as GeoJSON. Road types and economic classes are configurable in **Impostazioni →
-Dati di base**. The editor described below is proposed for **Impostazioni →
-Cartografia**. See the [installation guide](../INSTALL.md) for what can be
-imported today.
+Dati di base**. The map editor is under **Impostazioni → Cartografia**.
+The [installation guide](../INSTALL.md) covers initial imports.
 
 ## General layout and concepts
 
@@ -236,8 +233,8 @@ the whole working copy. Removing a single trace segment is an edit within
 Survey drawings can likewise be imported again from the original survey.
 Restoring a drawing imported from a file requires the original file.
 
-The proposed behavior when importing the same walk again is to open its
-existing working copy. For example, if the operator corrected the first
+Importing the same walk again opens its existing working copy. For example,
+if the operator corrected the first
 segment and removed the second, both decisions are preserved. Once the whole
 drawing has been deleted or promoted, importing the walk again creates a
 fresh drawing from the complete original recording.
@@ -288,8 +285,8 @@ Deletion of parcels or roads with dependent records is not allowed.
 ## Map coverage and background work
 
 Bosco opens on the parcels and masks satellite overlays to the parcel
-polygons. The planned imagery and terrain downloads request the bounding
-box of all published parcels and roads, plus a margin. An access road can
+polygons. Satellite downloads request the bounding box of all published
+parcels and roads, plus a margin. An access road can
 extend that request while the satellite overlay stays within the parcels.
 A viabilità print of the whole compresa includes the road all the way to
 its endpoint.
@@ -308,12 +305,10 @@ its endpoint.
   once. Abies regenerates affected contours across the joins from the assembled
   terrain.
 
-The proposed satellite workflow checks published changes and newly imported
-maps hourly. **Aggiorna dati terreni** at the bottom of the sidebar queues an
-immediate refresh for the selected compresa and can retry a failed job. The
-published vector map remains usable during refresh. The [satellite refresh
-proposal](satellite-refresh.md) covers credentials, progress, and seasonal
-image discovery.
+The worker checks published changes and newly imported maps hourly.
+**Aggiorna dati terreni** at the bottom of the sidebar queues an immediate
+refresh for the selected compresa and can retry a failed job. The published
+vector map remains usable during refresh. [Satellite refresh](satellite-refresh.md)
 
 ## Bosco and printed maps
 

@@ -220,6 +220,12 @@ copy generated/static or deployment-owned inputs such as canonical CSVs,
 satellite data, geodata, branding, collected static files, or compose
 environment secrets.
 
+The destination's encrypted Copernicus credentials survive the database
+replacement. The mirror strips the source credential row before installing
+the database and restores the destination pair after migrations. A restore
+to the same installation uses its existing Django key. The terrain worker
+rebuilds any referenced satellite revisions whose files are missing.
+
 The default `prod -> dev` flow is:
 
 1. create a fresh source backup in the prod backup mount;

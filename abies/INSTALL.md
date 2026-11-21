@@ -70,14 +70,14 @@ To obtain credentials for the optional Sentinel-2 layers in Bosco:
    Copernicus displays the secret once.
    [Copernicus OAuth client instructions](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Overview/Authentication.html#registering-oauth-client)
 
-With the current build workflow, copy
-[`.env.satellite.example`](.env.satellite.example) to `.env.satellite`,
-set `CDSE_CLIENT_ID` and `CDSE_CLIENT_SECRET`, and run `make satellite`
-after importing parcel boundaries. See the [build and deployment instructions](README.md#local-development).
+Sign in to Abies as an admin and save the pair under **Impostazioni →
+Generali → Credenziali API satellitare**. For a local instance using live
+credentials, set a unique, random `DJANGO_SECRET_KEY` in `compose/.env.local`
+before starting Abies. After rotating that key, enter the Copernicus pair
+again in **Generali**.
 
-The [planned live workflow](docs/satellite-refresh.md) moves the Copernicus
-pair to **Impostazioni → Generali → Credenziali API satellitare**. It uses
-the installation's existing `DJANGO_SECRET_KEY` to derive the encryption key.
-For a local instance using live credentials, set a unique, random
-`DJANGO_SECRET_KEY` in `compose/.env.local`. After rotating the Django secret,
-enter the Copernicus pair again in **Generali**.
+The hosted Compose stack starts the terrain worker. Locally, run
+`make terrain-worker` in a separate terminal. The worker checks for published
+parcel outlines and starts the historical backfill. **Aggiorna dati terreni**
+in **Impostazioni → Cartografia** queues the selected compresa immediately.
+[Satellite refresh and historical coverage](docs/satellite-refresh.md)

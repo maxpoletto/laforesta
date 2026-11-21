@@ -75,7 +75,7 @@ import {
   BYTE_MIDPOINT, EVOLUTION_METRIC_IDS, EVOLUTION_METRICS, SATELLITE_LAYERS,
   availableMonths, characteristicSatelliteLayer, dateFromMonthValue, dateParam,
   diffColor, diffRgb, divergingDomain, interpolateRgb, monthValue, pickDate, rgbString,
-  satelliteColor, satelliteDiffValue, satelliteMaskRawUrl, satelliteRawUrl, satelliteRgb, satelliteValue,
+  satelliteColor, satelliteDiffValue, satelliteMaskRawUrl, satelliteRawUrl, satelliteRevisionUrl, satelliteRgb, satelliteValue,
 } from './bosco-satellite.js';
 import { positionLabelValue } from './bosco-position.js';
 import {
@@ -146,7 +146,7 @@ const VALID_EVOLUTION_METRICS = EVOLUTION_METRIC_IDS;
 const DETAIL_SECTIONS = ['m', 'd', 'p'];
 const SATELLITE_OVERLAY_OPACITY = 0.85;
 const SATELLITE_INSIDE_ALPHA = 210;
-const SATELLITE_OUTSIDE_ALPHA = 60;
+const SATELLITE_OUTSIDE_ALPHA = 0;
 const SATELLITE_OVERLAY_CLASS = 'bosco-satellite-raster-overlay';
 const TYPE_HIGHFOREST_KEY = 'highforest';
 const TYPE_COPPICE_KEY = 'coppice';
@@ -1156,8 +1156,10 @@ function renderCharacteristicRaster(seq, layer, date) {
   clearSatelliteRasterOverlay();
   resetParcelStyles();
   renderMessageLegend(S.BOSCO_LOADING_RASTER);
-  const rawUrl = satelliteRawUrl(currentState.regionId, layer, date);
-  const maskUrl = satelliteMaskRawUrl(currentState.regionId);
+  const {regionId} = currentState;
+  const {revision} = satelliteData;
+  const rawUrl = satelliteRawUrl(regionId, layer, date, revision);
+  const maskUrl = satelliteMaskRawUrl(regionId, revision);
   Promise.all([loadRawRaster(rawUrl), loadRawRaster(maskUrl)]).then(([raster, mask]) => {
     if (seq !== characteristicRenderSeq || currentState?.mode !== MODE_CHARACTERISTICS || currentState?.parcelAverage) return;
     clearSatelliteRasterOverlay();
@@ -1171,8 +1173,12 @@ function renderCharacteristicRaster(seq, layer, date) {
       displayFn: v => metricTooltipDisplay(currentState.q, v),
     });
     renderSatelliteLegend(legendEl, layer, date);
-  }).catch(() => {
-    if (seq === characteristicRenderSeq) renderMessageLegend(S.BOSCO_RASTER_UNAVAILABLE);
+  }).catch(async error => {
+    if (seq !== characteristicRenderSeq) return;
+    const recovered = await recoverSatelliteRevision(error, regionId, revision);
+    if (seq !== characteristicRenderSeq) return;
+    if (recovered) refreshCharacteristicLayer();
+    else renderMessageLegend(S.BOSCO_RASTER_UNAVAILABLE);
   });
 }
 
@@ -1309,9 +1315,11 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
   clearSatelliteRasterOverlay();
   resetParcelStyles();
   renderLegendMessage(diffLegendEl, S.BOSCO_LOADING_RASTER);
-  const rawUrl1 = satelliteRawUrl(currentState.regionId, metric.layer, date1);
-  const rawUrl2 = satelliteRawUrl(currentState.regionId, metric.layer, date2);
-  const maskUrl = satelliteMaskRawUrl(currentState.regionId);
+  const {regionId} = currentState;
+  const {revision} = satelliteData;
+  const rawUrl1 = satelliteRawUrl(regionId, metric.layer, date1, revision);
+  const rawUrl2 = satelliteRawUrl(regionId, metric.layer, date2, revision);
+  const maskUrl = satelliteMaskRawUrl(regionId, revision);
   Promise.all([
     loadRawRaster(rawUrl1), loadRawRaster(rawUrl2), loadRawRaster(maskUrl),
   ]).then(([raster1, raster2, mask]) => {
@@ -1329,8 +1337,12 @@ function renderEvolutionRaster(seq, metric, date1, date2) {
       displayFn: v => evolutionMetricDisplay(metric, v),
     });
     renderDiffLegend(metric, date1, date2, { maxAbs });
-  }).catch(() => {
-    if (seq === evolutionRenderSeq) renderLegendMessage(diffLegendEl, S.BOSCO_RASTER_UNAVAILABLE);
+  }).catch(async error => {
+    if (seq !== evolutionRenderSeq) return;
+    const recovered = await recoverSatelliteRevision(error, regionId, revision);
+    if (seq !== evolutionRenderSeq) return;
+    if (recovered) renderEvolutionMode();
+    else renderLegendMessage(diffLegendEl, S.BOSCO_RASTER_UNAVAILABLE);
   });
 }
 
@@ -1433,7 +1445,11 @@ function onRasterTooltipOut(entry, layer) {
 function loadRawRaster(url) {
   if (!url) return Promise.reject(new Error('Missing raw raster URL'));
   if (!rawRasterCache.has(url)) {
-    rawRasterCache.set(url, fetchJSON(url).then(result => decodeRawRaster(result.data)));
+    const load = fetchJSON(url).then(result => decodeRawRaster(result.data)).catch(error => {
+      if (rawRasterCache.get(url) === load) rawRasterCache.delete(url);
+      throw error;
+    });
+    rawRasterCache.set(url, load);
   }
   return rawRasterCache.get(url);
 }
@@ -1488,17 +1504,18 @@ function clearEvolutionLegend() {
   diffLegendEl?.replaceChildren();
 }
 
-function loadSatellite(regionId) {
-  if (satelliteReady(regionId)) return Promise.resolve(satelliteData);
+function loadSatellite(regionId, refresh = false) {
+  if (!refresh && satelliteReady(regionId)) return Promise.resolve(satelliteData);
   if (!satelliteLoad || satelliteRegionId !== regionId) {
+    if (satelliteRegionId !== regionId) satelliteData = null;
     satelliteRegionId = regionId;
-    satelliteData = null;
-    const load = Promise.all([
-      fetchJSON(`/api/bosco/satellite/${regionId}/manifest/`).then(result => result.data),
-      fetchJSON(`/api/bosco/satellite/${regionId}/timeseries/`).then(result => result.data),
-    ]).then(([manifest, timeseries]) => {
+    const base = `/api/bosco/satellite/${regionId}/`;
+    const load = fetchJSON(base + 'manifest/').then(async ({data: manifest}) => {
+      const revision = manifest.revision || 'legacy';
+      const {data: timeseries} = await fetchJSON(satelliteRevisionUrl(base + 'timeseries/', revision));
       if (satelliteLoad !== load) return null;
-      satelliteData = { manifest, timeseries };
+      if (satelliteData?.revision !== revision) rawRasterCache.clear();
+      satelliteData = { manifest, timeseries, revision };
       return satelliteData;
     }).finally(() => {
       if (satelliteLoad === load) satelliteLoad = null;
@@ -1506,6 +1523,16 @@ function loadSatellite(regionId) {
     satelliteLoad = load;
   }
   return satelliteLoad;
+}
+
+async function recoverSatelliteRevision(error, regionId, revision) {
+  if (error.status !== 404 || satelliteRegionId !== regionId) return false;
+  try {
+    const updated = await loadSatellite(regionId, true);
+    return !!updated && updated.revision !== revision;
+  } catch {
+    return false;
+  }
 }
 
 function satelliteReady(regionId) {

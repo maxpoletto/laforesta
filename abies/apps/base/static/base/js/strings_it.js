@@ -724,6 +724,17 @@ export const CARTOGRAPHY_CLEAR = (region, n) => `Eliminare tutti i disegni di ${
 export const CARTOGRAPHY_FORGET = name => `Eliminare il rilievo originale «${name}»?`;
 export const CARTOGRAPHY_DRAG = 'Trascina i vertici e salva le modifiche.';
 export const CARTOGRAPHY_EMPTY_EDIT = 'Non ci sono più punti in questa modifica.';
+export const SATELLITE_SECRET_CONFIGURED = 'Segreto salvato';
+export const SATELLITE_REMOVE_CONFIRM = 'Eliminare le credenziali Copernicus salvate?';
+export const TERRAIN_REFRESH_NO_PARCELS = 'La compresa deve avere almeno una particella con confini pubblicati.';
+export const TERRAIN_REFRESH_STATUS = {
+  queued: 'Aggiornamento in coda.',
+  running: 'Aggiornamento in corso.',
+  current: 'Dati terreni aggiornati.',
+  credentials: 'Servono credenziali Copernicus valide.',
+  failed: 'Aggiornamento non riuscito. Puoi riprovare.',
+  empty: 'Nessuna immagine disponibile per questa compresa.',
+};
 export const CARTOGRAPHY_ROAD_NEEDS_LINE = 'Per salvare la strada, la geometria deve essere una sola linea.';
 export const CARTOGRAPHY_PROMOTE_GEOMETRY = 'Il disegno deve contenere una sola linea oppure solo poligoni.';
 export const CARTOGRAPHY_PROMOTE_ROAD_TYPE = 'Aggiungi un tipo di viabilità attivo per creare una strada.';

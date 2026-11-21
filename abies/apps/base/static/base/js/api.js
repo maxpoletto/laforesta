@@ -30,7 +30,9 @@ export async function fetchJSON(url, lastModified = null, etag = null) {
     };
   }
   if (!resp.ok) {
-    throw new Error(`GET ${url}: ${resp.status}`);
+    const error = new Error(`GET ${url}: ${resp.status}`);
+    error.status = resp.status;
+    throw error;
   }
   const data = await resp.json();
   return {

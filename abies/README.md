@@ -97,45 +97,18 @@ uploads if present, and regenerates JSON digests. For smaller steps, use `make m
 `make bootstrap`, `make geo`, `make stage-marks-uploads`, `make digest`, and
 `make admin`. Run `make help` for the full local and remote target list.
 
-Satellite data is optional for local development unless you need the Bosco
-satellite layers. After importing the parcel map into SQLite, create
-`.env.satellite` from `.env.satellite.example`, set the Copernicus Data Space
-Ecosystem OAuth client credentials, then run:
+For Bosco satellite layers, save the Copernicus credentials in **Impostazioni
+→ Generali → Credenziali API satellitare** after following the
+[satellite setup instructions](INSTALL.md#satellite-imagery). Run
+`make terrain-worker` alongside `make serve` locally. A hosted Compose stack
+runs the worker as the `terrain` service. Compatible rasters already under
+`data/satellite/<map_key>/` are available for reuse during the first refresh.
+[Satellite refresh and publication](docs/satellite-refresh.md)
 
-```sh
-make satellite
-```
-
-This writes dates, downloaded rasters, `manifest.json`, `parcel-mask.tif`, and
-`timeseries.json` under `data/satellite/<map_key>/`. For smaller steps, use
-`make satellite-dates`, `make satellite-fetch`, and
-`make satellite-precompute`.
-
-Satellite and printable-map directories use the same permanent UUID for a
-compresa. On upgrade, make any existing generated-map directories available
-for writing during the usual `make migrate`. It moves the old directories in
-place and updates the parcel labels in the summaries. The existing rasters
-can be used immediately.
-For a rollback, restore the previous database and generated directories together.
-
-To regenerate the complete dataset, build into an empty output directory:
-
-```sh
-make satellite SATELLITE_DIR=data/satellite-build
-```
-
-The build downloads the selected dates and regenerates masks, manifests and
-time series. Each region uses a single WGS84 raster grid derived from its
-geometry and nominal resolution; precomputation rejects incompatible rasters.
-Initial builds of the same named compresa use the same UUID on separate
-installations. After renaming a compresa or reusing a name, use the target
-catalog for builds you intend to sync. To publish a validated build:
-
-```sh
-make sync-satellite-dev SATELLITE_DIR=data/satellite-build
-```
-
-Use a fresh output directory when the geometry or raster-grid definition changes.
+For offline diagnostics, `make satellite SATELLITE_DIR=data/satellite-build`
+builds a standalone copy using the credentials from `.env.satellite`. The
+legacy sync targets copy those standalone rasters while preserving directories
+published by the live worker.
 
 Printable-map context is optional and initialized separately from satellite
 imagery. It requires no API account: roads and water come from OpenStreetMap,
@@ -163,8 +136,8 @@ make sync-map-context-dev
 make sync-map-context-prod
 ```
 
-These targets use the standard dev/prod data directory. `sync-data` continues
-to sync canonical and satellite inputs; map context uses its explicit target.
+These targets use the standard dev/prod data directory. The legacy
+`sync-data` target copies canonical inputs and standalone satellite rasters.
 The browser loads the local snapshot when opening the print modal. Printing
 and scale changes make no requests to OSM or Copernicus. If data is missing or
 outdated for the parcel geometry, the modal offers the plain parcel map.
@@ -391,11 +364,8 @@ Adjust names and ports as needed.
    canonical CSVs without bootstrapping, use `make sync-canonical-dev` or
    `make sync-canonical-prod`.
 
-   Satellite data is not loaded into the database. It is a runtime artifact
-   served from `data/satellite`; build it locally with `make satellite`, then
-   sync it with `make sync-satellite-dev` or `make sync-satellite-prod`. If both
-   canonical and generated satellite data should be copied to the VM without
-   bootstrapping, use `make sync-data-dev` or `make sync-data-prod`. The
+   The `terrain` service updates satellite data under `data/satellite`.
+   Admins configure the Copernicus pair in Abies. The
    bootstrap script runs migrations, imports the catalog and optional map
    together, stages `data/canonical/marks/*.csv` into the Ipso inbox, and
    regenerates all digests. It requires an empty forestry catalog.
