@@ -2,14 +2,45 @@
 import errno
 import runpy
 import signal
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import Mock, call
 
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def launcher_module():
-    launcher = Path(__file__).resolve().parents[1] / 'bin' / 'run-local.py'
-    return runpy.run_path(str(launcher))
+    return runpy.run_path(str(ROOT / 'bin' / 'run-local.py'))
+
+
+def make_plan(target):
+    return subprocess.run(['make', '-n', target], cwd=ROOT, check=True,
+                          capture_output=True, text=True).stdout
+
+
+@pytest.mark.parametrize(('target', 'commands'), [
+    ('local', ['manage.py migrate']),
+    ('run-local', ['bin/run-local.py']),
+    ('deploy-local', ['bin/sync-branding', 'manage.py migrate', 'bin/run-local.py']),
+])
+def test_local_setup_and_start_preserve_the_database(target, commands):
+    plan = make_plan(target)
+    for command in commands:
+        assert command in plan
+    assert 'rm -f data/db.sqlite3' not in plan
+    assert 'rm -rf data/ipso-inbox' not in plan
+    assert 'bin/load-canonical-data' not in plan
+
+
+def test_reset_local_explicitly_reloads_canonical_data():
+    plan = make_plan('reset-local')
+    assert 'rm -f data/db.sqlite3' in plan
+    assert 'rm -rf data/ipso-inbox' in plan
+    assert 'bin/load-canonical-data' in plan
 
 
 def test_exited_server_group_does_not_interrupt_worker_cleanup(monkeypatch):

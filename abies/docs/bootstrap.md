@@ -14,17 +14,18 @@ python3 manage.py bootstrap <data_dir> --check
 `--check` validates and reports what would be loaded, then rolls back. A normal
 run also rolls back if any file has errors.
 
-The local initialization shortcut is:
+Stop the local app before running `make reset-local` to replace the local
+database and Ipso inbox with the canonical bundle.
 
 ```sh
-make local
+make reset-local
 ```
 
-That target resets the local database, runs the shared canonical-data load
-sequence, creates the local admin user, and links templates. The shared
-sequence migrates, bootstraps the catalog and optional parcel map, stages
-converted mark uploads if present, and generates digests. `make bootstrap` runs only the bootstrap
-command against `$(CANONICAL_DIR)`.
+The target runs the shared canonical-data load sequence, creates the local
+admin user, and links templates. The shared sequence migrates, bootstraps the
+catalog and optional parcel map, stages converted mark uploads if present, and
+generates digests. `make bootstrap` runs only the bootstrap command against
+`$(CANONICAL_DIR)`.
 
 ## Contract
 
@@ -77,7 +78,8 @@ The command loads files in dependency order:
 9. Harvest rows: `harvests.csv`.
 
 After bootstrap, run the mark-staging and digest steps, usually
-through `bin/load-canonical-data` or the broader `make local` target.
+through `bin/load-canonical-data`. `make reset-local` includes these steps when
+rebuilding from scratch.
 
 ## Updating parcels in a live instance
 
@@ -185,5 +187,5 @@ knows only the canonical files above and defaults to `data/canonical` in local
 make targets. Converted mark uploads may be placed in
 `data/canonical/marks/*.csv`; `make stage-marks-uploads` stages them
 into the Ipso inbox after bootstrap has loaded parcel and species IDs. Local
-`make local` and remote `make bootstrap-dev`/`make bootstrap-prod` both run that
-staging step through `bin/load-canonical-data`.
+`make reset-local` and remote `make bootstrap-dev`/`make bootstrap-prod` run
+that staging step through `bin/load-canonical-data`.

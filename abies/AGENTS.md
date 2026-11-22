@@ -342,10 +342,10 @@ virtualenv, matching production and CI. Install with
 `python -m pip install --require-hashes -r requirements-dev.txt`.
 `data/` holds `db.sqlite3`, `canonical/`, `digests/`, `geo/`, and `ipso-inbox/`.
 
-- `make local`: reset and initialize local data from the canonical bundle.
-- `make local-no-reset`: apply migrations and link templates while preserving local data.
-- `make run-local`: run Django and the terrain worker together in the foreground.
-- `make deploy-local`: run `make local` followed by `make run-local`.
+- `make local`: apply migrations and link templates while preserving local data.
+- `make reset-local`: explicitly replace the local database and inbox from the canonical bundle.
+- `make run-local`: run Django and the terrain worker in the foreground with existing data.
+- `make deploy-local`: sync branding, run `make local`, then run `make run-local`.
 - `make migrate`: run Django migrations.
 - `make bootstrap`: load canonical CSVs from `CANONICAL_DIR` into an empty DB.
 - `make geo`: import an optional initial parcel map into SQLite (see `INSTALL.md`).

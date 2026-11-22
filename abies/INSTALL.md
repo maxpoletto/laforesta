@@ -22,7 +22,9 @@ that supports SQLite WAL.
    Italian), and create the first admin. The admin command prompts for credentials.
 
    ```sh
-   make sync-branding migrate link-templates admin
+   make sync-branding
+   make local
+   make admin
    ```
 
 4. Choose the initial data.

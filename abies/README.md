@@ -89,15 +89,16 @@ shell-sources this file for local targets only; remote dev/prod deploys use
 make local
 ```
 
-`make local` resets the local SQLite database and Ipso inbox, runs the shared
-canonical-data load sequence, creates or asks for an admin user, and materializes
-language-template symlinks. The shared sequence runs migrations, bootstraps
-the catalog and optional map from `data/canonical`, stages converted mark
-uploads if present, and regenerates JSON digests. To prepare an existing
-local database, `make local-no-reset` applies migrations and links templates
-while preserving data and saved credentials. For smaller steps, use
-`make migrate`, `make bootstrap`, `make geo`, `make stage-marks-uploads`,
-`make digest`, and `make admin`. Run `make help` for the full target list.
+`make local` applies migrations to the local SQLite database and links
+language-specific templates. On a fresh instance, use `make sync-branding`
+to install branding and `make admin` to create the first admin. See the
+[installation guide](INSTALL.md) for initial data options.
+
+To deliberately rebuild from the canonical bundle, run `make stop-local` and
+invoke `make reset-local` directly. It replaces the local SQLite database and
+Ipso inbox, loads the catalog and optional map from `data/canonical`, stages
+converted mark uploads, regenerates digests, and creates the admin. Run
+`make help` for the full target list.
 
 Local files live under the checkout's gitignored `data/` directory.
 `data/db.sqlite3` is the database, `data/canonical/` contains the bootstrap
@@ -194,10 +195,10 @@ Finally, start the development server and terrain worker with:
 make run-local
 ```
 
-`make deploy-local` runs `make local` followed by `make run-local`. It
-rebuilds the local database and Ipso inbox from your canonical data before
-starting both processes. With `lsof` available, `make run-local` replaces an
-Abies development server listening on the chosen port from the same checkout.
+`make run-local` starts both processes with the existing local data.
+`make deploy-local` syncs branding, runs `make local`, and then starts both
+processes with `make run-local`. With `lsof` available, `make run-local` replaces
+an Abies development server listening on the chosen port from the same checkout.
 If the previous launcher has a terrain worker, both processes stop together.
 If another checkout or application owns port 8000, use
 `make run-local LOCAL_PORT=8001` and open `http://127.0.0.1:8001/`.

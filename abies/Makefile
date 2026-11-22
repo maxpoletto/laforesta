@@ -39,8 +39,8 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 # unsuffixed <name>.html symlinks are materialized at install time.
 
 .PHONY: help \
-        check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding \
-        local local-no-reset run-local stop-local deploy-local serve sync-prod-to-local \
+        check migrate load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding \
+        local reset-local run-local stop-local deploy-local serve sync-prod-to-local \
         satellite satellite-dates satellite-fetch satellite-precompute terrain-worker \
         map-context sync-map-context sync-map-context-dev sync-map-context-prod \
         collectstatic minify \
@@ -52,12 +52,12 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 
 help:
 	@echo "Local development:"
-	@echo "  make local                       reset local DB, load canonical data, create admin"
-	@echo "  make local-no-reset              migrate local DB and link templates, preserving data"
+	@echo "  make local                       migrate the local DB and link templates"
+	@echo "  make reset-local                 replace the local DB and inbox with canonical data"
 	@echo "  make sync-prod-to-local          restore a fresh production snapshot locally"
 	@echo "  make run-local [LOCAL_PORT=8000] run Django and the terrain worker in the foreground"
 	@echo "  make stop-local                  stop Django and terrain processes from this checkout"
-	@echo "  make deploy-local                reset and initialize local data, then run both processes"
+	@echo "  make deploy-local                prepare local setup, then run both processes"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
 	@echo "  make test-print-js-coverage      report print renderer/modal JS coverage"
@@ -101,11 +101,6 @@ migrate:
 	mkdir -p data
 	$(MANAGE) makemigrations
 	$(MANAGE) migrate
-
-# `make local` resets the database before loading the canonical data.
-reset-db:
-	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
-	rm -rf data/ipso-inbox
 
 load-canonical-data:
 	mkdir -p data
@@ -153,14 +148,16 @@ admin:
 link-templates:
 	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
 
-local: export ABIES_LEGACY_GEO_DIR =
-local: sync-branding
-	$(MAKE) reset-db
+local: migrate link-templates
+
+# Run this target directly when replacing the local runtime data is intended.
+reset-local: export ABIES_LEGACY_GEO_DIR =
+reset-local: sync-branding link-templates
+	@test -d "$(CANONICAL_DIR)" || { echo "error: CANONICAL_DIR='$(CANONICAL_DIR)' does not exist" >&2; exit 1; }
+	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
+	rm -rf data/ipso-inbox
 	$(MAKE) load-canonical-data
 	$(MAKE) admin
-	$(MAKE) link-templates
-
-local-no-reset: migrate link-templates
 
 sync-prod-to-local: link-templates
 	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" $(PYTHON) bin/sync-prod-to-local.py $(SYNC_ARGS)
@@ -171,7 +168,7 @@ run-local:
 stop-local:
 	$(PYTHON) bin/run-local.py --stop
 
-deploy-local: local
+deploy-local: sync-branding local
 	$(MAKE) run-local
 
 serve:
