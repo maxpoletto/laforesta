@@ -99,7 +99,8 @@ S (string constants) provided by the shell's render context.
       {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
         <p>Versione software: <code>{{ ABIES_VERSION }}</code></p>
       {% endif %}
-      <p>Icone di <a href="https://www.flaticon.com/authors/th-studio">th studio</a> da Flaticon.com.</p>
+      <p>Icone di <a href="https://www.flaticon.com/authors/th-studio">th studio</a> da Flaticon.com.
+        <a href="https://www.flaticon.com/free-icon/help_4989511">Icona della guida da Flaticon.com</a>.</p>
       <p>Dati LiDAR da <a href="https://doi.org/10.13127/tinitaly/1.1">INGV TINITALY 1.1</a>
         (Tarquini et al., 2023 · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).</p>
       <p lang="en">Contains modified <a href="https://dataspace.copernicus.eu/">Copernicus Sentinel data</a> since 2015.</p>
@@ -211,51 +212,55 @@ S (string constants) provided by the shell's render context.
     <div id="settings-cartografia" data-settings-panel hidden>
       <div class="map-workspace cartography-layout">
         <div id="cartography-map" class="map-workspace-host">
-          <div class="cartography-map-tools" data-role="map-tools" hidden>
-            <div class="cartography-buttons" data-role="draw-tools">
-              <button class="btn cartography-map-icon" data-action="line" aria-label="Linea" title="Linea" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 18 10 6l10 8"/><path class="cartography-tool-vertices" d="M4 18h.01M10 6h.01M20 14h.01"/>
-                </svg>
+          <div class="cartography-map-controls" data-role="map-controls">
+            <button type="button" class="btn cartography-map-icon cartography-help-icon" data-action="open-help"
+                    title="Guida alla cartografia" aria-label="Guida alla cartografia" aria-haspopup="dialog"></button>
+            <div class="cartography-map-tools" data-role="map-tools" hidden>
+              <div class="cartography-buttons" data-role="draw-tools">
+                <button class="btn cartography-map-icon" data-action="line" aria-label="Linea" title="Linea" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 18 10 6l10 8"/><path class="cartography-tool-vertices" d="M4 18h.01M10 6h.01M20 14h.01"/>
+                  </svg>
+                </button>
+                <button class="btn cartography-map-icon" data-action="polygon" aria-label="Poligono" title="Poligono" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m4 17 4-12 12 4-3 10Z"/><path class="cartography-tool-vertices" d="M4 17h.01M8 5h.01M20 9h.01M17 19h.01"/>
+                  </svg>
+                </button>
+              </div>
+              <button class="btn cartography-map-icon cartography-follow-icon" data-action="follow-boundary"
+                      title="Segui confine" aria-label="Segui confine" aria-pressed="false" hidden disabled></button>
+              <button class="btn cartography-map-icon cartography-reduce-icon" data-action="reduce-vertices"
+                      aria-label="Riduci vertici" hidden disabled></button>
+              <button class="btn cartography-map-icon" data-action="join-link" title="Unisci estremi"
+                      aria-label="Unisci estremi" aria-pressed="false" hidden disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/></svg>
               </button>
-              <button class="btn cartography-map-icon" data-action="polygon" aria-label="Poligono" title="Poligono" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m4 17 4-12 12 4-3 10Z"/><path class="cartography-tool-vertices" d="M4 17h.01M8 5h.01M20 9h.01M17 19h.01"/>
-                </svg>
+              <button class="btn cartography-map-icon" data-action="break-link" title="Interrompi al vertice"
+                      aria-label="Interrompi al vertice" hidden disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3M5 7l2-2m10 14 2-2M9 5l1-2m10 11 2-1"/></svg>
+              </button>
+              <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
+                      aria-label="Rimuovi vertice" hidden disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/></svg>
+              </button>
+              <button class="btn cartography-map-icon" data-action="undo" title="Annulla ultimo passo"
+                      aria-label="Annulla ultimo passo" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
+              </button>
+              <button class="btn cartography-map-icon" data-action="cancel" title="{{ S.CANCEL }}"
+                      aria-label="{{ S.CANCEL }}" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+              </button>
+              <button class="btn btn-save cartography-map-icon" data-action="finish" title="Termina"
+                      aria-label="Termina" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
+              </button>
+              <button class="btn btn-save cartography-map-icon" data-action="save" title="{{ S.SAVE }}"
+                      aria-label="{{ S.SAVE }}" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
               </button>
             </div>
-            <button class="btn cartography-map-icon cartography-follow-icon" data-action="follow-boundary"
-                    title="Segui confine" aria-label="Segui confine" aria-pressed="false" hidden disabled></button>
-            <button class="btn cartography-map-icon cartography-reduce-icon" data-action="reduce-vertices"
-                    aria-label="Riduci vertici" hidden disabled></button>
-            <button class="btn cartography-map-icon" data-action="join-link" title="Unisci estremi"
-                    aria-label="Unisci estremi" aria-pressed="false" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/></svg>
-            </button>
-            <button class="btn cartography-map-icon" data-action="break-link" title="Interrompi al vertice"
-                    aria-label="Interrompi al vertice" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3M5 7l2-2m10 14 2-2M9 5l1-2m10 11 2-1"/></svg>
-            </button>
-            <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
-                    aria-label="Rimuovi vertice" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/></svg>
-            </button>
-            <button class="btn cartography-map-icon" data-action="undo" title="Annulla ultimo passo"
-                    aria-label="Annulla ultimo passo" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
-            </button>
-            <button class="btn cartography-map-icon" data-action="cancel" title="{{ S.CANCEL }}"
-                    aria-label="{{ S.CANCEL }}" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-            </button>
-            <button class="btn btn-save cartography-map-icon" data-action="finish" title="Termina"
-                    aria-label="Termina" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
-            </button>
-            <button class="btn btn-save cartography-map-icon" data-action="save" title="{{ S.SAVE }}"
-                    aria-label="{{ S.SAVE }}" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
-            </button>
           </div>
         </div>
         <aside id="cartography-sidebar" class="map-workspace-sidebar" aria-label="Controlli cartografia">
@@ -340,6 +345,33 @@ S (string constants) provided by the shell's render context.
     <div class="form-actions">
       <button type="button" class="btn" data-action="reject">Rifiuta</button>
       <button type="button" class="btn btn-save" data-action="accept">Accetta</button>
+    </div>
+  </div>
+</template>
+
+<template id="tmpl-cartography-help">
+  <div class="cartography-help" role="dialog" aria-modal="true" aria-labelledby="cartography-help-title">
+    <h2 id="cartography-help-title" tabindex="-1">Guida alla cartografia</h2>
+    <p>Scegli una <strong>Compresa</strong> nel pannello laterale. Le icone a forma di occhio
+      mostrano o nascondono gli elementi sulla mappa.</p>
+    <p><strong>Particelle e strade.</strong> Seleziona un elemento nella lista o sulla mappa.
+      Usa <strong>{{ S.ACTION_PROPERTIES }}</strong> per cambiare i suoi dati, <strong>Confini</strong> per
+      correggere il contorno di una particella o <strong>Punti</strong> per modificare il
+      tracciato di una strada. I vertici condivisi tra particelle si spostano insieme.</p>
+    <p><strong>Disegni.</strong> Usa <strong>Nuovo</strong> per tracciare una linea o un poligono,
+      oppure <strong>{{ S.IMPORT_LABEL }}…</strong> per partire da file, percorsi Ipso o rilevamenti.
+      Per chiudere un poligono, tocca il primo vertice. Usa <strong>Modifica</strong> per
+      continuare a lavorare su un disegno.</p>
+    <p><strong>Modifica sulla mappa.</strong> Trascina un vertice per spostarlo o tocca la
+      maniglia tra due vertici per inserirne uno. Il cestino elimina il vertice selezionato.
+      In un disegno puoi anche selezionare e cancellare un’intera linea o un intero poligono.
+      Le icone a catena uniscono gli estremi o interrompono un tracciato. La freccia
+      annulla l’ultimo passo, la spunta conferma e la X esce senza salvare.</p>
+    <p><strong>Promuovi.</strong> Una singola linea può diventare una strada. Uno o più
+      poligoni possono formare una nuova particella o essere aggiunti a una esistente.
+      La promozione rende il risultato visibile in Abies.</p>
+    <div class="form-actions">
+      <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
     </div>
   </div>
 </template>

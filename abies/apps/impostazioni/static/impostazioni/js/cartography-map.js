@@ -19,7 +19,7 @@ function fixLabel(fix) {
 }
 
 export class CartographyMap {
-  constructor(container, parcels, regionName, onSelect, basemap, onPlace, tools, initialView) {
+  constructor(container, parcels, regionName, onSelect, basemap, onPlace, controls, initialView) {
     const features = parcels.features.filter(f => parcelIdentity(f).regionName === regionName);
     this.parcels = new ParcelMap({
       container, geojson: {type: 'FeatureCollection', features}, basemap, initialView,
@@ -48,12 +48,12 @@ export class CartographyMap {
     this.editedParcels = [];
     this.toolbar = L.control({position: 'topleft'});
     this.toolbar.onAdd = () => {
-      L.DomEvent.disableClickPropagation(tools);
-      return tools;
+      L.DomEvent.disableClickPropagation(controls);
+      return controls;
     };
     this.toolbar.onRemove = () => {
-      tools.hidden = true;
-      container.append(tools);
+      controls.querySelector('[data-role=map-tools]').hidden = true;
+      container.append(controls);
     };
     this.toolbar.addTo(this.map);
   }

@@ -55,7 +55,8 @@ export class CartographyEditor {
       parcel: panel.querySelector('#cartography-parcels'),
       road: panel.querySelector('#cartography-roads'),
     };
-    this.mapTools = panel.querySelector('[data-role=map-tools]');
+    this.mapControls = panel.querySelector('[data-role=map-controls]');
+    this.mapTools = this.mapControls.querySelector('[data-role=map-tools]');
     this.status = panel.querySelector('[role=status]');
     this.terrainStatus = panel.querySelector('[data-role=terrain-status]');
     this.buttons = Object.fromEntries([...panel.querySelectorAll('[data-action]')].map(b => [b.dataset.action, b]));
@@ -143,7 +144,7 @@ export class CartographyEditor {
     } : undefined;
     this.map?.destroy();
     this.map = new CartographyMap(this.panel.querySelector('#cartography-map'), this.geo, region.name,
-      (kind, id) => this.select(kind, id), mapTypeName(this.mt), ll => this.place(ll), this.mapTools, initialView);
+      (kind, id) => this.select(kind, id), mapTypeName(this.mt), ll => this.place(ll), this.mapControls, initialView);
     this.map.map.on('basemapchange', e => this.navigate(region.id, mapTypeToken(e.name)));
   }
 
@@ -767,6 +768,15 @@ export class CartographyEditor {
     const target = button.closest('[data-kind]')?.dataset;
     const row = this.selected;
     switch (action) {
+      case 'open-help': {
+        const help = cloneTemplate('tmpl-cartography-help');
+        const heading = help.querySelector('h2');
+        wireCancelButtons(help, modals.dismiss);
+        modals.show(help);
+        modals.onDismiss(() => button.focus({preventScroll: true}));
+        heading.focus({preventScroll: true});
+        break;
+      }
       case 'refresh-terrain':
         this.refreshTerrainStatus(this.generation, true);
         break;

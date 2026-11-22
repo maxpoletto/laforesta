@@ -20,6 +20,9 @@ directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).
 
 ## Cartografia
 
+The question mark below the sidebar toggle opens a short guide to editing the
+map. **Chiudi** and Escape return to the current map or edit.
+
 The sidebar starts with **Compresa**, then shows **Particelle**, **Strade**,
 and **Disegni**. Only **Disegni** can be collapsed. Each list grows with its
 contents and scrolls after six rows. The eye icons control map visibility

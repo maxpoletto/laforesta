@@ -83,6 +83,8 @@ The shared table and map controls also use local WebP versions of th studio’s
 Cartografia uses th studio’s [Distance](https://www.flaticon.com/free-icon/distance_7481955)
 for **Segui confine** and [Shrink](https://www.flaticon.com/free-icon/shrink_4663276)
 for **Riduci vertici**.
+The Cartografia guide uses a local WebP of the Flaticon
+[Help icon](https://www.flaticon.com/free-icon/help_4989511), linked in the same footer.
 
 ## Initial installation
 

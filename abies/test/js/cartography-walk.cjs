@@ -45,9 +45,11 @@ async function walk(browser) {
     const padding = parseFloat(getComputedStyle(content).paddingBottom);
     return footer && Math.abs(footer.getBoundingClientRect().bottom - (innerHeight - padding)) < 1;
   });
-  const credits = footer.locator('a[href*="flaticon.com"]');
+  const credits = footer.getByRole('link', {name: 'th studio', exact: true});
   assert.equal(await credits.getAttribute('href'), 'https://www.flaticon.com/authors/th-studio');
   assert.equal(await credits.textContent(), 'th studio');
+  assert.equal(await footer.getByRole('link', {name: 'Icona della guida da Flaticon.com'}).getAttribute('href'),
+    'https://www.flaticon.com/free-icon/help_4989511');
   assert.match(await footer.textContent(), /INGV TINITALY 1.1/);
   assert.match(await footer.textContent(), /Contains modified Copernicus Sentinel data since 2015/);
   assert.equal(await footer.locator('a[href^="https://doi.org/10.1038/"]').getAttribute('href'),
@@ -65,6 +67,13 @@ async function walk(browser) {
   }
   const sidebar = loc('#cartography-sidebar');
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
+  const help = action('open-help');
+  const helpDialog = modal.getByRole('dialog', {name: 'Guida alla cartografia'});
+  await help.click();
+  await helpDialog.waitFor();
+  await helpDialog.getByRole('button', {name: 'Chiudi', exact: true}).click();
+  await helpDialog.waitFor({state: 'hidden'});
+  assert.ok(await help.evaluate(button => button === document.activeElement));
   assert.equal(await sidebar.locator('[data-action=save], [data-action=cancel], [data-action=finish]').count(), 0);
   assert.equal(await loc('#cartography-map [data-action=save] svg').count(), 1);
   assert.equal(await loc('#cartography-map [data-action=cancel] svg').count(), 1);
@@ -398,11 +407,22 @@ async function walk(browser) {
   for (let i = 0; i < 4; i++) await loc('#cartography-map .leaflet-control-zoom-in').click();
   const lineIcon = await action('line').boundingBox();
   const polygonIcon = await action('polygon').boundingBox();
+  const helpIcon = await help.boundingBox();
+  const menuControl = await sidebarToggle.locator('..').boundingBox();
+  const pinControl = await loc('#cartography-map .mc-pin').locator('..').boundingBox();
+  assert.equal(helpIcon.y - menuControl.y - menuControl.height,
+    menuControl.y - pinControl.y - pinControl.height);
+  assert.equal(lineIcon.y - helpIcon.y - helpIcon.height, helpIcon.y - menuControl.y - menuControl.height);
   assert.equal(lineIcon.x, polygonIcon.x);
   assert.ok(lineIcon.y + lineIcon.height <= polygonIcon.y);
   const map = loc('#cartography-map .leaflet-container');
   await action('line').click();
   await map.click({position: {x: 100, y: 295}});
+  await help.click();
+  await helpDialog.waitFor();
+  await page.keyboard.press('Escape');
+  await helpDialog.waitFor({state: 'hidden'});
+  assert.ok(await help.evaluate(button => button === document.activeElement));
   await map.click({position: {x: 165, y: 295}});
   await action('finish').click();
   await checkNameField();
