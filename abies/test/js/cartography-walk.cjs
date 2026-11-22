@@ -59,6 +59,8 @@ async function walk(browser) {
   const credits = loc('#settings-generali footer a[href*="flaticon.com"]');
   assert.equal(await credits.getAttribute('href'), 'https://www.flaticon.com/authors/th-studio');
   assert.equal(await credits.textContent(), 'th studio');
+  assert.match(await loc('#settings-generali footer').textContent(), /INGV TINITALY 1.1/);
+  assert.match(await loc('#settings-generali footer').textContent(), /Copernicus Sentinel-2/);
   assert.equal(await loc('#settings-cartografia a[href*="flaticon.com"]').count(), 0);
   await drawingSummary.click();
   assert.ok(await action('open-import').isHidden());
@@ -640,7 +642,7 @@ async function walk(browser) {
   assert.equal(await characteristic.locator('optgroup:has(option[value="11"])').getAttribute('label'),
     'Dati satellitari e LiDAR');
   await page.waitForFunction(() => document.querySelector('.leaflet-bosco-hillshade-pane img')?.naturalWidth === 1);
-  assert.match(await loc('[data-target="legend"]').textContent(), /INGV TINITALY 1.1/);
+  assert.equal(await loc('[data-target="legend"]').textContent(), '');
   await characteristic.evaluate(select => {
     select.value = '0';
     select.dispatchEvent(new Event('change'));

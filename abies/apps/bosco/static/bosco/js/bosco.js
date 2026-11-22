@@ -1102,11 +1102,7 @@ async function renderHillshade() {
     if (hillshade !== view) return;
     view.url = URL.createObjectURL(image);
     view.layer = L.imageOverlay(view.url, bounds, {pane}).addTo(leaflet);
-    const credit = document.createElement('a');
-    credit.className = 'bosco-legend-note';
-    credit.href = 'https://doi.org/10.13127/tinitaly/1.1';
-    credit.textContent = S.BOSCO_HILLSHADE_CREDIT;
-    legendEl?.replaceChildren(credit);
+    clearLegend();
   } catch {
     if (hillshade === view) renderMessageLegend(S.BOSCO_HILLSHADE_UNAVAILABLE);
   }

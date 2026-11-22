@@ -88,8 +88,8 @@ parcels opens on its roads.
 
   **Rilievo ombreggiato (10 m)** overlays hillshade from the INGV TINITALY
   1.1 bare-earth elevation grid. Parcel outlines and published roads appear
-  above the image. The legend credits the elevation source. The terrain
-  worker prepares the image after map changes or when a writer uses
+  above the image. **Impostazioni → Generali** credits the elevation source.
+  The terrain worker prepares the image after map changes or when a writer uses
   **Aggiorna dati dei terreni** in Cartografia.
   [Terrain refresh](satellite-refresh.md#ingv-hillshade)
 
