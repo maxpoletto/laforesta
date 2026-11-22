@@ -22,18 +22,24 @@ const MapCommon = (function() {
         osm: {
             url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
             attribution: '© OpenStreetMap',
+            maxZoom: 20,
+            maxNativeZoom: 19,
             label: S.BASEMAP_OSM,
             icon: BASEMAP_ICON_BASE + 'basemap-osm.png',
         },
         satellite: {
             url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             attribution: '© Esri',
+            maxZoom: 20,
+            // World Imagery has level 20 in some places, with gaps in rural coverage.
+            maxNativeZoom: 19,
             label: S.BASEMAP_SAT,
             icon: BASEMAP_ICON_BASE + 'basemap-sat.png',
         },
         topo: {
             url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
             attribution: '© OpenTopoMap',
+            maxZoom: 17,
             label: S.BASEMAP_TOPO,
             icon: BASEMAP_ICON_BASE + 'basemap-topo.png',
         },
@@ -71,8 +77,8 @@ const MapCommon = (function() {
 
         // --- Basemap functions ---
         function createBasemapLayer(name) {
-            const basemap = BASEMAPS[name] || BASEMAPS.satellite;
-            return L.tileLayer(basemap.url, { attribution: basemap.attribution });
+            const { url, attribution, maxZoom, maxNativeZoom } = BASEMAPS[name] || BASEMAPS.satellite;
+            return L.tileLayer(url, { attribution, maxZoom, maxNativeZoom });
         }
 
         function setBasemap(name) {

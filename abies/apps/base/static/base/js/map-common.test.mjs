@@ -45,7 +45,7 @@ global.L = {
     };
     return leaflet;
   },
-  tileLayer(url) { return { url, addTo(map) { this.map = map; return this; } }; },
+  tileLayer(url, options) { return { url, options, addTo(map) { map.basemap = this; return this; } }; },
   control: { zoom: () => ({ addTo() {} }) },
   Control: {
     extend(proto) {
@@ -71,6 +71,8 @@ global.L = {
 
 const { default: MapCommon } = await import('./map-common.js');
 const wrapper = MapCommon.create('map', { basemap: 'satellite' });
+check(leaflet.basemap.options.maxZoom === 20 && leaflet.basemap.options.maxNativeZoom === 19,
+      'satellite zoom 20 enlarges level-19 imagery');
 check(leaflet.container.classList.contains('mc-basemap-satellite'),
       'initial satellite basemap marks the map container');
 check(leaflet.container.style.properties['--mc-semantic-marker-dark'] === '#d6a800'
@@ -82,6 +84,7 @@ const userChanges = [];
 leaflet.on('basemapstylechange', event => styles.push(event.name));
 leaflet.on('basemapchange', event => userChanges.push(event.name));
 wrapper.syncBasemap('topo');
+check(leaflet.basemap.options.maxZoom === 17, 'Topo display stops at zoom 17');
 check(wrapper.getBasemap() === 'topo'
       && !leaflet.container.classList.contains('mc-basemap-satellite')
       && leaflet.container.style.properties['--mc-semantic-marker-dark'] === '#2d5d2c',
@@ -94,6 +97,10 @@ wrapper.setBasemap('satellite');
 check(leaflet.container.classList.contains('mc-basemap-satellite')
       && JSON.stringify(styles) === JSON.stringify(['topo', 'satellite']),
       'direct change fires one style event and same-basemap calls do no work');
+
+wrapper.syncBasemap('osm');
+check(leaflet.basemap.options.maxZoom === 20 && leaflet.basemap.options.maxNativeZoom === 19,
+      'OSM zoom 20 enlarges level-19 tiles');
 
 console.log('map-common.js');
 if (failures.length) {

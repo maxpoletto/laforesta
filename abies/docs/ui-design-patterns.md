@@ -236,6 +236,9 @@ data / hover-tooltip / view-persistence mechanisms — see
 Satellite, default Satellite). Hover/tap expands to show all three; click
 selects. Present on every map; the choice persists in the `mt=` URL param.
 
+OSM and Satellite allow zoom 20 and enlarge level-19 tiles at that scale.
+Topo stops at zoom 17. Switching to Topo from a closer view zooms out to 17.
+
 **Parcel style.** All maps share one look — a warm yellow border with low fill
 opacity, so the imagery shows through. Don't inline a style block in a new map
 renderer; reuse the shared `PARCEL_STYLE` so the look stays consistent across
