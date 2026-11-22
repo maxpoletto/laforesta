@@ -6,18 +6,20 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { buildBboxIndex, parcelIdentity } from '../../../../base/static/base/js/geo.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { Store: RealStore } = createRequire(import.meta.url)('./store.js');
 const RealUpload = createRequire(import.meta.url)('./upload.js');
 const RealIpso = createRequire(import.meta.url)('./ipso.js');
+const { createLocator, createOverride } = createRequire(import.meta.url)('./parcel-locator.js');
 const { GPS_GREEN_M } = createRequire(import.meta.url)('./constants.js');
 const { S: catalog } = createRequire(import.meta.url)('./strings_it.js');
 const appSource = fs.readFileSync(path.join(here, 'app.js'), 'utf8') + `\n` +
   `globalThis.__ipsoAppTest = { State, boot, onSave, onEnd, onDeleteTree, updateSaveEnabled, ` +
   `showResumeModal, prefillNumber, currentRecord, currentObservationRecord, renderTreesTable, ` +
   `renderObservationsTable, onObservationPhotosPicked, renderGpsStatus, ` +
-  `captureCameraPhotoPosition, wireModeSelection, onHeightMeasuredToggle, recomputeAutoH, ` +
+  `captureCameraPhotoPosition, wireModeSelection, wirePreSession, ensureMap, onHeightMeasuredToggle, recomputeAutoH, ` +
   `shouldAutoHeight, populateSpeciesOptions, validateReference, validateParcelFeatures, ` +
   `validateHistoryItem, validateHistoryDetail, formatHistoryMapRecordText, ` +
   `showHistoryScreen, loadHistoryDetail, ` +
@@ -175,6 +177,7 @@ function makeHarness({ storedToken = 'test-token', hash = '', serviceWorker = nu
     TOAST_BOOT_CACHE_ERROR: (msg) => `cache error: ${msg}`,
     TOAST_HISTORY_LOAD_ERROR: (msg) => `history error: ${msg}`,
     TOAST_REFERENCE_REQUIRED: 'reference required',
+    TOAST_SESSION_START_ERROR: catalog.TOAST_SESSION_START_ERROR,
     REC_OBSERVATION_PHOTO_OK: 'ok',
     REC_OBSERVATION_PHOTO_ERROR: 'errore',
     TOAST_PHOTO_PROCESS_ERROR: (msg) => `photo error: ${msg}`,
@@ -496,6 +499,47 @@ const session = {
   check(invalid, 'malformed region catalog is rejected before replacing the offline reference');
   check(!elements.get('field-point-name').hidden && elements.get('in-point-name').required,
         'point surveys ask for a name');
+}
+
+// Parcel-backed sessions open the recorder and use the same names on the map.
+{
+  const { context } = makeHarness();
+  const app = context.__ipsoAppTest;
+  const element = context.document.getElementById;
+  const region = 'Serra-Nord';
+  const parcel = { region_id: 1, parcel_id: 100, compresa: region, particella: '7a' };
+  const feature = {
+    type: 'Feature', properties: { layer: region, name: `${region}-7a`, region_id: 1, parcel_id: 100 },
+    geometry: { type: 'Polygon', coordinates: [[[16, 38], [16.01, 38], [16, 38.01], [16, 38]]] },
+  };
+  Object.assign(context, { buildBboxIndex, parcelIdentity, createLocator, createOverride });
+  context.createGps = () => ({ start() {} });
+  context.Store.startSession = async (_db, fields) => ({ id: 'mark-1', status: 'open', ...fields });
+  context.session.validateTree = () => [];
+  app.State.numpad = { clear() {}, setFocus() {}, value() { return ''; } };
+  app.State.reference = {
+    ...referenceFixture(), parcels: [parcel, { ...parcel, parcel_id: 101, particella: '8' }],
+  };
+  app.State.parcelFeatures = [feature];
+  element('in-operatore').value = 'Mario';
+  element('in-data').value = '2026-06-17';
+  element('in-compresa').value = region;
+  app.wirePreSession();
+  const [submit] = element('pre-form')._listeners.submit;
+  await submit({ preventDefault() {} });
+  eq(app.State.currentScreen, 'screen-rec', 'a parcel-backed martellata opens the recorder');
+  eq(element('toast').textContent, '', 'starting a parcel-backed session shows no error');
+  eq(app.State.session?.region_id, 1, 'the recording session keeps the selected region ID');
+  eq(element('in-particella-rec').options.map(option => option.value), ['__auto__', '7a'],
+     'the recorder offers the mapped parcel even when the region name contains a hyphen');
+
+  context.createOrientationMap = options => {
+    eq(options.featureName(feature), '7a', 'the orientation map uses the same parcel label');
+    eq(options.featureName({ properties: { layer: region, name: `${region}-8` } }), '8',
+       'the orientation map labels older GeoJSON without IDs');
+    return {};
+  };
+  app.ensureMap();
 }
 
 // A previously provisioned device keeps using the bearer secret stored before

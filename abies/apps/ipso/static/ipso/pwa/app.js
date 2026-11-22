@@ -1286,13 +1286,17 @@ function formatParcelText(feature) {
   return [label.title, label.type].filter((v) => v).join(' · ');
 }
 
+function parcelName(feature) {
+  return parcelIdentity(feature).parcelName;
+}
+
 function currentAutoParcelName() {
   if (isSamplesMode()) {
     const area = currentAutoSampleArea();
     return area ? area.particella : '';
   }
   if (!State.locator) return '';
-  return parcelIdentity(State.locator.getCommitted()).parcelName;
+  return parcelName(State.locator.getCommitted());
 }
 
 function currentParcelName() {
