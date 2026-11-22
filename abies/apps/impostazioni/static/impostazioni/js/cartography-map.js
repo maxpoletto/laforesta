@@ -171,7 +171,8 @@ export class CartographyMap {
     }
 
     draft.parts?.forEach((part, i) => {
-      const layer = this.partLayer(part, i === draft.active ? selectedStyle : drawingStyle).addTo(this.preview);
+      const style = i === draft.active ? selectedStyle : drawingStyle;
+      const layer = this.partLayer(part, {...style, className: 'cartography-draft-part'}).addTo(this.preview);
       if (i === draft.active) this.activeLayer = layer;
       layer.on('click', e => {
         if (draft.tool) callbacks.place(e.latlng);

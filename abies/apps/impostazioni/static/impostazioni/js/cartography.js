@@ -51,12 +51,10 @@ export class CartographyEditor {
       road: panel.querySelector('#cartography-roads'),
     };
     this.mapTools = panel.querySelector('[data-role=map-tools]');
-    this.parts = panel.querySelector('#cartography-parts');
     this.status = panel.querySelector('[role=status]');
     this.terrainStatus = panel.querySelector('[data-role=terrain-status]');
     this.buttons = Object.fromEntries([...panel.querySelectorAll('[data-action]')].map(b => [b.dataset.action, b]));
     const listen = (element, event, fn) => element.addEventListener(event, fn, {signal: this.life.signal});
-    listen(this.parts, 'change', () => this.selectPart(Number(this.parts.value)));
     listen(this.region, 'change', () => this.navigate(this.region.value));
     listen(panel.querySelector('#cartography-sidebar'), 'click', e => {
       if (!this.busy && !e.target.closest('button, label, select, input, .map-workspace-list')) this.select(null);
@@ -245,7 +243,6 @@ export class CartographyEditor {
     const road = this.state && this.kind === 'road' && this.selected;
     const drawingDraft = draft && !draft.kind;
     const parts = draft?.parts ?? drawing?.parts;
-    const part = drawingDraft && !draft.tool && parts[draft.active];
     b.edit.disabled = locked || !drawing;
     b['parcel-properties'].disabled = b.boundaries.disabled = locked || !parcel?.parcelId;
     b['parcel-properties'].title = b.boundaries.title = parcel && !parcel.parcelId ? S.CARTOGRAPHY_PARCEL_UNLINKED : '';
@@ -262,7 +259,6 @@ export class CartographyEditor {
     b.promote.disabled = !!this.busy || !!draft?.kind || !(promotableLine || promotablePolygon);
     b.promote.title = !draft?.kind && parts?.length && !promotableLine && !promotablePolygon
       ? (singleLine ? S.CARTOGRAPHY_PROMOTE_ROAD_TYPE : S.CARTOGRAPHY_PROMOTE_GEOMETRY) : '';
-    this.panel.querySelector('[data-role=parts]').hidden = !part;
     const incompleteRoad = draft?.kind === 'road' && parts.length
       && (parts.length !== 1 || parts[0].type !== 'LineString');
     b.save.hidden = !draft || !!draft.tool || !!draft.returnSelection;
@@ -289,8 +285,7 @@ export class CartographyEditor {
     b['join-link'].setAttribute('aria-pressed', String(!!draft?.join));
     b.finish.hidden = draft?.tool !== 'LineString';
     b.finish.disabled = !!this.busy || !draft?.tool || draft.vertices.length < 2;
-    b.cancel.disabled = b.copy.disabled = !!this.busy;
-    b['remove-part'].disabled = !!this.busy || !part || parts.length < 2;
+    b.cancel.disabled = !!this.busy;
     b.clear.disabled = locked || !this.state?.drawings.length;
     b['new-drawing'].disabled = b['open-import'].disabled = locked || !this.state;
     b['new-region'].disabled = locked;
@@ -411,10 +406,6 @@ export class CartographyEditor {
       : d.tool ? S.CARTOGRAPHY_PLACE
       : d.returnSelection ? S.CARTOGRAPHY_CHOOSE_TOOL
       : d.parts.length ? S.CARTOGRAPHY_DRAG : S.CARTOGRAPHY_EMPTY_EDIT;
-    if (!d.tool && !d.kind) {
-      this.parts.replaceChildren(...d.parts.map((p, i) => new Option(S.CARTOGRAPHY_PART(i + 1, p.type), i)));
-      this.parts.value = String(d.active);
-    }
     this.map.edit(d, {
       vertex: d.vertex,
       selectVertex: (ring, index) => { d.vertex = {ring, index}; this.updateButtons(); },
@@ -727,9 +718,6 @@ export class CartographyEditor {
         this.draft.vertex = null;
         this.refreshEdit();
         break;
-      case 'remove-part':
-        this.changeParts(removeActivePart);
-        break;
       case 'remove-vertex':
         this.removeSelectedVertex();
         break;
@@ -759,13 +747,6 @@ export class CartographyEditor {
             catch { modals.showError(S.ERROR_NETWORK); }
           }
         }, {confirmLabel: S.CARTOGRAPHY_DISCARD});
-        break;
-      }
-      case 'copy': {
-        const d = this.draft;
-        this.form('tmpl-cartography-drawing', body => this.write('copy', {
-          ...body, id: d.id, version: d.version, parts: [d.parts[d.active]],
-        }));
         break;
       }
       case 'save': {

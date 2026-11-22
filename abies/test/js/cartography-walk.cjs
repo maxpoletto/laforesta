@@ -224,19 +224,17 @@ async function walk(browser) {
   assert.ok(await action('edit').isDisabled());
   await drawings.first().locator('[data-action=select-item]').click();
   await action('edit').click();
-  assert.deepEqual(await loc('#cartography-parts option').allTextContents(),
-    ['1. Linea', '2. Punto', '3. Linea', '4. Linea']);
-  await loc('#cartography-parts').selectOption('3');
-  await action('copy').click();
-  await modal.getByLabel('Nome').fill('Laterale');
-  await modal.locator('button[type=submit]').click();
-  await page.waitForFunction(() => document.querySelector('#cartography-drawings').children.length === 2);
-  await action('remove-part').click();
-  await loc('#cartography-parts').selectOption('1');
-  await action('remove-part').click();
-  await loc('#cartography-parts').selectOption('0');
-  assert.ok(await action('promote').isDisabled());
+  const editParts = loc('.cartography-draft-part');
+  assert.equal(await loc('#cartography-parts').count(), 0);
+  assert.equal(await editParts.count(), 4);
   if (width < 800) await sidebarToggle.click();
+  await editParts.nth(3).click();
+  await removeFirstVertex();
+  await removeFirstVertex();
+  await editParts.nth(1).click();
+  await removeFirstVertex();
+  await editParts.first().click();
+  assert.ok(await action('promote').isDisabled());
   const joinWalk = async () => {
     await action('join-link').click();
     await loc('.cartography-endpoint[title="Linea 2: inizio"]').click();
@@ -256,14 +254,14 @@ async function walk(browser) {
   assert.ok(await action('remove-vertex').isEnabled());
   await action('break-link').click();
   if (width < 800) await sidebarToggle.click();
-  assert.equal(await loc('#cartography-parts option').count(), 2);
+  assert.equal(await editParts.count(), 2);
   if (width < 800) await sidebarToggle.click();
   await action('undo').click();
   if (width < 800) await sidebarToggle.click();
   await page.getByRole('link', {name: 'Dati di base', exact: true}).click();
   await page.getByRole('link', {name: 'Cartografia', exact: true}).click();
   await action('save').waitFor();
-  assert.equal(await loc('#cartography-parts option').count(), 1);
+  assert.equal(await editParts.count(), 1);
   if (width < 800) await sidebarToggle.click();
   const handle = loc('.cartography-vertex').first();
   const box = await handle.boundingBox();
@@ -276,7 +274,7 @@ async function walk(browser) {
   if (width < 800) await sidebarToggle.click();
   await action('promote').click();
   await modal.getByRole('button', {name: 'Annulla'}).click();
-  assert.equal(await loc('#cartography-parts option').count(), 1);
+  assert.equal(await editParts.count(), 1);
   await action('promote').click();
   await checkNameField();
   await modal.locator('input[name=name]').fill('Strada nord');
@@ -381,7 +379,7 @@ async function walk(browser) {
   assert.equal(await vertices.count(), 1);
   assert.ok(await action('join-link').isDisabled());
   if (width < 800) await sidebarToggle.click();
-  assert.deepEqual(await loc('#cartography-parts option').allTextContents(), ['1. Punto']);
+  assert.equal(await editParts.count(), 1);
   await action('save').click();
   await action('save').waitFor({state: 'hidden'});
   await action('edit').click();

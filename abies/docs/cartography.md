@@ -167,7 +167,8 @@ Below the list are the following buttons: **Modifica** **Promuovi**.
 
 **Modifica** makes the drawing editable. The map shows the vertex tools and
 allows new lines or polygons to be added. **Annulla** and **Salva** are in the
-map toolbar. The map editing tools appear only during an edit.
+map toolbar. Clicking a line, point or polygon on the map selects that part
+and shows its vertices. The map editing tools appear only during an edit.
 
 **Promuovi** opens a modal with the destinations available for the selected
 drawing. A line can become a new road. A polygon can become a new parcel or,
@@ -190,8 +191,6 @@ gate point, join the traces on either side of the gate, and inspect the
 connection before promoting the road. For a parcel, the operator can keep the
 traces that follow its boundary and close the outline.
 
-If the side road is also needed, the operator can copy that segment into a
-separate drawing before trimming the walk and promote each drawing in turn.
 After promotion, the complete walk is also available for a fresh import under
 **Da Ipso → Già importati**.
 
