@@ -241,8 +241,15 @@ def test_region_and_edit_guards(client, walk, regions, reader_user):
     assert write(client, region, 'clear', versions=[]).status_code == 403
 
 
-def test_walk_to_published_road(client, walk, regions):
-    region = regions[0]
+def test_walk_to_published_road(client, walk, parcels):
+    from apps.base.models import MapFeature, TerrainRefresh
+
+    parcel = parcels[0]
+    region = parcel.region
+    MapFeature.objects.create(parcel=parcel, geometry={
+        'type': 'Polygon', 'coordinates': [[[16, 38], [16.1, 38], [16, 38.1], [16, 38]]],
+    })
+    TerrainRefresh.objects.create(region=region, state=TerrainRefresh.State.CURRENT)
     assert write(client, region, 'import', upload_id=walk.pk).status_code == 200
     state = workspace(client, region)
     drawing, = state['drawings']
@@ -250,11 +257,13 @@ def test_walk_to_published_road(client, walk, regions):
     kind = client.get(ROOT).json()['road_types'][0]['id']
     road_data = {'id': drawing['id'], 'name': 'Via nord', 'road_type_id': kind, 'version': 1}
     assert write(client, region, 'road', **road_data).status_code == 400
+    assert workspace(client, region)['terrain']['state'] == 'current'
     copy = write(client, region, 'copy', id=drawing['id'], version=1, parts=[last], name='Laterale')
     assert copy.status_code == 200
     joined = {'type': 'LineString', 'coordinates': first['coordinates'] + last['coordinates']}
     response = write(client, region, 'road', **road_data, parts=[joined])
     assert response.status_code == 200, response.content
+    assert workspace(client, region)['terrain']['state'] == 'queued'
     road, = client.get('/api/geo/roads.geojson').json()['features']
     assert road['geometry'] == joined and road['properties']['road_type_id'] == kind
     copied, = workspace(client, region)['drawings']
