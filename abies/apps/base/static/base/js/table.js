@@ -627,7 +627,7 @@ export class TableWrapper {
     const button = this._tableEl?.querySelector('.table-delete-toggle');
     if (button) {
       const label = this._deleteMode ? this.labels.cancelSelection : this.labels.selectForDelete;
-      button.textContent = this._deleteMode ? '\u00D7' : '\u{1F5D1}\u{FE0E}';
+      button.textContent = this._deleteMode ? '\u00D7' : '';
       button.title = label;
       button.setAttribute('aria-label', label);
       button.setAttribute('aria-pressed', String(this._deleteMode));

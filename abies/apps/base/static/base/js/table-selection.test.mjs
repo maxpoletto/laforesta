@@ -25,10 +25,12 @@ const submit = () => container.querySelector('.table-delete-selected');
 
 assert.ok(toggle(), 'Header provides the selection control');
 assert.equal(toggle().getAttribute('aria-label'), TABLE_LABELS.selectForDelete);
+assert.equal(toggle().textContent, '');
 assert.equal(checkboxes().length, 0, 'Normal mode has no selection boxes');
 await rows()[0].dispatch();
 assert.deepEqual(edited, [1], 'Normal row click still edits');
 await toggle().dispatch();
+assert.equal(toggle().textContent, '×');
 assert.equal(checkboxes().length, 25, 'Only individual row checkboxes; no select-all box');
 assert.equal(container.querySelectorAll('.action-edit').length, 0);
 assert.equal(container.querySelectorAll('.action-delete').length, 0);

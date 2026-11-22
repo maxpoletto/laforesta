@@ -917,7 +917,7 @@ input:focus, select:focus, textarea:focus {
 .delete-selection-records { max-height: 40vh; overflow: auto; padding-left: 1.5rem; }
 .delete-selection-records li { margin-bottom: 4px; }
 
-/* Action icons (per-row pencil/X) and toolbar add button. */
+/* Table and toolbar action icons. */
 .action-icon {
   background: none;
   border: none;
@@ -930,12 +930,13 @@ input:focus, select:focus, textarea:focus {
 .action-icon:hover { color: var(--color-bosco-green); }
 
 .action-edit:empty, .icon-pencil { --action-image: url('../img/icons/pencil.webp'); }
-.action-delete:empty { --action-image: url('../img/icons/trash.webp'); }
+.action-delete:empty, .table-delete-toggle:empty { --action-image: url('../img/icons/trash.webp'); }
 .mc-ruler { --action-image: url('../img/icons/ruler.webp'); }
 .mc-pin { --action-image: url('../img/icons/pin.webp'); }
 .mc-menu, .hamburger { --action-image: url('../img/icons/menu.webp'); }
 
-:is(.action-edit:empty, .action-delete:empty, .icon-pencil, .mc-control-button, .hamburger)::before {
+:is(.action-edit:empty, .action-delete:empty, .table-delete-toggle:empty,
+    .icon-pencil, .mc-control-button, .hamburger)::before {
   content: '';
   display: inline-block;
   width: 1em;

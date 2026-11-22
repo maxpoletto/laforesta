@@ -46,8 +46,6 @@ async function walk(browser) {
   }
   const sidebar = loc('#cartography-sidebar');
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
-  assert.match(await sidebarToggle.evaluate(button => getComputedStyle(button, '::before').maskImage),
-    /menu\.webp/);
   assert.equal(await sidebar.locator('[data-action=save], [data-action=cancel], [data-action=finish]').count(), 0);
   assert.equal(await loc('#cartography-map [data-action=save] svg').count(), 1);
   assert.equal(await loc('#cartography-map [data-action=cancel] svg').count(), 1);
@@ -98,6 +96,8 @@ async function walk(browser) {
   assert.ok(await action('edit-region').isDisabled());
   await action('new-region').click();
   await saveRegion('Costa', 'Versante est');
+  assert.match(await sidebarToggle.evaluate(button => getComputedStyle(button, '::before').maskImage),
+    /menu\.webp/);
   await action('new-region').click();
   await saveRegion('Abetaia', '');
   assert.deepEqual(await loc('#cartography-region option').allTextContents(), ['Abetaia', 'Costa']);
