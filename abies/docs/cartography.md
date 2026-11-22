@@ -203,7 +203,11 @@ where users can add drawings to the current view.
 
 There are three tabs.
 
-- **Da file** opens a file picker for GeoJSON, GPX or georeferenced DXF.
+- **Da file** accepts multiple GeoJSON, GPX or georeferenced DXF files in one
+  selection. Each file creates its own drawing named after the file, including
+  its extension. The name can be edited when importing a single file.
+  One EPSG code applies to every DXF in the selection. A retry in the same
+  dialog resumes from files whose import has yet to be confirmed.
   Waypoints appear as points, each track segment appears as a separate line,
   and the rings of a polygon stay together. ASCII DXF supports points, lines,
   and straight polylines. Cadastral symbol blocks on `SIMBOLI` and `FIDUCIALI`

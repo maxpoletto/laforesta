@@ -114,7 +114,11 @@ export class CartographyMap {
   }
 
   fitSource(drawings, sourceId, firstImport = false) {
-    const layers = drawings.filter(row => row.source_id === sourceId).map(row => this.layers.get('drawing' + row.id));
+    this.fitDrawings(drawings.filter(row => row.source_id === sourceId).map(row => row.id), firstImport);
+  }
+
+  fitDrawings(ids, firstImport = false) {
+    const layers = ids.map(id => this.layers.get('drawing' + id)).filter(Boolean);
     this.fit(this.bounds(layers), firstImport);
   }
 

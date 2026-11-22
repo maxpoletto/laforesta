@@ -1,4 +1,4 @@
-import { fetchJSON, postJSON } from '../../base/js/api.js';
+import { fetchJSON, fileToBase64, postJSON } from '../../base/js/api.js';
 import { renderModalForm, showFormError } from '../../base/js/forms.js';
 import { wireParcelMetadataGovernance } from '../../bosco/js/parcel-metadata.js';
 import * as cache from '../../base/js/cache.js';
@@ -709,6 +709,8 @@ export class CartographyEditor {
     wireDrawingImportTabs(modal, {
       current: () => modal.isConnected && this.current(generation),
       save: (action, body, form) => this.write(action, body, form),
+      saveFiles: (entries, current, report) => this.importFiles(entries, current, report),
+      dismiss: modals.dismiss,
       loadSurveys: async () => (await fetchJSON(`${API}${regionId}/surveys/`)).data.surveys,
     });
     wireCancelButtons(modal, modals.dismiss);
@@ -909,6 +911,50 @@ export class CartographyEditor {
     }
   }
 
+  async importFiles(entries, current, report) {
+    if (this.busy || !current()) return [];
+    const generation = this.generation;
+    const url = `${API}${this.regionId}/import-file/`;
+    const firstImport = !this.state.drawings.length && !this.state.roads.length && !this.map.parcelLayers.size;
+    const errors = [];
+    this.busy = true;
+    this.updateButtons();
+    try {
+      for (const entry of entries) {
+        if (!current()) break;
+        if (entry.drawingId) continue;
+        const {blob, format, name, epsg, nonce} = entry;
+        let message;
+        if (!['geojson', 'gpx', 'dxf'].includes(format)) {
+          message = S.CARTOGRAPHY_IMPORT_FILE_TYPE;
+        } else {
+          try {
+            const file = await fileToBase64(blob);
+            if (!current()) break;
+            const {data, status} = await postJSON(url, {file, format, name, epsg, nonce});
+            if (status >= 400) message = data.message || S.ERROR_GENERIC;
+            else entry.drawingId = data.drawing_id;
+          } catch {
+            message = S.ERROR_NETWORK;
+          }
+        }
+        if (message) errors.push(S.CARTOGRAPHY_IMPORT_FILE_ERROR(blob.name, message));
+        if (current()) report();
+      }
+      const ids = entries.map(entry => entry.drawingId).filter(Boolean);
+      if (this.current(generation) && ids.length) {
+        await this.reload(generation, {kind: 'drawing', id: ids.at(-1)});
+        if (this.current(generation)) {
+          this.map.fitDrawings(ids, firstImport);
+          this.status.textContent = S.CARTOGRAPHY_IMPORT_COUNT(ids.length);
+        }
+      }
+      return errors;
+    } finally {
+      if (this.current(generation)) { this.busy = false; this.updateButtons(); }
+    }
+  }
+
   async write(action, body, form = null) {
     if (this.busy || this.life.signal.aborted) return;
     const generation = this.generation;
@@ -961,7 +1007,7 @@ export class CartographyEditor {
       if (!this.draft) this.status.textContent = data.added == null ? '' : S.CARTOGRAPHY_IMPORT_COUNT(data.added);
       if (data.parcel_id) this.map.frame('parcel', data.parcel_name);
       if (data.added) this.map.fitSource(this.state.drawings, data.source_id || body.source_id, firstImport);
-      if (action === 'import-file' || action === 'import-survey') {
+      if (action === 'import-survey') {
         this.map.frame('drawing', data.drawing_id, firstImport);
       }
       this.pendingWrite = null;

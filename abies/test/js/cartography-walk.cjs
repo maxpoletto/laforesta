@@ -620,30 +620,44 @@ async function walk(browser) {
   const file = modal.locator('input[type=file]');
   assert.deepEqual(await modal.locator('form[data-path=file] .form-actions button').allTextContents(),
     ['Annulla', 'Importa']);
-  await file.setInputFiles({name: 'confini.dxf', mimeType: 'application/dxf', buffer: Buffer.from('')});
-  assert.ok(await modal.getByLabel('Codice EPSG del DXF').isVisible());
-  await file.setInputFiles({name: 'Traccia.geojson', mimeType: 'application/geo+json',
-    buffer: Buffer.from(JSON.stringify({type: 'LineString', coordinates: [[16, 38], [16, 38.1]]}))});
+  const geojson = {name: 'Traccia.geojson', mimeType: 'application/geo+json',
+    buffer: Buffer.from(JSON.stringify({type: 'LineString', coordinates: [[16, 38], [16, 38.1]]}))};
+  await file.setInputFiles(geojson);
   assert.ok(await modal.getByLabel('Codice EPSG del DXF').isHidden());
-  assert.equal(await modal.getByLabel('Nome', {exact: true}).inputValue(), 'Traccia');
-  const importNonces = [];
+  assert.equal(await modal.getByLabel('Nome', {exact: true}).inputValue(), 'Traccia.geojson');
+  await file.setInputFiles([geojson, {
+    name: 'Cammino.gpx', mimeType: 'application/gpx+xml',
+    buffer: Buffer.from('<gpx><wpt lat="38" lon="16"/></gpx>'),
+  }, {
+    name: 'Confini.dxf', mimeType: 'application/dxf',
+    buffer: Buffer.from('0\nSECTION\n2\nENTITIES\n0\nPOINT\n10\n16\n20\n38\n0\nENDSEC\n0\nEOF\n'),
+  }]);
+  assert.ok(await modal.getByLabel('Nome', {exact: true}).isHidden());
+  await modal.getByLabel('Codice EPSG del DXF').fill('4326');
+  const imports = [];
   await page.route('**/import-file/', async route => {
-    importNonces.push(route.request().postDataJSON().nonce);
-    if (importNonces.length > 1) return route.continue();
+    const {name, nonce, epsg} = route.request().postDataJSON();
+    imports.push({name, nonce, epsg});
+    if (imports.length > 1) return route.continue();
     assert.equal((await route.fetch()).status(), 200);
     await route.abort('failed');
   });
   await modal.getByRole('button', {name: 'Importa', exact: true}).click();
-  await modal.locator('.form-error').waitFor();
+  const error = modal.locator('.form-error');
+  await error.waitFor();
+  assert.match(await error.textContent(), /Traccia\.geojson/);
+  assert.match(await modal.locator('form[data-path=file] [role=status]').textContent(), /2 di 3/);
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/import-file/') && r.ok()),
     modal.getByRole('button', {name: 'Importa', exact: true}).click(),
   ]);
-  const traces = drawings.getByRole('button', {name: 'Traccia', exact: true});
-  await traces.waitFor();
-  assert.equal(await traces.count(), 1);
-  assert.equal(importNonces.length, 2);
-  assert.equal(importNonces[0], importNonces[1]);
+  await modal.waitFor({state: 'hidden'});
+  for (const name of ['Traccia.geojson', 'Cammino.gpx', 'Confini.dxf']) {
+    assert.equal(await drawings.getByRole('button', {name, exact: true}).count(), 1);
+  }
+  assert.deepEqual(imports.map(({name}) => name), ['Traccia.geojson', 'Cammino.gpx', 'Confini.dxf', 'Traccia.geojson']);
+  assert.deepEqual(imports.map(({epsg}) => epsg), ['', '', '4326', '']);
+  assert.equal(imports[0].nonce, imports[3].nonce);
 
   async function checkFilterList(target, hasSwatch = false) {
     const row = loc(`ul[data-target="${target}"] li.map-workspace-list-row`).first();

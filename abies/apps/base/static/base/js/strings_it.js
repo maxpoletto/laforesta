@@ -726,6 +726,8 @@ export const CARTOGRAPHY_DELETE_REGION = (name, counts) =>
   + `Particelle: ${counts.parcels}. Contorni: ${counts.outlines}. Strade: ${counts.roads}. Disegni: ${counts.drawings}.`;
 export const CARTOGRAPHY_IMPORT_COUNT = n => `Disegni aggiunti: ${n}.`;
 export const CARTOGRAPHY_IMPORT_FILE_TYPE = 'Scegli un file GeoJSON, GPX o DXF.';
+export const CARTOGRAPHY_IMPORT_FILE_ERROR = (name, error) => `${name} — ${error}`;
+export const CARTOGRAPHY_IMPORT_FILE_PROGRESS = (done, total) => `File importati: ${done} di ${total}.`;
 export const CARTOGRAPHY_IMPORT_NO_SURVEYS = 'Nessun rilevamento con posizioni in questa compresa.';
 export const CARTOGRAPHY_IMPORT_SURVEY_OPTION = ({name, structured, count}) =>
   `${name} · ${structured ? 'Predefinito' : 'Libero'} · ${count} ${count === 1 ? 'posizione' : 'posizioni'}`;

@@ -1,41 +1,56 @@
-import { fileToBase64 } from '../../base/js/api.js';
 import { showFormError } from '../../base/js/forms.js';
 import { wireTabbedModal } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 
-function wireFileImport(form, current, save) {
+function wireFileImport(form, current, saveFiles, dismiss) {
   const {file, name, epsg} = form.elements;
+  const nameRow = form.querySelector('[data-role=file-name]');
   const crs = form.querySelector('[data-role=dxf-crs]');
   const submit = form.querySelector('[type=submit]');
-  let suggested = '';
-  file.onchange = () => {
-    const filename = file.files[0]?.name ?? '';
-    const canSuggest = !name.value || name.value === suggested;
-    suggested = filename.replace(/\.[^.]+$/, '').slice(0, name.maxLength);
-    if (canSuggest) name.value = suggested;
-    crs.hidden = !/\.dxf$/i.test(filename);
-    epsg.disabled = crs.hidden;
+  const status = form.querySelector('[role=status]');
+  let entries = [];
+  function sync(busy = false) {
+    nameRow.hidden = entries.length !== 1;
+    crs.hidden = !entries.some(entry => !entry.drawingId && entry.format === 'dxf');
+    file.disabled = busy;
+    name.required = !nameRow.hidden;
+    name.disabled = busy || nameRow.hidden;
     epsg.required = !crs.hidden;
+    epsg.disabled = busy || crs.hidden;
+    submit.disabled = busy || !entries.length;
+  }
+  file.onchange = () => {
+    entries = [...file.files].map(blob => {
+      const extension = blob.name.split('.').at(-1).toLowerCase();
+      return {blob, format: extension === 'json' ? 'geojson' : extension, nonce: crypto.randomUUID()};
+    });
+    name.value = entries.length === 1 ? entries[0].blob.name.slice(0, name.maxLength) : '';
+    status.textContent = '';
+    form.querySelector('.form-error')?.remove();
+    sync();
   };
   form.onsubmit = async event => {
     event.preventDefault();
-    const selected = file.files[0];
-    if (!selected || submit.disabled) return;
-    const extension = selected.name.split('.').at(-1).toLowerCase();
-    const format = extension === 'json' ? 'geojson' : extension;
-    if (!['geojson', 'gpx', 'dxf'].includes(format)) {
-      showFormError(form, S.CARTOGRAPHY_IMPORT_FILE_TYPE);
-      return;
+    if (submit.disabled || !current()) return;
+    for (const entry of entries) {
+      entry.name = entries.length === 1 ? name.value : entry.blob.name;
+      entry.epsg = entry.format === 'dxf' ? epsg.value : '';
     }
-    const data = {name: name.value, format, epsg: epsg.disabled ? '' : epsg.value};
-    submit.disabled = true;
+    const report = () => {
+      status.textContent = S.CARTOGRAPHY_IMPORT_FILE_PROGRESS(entries.filter(entry => entry.drawingId).length, entries.length);
+    };
+    sync(true);
+    form.querySelector('.form-error')?.remove();
+    report();
     try {
-      data.file = await fileToBase64(selected);
-      if (current()) await save('import-file', data, form);
+      const errors = await saveFiles(entries, current, report);
+      if (!current()) return;
+      if (errors.length) showFormError(form, errors.join(' '));
+      else if (entries.every(entry => entry.drawingId)) dismiss();
     } catch {
-      if (current()) showFormError(form, S.ERROR_GENERIC);
+      if (current()) showFormError(form, S.ERROR_NETWORK);
     } finally {
-      submit.disabled = false;
+      sync();
     }
   };
 }
@@ -74,8 +89,8 @@ function wireSurveyImport(form, current, save, load) {
   };
 }
 
-export function wireDrawingImportTabs(modal, {current, save, loadSurveys}) {
-  wireFileImport(modal.querySelector('form[data-path=file]'), current, save);
+export function wireDrawingImportTabs(modal, {current, save, saveFiles, dismiss, loadSurveys}) {
+  wireFileImport(modal.querySelector('form[data-path=file]'), current, saveFiles, dismiss);
   const showSurveys = wireSurveyImport(modal.querySelector('form[data-path=survey]'), current, save, loadSurveys);
   wireTabbedModal(modal, {initialTab: 'ipso', onSwitch: tab => {
     for (const button of modal.querySelectorAll('.modal-tab')) {

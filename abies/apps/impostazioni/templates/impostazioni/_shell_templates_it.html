@@ -365,19 +365,20 @@ S (string constants) provided by the shell's render context.
       <form class="modal-tab-body" data-path="file">
         <div class="form-group">
           <label for="cartography-file">File GeoJSON, GPX o DXF</label>
-          <input id="cartography-file" type="file" name="file" accept=".geojson,.json,.gpx,.dxf" required>
+          <input id="cartography-file" type="file" name="file" accept=".geojson,.json,.gpx,.dxf" multiple required>
         </div>
-        <div class="form-group">
+        <div class="form-group" data-role="file-name" hidden>
           <label for="cartography-import-name">{{ S.LABEL_NAME }}</label>
-          <input id="cartography-import-name" type="text" name="name" maxlength="100" required>
+          <input id="cartography-import-name" type="text" name="name" maxlength="100" disabled>
         </div>
         <div class="form-group" data-role="dxf-crs" hidden>
           <label for="cartography-epsg">Codice EPSG del DXF</label>
           <input id="cartography-epsg" type="text" name="epsg" inputmode="numeric" pattern="[0-9]{1,6}" disabled>
         </div>
+        <p role="status"></p>
         <div class="form-actions">
           <button type="button" class="btn" data-action="cancel">{{ S.CANCEL }}</button>
-          <button type="submit" class="btn btn-import">{{ S.IMPORT_LABEL }}</button>
+          <button type="submit" class="btn btn-import" disabled>{{ S.IMPORT_LABEL }}</button>
         </div>
       </form>
       <div class="modal-tab-body" data-path="ipso">
