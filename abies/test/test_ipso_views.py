@@ -229,7 +229,9 @@ def test_ipso_version_uses_abies_version_and_precaches_the_public_shell(db, sett
     shell = set(constants['IPSO_SHELL'])
     assert {'./', './index.html', './version.js', './strings_it.js',
             '/static/base/js/map-common.js', '/static/base/css/map-basemaps.css',
-            '/static/base/js/strings.js', '/static/base/js/strings_it.js'} <= shell
+            '/static/base/js/strings.js', '/static/base/js/strings_it.js',
+            '/static/base/js/geodesy.js',
+            '/static/vendor/geographiclib/geographiclib-geodesic.min.js'} <= shell
     assert {'./sw.js', './strings.js', './upload-config.js', './reference.json',
             './map.geojson', './terreni.geojson'}.isdisjoint(shell)
     assert not ipso_views.finders.find('ipso/pwa/version.js')

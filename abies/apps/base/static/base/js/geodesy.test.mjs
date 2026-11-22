@@ -34,7 +34,4 @@ for (const { geometry, area } of reference.polygons) {
   assert.ok(Math.abs(feature.properties._areaM2 - area) < .01,
     'parcel loading recomputes stale cached areas from geometry');
 }
-const sw = fs.readFileSync(new URL('../../../../ipso/static/ipso/pwa/sw.js', import.meta.url), 'utf8');
-assert.ok(sw.includes("'/static/base/js/geodesy.js'"));
-assert.ok(sw.includes("'/static/vendor/geographiclib/geographiclib-geodesic.min.js'"));
 console.log('WGS84 inverse distances, antipodes, poles, dateline, areas and Ipso parity passed.');
