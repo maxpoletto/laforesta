@@ -99,6 +99,27 @@ while preserving data and saved credentials. For smaller steps, use
 `make migrate`, `make bootstrap`, `make geo`, `make stage-marks-uploads`,
 `make digest`, and `make admin`. Run `make help` for the full target list.
 
+Local files live under the checkout's gitignored `data/` directory.
+`data/db.sqlite3` is the database, `data/canonical/` contains the bootstrap
+bundle, `data/ipso-inbox/` holds field uploads, and `data/observation-media/`
+holds observation photos. Generated files are in `data/digests/`,
+`data/observation-thumbnails/`, `data/satellite/` and `data/map-context/`.
+Local environment settings come from `compose/.env.local` and collected
+static files go to `staticfiles/`.
+
+To test with current production records, run `make stop-local`, then
+`make sync-prod-to-local`. It uses the configured
+`ABIES_DOCKER_CONTEXT` to take a live snapshot of the production SQLite
+database, observation photos and Ipso inbox. The command asks before replacing
+local data (`SYNC_ARGS=--yes` confirms in a script). It applies local migrations
+and regenerates digests before replacing local state. On older deployments,
+it also fetches the parcel map so migrations can import it. The sync keeps local
+Copernicus credentials and writes the previous runtime state to
+`data/.pre-sync-*`. Copied sessions are cleared. The snapshot contains real
+production records and photos, so keep it on an access-controlled machine.
+Generated terrain and print-map data are managed separately. Start the app
+again with `make run-local` and sign in with an account from the snapshot.
+
 For Bosco satellite layers, save the Copernicus credentials in **Impostazioni
 → Generali → Credenziali API satellitare** after following the
 [satellite setup instructions](INSTALL.md#satellite-imagery). Locally,
@@ -180,6 +201,9 @@ Abies development server listening on the chosen port from the same checkout.
 If the previous launcher has a terrain worker, both processes stop together.
 If another checkout or application owns port 8000, use
 `make run-local LOCAL_PORT=8001` and open `http://127.0.0.1:8001/`.
+`make stop-local` uses `ps` and `lsof` to stop local Django servers and terrain
+workers owned by you in this checkout, including standalone processes and
+servers started on custom ports.
 
 ## Remote Dev And Production
 

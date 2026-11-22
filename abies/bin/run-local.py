@@ -1,6 +1,7 @@
 """Run the local Django server and terrain worker together."""
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -65,22 +66,68 @@ def replace_server(port):
         targets = [reloader, server] if reloader else [server]
 
     print(f'Stopping the Abies server from this checkout on port {port}.', flush=True)
+    stop_processes(targets, waiting=targets)
+
+
+def stop_processes(targets, *, waiting):
     for process in targets:
         try:
             os.kill(process.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
     deadline = time.monotonic() + 8
-    remaining = targets
+    remaining = waiting
     while remaining:
-        remaining = [p for p in remaining if checkout_process(p.pid) == p]
+        remaining = [p for p in remaining
+                     if (current := checkout_process(p.pid)) and current.command == p.command]
         if remaining:
             if time.monotonic() >= deadline:
-                raise TimeoutError(f'Timed out waiting for Abies on port {port} to stop.')
+                raise TimeoutError('Timed out waiting for local Abies processes to stop.')
             time.sleep(0.1)
 
 
+def is_launcher(process):
+    return process.runs('bin/run-local.py') and not process.runs('bin/run-local.py', '--stop')
+
+
+def stop_local():
+    if not shutil.which('lsof'):
+        raise FileNotFoundError('lsof is required to identify processes from this checkout.')
+    listing = subprocess.check_output(['ps', '-ww', '-A', '-o', 'pid=', '-o', 'command='],
+                                      text=True, timeout=2)
+    processes = []
+    for line in listing.splitlines():
+        fields = line.split(maxsplit=1)
+        if len(fields) != 2 or not fields[0].isdecimal():
+            continue
+        pid, command = fields
+        candidate = Process(int(pid), 0, command)
+        if (is_launcher(candidate) or candidate.runs('manage.py', 'runserver')
+                or candidate.runs('manage.py', 'run_terrain_worker')):
+            process = checkout_process(candidate.pid)
+            if process and process.command == candidate.command:
+                processes.append(process)
+
+    if not processes:
+        print('No local Abies server or terrain worker is running from this checkout.')
+        return
+    launchers = {p.pid for p in processes if is_launcher(p)}
+    # The launcher stops the worker and both generations of Django's reloader.
+    # Standalone servers and workers receive SIGTERM directly.
+    managed_parents = launchers | {p.pid for p in processes if p.parent in launchers}
+    targets = [p for p in processes if p.parent not in managed_parents]
+    print('Stopping the local Abies server and terrain worker from this checkout.', flush=True)
+    stop_processes(targets, waiting=processes)
+
+
 def main(server_args=()):
+    if list(server_args) == ['--stop']:
+        try:
+            stop_local()
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        return 0
     port = server_args[0] if server_args else '8000'
     if not port.isascii() or not port.isdecimal() or not 0 < int(port) <= 65535:
         print('LOCAL_PORT must be a TCP port number.', file=sys.stderr)

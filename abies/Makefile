@@ -25,6 +25,7 @@ ABIES_DOCKER_CONTEXT ?= vm-abies
 ref ?=
 REF ?= $(ref)
 DEPLOY_ARGS ?=
+SYNC_ARGS ?=
 
 LOCAL_ENV = set -a; [ ! -f "$(LOCAL_ENV_FILE)" ] || . "$(LOCAL_ENV_FILE)"; set +a;
 SATELLITE_ENV = set -a; [ ! -f "$(SATELLITE_ENV_FILE)" ] || . "$(abspath $(SATELLITE_ENV_FILE))"; set +a;
@@ -39,7 +40,7 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 
 .PHONY: help \
         check migrate reset-db load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding \
-        local local-no-reset run-local deploy-local serve \
+        local local-no-reset run-local stop-local deploy-local serve sync-prod-to-local \
         satellite satellite-dates satellite-fetch satellite-precompute terrain-worker \
         map-context sync-map-context sync-map-context-dev sync-map-context-prod \
         collectstatic minify \
@@ -53,7 +54,9 @@ help:
 	@echo "Local development:"
 	@echo "  make local                       reset local DB, load canonical data, create admin"
 	@echo "  make local-no-reset              migrate local DB and link templates, preserving data"
+	@echo "  make sync-prod-to-local          restore a fresh production snapshot locally"
 	@echo "  make run-local [LOCAL_PORT=8000] run Django and the terrain worker in the foreground"
+	@echo "  make stop-local                  stop Django and terrain processes from this checkout"
 	@echo "  make deploy-local                reset and initialize local data, then run both processes"
 	@echo "  make serve                       run Django dev server in the background"
 	@echo "  make test                        run JS tests and pytest"
@@ -159,8 +162,14 @@ local: sync-branding
 
 local-no-reset: migrate link-templates
 
+sync-prod-to-local: link-templates
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" $(PYTHON) bin/sync-prod-to-local.py $(SYNC_ARGS)
+
 run-local:
 	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) bin/run-local.py "$(LOCAL_PORT)"
+
+stop-local:
+	$(PYTHON) bin/run-local.py --stop
 
 deploy-local: local
 	$(MAKE) run-local

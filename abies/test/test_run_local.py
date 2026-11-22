@@ -66,3 +66,49 @@ def test_listener_in_another_checkout_is_left_running(monkeypatch, tmp_path):
     monkeypatch.setattr(modules['os'], 'kill', stop)
     modules['replace_server'](8001)
     stop.assert_not_called()
+
+
+def test_stop_local_stops_its_launcher_and_standalone_processes(monkeypatch, tmp_path):
+    modules = launcher_module()
+    processes = {
+        99: (89, 1000, 'bin/run-local.py 8001', tmp_path),
+        100: (99, 1000, 'manage.py runserver 8001', tmp_path),
+        101: (100, 1000, 'manage.py runserver 8001', tmp_path),
+        102: (99, 1000, 'manage.py run_terrain_worker', tmp_path),
+        201: (89, 1000, 'manage.py runserver', tmp_path),
+        202: (89, 1000, 'manage.py run_terrain_worker', tmp_path),
+        301: (89, 1000, 'manage.py runserver', tmp_path / 'other'),
+        302: (89, 1001, 'manage.py runserver', tmp_path),
+        303: (89, 1000, 'bin/run-local.py --stop', tmp_path),
+        304: (89, 1000, '-m http.server', tmp_path),
+    }
+    visible = Mock(return_value=''.join(
+        f'{pid} /tmp/env/bin/python3 {command}\n' for pid, (_, _, command, _) in processes.items()
+    ))
+
+    def inspect(*args):
+        pid = int(args[args.index('-p') + 1])
+        if pid not in processes:
+            return ''
+        parent, uid, command, cwd = processes[pid]
+        if args[0] == 'ps':
+            return f'{parent} S {uid} /tmp/env/bin/python3 {command}\n'
+        return f'p{pid}\nfcwd\nn{cwd}\n'
+
+    def kill(pid, sig):
+        del processes[pid]
+        if pid == 99:
+            for child in (100, 101, 102):
+                del processes[child]
+
+    stop = Mock(side_effect=kill)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(modules['main'].__globals__, 'command_output', inspect)
+    monkeypatch.setattr(modules['subprocess'], 'check_output', visible)
+    monkeypatch.setattr(modules['shutil'], 'which', lambda name: '/usr/bin/lsof')
+    monkeypatch.setattr(modules['os'], 'getuid', lambda: 1000)
+    monkeypatch.setattr(modules['os'], 'kill', stop)
+
+    assert modules['main'](['--stop']) == 0
+    assert stop.call_args_list == [call(pid, signal.SIGTERM) for pid in (99, 201, 202)]
+    assert set(processes) == {301, 302, 303, 304}
