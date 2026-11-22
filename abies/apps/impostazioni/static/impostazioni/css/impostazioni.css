@@ -235,7 +235,8 @@ details.cartography-section > .cartography-list-header {
   border: 1px solid #aaa;
   background: white;
 }
-.cartography-map-icon svg {
+.cartography-map-icon svg,
+.cartography-help-tools svg {
   width: 21px;
   height: 21px;
   fill: none;
@@ -257,10 +258,22 @@ details.cartography-section > .cartography-list-header {
   mask: var(--cartography-tool-image) center / contain no-repeat;
 }
 .cartography-map-tools [data-action="cancel"] { margin-top: 4px; }
-.cartography-tool-vertices { stroke-width: 4; }
 .cartography-map-tools[hidden],
 .cartography-map-tools .cartography-map-icon[hidden] { display: none; }
 .cartography-help p { margin-top: 0.65rem; }
+.cartography-help-tools {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin-top: 0.4rem;
+}
+.cartography-help-tools li {
+  display: grid;
+  grid-template-columns: 21px 1fr;
+  gap: 0.5rem;
+  align-items: start;
+}
+.cartography-help-tools li > span[aria-hidden] { display: grid; }
 .cartography-import .modal-tabs { flex-wrap: wrap; }
 .cartography-import .form-row { align-items: end; }
 @media (max-width: 600px) {

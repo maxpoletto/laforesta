@@ -2,6 +2,8 @@
 Impostazioni <template> elements — cloned by JS on mount().
 S (string constants) provided by the shell's render context.
 {% endcomment %}
+{% load static %}
+{% static 'impostazioni/img/cartography-tools.svg' as cartography_tools %}
 
 <template id="tmpl-impostazioni-page">
   {% if user.can_modify %}
@@ -218,14 +220,10 @@ S (string constants) provided by the shell's render context.
             <div class="cartography-map-tools" data-role="map-tools" hidden>
               <div class="cartography-buttons" data-role="draw-tools">
                 <button class="btn cartography-map-icon" data-action="line" aria-label="Linea" title="Linea" disabled>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 18 10 6l10 8"/><path class="cartography-tool-vertices" d="M4 18h.01M10 6h.01M20 14h.01"/>
-                  </svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#line"/></svg>
                 </button>
                 <button class="btn cartography-map-icon" data-action="polygon" aria-label="Poligono" title="Poligono" disabled>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m4 17 4-12 12 4-3 10Z"/><path class="cartography-tool-vertices" d="M4 17h.01M8 5h.01M20 9h.01M17 19h.01"/>
-                  </svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#polygon"/></svg>
                 </button>
               </div>
               <button class="btn cartography-map-icon cartography-follow-icon" data-action="follow-boundary"
@@ -234,31 +232,31 @@ S (string constants) provided by the shell's render context.
                       aria-label="Riduci vertici" hidden disabled></button>
               <button class="btn cartography-map-icon" data-action="join-link" title="Unisci estremi"
                       aria-label="Unisci estremi" aria-pressed="false" hidden disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#join"/></svg>
               </button>
               <button class="btn cartography-map-icon" data-action="break-link" title="Interrompi al vertice"
                       aria-label="Interrompi al vertice" hidden disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3M5 7l2-2m10 14 2-2M9 5l1-2m10 11 2-1"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#split"/></svg>
               </button>
               <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
                       aria-label="Rimuovi vertice" hidden disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#delete"/></svg>
               </button>
               <button class="btn cartography-map-icon" data-action="undo" title="Annulla ultimo passo"
                       aria-label="Annulla ultimo passo" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#undo"/></svg>
               </button>
               <button class="btn cartography-map-icon" data-action="cancel" title="{{ S.CANCEL }}"
                       aria-label="{{ S.CANCEL }}" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#cancel"/></svg>
               </button>
               <button class="btn btn-save cartography-map-icon" data-action="finish" title="Termina"
                       aria-label="Termina" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#check"/></svg>
               </button>
               <button class="btn btn-save cartography-map-icon" data-action="save" title="{{ S.SAVE }}"
                       aria-label="{{ S.SAVE }}" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#check"/></svg>
               </button>
             </div>
           </div>
@@ -360,13 +358,56 @@ S (string constants) provided by the shell's render context.
       tracciato di una strada. I vertici condivisi tra particelle si spostano insieme.</p>
     <p><strong>Disegni.</strong> Usa <strong>Nuovo</strong> per tracciare una linea o un poligono,
       oppure <strong>{{ S.IMPORT_LABEL }}…</strong> per partire da file, percorsi Ipso o rilevamenti.
-      Per chiudere un poligono, tocca il primo vertice. Usa <strong>Modifica</strong> per
-      continuare a lavorare su un disegno.</p>
+      Usa <strong>Modifica</strong> per continuare a lavorare su un disegno.</p>
     <p><strong>Modifica sulla mappa.</strong> Trascina un vertice per spostarlo o tocca la
-      maniglia tra due vertici per inserirne uno. Il cestino elimina il vertice selezionato.
-      In un disegno puoi anche selezionare e cancellare un’intera linea o un intero poligono.
-      Le icone a catena uniscono gli estremi o interrompono un tracciato. La freccia
-      annulla l’ultimo passo, la spunta conferma e la X esce senza salvare.</p>
+      maniglia tra due vertici per inserirne uno.</p>
+    <ul class="cartography-help-tools" role="list" aria-label="Strumenti di disegno">
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#line"/></svg>
+        <span><strong>Linea.</strong> Tocca la mappa per aggiungere i vertici di una linea.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#polygon"/></svg>
+        <span><strong>Poligono.</strong> Traccia un contorno e tocca il primo vertice per chiuderlo.</span>
+      </li>
+      <li>
+        <span class="cartography-follow-icon" aria-hidden="true"></span>
+        <span><strong>Segui confine.</strong> Parti da un vertice condiviso e scegli il vertice
+          di arrivo per riprendere il confine tra i due.</span>
+      </li>
+      <li>
+        <span class="cartography-reduce-icon" aria-hidden="true"></span>
+        <span><strong>Riduci vertici.</strong> Aumenta di 5 m la distanza minima tra i vertici
+          della linea o del poligono selezionato in un disegno.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#join"/></svg>
+        <span><strong>Unisci estremi.</strong> Scegli due estremi o punti isolati per collegarli.
+          Unisci i due estremi della stessa linea per chiudere un poligono.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#split"/></svg>
+        <span><strong>Interrompi al vertice.</strong> Dividi una linea o apri un poligono
+          nel vertice selezionato.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#delete"/></svg>
+        <span><strong>Rimuovi vertice.</strong> Elimina il vertice selezionato. In un disegno puoi
+          anche selezionare e cancellare un’intera linea o un intero poligono.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#undo"/></svg>
+        <span><strong>Annulla ultimo passo.</strong> Torna alla modifica precedente.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#cancel"/></svg>
+        <span><strong>{{ S.CANCEL }}.</strong> Esci dalla modifica senza salvare.</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#check"/></svg>
+        <span><strong>Termina / {{ S.SAVE }}.</strong> Concludi il tracciato o salva le modifiche.</span>
+      </li>
+    </ul>
     <p><strong>Promuovi.</strong> Una singola linea può diventare una strada. Uno o più
       poligoni possono formare una nuova particella o essere aggiunti a una esistente.
       La promozione rende il risultato visibile in Abies.</p>

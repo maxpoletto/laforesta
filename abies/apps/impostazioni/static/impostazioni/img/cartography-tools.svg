@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="line" viewBox="0 0 24 24">
+    <path d="M4 18 10 6l10 8"/>
+    <path d="M4 18h.01M10 6h.01M20 14h.01" stroke-width="4"/>
+  </symbol>
+  <symbol id="polygon" viewBox="0 0 24 24">
+    <path d="m4 17 4-12 12 4-3 10Z"/>
+    <path d="M4 17h.01M8 5h.01M20 9h.01M17 19h.01" stroke-width="4"/>
+  </symbol>
+  <symbol id="join" viewBox="0 0 24 24">
+    <path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/>
+  </symbol>
+  <symbol id="split" viewBox="0 0 24 24">
+    <path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3M5 7l2-2m10 14 2-2M9 5l1-2m10 11 2-1"/>
+  </symbol>
+  <symbol id="delete" viewBox="0 0 24 24">
+    <path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/>
+  </symbol>
+  <symbol id="undo" viewBox="0 0 24 24">
+    <path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/>
+  </symbol>
+  <symbol id="cancel" viewBox="0 0 24 24">
+    <path d="m6 6 12 12M18 6 6 18"/>
+  </symbol>
+  <symbol id="check" viewBox="0 0 24 24">
+    <path d="m5 12 5 5 9-10"/>
+  </symbol>
+</svg>

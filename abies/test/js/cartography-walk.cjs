@@ -71,6 +71,12 @@ async function walk(browser) {
   const helpDialog = modal.getByRole('dialog', {name: 'Guida alla cartografia'});
   await help.click();
   await helpDialog.waitFor();
+  const toolHints = helpDialog.getByRole('listitem');
+  assert.equal(await toolHints.count(), 10);
+  assert.equal(await toolHints.locator('[aria-hidden="true"]').count(), 10);
+  assert.match(await toolHints.allTextContents().then(rows => rows.join(' ')), /Riduci vertici.*Interrompi al vertice/s);
+  await page.waitForFunction(() => [...document.querySelectorAll('#modal-container .cartography-help-tools use')]
+    .every(glyph => glyph.getBBox().width > 0));
   await helpDialog.getByRole('button', {name: 'Chiudi', exact: true}).click();
   await helpDialog.waitFor({state: 'hidden'});
   assert.ok(await help.evaluate(button => button === document.activeElement));
