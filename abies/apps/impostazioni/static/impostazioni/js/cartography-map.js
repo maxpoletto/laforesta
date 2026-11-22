@@ -340,28 +340,34 @@ export class CartographyMap {
     return nearest?.point;
   }
 
-  drawEndpoints(draft, select) {
-    const visible = this.map.getBounds().pad(0.1);
+  drawEndpoints(draft, select, visible = this.map.getBounds().pad(0.1)) {
+    const joining = !!draft.join;
+    const fixedParts = joining ? [] : draft.parts.filter((part, i) => i === draft.active || part.type === 'Point');
+    const occupied = new Set(fixedParts.flatMap(part => rings(part).flat().map(vertexKey)));
     draft.parts.forEach((part, i) => {
       if (!isEndpoint(part, 0)) return;
+      if (!joining && (i === draft.active || part.type !== 'LineString')) return;
       const [coordinates] = rings(part);
       for (const index of new Set([0, coordinates.length - 1])) {
         const [lon, lat] = coordinates[index];
-        if (!visible.contains([lat, lon])) continue;
-        const title = part.type === 'Point' ? S.CARTOGRAPHY_JOIN_POINT(i) : S.CARTOGRAPHY_JOIN_ENDPOINT(i, index === 0);
-        const selected = draft.join.first?.part === i && draft.join.first.index === index;
+        if (occupied.has(vertexKey(coordinates[index])) || !visible.contains([lat, lon])) continue;
+        const title = !joining ? S.CARTOGRAPHY_SELECT_LINE(i)
+          : part.type === 'Point' ? S.CARTOGRAPHY_JOIN_POINT(i) : S.CARTOGRAPHY_JOIN_ENDPOINT(i, index === 0);
+        const selected = draft.join?.first?.part === i && draft.join.first.index === index;
+        const className = !joining ? 'cartography-inactive-endpoint'
+          : selected ? 'cartography-endpoint cartography-active-vertex' : 'cartography-endpoint';
         const icon = L.divIcon({
-          className: selected ? 'cartography-endpoint cartography-active-vertex' : 'cartography-endpoint',
+          className,
           iconSize: [19, 19],
         });
         // Split lines can have coincident endpoints. Put the selected one
         // behind its neighbors so they can be chosen by pointer as well.
-        const marker = L.marker([lat, lon], {icon, title, zIndexOffset: selected ? -1000 : 0})
+        const marker = L.marker([lat, lon], {icon, title, zIndexOffset: !joining || selected ? -1000 : 0})
           .addTo(this.handles);
         const handle = marker.getElement();
         handle.dataset.part = i;
         handle.dataset.index = index;
-        this.selectableHandle(marker, title, selected, () => select(i, index));
+        this.selectableHandle(marker, title, joining ? selected : null, () => select(i, index));
       }
     });
   }
@@ -394,6 +400,7 @@ export class CartographyMap {
     this.watchHandles(() => {
       const visible = this.map.getBounds().pad(0.1);
       if (referenceMode) this.drawBoundaryTargets(draft, callbacks);
+      if (draft && !draft.kind && draft.parts.length > 1) this.drawEndpoints(draft, callbacks.selectPart, visible);
       for (const part of parts) {
         let offset = 0;
         rings(part).forEach((ring, r) => {

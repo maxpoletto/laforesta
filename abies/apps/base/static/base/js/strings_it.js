@@ -740,6 +740,7 @@ export const SATELLITE_REMOVE_CONFIRM = 'Eliminare le credenziali Copernicus sal
 export const TERRAIN_REFRESH_NO_PARCELS = 'La compresa deve avere almeno una particella con confini pubblicati.';
 export const CARTOGRAPHY_ROAD_NEEDS_LINE = 'Per salvare la strada, la geometria deve essere una sola linea.';
 export const CARTOGRAPHY_PROMOTE_GEOMETRY = 'Il disegno deve contenere una sola linea oppure solo poligoni.';
+export const CARTOGRAPHY_PROMOTE_MULTIPLE_LINES = 'Unisci i tratti o elimina quelli in più per creare una strada.';
 export const CARTOGRAPHY_PROMOTE_ROAD_TYPE = 'Aggiungi un tipo di viabilità attivo per creare una strada.';
 export const CARTOGRAPHY_OPEN = 'Importa in Cartografia';
 export const CARTOGRAPHY_NO_DESTINATION = 'Crea una compresa in Cartografia per importare il rilievo.';
@@ -759,6 +760,7 @@ export const CARTOGRAPHY_CANCEL_BOUNDARIES = 'Abbandonare le modifiche ai confin
 export const CARTOGRAPHY_CANCEL_POINTS = 'Abbandonare le modifiche ai punti della strada?';
 export const CARTOGRAPHY_INSERT_VERTEX = 'Inserisci vertice';
 export const CARTOGRAPHY_SELECT_VERTEX = 'Seleziona vertice';
+export const CARTOGRAPHY_SELECT_LINE = i => `Seleziona linea ${i + 1}`;
 export const CARTOGRAPHY_BOUNDARY_TARGET = names => `Vertice sul confine di ${names}`;
 export const CARTOGRAPHY_FOLLOW_FROM = 'Segui il confine da questo vertice';
 export const CARTOGRAPHY_FOLLOW_TARGET = 'Scegli un altro vertice sullo stesso contorno.';

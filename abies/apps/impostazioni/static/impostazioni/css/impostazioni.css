@@ -303,11 +303,13 @@ details.cartography-section > .cartography-list-header {
   cursor: pointer;
 }
 
-.cartography-boundary-target {
+.cartography-boundary-target,
+.cartography-inactive-endpoint {
   display: grid;
   place-items: center;
 }
-.cartography-boundary-target::before {
+.cartography-boundary-target::before,
+.cartography-inactive-endpoint::before {
   content: '';
   width: 10px;
   height: 10px;
@@ -315,7 +317,7 @@ details.cartography-section > .cartography-list-header {
   border-radius: 50%;
   box-shadow: 0 0 0 1px white;
 }
-.cartography-boundary-target:is(:hover, :focus-visible, .cartography-target-hover)::before {
+:is(.cartography-boundary-target, .cartography-inactive-endpoint):is(:hover, :focus-visible, .cartography-target-hover)::before {
   background: #ffe082;
   border-width: 3px;
 }

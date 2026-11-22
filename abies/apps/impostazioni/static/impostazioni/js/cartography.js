@@ -263,11 +263,13 @@ export class CartographyEditor {
     follow.disabled = !!this.busy || !draft?.traceReady;
     follow.setAttribute('aria-pressed', String(!!draft?.following));
     const singleLine = parts?.length === 1 && parts[0].type === 'LineString';
+    const multipleLines = parts?.length > 1 && parts.every(piece => piece.type === 'LineString');
     const promotableLine = singleLine && this.catalog?.road_types.length;
     const promotablePolygon = parts?.length && parts.every(piece => piece.type === 'Polygon');
     b.promote.disabled = !!this.busy || !!draft?.kind || !(promotableLine || promotablePolygon);
     b.promote.title = !draft?.kind && parts?.length && !promotableLine && !promotablePolygon
-      ? (singleLine ? S.CARTOGRAPHY_PROMOTE_ROAD_TYPE : S.CARTOGRAPHY_PROMOTE_GEOMETRY) : '';
+      ? (singleLine ? S.CARTOGRAPHY_PROMOTE_ROAD_TYPE
+        : multipleLines ? S.CARTOGRAPHY_PROMOTE_MULTIPLE_LINES : S.CARTOGRAPHY_PROMOTE_GEOMETRY) : '';
     const incompleteRoad = draft?.kind === 'road' && parts.length
       && (parts.length !== 1 || parts[0].type !== 'LineString');
     b.save.hidden = !draft || !!draft.tool || !!draft.returnSelection;
@@ -296,8 +298,9 @@ export class CartographyEditor {
       : S.CARTOGRAPHY_REMOVE_VERTEX;
     remove.title = selectedVertex && !canRemove ? S.CARTOGRAPHY_VERTEX_REQUIRED : removeLabel;
     remove.setAttribute('aria-label', removeLabel);
-    b['break-link'].hidden = b['join-link'].hidden = remove.hidden;
-    b['break-link'].disabled = !!this.busy || !selectedVertex
+    b['join-link'].hidden = remove.hidden;
+    b['break-link'].hidden = remove.hidden || draft?.kind === 'road';
+    b['break-link'].disabled = b['break-link'].hidden || !!this.busy || !selectedVertex
       || !canBreakPart(activePart, selectedVertex.ring, selectedVertex.index);
     b['join-link'].disabled = !!this.busy || !editingVertices || !!draft?.following
       || !canJoinEndpoints(draft.parts, {close: draft.kind !== 'road'});
@@ -565,6 +568,7 @@ export class CartographyEditor {
 
   breakSelectedPart() {
     const d = this.draft;
+    if (d.kind === 'road') return;
     const {ring, index} = d.vertex;
     const part = d.parts[d.active], pieces = breakPart(part, ring, index);
     if (!pieces) return;

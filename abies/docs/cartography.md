@@ -278,14 +278,15 @@ or joined to another line at an endpoint.
   is one undoable action. A selected vertex that the shape needs leaves the
   trash button disabled.
 - **Interrompi al vertice** (broken link) splits a line at an interior vertex,
-  which becomes an endpoint of both pieces. On a polygon, it removes the
+  which becomes an endpoint of both pieces. Hollow endpoints let the operator
+  select the other line and show its editing handles. On a polygon, it removes the
   selected vertex and leaves its neighbors as the two ends of an open line.
   Other rings remain visible as separate lines.
 - **Unisci estremi** (link) displays standalone points and line endpoints.
   Two points form a line, and a point can extend a line at either end.
   Selecting two endpoints joins their lines or closes one line into a polygon
-  if it has at least three distinct vertices. In **Punti**, a road remains
-  a line after joining its pieces.
+  if it has at least three distinct vertices. **Punti** edits a published road
+  as a single line. A drawing needs one line to become a road.
 
 In a drawing, **Riduci vertici** increases the spacing for the selected line
 or polygon by 5 m per press, starting at 5 m. Each pass reads the same vertices

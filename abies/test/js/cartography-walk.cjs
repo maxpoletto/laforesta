@@ -283,14 +283,20 @@ async function walk(browser) {
   if (width < 800) await sidebarToggle.click();
   await joinWalk();
   assert.equal(await action('promote').getAttribute('title'), '');
+  const joinedVertexCount = await vertices.count();
   await vertices.first().press('Enter');
   assert.ok(await action('break-link').isDisabled());
   assert.ok(await action('remove-vertex').isEnabled());
   await vertices.nth(1).click();
   assert.ok(await action('remove-vertex').isEnabled());
   await action('break-link').click();
-  if (width < 800) await sidebarToggle.click();
   assert.equal(await editParts.count(), 2);
+  assert.equal(await vertices.count(), 2);
+  await page.getByRole('button', {name: 'Seleziona linea 2', exact: true}).last().click();
+  assert.equal(await vertices.count(), joinedVertexCount - 1);
+  if (width < 800) await sidebarToggle.click();
+  assert.ok(await action('promote').isDisabled());
+  assert.match(await action('promote').getAttribute('title'), /Unisci i tratti/);
   if (width < 800) await sidebarToggle.click();
   await action('undo').click();
   if (width < 800) await sidebarToggle.click();
@@ -349,20 +355,10 @@ async function walk(browser) {
   await action('undo').click();
   assert.equal(await roadVertices.count(), insertedCount);
   await roadVertices.nth(1).press('Enter');
-  await action('break-link').click();
-  assert.ok(await action('join-link').isEnabled());
-  assert.ok(await action('save').isDisabled());
-  await removeFirstVertex();
-  assert.equal(await roadVertices.count(), 1);
-  assert.ok(await action('save').isDisabled());
-  await removeFirstVertex();
+  assert.ok(await action('break-link').isHidden());
+  assert.ok(await action('break-link').isDisabled());
+  assert.equal(await editParts.count(), 1);
   assert.ok(await action('save').isEnabled());
-  await action('undo').click();
-  assert.equal(await roadVertices.count(), 1);
-  await action('undo').click();
-  assert.equal(await roadVertices.count(), 2);
-  await action('undo').click();
-  assert.equal(await roadVertices.count(), insertedCount);
   if (width < 800) await sidebarToggle.click();
   await Promise.all([
     page.waitForResponse(r => r.url().endsWith('/road-points/') && r.ok()),

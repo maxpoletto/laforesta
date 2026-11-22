@@ -70,10 +70,12 @@ vertices in one undoable step. Promoting a drawing preserves those connections.
 An imported Ipso walk appears as one drawing. **Modifica** lets the operator
 select a trace or point, move a vertex, copy a side road into a new drawing,
 split a line at a selected vertex with the broken-link icon, or remove parts.
-The link icon lets the operator choose two line endpoints to join. Choosing
+After a split, tapping a hollow endpoint on the other line shows its editing
+handles. The link icon lets the operator choose two line endpoints to join. Choosing
 both ends of one line closes a polygon. **Promuovi** turns the resulting line
 into a classified road immediately. Canceling the promotion returns to the
-drawing with its edits intact.
+drawing with its edits intact. The road editor **Punti** keeps published roads
+as single lines.
 
 While editing a drawing, **Riduci vertici** thins its selected line or polygon.
 Each press increases the spacing by 5 m. Undo restores the previous pass.
