@@ -1619,6 +1619,7 @@ const fmtNullableMarkDecimal2 = nullableMarkFormatter(fmtDecimal2);
 const fmtNullableMarkDecimal3 = nullableMarkFormatter(fmtDecimal3);
 
 function buildMarkTreeColumnDefs(columns, showParcel) {
+  const labels = S.MARKED_TREE_COLUMN_LABELS;
   const hidden = new Set([VERSION]);
   if (!showParcel) hidden.add(S.COL_PARCEL);
   const defs = {};
@@ -1628,13 +1629,13 @@ function buildMarkTreeColumnDefs(columns, showParcel) {
     if (name === S.COL_PARCEL) { defs[name] = { label: name, type: 'natural', searchMatch: 'exact' }; continue; }
     if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
     if (name === S.COL_NUMBER) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
-    if (name === S.COL_D_CM) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtInt }; continue; }
-    if (name === S.COL_H_M) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtNullableMarkDecimal2 }; continue; }
-    if (name === S.COL_H_MEASURED) { defs[name] = { label: name, type: 'boolean', width: '85px' }; continue; }
-    if (name === S.COL_V_M3) { defs[name] = { label: name, type: 'number', width: '85px', formatter: fmtNullableMarkDecimal3 }; continue; }
-    if (name === S.COL_MASS_Q) { defs[name] = { label: name, type: 'number', width: '70px', formatter: fmtNullableMarkDecimal2 }; continue; }
+    if (name === S.COL_D_CM) { defs[name] = { label: labels.diameter, type: 'number', width: '85px', formatter: fmtInt }; continue; }
+    if (name === S.COL_H_M) { defs[name] = { label: labels.height, type: 'number', width: '70px', formatter: fmtNullableMarkDecimal2 }; continue; }
+    if (name === S.COL_H_MEASURED) { defs[name] = { label: labels.heightMeasured, type: 'boolean', width: '95px' }; continue; }
+    if (name === S.COL_V_M3) { defs[name] = { label: labels.volume, type: 'number', width: '85px', formatter: fmtNullableMarkDecimal3 }; continue; }
+    if (name === S.COL_MASS_Q) { defs[name] = { label: labels.mass, type: 'number', width: '85px', formatter: fmtNullableMarkDecimal2 }; continue; }
     if (name === S.COL_LAT || name === S.COL_LON) { defs[name] = { label: name, type: 'number', width: '90px', formatter: fmtCoord }; continue; }
-    if (name === S.COL_ACC_M) { defs[name] = { label: name, type: 'number', width: '75px', formatter: fmtAccuracyM }; continue; }
+    if (name === S.COL_ACC_M) { defs[name] = { label: labels.accuracy, type: 'number', width: '75px', formatter: fmtAccuracyM }; continue; }
     defs[name] = { label: name };
   }
   return defs;

@@ -1092,6 +1092,10 @@ async function finish() {
   check(scopedParcel?.hidden,
         'parcel-scoped mark table hides the redundant parcel column');
   const markColumns = tableInstances.at(-1).columns;
+  const headings = markColumns.filter(column => !column.hidden && column.key !== '_actions');
+  eq(headings.map(column => column.label), ['Data', 'Numero', 'Specie', 'Diam (cm)', 'Alt (m)',
+    'Misura alt', 'Vol (m3)', 'Massa (q)', 'Lat', 'Lon', 'Acc (m)', 'Operatore'],
+  'the marked-tree table displays the abbreviated headings in order');
   const markAccColumn = markColumns.find(column => column.key === S.COL_ACC_M);
   const markLonIndex = markColumns.findIndex(column => column.key === S.COL_LON);
   eq(markColumns.indexOf(markAccColumn), markLonIndex + 1,

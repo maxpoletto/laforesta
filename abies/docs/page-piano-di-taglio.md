@@ -293,8 +293,8 @@ The modal displays:
 
    The table lists `tree_mark` rows under this item. Columns:
 
-       Data; Particella; Numero; Specie; D (cm); h (m); h misurata;
-       V (m³); m (q); Lat; Lon; Acc. (m); Operatore
+       Data / Particella / Numero / Specie / Diam (cm) / Alt (m) / Misura alt /
+       Vol (m3) / Massa (q) / Lat / Lon / Acc (m) / Operatore
 
    GPS accuracy is stored as integer meters. In the HTML table, an unavailable
    height, volume, mass, or GPS accuracy is shown as `-`; zero retains its

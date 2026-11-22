@@ -534,17 +534,24 @@ export const COL_PRESERVED       = 'PAI';
 export const COL_OBSERVATION_CATEGORIES = 'Categorie';
 export const COL_PHOTO_COUNT = 'Foto';
 
-// Survey table display labels; digest keys and CSV headers are independent.
-export const SAMPLED_TREE_COLUMN_LABELS = {
-  area: 'Area',
-  number: 'Albero',
-  shoot: 'Poll',
-  standard: 'Mat',
+// Table display labels; digest keys and CSV headers are independent.
+const TREE_MEASUREMENT_LABELS = {
   diameter: 'Diam (cm)',
   height: 'Alt (m)',
   volume: 'Vol (m3)',
   mass: 'Massa (q)',
   accuracy: 'Acc (m)',
+};
+export const SAMPLED_TREE_COLUMN_LABELS = {
+  area: 'Area',
+  number: 'Albero',
+  shoot: 'Poll',
+  standard: 'Mat',
+  ...TREE_MEASUREMENT_LABELS,
+};
+export const MARKED_TREE_COLUMN_LABELS = {
+  ...TREE_MEASUREMENT_LABELS,
+  heightMeasured: 'Misura alt',
 };
 
 // Status message fragments
