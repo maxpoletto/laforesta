@@ -1,13 +1,16 @@
 import { FIT_PADDING, PARCEL_STYLE, ParcelMap } from '../../base/js/parcel-map.js';
-import { parcelIdentity } from '../../base/js/geo.js';
+import { geometryPolygons, parcelIdentity } from '../../base/js/geo.js';
 import { fmtDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
 import { handPart, isEndpoint, rings } from './drawing-parts.js';
+import { boundaryTargetMode, referenceVertices, vertexKey } from './boundary-targets.js';
 
 const drawingStyle = { color: '#ad4c00', weight: 4 };
 const roadStyle = { color: '#244c86', weight: 4 };
 const selectedStyle = { color: '#db9500', weight: 6 };
+const SNAP_RADIUS = 12;
+const MAX_REFERENCE_MARKERS = 250;
 
 function fixLabel(fix) {
   const label = document.createElement('span');
@@ -181,7 +184,7 @@ export class CartographyMap {
       if (i === draft.active) this.activeLayer = layer;
       layer.on('click', e => {
         if (draft.tool) callbacks.place(e.latlng);
-        else if (!draft.join) callbacks.selectPart(i);
+        else if (!draft.join && !draft.following) callbacks.selectPart(i);
       });
     });
     if (draft.tool) {
@@ -189,7 +192,7 @@ export class CartographyMap {
     } else if (draft.join) {
       this.watchHandles(() => this.drawEndpoints(draft, callbacks.endpoint));
     } else if (draft.parts[draft.active]) {
-      this.showVertexHandles([draft.parts[draft.active]], callbacks);
+      this.showVertexHandles([draft.parts[draft.active]], callbacks, draft);
     }
   }
 
@@ -200,32 +203,137 @@ export class CartographyMap {
       return;
     }
     const path = handPart('LineString', vertices);
-    if (!path) return;
-    this.partLayer(path, selectedStyle).addTo(this.preview).on('click', e => callbacks.place(e.latlng));
-
+    if (path) this.partLayer(path, selectedStyle).addTo(this.preview).on('click', e => callbacks.place(e.latlng));
     if (tool === 'Polygon') {
-      const [lon, lat] = vertices[0];
-      const canClose = vertices.length >= 3;
-      const title = canClose ? S.CARTOGRAPHY_CLOSE_SKETCH : S.CARTOGRAPHY_FIRST_VERTEX;
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.title = title;
-      button.setAttribute('aria-label', title);
-      if (!canClose) {
-        button.setAttribute('aria-disabled', 'true');
-        button.tabIndex = -1;
-      }
-      button.addEventListener('click', event => {
-        event.stopPropagation();
-        if (canClose) callbacks.finish();
+      this.watchHandles(() => {
+        this.drawBoundaryTargets(draft, callbacks);
+        if (path) this.drawSketchStart(draft, callbacks.finish);
       });
-      const icon = L.divIcon({
-        className: canClose ? 'cartography-sketch-start can-close' : 'cartography-sketch-start',
-        html: button,
-        iconSize: [16, 16],
-      });
-      L.marker([lat, lon], {icon, keyboard: false, bubblingMouseEvents: false}).addTo(this.handles);
     }
+  }
+
+  drawSketchStart(draft, finish) {
+    const {vertices} = draft;
+    const [lon, lat] = vertices[0];
+    const canClose = vertices.length >= 3;
+    const title = canClose ? S.CARTOGRAPHY_CLOSE_SKETCH : S.CARTOGRAPHY_FIRST_VERTEX;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.title = title;
+    button.setAttribute('aria-label', title);
+    if (!canClose) {
+      button.setAttribute('aria-disabled', 'true');
+      button.tabIndex = -1;
+    }
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      if (canClose) finish();
+    });
+    const shared = this.referenceTargets.has(vertexKey(vertices[0])) ? ' cartography-shared-vertex' : '';
+    const icon = L.divIcon({
+      className: `cartography-sketch-start${canClose ? ' can-close' : ''}${shared}`,
+      html: button,
+      iconSize: [16, 16],
+    });
+    L.marker([lat, lon], {icon, keyboard: false, zIndexOffset: 1000, bubblingMouseEvents: false}).addTo(this.handles);
+  }
+
+  boundaryReferences(draft, visible, anchor) {
+    const working = new Map();
+    for (const feature of draft.features ?? []) {
+      if (!working.has(feature.name)) working.set(feature.name, []);
+      working.get(feature.name).push(...feature.parts);
+    }
+    const references = [];
+    for (const [name, layers] of this.parcelLayers) {
+      if ((draft.kind === 'parcel' && name === draft.id) || !this.isVisible('parcel', name)) continue;
+      const parts = working.get(name) ?? layers.filter(layer => {
+        const bounds = layer.getBounds();
+        return bounds.intersects(visible) || (anchor && bounds.contains(anchor));
+      }).map(layer => layer.feature.geometry);
+      for (const part of parts) {
+        for (const polygon of geometryPolygons(part)) {
+          for (const ring of polygon) references.push({name, ring});
+        }
+      }
+    }
+    return references;
+  }
+
+  drawBoundaryTargets(draft, callbacks) {
+    const bounds = this.map.getBounds();
+    const anchor = callbacks.anchor();
+    const anchorKey = anchor && vertexKey(anchor);
+    const references = this.boundaryReferences(draft, bounds, anchor && [anchor[1], anchor[0]]);
+    const west = bounds.getWest(), east = bounds.getEast(), south = bounds.getSouth(), north = bounds.getNorth();
+    this.referenceTargets = referenceVertices(references, (lon, lat) =>
+      (west <= lon && lon <= east && south <= lat && lat <= north) || (anchor && lon === anchor[0] && lat === anchor[1]));
+    this.snapHandles = [];
+    const from = this.referenceTargets.get(anchorKey);
+    const occupied = new Set((draft.vertices ?? rings(draft.parts[draft.active]).flat()).map(vertexKey));
+    let targets = [...this.referenceTargets].filter(([key, target]) => {
+      if (!draft.following) return !occupied.has(key);
+      return key !== anchorKey && from?.positions.some(start => target.positions.some(end => start.ring === end.ring));
+    });
+    if (targets.length > MAX_REFERENCE_MARKERS) {
+      const center = this.map.getSize().divideBy(2);
+      targets = targets.map(entry => {
+        const [lon, lat] = entry[1].point;
+        return {entry, distance: center.distanceTo(this.map.latLngToContainerPoint([lat, lon]))};
+      }).sort((a, b) => a.distance - b.distance).slice(0, MAX_REFERENCE_MARKERS).map(({entry}) => entry);
+    }
+    for (const [, target] of targets) {
+      const [lon, lat] = target.point;
+      const names = [...new Set(target.positions.map(position => position.name))];
+      const label = S.CARTOGRAPHY_BOUNDARY_TARGET(names.join(', '));
+      const icon = L.divIcon({className: 'cartography-boundary-target', iconSize: [24, 24]});
+      const marker = L.marker([lat, lon], {
+        icon, title: label, zIndexOffset: draft.following ? 2000 : 0, bubblingMouseEvents: false,
+      }).addTo(this.handles);
+      let path;
+      const getPath = () => draft.following ? (path ??= callbacks.trace(from, target)) : null;
+      this.selectableHandle(marker, label, null, () => callbacks.snap(target.point, getPath()));
+      if (draft.following) {
+        marker.on('mouseover', () => this.showTrace(getPath()));
+        marker.on('mouseout', () => this.showTrace(null));
+        marker.getElement().addEventListener('focus', () => this.showTrace(getPath()));
+        marker.getElement().addEventListener('blur', () => this.showTrace(null));
+      }
+      this.snapHandles.push({marker, point: target.point});
+    }
+    for (const [i, point] of (draft.vertices ?? []).entries()) {
+      if (i === 0 || !this.referenceTargets.has(vertexKey(point))) continue;
+      const available = !draft.following && !draft.traceReady && i === draft.vertices.length - 1;
+      const icon = L.divIcon({className: 'cartography-shared-vertex cartography-sketch-vertex', iconSize: [15, 15]});
+      const title = available ? S.CARTOGRAPHY_FOLLOW_FROM : '';
+      const marker = L.marker([point[1], point[0]], {
+        icon, title, interactive: available, keyboard: available, bubblingMouseEvents: false,
+      }).addTo(this.handles);
+      if (available) this.selectableHandle(marker, title, null, callbacks.rearm);
+    }
+  }
+
+  showTrace(path) {
+    if (this.tracePreview) this.preview.removeLayer(this.tracePreview);
+    this.tracePreview = path ? L.polyline(path.map(([lon, lat]) => [lat, lon]), {
+      ...selectedStyle, className: 'cartography-trace-preview', dashArray: '6 4', interactive: false,
+      renderer: this.editRenderer,
+    }).addTo(this.preview) : null;
+  }
+
+  snapNear(ll) {
+    const position = this.map.latLngToLayerPoint(ll);
+    let nearest = null, distance = SNAP_RADIUS;
+    for (const handle of this.snapHandles) {
+      const gap = position.distanceTo(this.map.latLngToLayerPoint(handle.marker.getLatLng()));
+      if (gap > distance) continue;
+      nearest = handle;
+      distance = gap;
+    }
+    this.snapHover?.marker.getElement()?.classList.remove('cartography-target-hover');
+    this.snapHover = nearest;
+    nearest?.marker.getElement()?.classList.add('cartography-target-hover');
+    return nearest?.point;
   }
 
   drawEndpoints(draft, select) {
@@ -257,7 +365,7 @@ export class CartographyMap {
   selectableHandle(marker, label, selected, select) {
     const handle = marker.getElement();
     handle.setAttribute('aria-label', label);
-    handle.setAttribute('aria-pressed', String(selected));
+    if (selected !== null) handle.setAttribute('aria-pressed', String(selected));
     marker.on('click', select);
     handle.addEventListener('keydown', event => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -269,6 +377,7 @@ export class CartographyMap {
 
   watchHandles(render) {
     this.refreshHandles = () => {
+      this.showTrace(null);
       this.handles.clearLayers();
       render();
     };
@@ -276,15 +385,17 @@ export class CartographyMap {
     this.map.on('moveend', this.refreshHandles);
   }
 
-  showVertexHandles(parts, callbacks) {
+  showVertexHandles(parts, callbacks, draft) {
+    const referenceMode = boundaryTargetMode(draft);
     this.watchHandles(() => {
       const visible = this.map.getBounds().pad(0.1);
+      if (referenceMode) this.drawBoundaryTargets(draft, callbacks);
       for (const part of parts) {
         let offset = 0;
         rings(part).forEach((ring, r) => {
           ring.forEach(([lon, lat], i) => {
             const ll = L.latLng(lat, lon);
-            if (callbacks && i > 0) {
+            if (callbacks && !draft?.following && i > 0) {
               const mid = L.latLng((lat + ring[i - 1][1]) / 2, (lon + ring[i - 1][0]) / 2);
               if (visible.contains(mid)) {
                 const icon = L.divIcon({className: 'cartography-insert-vertex', iconSize: [10, 10]});
@@ -295,8 +406,11 @@ export class CartographyMap {
             if (!visible.contains(ll) || (part.type === 'Polygon' && i === ring.length - 1)) return;
             const fix = part.fixes?.[offset + i];
             if (!callbacks && !fix) return;
+            const shared = referenceMode && this.referenceTargets.has(vertexKey([lon, lat]));
+            const className = shared ? 'cartography-vertex cartography-shared-vertex' : 'cartography-vertex';
             const marker = callbacks ? L.marker(ll, {
-              draggable: true, icon: L.divIcon({className: 'cartography-vertex', iconSize: [15, 15]}),
+              draggable: !draft?.following, zIndexOffset: referenceMode ? 1000 : 0,
+              icon: L.divIcon({className, iconSize: [15, 15]}),
             }) : L.circleMarker(ll, {radius: 4, color: drawingStyle.color, bubblingMouseEvents: false});
             marker.addTo(this.handles);
             if (fix) marker.bindTooltip(fixLabel(fix)).on('click', () => marker.openTooltip());
@@ -305,6 +419,7 @@ export class CartographyMap {
               const selected = callbacks.vertex?.ring === r && callbacks.vertex?.index === i;
               handle.classList.toggle('cartography-active-vertex', selected);
               const selectVertex = () => {
+                if (draft?.following) return;
                 this.handles.eachLayer(layer => {
                   const element = layer.getElement();
                   if (!element?.hasAttribute('aria-pressed')) return;
@@ -313,12 +428,14 @@ export class CartographyMap {
                   element.setAttribute('aria-pressed', String(active));
                 });
                 callbacks.vertex = {ring: r, index: i};
-                callbacks.selectVertex(r, i);
+                callbacks.selectVertex(r, i, shared);
               };
               this.selectableHandle(marker, S.CARTOGRAPHY_SELECT_VERTEX, selected, selectVertex);
               marker.on('drag', () => {
                 const layer = this.activeLayer;
-                const end = marker.getLatLng();
+                const ll = marker.getLatLng();
+                const snapped = referenceMode && this.snapNear(ll);
+                const end = snapped ? L.latLng(snapped[1], snapped[0]) : ll;
                 if (part.type === 'Point') layer.setLatLng(end);
                 else {
                   const positions = layer.getLatLngs();
@@ -329,7 +446,8 @@ export class CartographyMap {
               });
               marker.on('dragend', () => {
                 const end = marker.getLatLng();
-                callbacks.move(r, i, [end.lng, end.lat]);
+                const snapped = referenceMode && this.snapNear(end);
+                callbacks.move(r, i, snapped || [end.lng, end.lat], !!snapped);
               });
             }
           });
@@ -342,6 +460,9 @@ export class CartographyMap {
   stopEdit() {
     if (this.refreshHandles) this.map.off('moveend', this.refreshHandles);
     this.refreshHandles = null;
+    this.showTrace(null);
+    this.snapHover = null;
+    this.snapHandles = [];
   }
 
   destroy() {

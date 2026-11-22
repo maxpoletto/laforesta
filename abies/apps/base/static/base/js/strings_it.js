@@ -757,6 +757,10 @@ export const CARTOGRAPHY_CANCEL_BOUNDARIES = 'Abbandonare le modifiche ai confin
 export const CARTOGRAPHY_CANCEL_POINTS = 'Abbandonare le modifiche ai punti della strada?';
 export const CARTOGRAPHY_INSERT_VERTEX = 'Inserisci vertice';
 export const CARTOGRAPHY_SELECT_VERTEX = 'Seleziona vertice';
+export const CARTOGRAPHY_BOUNDARY_TARGET = names => `Vertice sul confine di ${names}`;
+export const CARTOGRAPHY_FOLLOW_FROM = 'Segui il confine da questo vertice';
+export const CARTOGRAPHY_FOLLOW_TARGET = 'Scegli un altro vertice sullo stesso contorno.';
+export const CARTOGRAPHY_FOLLOW_UNAVAILABLE = 'Il percorso verso questo vertice non è utilizzabile. Scegline un altro.';
 export const CARTOGRAPHY_REMOVE_VERTEX = 'Rimuovi vertice';
 export const CARTOGRAPHY_JOIN_FIRST = 'Seleziona un punto o un estremo di una linea.';
 export const CARTOGRAPHY_JOIN_SECOND = 'Seleziona il secondo punto o estremo da unire.';

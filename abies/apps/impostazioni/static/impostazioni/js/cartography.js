@@ -12,13 +12,14 @@ import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
 import { wireDrawingImportTabs } from './cartography-import.js';
-import { addSketchPoint, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
+import { addSketchPoint, addSketchRun, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
+import { boundaryTargetMode, traceBetween, traceInsertion, vertexKey } from './boundary-targets.js';
 import { boundaryVertexRemoval, detachBoundary, editBoundary, removeBoundaryVertex } from './parcel-boundaries.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
 
 import {
   breakPart, canBreakPart, canJoinEndpoints, canRemoveVertex, handPart, insertVertex,
-  joinEndpoints, moveVertex, removeVertex,
+  joinEndpoints, moveVertex, removeVertex, rings,
 } from './drawing-parts.js';
 
 // Unsaved edits belong to this browser tab and compresa.
@@ -253,6 +254,10 @@ export class CartographyEditor {
     b.line.disabled = !!this.busy || !this.state;
     b.polygon.disabled = !!this.busy || !this.state;
     this.mapTools.querySelector('[data-role=draw-tools]').hidden = !drawingTools;
+    const follow = b['follow-boundary'];
+    follow.hidden = !boundaryTargetMode(draft);
+    follow.disabled = !!this.busy || !draft?.traceReady;
+    follow.setAttribute('aria-pressed', String(!!draft?.following));
     const singleLine = parts?.length === 1 && parts[0].type === 'LineString';
     const promotableLine = singleLine && this.catalog?.road_types.length;
     const promotablePolygon = parts?.length && parts.every(piece => piece.type === 'Polygon');
@@ -268,7 +273,7 @@ export class CartographyEditor {
     b.undo.hidden = !draft;
     b.undo.disabled = !!this.busy || !draft?.history?.length;
     const activePart = draft?.parts?.[draft.active];
-    const selectedVertex = !draft?.join && draft?.vertex;
+    const selectedVertex = !draft?.join && !draft?.following && draft?.vertex;
     const canRemove = selectedVertex && (draft.kind === 'parcel' && activePart?.type === 'Polygon'
       ? !!boundaryVertexRemoval(draft, selectedVertex.ring, selectedVertex.index)
       : canRemoveVertex(activePart, selectedVertex.ring, selectedVertex.index));
@@ -280,7 +285,7 @@ export class CartographyEditor {
     b['break-link'].hidden = b['join-link'].hidden = remove.hidden;
     b['break-link'].disabled = !!this.busy || !selectedVertex
       || !canBreakPart(activePart, selectedVertex.ring, selectedVertex.index);
-    b['join-link'].disabled = !!this.busy || !editingVertices
+    b['join-link'].disabled = !!this.busy || !editingVertices || !!draft?.following
       || !canJoinEndpoints(draft.parts, {close: draft.kind !== 'road'});
     b['join-link'].setAttribute('aria-pressed', String(!!draft?.join));
     b.finish.hidden = draft?.tool !== 'LineString';
@@ -358,27 +363,99 @@ export class CartographyEditor {
     this.refreshEdit();
   }
 
-  selectPart(index) {
+  selectPart(index, vertex = null) {
     this.draft.active = index;
-    this.draft.vertex = null;
+    this.draft.vertex = vertex;
     this.draft.join = null;
+    this.draft.following = false;
+    if (!this.draft.tool) this.draft.traceReady = !!vertex;
     this.refreshEdit();
   }
 
-  changeParts(change) {
+  changeParts(change, vertex) {
     const d = this.draft;
-    if (changeGeometry(d, change)) this.selectPart(d.active);
+    if (changeGeometry(d, change)) this.selectPart(d.active, vertex);
   }
 
   place(ll) {
-    if (!this.draft?.tool || this.busy) return false;
-    if (addSketchPoint(this.draft, [ll.wrap().lng, ll.lat])) this.refreshEdit();
+    if (!this.draft?.tool) return false;
+    this.placeSketchPoint([ll.wrap().lng, ll.lat]);
     return true;
+  }
+
+  placeSketchPoint(point, atBoundary = false) {
+    const d = this.draft;
+    if (this.busy || d.following || !addSketchPoint(d, point)) return;
+    d.traceReady = atBoundary;
+    this.refreshEdit();
+  }
+
+  traceAnchor() {
+    const d = this.draft;
+    if (!d.traceReady) return null;
+    if (d.tool === 'Polygon') return d.vertices.at(-1);
+    const {ring, index} = d.vertex;
+    return rings(d.parts[d.active])[ring][index];
+  }
+
+  tracePlan(from, target) {
+    const d = this.draft;
+    let allows;
+    if (d.tool) {
+      const placed = new Set(d.vertices.map(vertexKey));
+      // The trace may end at the first vertex and close the sketch.
+      const first = vertexKey(d.vertices[0]);
+      allows = path => path.slice(1).every((point, index) => {
+        const key = vertexKey(point);
+        return !placed.has(key) || (key === first && index === path.length - 2
+          && d.vertices.length + path.length - 2 >= 3);
+      });
+    } else {
+      const {ring, index} = d.vertex;
+      const boundary = rings(d.parts[d.active])[ring];
+      allows = path => !!traceInsertion(boundary, index, path);
+    }
+    return traceBetween(from, target, allows);
+  }
+
+  selectBoundaryTarget(point, path) {
+    if (this.busy) return;
+    const d = this.draft;
+    if (d.following) {
+      if (!path) {
+        this.status.textContent = S.CARTOGRAPHY_FOLLOW_UNAVAILABLE;
+        return;
+      }
+      if (d.tool) {
+        const close = vertexKey(d.vertices[0]) === vertexKey(point);
+        addSketchRun(d, path.slice(1, close ? -1 : undefined));
+        d.following = d.traceReady = false;
+        if (close) this.finishSketch();
+        else this.refreshEdit();
+      } else {
+        const {ring, index} = d.vertex;
+        const insertion = traceInsertion(rings(d.parts[d.active])[ring], index, path);
+        if (!insertion.points.length) {
+          d.following = d.traceReady = false;
+          this.refreshEdit();
+          return;
+        }
+        this.changeParts(draft => {
+          for (const [offset, coord] of insertion.points.entries()) {
+            editBoundary(draft, 'insert', ring, insertion.index + offset, coord);
+          }
+        });
+      }
+    } else if (d.tool === 'Polygon') {
+      this.placeSketchPoint(point, true);
+    } else if (d.vertex) {
+      this.editVertex('move', d.vertex.ring, d.vertex.index, point, true);
+    }
   }
 
   finishSketch() {
     const d = this.draft;
-    if (this.busy || !d?.tool || d.vertices.length < (d.tool === 'Polygon' ? 3 : 2)) return;
+    if (this.busy || !d?.tool || d.following || d.vertices.length < (d.tool === 'Polygon' ? 3 : 2)) return;
     const part = handPart(d.tool, d.vertices);
     if (d.returnSelection) {
       d.completedSketch = part;
@@ -401,25 +478,37 @@ export class CartographyEditor {
 
   refreshEdit() {
     const d = this.draft;
-    this.status.textContent = d.join ? (d.join.first ? S.CARTOGRAPHY_JOIN_SECOND : S.CARTOGRAPHY_JOIN_FIRST)
+    this.status.textContent = d.following ? S.CARTOGRAPHY_FOLLOW_TARGET
+      : d.join ? (d.join.first ? S.CARTOGRAPHY_JOIN_SECOND : S.CARTOGRAPHY_JOIN_FIRST)
       : d.tool === 'Polygon' ? S.CARTOGRAPHY_PLACE_POLYGON
       : d.tool ? S.CARTOGRAPHY_PLACE
       : d.returnSelection ? S.CARTOGRAPHY_CHOOSE_TOOL
       : d.parts.length ? S.CARTOGRAPHY_DRAG : S.CARTOGRAPHY_EMPTY_EDIT;
     this.map.edit(d, {
       vertex: d.vertex,
-      selectVertex: (ring, index) => { d.vertex = {ring, index}; this.updateButtons(); },
+      selectVertex: (ring, index, shared) => {
+        if (d.following) return;
+        d.vertex = {ring, index};
+        d.traceReady = shared;
+        this.updateButtons();
+      },
       selectPart: i => this.selectPart(i), place: ll => this.place(ll),
       finish: () => this.finishSketch(),
+      anchor: () => this.traceAnchor(),
+      rearm: () => { d.traceReady = true; this.refreshEdit(); },
+      trace: (from, target) => this.tracePlan(from, target),
+      snap: (point, path) => this.selectBoundaryTarget(point, path),
       endpoint: (part, index) => this.selectEndpoint(part, index),
-      move: (r, i, pt) => this.editVertex('move', r, i, pt),
+      move: (r, i, pt, snapped) => this.editVertex('move', r, i, pt, snapped),
       insert: (r, i, pt) => this.editVertex('insert', r, i, pt),
     });
     this.updateButtons();
   }
 
-  editVertex(operation, ring, index, point) {
+  editVertex(operation, ring, index, point, snapped = false) {
     if (this.busy) return;
+    const d = this.draft;
+    if (operation === 'move' && vertexKey(rings(d.parts[d.active])[ring][index]) === vertexKey(point)) return;
     this.changeParts(draft => {
       if (draft.kind === 'parcel' && draft.parts[draft.active].type === 'Polygon') {
         editBoundary(draft, operation, ring, index, point);
@@ -427,7 +516,7 @@ export class CartographyEditor {
         const edit = operation === 'move' ? moveVertex : insertVertex;
         edit(draft.parts[draft.active], ring, index, point);
       }
-    });
+    }, snapped ? {ring, index} : null);
   }
 
   removeSelectedVertex() {
@@ -704,7 +793,12 @@ export class CartographyEditor {
       case 'polygon':
         Object.assign(this.draft, {
           tool: action === 'line' ? 'LineString' : 'Polygon', vertices: [], vertex: null, join: null,
+          traceReady: false, following: false,
         });
+        this.refreshEdit();
+        break;
+      case 'follow-boundary':
+        this.draft.following = !this.draft.following;
         this.refreshEdit();
         break;
       case 'edit':
@@ -716,6 +810,7 @@ export class CartographyEditor {
       case 'join-link':
         this.draft.join = this.draft.join ? null : {first: null};
         this.draft.vertex = null;
+        this.draft.traceReady = false;
         this.refreshEdit();
         break;
       case 'remove-vertex':

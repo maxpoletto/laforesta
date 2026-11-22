@@ -242,6 +242,13 @@ details.cartography-section > .cartography-list-header {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.cartography-follow-icon::before {
+  content: '';
+  width: 21px;
+  height: 21px;
+  background-color: currentColor;
+  mask: url('../img/follow-boundary.webp') center / contain no-repeat;
+}
 .cartography-tool-vertices { stroke-width: 4; }
 .cartography-map-tools[hidden],
 .cartography-map-tools .cartography-map-icon[hidden] { display: none; }
@@ -290,4 +297,28 @@ details.cartography-section > .cartography-list-header {
   border-color: white;
   box-shadow: 0 0 0 2px var(--color-bosco-green);
   cursor: pointer;
+}
+
+.cartography-boundary-target {
+  display: grid;
+  place-items: center;
+}
+.cartography-boundary-target::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border: 2px solid #8f5400;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px white;
+}
+.cartography-boundary-target:is(:hover, :focus-visible, .cartography-target-hover)::before {
+  background: #ffe082;
+  border-width: 3px;
+}
+.cartography-shared-vertex.cartography-vertex,
+.cartography-sketch-start.cartography-shared-vertex button,
+.cartography-sketch-vertex {
+  border: 3px solid #b85c00;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px white;
 }

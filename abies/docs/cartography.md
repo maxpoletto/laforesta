@@ -110,8 +110,8 @@ forestry records must keep at least one polygon.
 
 Any map changes are persistent across tab navigation.
 
-If a user edits a shared edge, both parcels are highlighted in the UI and
-changes to both parcels are saved together (atomically) or canceled together. 
+When a shared boundary is edited, the affected parcels are highlighted and
+their changes are saved or canceled together.
 
 ### Road control
 
@@ -247,6 +247,20 @@ through the last ten actions in the current edit, including placing or moving
 a vertex, cutting or joining a line, and closing a parcel sketch. A shared
 boundary change is one action and undo restores both sides.
 
+In **Poligono** and **Confini**, hollow markers show vertices of nearby visible
+parcels. Tapping a marker uses its exact coordinates. In **Confini**, the marker
+is a destination for the selected vertex and also highlights during a nearby
+drag. A thick orange ring marks a connection, including at junctions shared by
+several parcels. Promotion preserves the coordinates, so the new parcel joins
+the same boundary when it is edited later.
+
+**Segui confine** is available from a connected vertex. After activating it,
+the operator chooses another vertex on the same outline. Hovering over a
+destination previews the shortest usable run. The destination adds every
+intermediate vertex as one undoable action and turns off **Segui confine**.
+In **Confini**, the run goes into the edge toward the destination. A destination
+that is already adjacent to the selected vertex identifies that edge directly.
+
 A drawing can be reshaped by moving or removing vertices, split at a vertex,
 or joined to another line at an endpoint. Three map tools work with vertices.
 
@@ -268,11 +282,11 @@ Saving a drawing or road after removing all its points asks for confirmation
 that the whole feature should be deleted. A road that remains on the map
 requires a single line. A parcel in use still requires a closed polygon.
 
-When correcting a shared boundary,  the operator can select the common edge and
-show both affected parcels. Moving, inserting or removing a vertex along that
-edge changes both outlines together. Vertices at junctions stay in place when
-removing them would separate the outlines. Both polygons are validated and
-changed in one transaction.
+When a shared edge is corrected, the affected parcel outlines are highlighted.
+Moving a shared corner updates every outline that meets there. Inserting or
+removing a vertex along a shared edge changes the outlines that use that edge.
+A junction vertex is protected from removal when removal would separate the
+outlines. The affected polygons are validated and changed in one transaction.
 
 An ordinary boundary correction keeps the parcel identity and its records.
 Renaming or splitting a management parcel needs a separate step to review its

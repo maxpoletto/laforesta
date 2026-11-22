@@ -60,6 +60,13 @@ where shared edges meet other edges. **Salva** publishes the edit and
 **Annulla** discards it after confirmation. The unsaved edit survives switching
 tabs within a browser session.
 
+In **Confini**, a hollow marker on a nearby parcel is a destination for the
+selected vertex. Dragging near a marker also snaps to it. In **Poligono**,
+tapping the marker places the next vertex at the same coordinates. A thick
+orange ring marks the shared vertex. **Segui confine** uses a connected vertex
+as its start. The next vertex chosen on the same outline adds the intermediate
+vertices in one undoable step. Promoting a drawing preserves those connections.
+
 An imported Ipso walk appears as one drawing. **Modifica** lets the operator
 select a trace or point, move a vertex, copy a side road into a new drawing,
 split a line at a selected vertex with the broken-link icon, or remove parts.

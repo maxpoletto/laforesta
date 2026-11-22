@@ -80,6 +80,8 @@ The shared table and map controls also use local WebP versions of th studio’s
 [Ruler](https://www.flaticon.com/free-icon/ruler_6934427),
 [Location Pin](https://www.flaticon.com/free-icon/location-pin_7482007), and
 [Menu Bar](https://www.flaticon.com/free-icon/menu-bar_4663114).
+Cartografia uses th studio’s [Distance](https://www.flaticon.com/free-icon/distance_7481955)
+for **Segui confine**.
 
 ## Initial installation
 

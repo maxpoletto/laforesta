@@ -23,7 +23,7 @@ export function pointInRing(lng, lat, ring) {
   return inside;
 }
 
-function geometryPolygons(geometry) {
+export function geometryPolygons(geometry) {
   if (!geometry) return [];
   if (geometry.type === 'Polygon') return [geometry.coordinates];
   if (geometry.type === 'MultiPolygon') return geometry.coordinates;

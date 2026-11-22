@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { addSketchPoint, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
+import { addSketchPoint, addSketchRun, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
+import { referenceVertices, traceBetween, traceInsertion, vertexKey } from './boundary-targets.js';
 
 const outline = {type: 'Polygon', coordinates: [[[16, 38], [17, 38], [17, 39], [16, 38]]]};
 const draft = {parts: [outline], active: 0, edits: [], neighbors: [], added: [],
@@ -44,3 +45,32 @@ assert.equal(changeGeometry(sketch, () => false), false);
 for (let i = 0; i < 10; i++) undoEdit(sketch);
 assert.deepEqual(sketch.vertices, [[16, 38], [16.1, 38]]);
 assert.equal(undoEdit(sketch), false);
+
+const a = [16, 38], b = [16.01, 38.01], c = [16, 38.02];
+const west = [15.9, 38.01], east = [16.1, 38.01], south = [16, 37.9];
+const targets = referenceVertices([
+  {name: 'West', ring: [a, b, c, west, a]},
+  {name: 'East', ring: [a, c, east, a]},
+  {name: 'South', ring: [a, south, [15.9, 37.9], a]},
+]);
+const target = point => targets.get(vertexKey(point));
+assert.deepEqual(target(a).positions.map(p => p.name), ['West', 'East', 'South']);
+assert.deepEqual(traceBetween(target(a), target(b)), [a, b]);
+assert.deepEqual(traceBetween(target(c), target(a), path => path.length > 2), [c, b, a]);
+assert.equal(traceBetween(target(west), target(south)), null);
+assert.deepEqual(traceInsertion([a, c, east, a], 0, [a, b, c]), {index: 1, points: [b]});
+assert.deepEqual(traceInsertion([a, east, c, a], 0, [a, b, c]), {index: 3, points: [b]});
+assert.deepEqual(traceInsertion([a, [16, 38.03], east, a], 0, [a, b, c]), {index: 1, points: [b, c]});
+assert.deepEqual(traceInsertion([a, c, east, a], 0, [a, c]), {index: 1, points: []});
+assert.deepEqual(traceBetween(target(a), target(c), path => !!traceInsertion([a, c, east, a], 0, path)), [a, c]);
+
+const traced = {tool: 'Polygon', vertices: []};
+addSketchPoint(traced, a);
+assert.ok(addSketchRun(traced, [b, c]));
+assert.deepEqual(traced.vertices, [a, b, c]);
+undoEdit(traced);
+assert.deepEqual(traced.vertices, [a]);
+addSketchRun(traced, [b, c]);
+cancelSketch(traced);
+assert.equal(traced.vertices, undefined);
+assert.equal(undoEdit(traced), false);
