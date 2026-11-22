@@ -242,13 +242,17 @@ details.cartography-section > .cartography-list-header {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.cartography-follow-icon::before {
+.cartography-follow-icon { --cartography-tool-image: url('../img/follow-boundary.webp'); }
+.cartography-reduce-icon { --cartography-tool-image: url('../img/reduce-vertices.webp'); }
+.cartography-follow-icon::before,
+.cartography-reduce-icon::before {
   content: '';
   width: 21px;
   height: 21px;
   background-color: currentColor;
-  mask: url('../img/follow-boundary.webp') center / contain no-repeat;
+  mask: var(--cartography-tool-image) center / contain no-repeat;
 }
+.cartography-map-tools [data-action="cancel"] { margin-top: 4px; }
 .cartography-tool-vertices { stroke-width: 4; }
 .cartography-map-tools[hidden],
 .cartography-map-tools .cartography-map-icon[hidden] { display: none; }

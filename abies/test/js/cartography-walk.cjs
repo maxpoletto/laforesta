@@ -320,6 +320,7 @@ async function walk(browser) {
   await loc('#cartography-roads').getByRole('button', {name: 'Via nord', exact: true}).waitFor();
   await action('points').click();
   await action('save').waitFor();
+  assert.ok(await action('reduce-vertices').isHidden());
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('join-link').isDisabled());
   // Insert handles can overlap the GPS vertices at the current zoom.
@@ -513,6 +514,7 @@ async function walk(browser) {
 
   await action('boundaries').click();
   await action('save').waitFor();
+  assert.ok(await action('reduce-vertices').isHidden());
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('line').isHidden());
   assert.ok(await action('join-link').isDisabled());
@@ -620,8 +622,9 @@ async function walk(browser) {
   const file = modal.locator('input[type=file]');
   assert.deepEqual(await modal.locator('form[data-path=file] .form-actions button').allTextContents(),
     ['Annulla', 'Importa']);
+  const track = [[16, 38], [16, 38.00006], [16, 38.00010], [16, 38.00016], [16, 38.00025]];
   const geojson = {name: 'Traccia.geojson', mimeType: 'application/geo+json',
-    buffer: Buffer.from(JSON.stringify({type: 'LineString', coordinates: [[16, 38], [16, 38.1]]}))};
+    buffer: Buffer.from(JSON.stringify({type: 'LineString', coordinates: track}))};
   await file.setInputFiles(geojson);
   assert.ok(await modal.getByLabel('Codice EPSG del DXF').isHidden());
   assert.equal(await modal.getByLabel('Nome', {exact: true}).inputValue(), 'Traccia.geojson');
@@ -658,6 +661,31 @@ async function walk(browser) {
   assert.deepEqual(imports.map(({name}) => name), ['Traccia.geojson', 'Cammino.gpx', 'Confini.dxf', 'Traccia.geojson']);
   assert.deepEqual(imports.map(({epsg}) => epsg), ['', '', '4326', '']);
   assert.equal(imports[0].nonce, imports[3].nonce);
+
+  await drawings.getByRole('button', {name: 'Traccia.geojson', exact: true}).click();
+  await action('edit').click();
+  if (width < 800) await sidebarToggle.click();
+  const tools = await page.locator('.cartography-map-tools button:visible')
+    .evaluateAll(buttons => buttons.map(button => button.dataset.action));
+  assert.deepEqual(tools, ['line', 'polygon', 'reduce-vertices', 'join-link', 'break-link',
+    'remove-vertex', 'undo', 'cancel', 'save']);
+  const reduce = action('reduce-vertices');
+  assert.match(await reduce.evaluate(button => getComputedStyle(button, '::before').maskImage), /reduce-vertices\.webp/);
+  assert.match(await reduce.getAttribute('title'), /5 m/);
+  await reduce.click();
+  assert.equal(await vertices.count(), 4);
+  assert.match(await reduce.getAttribute('title'), /10 m/);
+  await reduce.click();
+  assert.equal(await vertices.count(), 3);
+  await action('undo').click();
+  assert.equal(await vertices.count(), 4);
+  await reduce.click();
+  const [adjusted] = await Promise.all([
+    page.waitForRequest(request => request.url().endsWith('/adjust/') && request.method() === 'POST'),
+    action('save').click(),
+  ]);
+  assert.deepEqual(adjusted.postDataJSON().parts[0].coordinates, [track[0], track[2], track[4]]);
+  await action('save').waitFor({state: 'hidden'});
 
   async function checkFilterList(target, hasSwatch = false) {
     const row = loc(`ul[data-target="${target}"] li.map-workspace-list-row`).first();

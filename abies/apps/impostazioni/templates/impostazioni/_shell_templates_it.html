@@ -224,24 +224,26 @@ S (string constants) provided by the shell's render context.
                 </svg>
               </button>
             </div>
-            <button class="btn cartography-map-icon" data-action="undo" title="Annulla ultimo passo"
-                    aria-label="Annulla ultimo passo" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
-            </button>
-            <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
-                    aria-label="Rimuovi vertice" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/></svg>
+            <button class="btn cartography-map-icon cartography-follow-icon" data-action="follow-boundary"
+                    title="Segui confine" aria-label="Segui confine" aria-pressed="false" hidden disabled></button>
+            <button class="btn cartography-map-icon cartography-reduce-icon" data-action="reduce-vertices"
+                    aria-label="Riduci vertici" hidden disabled></button>
+            <button class="btn cartography-map-icon" data-action="join-link" title="Unisci estremi"
+                    aria-label="Unisci estremi" aria-pressed="false" hidden disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/></svg>
             </button>
             <button class="btn cartography-map-icon" data-action="break-link" title="Interrompi al vertice"
                     aria-label="Interrompi al vertice" hidden disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3M5 7l2-2m10 14 2-2M9 5l1-2m10 11 2-1"/></svg>
             </button>
-            <button class="btn cartography-map-icon" data-action="join-link" title="Unisci estremi"
-                    aria-label="Unisci estremi" aria-pressed="false" hidden disabled>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 11-3 3a3.5 3.5 0 0 0 5 5l3-3m-2-8 3-3a3.5 3.5 0 0 1 5 5l-3 3m-7 2 6-6"/></svg>
+            <button class="btn cartography-map-icon" data-action="remove-vertex" title="Rimuovi vertice"
+                    aria-label="Rimuovi vertice" hidden disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 3v7m4-7v7"/></svg>
             </button>
-            <button class="btn cartography-map-icon cartography-follow-icon" data-action="follow-boundary"
-                    title="Segui confine" aria-label="Segui confine" aria-pressed="false" hidden disabled></button>
+            <button class="btn cartography-map-icon" data-action="undo" title="Annulla ultimo passo"
+                    aria-label="Annulla ultimo passo" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></svg>
+            </button>
             <button class="btn cartography-map-icon" data-action="cancel" title="{{ S.CANCEL }}"
                     aria-label="{{ S.CANCEL }}" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>

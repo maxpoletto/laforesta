@@ -77,6 +77,31 @@ export function rings(part) {
   return part.type === 'Polygon' ? part.coordinates : [part.coordinates];
 }
 
+export function reduceVertices(part, spacing, distanceMeters) {
+  const closed = part.type === 'Polygon';
+  const fixes = part.fixes && [];
+  let offset = 0;
+  const coordinates = rings(part).map(ring => {
+    const last = ring.length - 1;
+    let kept = [0];
+    for (let i = 1; i < last; i++) {
+      const [lon, lat] = ring[kept.at(-1)];
+      const [nextLon, nextLat] = ring[i];
+      if (distanceMeters(lat, lon, nextLat, nextLon) >= spacing) kept.push(i);
+    }
+    // Keep the end of a line and the closing coordinate of each ring.
+    if (closed && new Set(kept.map(i => ring[i].join(','))).size < 3) {
+      kept = ring.map((_, index) => index);
+    } else {
+      kept.push(last);
+    }
+    if (fixes) for (const index of kept) fixes.push(part.fixes[offset + index]);
+    offset += ring.length;
+    return kept.map(index => ring[index]);
+  });
+  return {...part, coordinates: closed ? coordinates : coordinates[0], ...(fixes && {fixes})};
+}
+
 export function moveVertex(part, ringIndex, i, coord) {
   if (part.type === 'Point') part.coordinates = coord;
   else {

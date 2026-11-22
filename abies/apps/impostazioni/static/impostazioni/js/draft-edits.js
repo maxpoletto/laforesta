@@ -1,4 +1,7 @@
+import { reduceVertices } from './drawing-parts.js';
+
 const UNDO_LIMIT = 10;
+export const REDUCTION_STEP_M = 5;
 
 function remember(draft, undo) {
   const history = draft.history ??= [];
@@ -27,13 +30,30 @@ export function addSketchRun(draft, points) {
 }
 
 export function changeGeometry(draft, change) {
-  const {parts, active, dirty, features, edits, added, neighbors, tool, vertices, traceReady} = draft;
+  const {parts, active, dirty, features, edits, added, neighbors, tool, vertices, traceReady, reduction} = draft;
   // Clone these together so a parcel's parts still refer to the same
   // objects as its boundary workspace and its pending additions.
-  const snapshot = structuredClone({parts, active, dirty, features, edits, added, neighbors, tool, vertices, traceReady});
+  const snapshot = structuredClone({parts, active, dirty, features, edits, added, neighbors, tool, vertices, traceReady, reduction});
   if (change(draft) === false) return false;
+  delete draft.reduction;
   remember(draft, current => Object.assign(current, snapshot));
   draft.dirty = true;
+  return true;
+}
+
+export function canReduceActivePart(draft) {
+  return !!draft && !draft.kind && !draft.tool && !draft.returnSelection
+    && ['LineString', 'Polygon'].includes(draft.parts[draft.active]?.type);
+}
+
+export function reduceActivePart(draft, distanceMeters) {
+  if (!canReduceActivePart(draft)) return false;
+  const source = draft.reduction?.source ?? draft.parts[draft.active];
+  const spacing = (draft.reduction?.spacing ?? 0) + REDUCTION_STEP_M;
+  changeGeometry(draft, current => {
+    current.parts[current.active] = reduceVertices(source, spacing, distanceMeters);
+  });
+  draft.reduction = {source, spacing};
   return true;
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   breakPart, canJoinEndpoints, canRemoveVertex, closeLine, insertVertex, joinEndpoints,
-  moveVertex, removeVertex,
+  moveVertex, reduceVertices, removeVertex,
 } from './drawing-parts.js';
 import { boundaryVertexRemoval, removeBoundaryVertex } from './parcel-boundaries.js';
 
@@ -14,6 +14,18 @@ joinEndpoints(pieces, {part: 1, index: 0}, {part: 0, index: 1});
 assert.deepEqual(pieces, [track]);
 assert.equal(breakPart(track, 0, 0), null);
 assert.equal(breakPart(track, 0, 2), null);
+
+const distance = (lat1, lng1, lat2, lng2) => Math.hypot(lat2 - lat1, lng2 - lng1);
+const reduceOuter = [[0, 0], [2, 0], [20, 0], [20, 20], [0, 20], [0, 0]];
+const reduceHole = [[4, 4], [5, 4], [5, 5], [4, 4]];
+const polygonWithHole = {type: 'Polygon', coordinates: [reduceOuter, reduceHole],
+  fixes: Array.from({length: reduceOuter.length + reduceHole.length}, (_, index) => [2, String(index)])};
+assert.deepEqual(reduceVertices(polygonWithHole, 5, distance), {type: 'Polygon',
+  coordinates: [[reduceOuter[0], ...reduceOuter.slice(2)], reduceHole],
+  fixes: [polygonWithHole.fixes[0], ...polygonWithHole.fixes.slice(2)]});
+assert.deepEqual(reduceVertices(polygonWithHole, 100, distance), polygonWithHole);
+assert.deepEqual(reduceVertices({type: 'LineString', coordinates: [[0, 0], [1, 0], [2, 0]]}, 5, distance),
+  {type: 'LineString', coordinates: [[0, 0], [2, 0]]});
 
 const line = (coordinates, fixes) => ({type: 'LineString', coordinates, fixes});
 const forward = line([[16, 38], [16.1, 38]], [[2, 'a'], [3, 'b']]);

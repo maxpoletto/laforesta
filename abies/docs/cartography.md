@@ -267,7 +267,7 @@ In **Confini**, the run goes into the edge toward the destination. A destination
 that is already adjacent to the selected vertex identifies that edge directly.
 
 A drawing can be reshaped by moving or removing vertices, split at a vertex,
-or joined to another line at an endpoint. Three map tools work with vertices.
+or joined to another line at an endpoint.
 
 - **Rimuovi vertice** (trash) removes the selected vertex and reconnects any
   neighbors. A polygon ring must keep at least three vertices. A line can lose
@@ -282,6 +282,14 @@ or joined to another line at an endpoint. Three map tools work with vertices.
   Selecting two endpoints joins their lines or closes one line into a polygon
   if it has at least three distinct vertices. In **Punti**, a road remains
   a line after joining its pieces.
+
+In a drawing, **Riduci vertici** increases the spacing for the selected line
+or polygon by 5 m per press, starting at 5 m. Each pass reads the same vertices
+in order and keeps each vertex at least that far from the last one retained.
+The line keeps its endpoints. Polygon rings stay closed and keep their original
+vertices if thinning would leave fewer than three distinct corners. Undo
+restores the previous spacing and vertices. Changing the selected part or
+changing its geometry starts a new reduction sequence.
 
 Saving a drawing or road after removing all its points asks for confirmation
 that the whole feature should be deleted. A road that remains on the map

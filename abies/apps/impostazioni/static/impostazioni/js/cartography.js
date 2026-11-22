@@ -2,7 +2,8 @@ import { fetchJSON, fileToBase64, postJSON } from '../../base/js/api.js';
 import { renderModalForm, showFormError } from '../../base/js/forms.js';
 import { wireParcelMetadataGovernance } from '../../bosco/js/parcel-metadata.js';
 import * as cache from '../../base/js/cache.js';
-import { sortFeaturesByArea } from '../../base/js/geo.js';
+import { distanceMeters, sortFeaturesByArea } from '../../base/js/geo.js';
+import { fmtInt } from '../../base/js/format.js';
 import * as modals from '../../base/js/modals.js';
 import { navigateWithParams } from '../../base/js/page-sync.js';
 import { cloneTemplate } from '../../base/js/templates.js';
@@ -12,7 +13,10 @@ import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
 import { wireDrawingImportTabs } from './cartography-import.js';
-import { addSketchPoint, addSketchRun, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
+import {
+  addSketchPoint, addSketchRun, cancelSketch, canReduceActivePart, changeGeometry,
+  reduceActivePart, REDUCTION_STEP_M, undoEdit,
+} from './draft-edits.js';
 import { boundaryTargetMode, traceBetween, traceInsertion, vertexKey } from './boundary-targets.js';
 import { boundaryVertexRemoval, detachBoundary, editBoundary, removeBoundaryVertex } from './parcel-boundaries.js';
 import { updateInboxDot } from '../../ipso/js/inbox-status.js';
@@ -279,6 +283,10 @@ export class CartographyEditor {
       : canRemoveVertex(activePart, selectedVertex.ring, selectedVertex.index));
     const remove = b['remove-vertex'];
     const editingVertices = draft && !draft.tool && !draft.returnSelection;
+    const reduce = b['reduce-vertices'];
+    reduce.hidden = !editingVertices || !drawingDraft;
+    reduce.disabled = !!this.busy || !canReduceActivePart(draft);
+    reduce.title = S.CARTOGRAPHY_REDUCE_VERTICES(fmtInt((draft?.reduction?.spacing ?? 0) + REDUCTION_STEP_M));
     remove.hidden = !editingVertices;
     remove.disabled = !!this.busy || !canRemove;
     remove.title = selectedVertex && !canRemove ? S.CARTOGRAPHY_VERTEX_REQUIRED : S.CARTOGRAPHY_REMOVE_VERTEX;
@@ -364,6 +372,7 @@ export class CartographyEditor {
   }
 
   selectPart(index, vertex = null) {
+    if (this.draft.active !== index) delete this.draft.reduction;
     this.draft.active = index;
     this.draft.vertex = vertex;
     this.draft.join = null;
@@ -483,6 +492,7 @@ export class CartographyEditor {
       : d.tool === 'Polygon' ? S.CARTOGRAPHY_PLACE_POLYGON
       : d.tool ? S.CARTOGRAPHY_PLACE
       : d.returnSelection ? S.CARTOGRAPHY_CHOOSE_TOOL
+      : d.reduction ? S.CARTOGRAPHY_REDUCTION_SPACING(fmtInt(d.reduction.spacing))
       : d.parts.length ? S.CARTOGRAPHY_DRAG : S.CARTOGRAPHY_EMPTY_EDIT;
     this.map.edit(d, {
       vertex: d.vertex,
@@ -805,6 +815,9 @@ export class CartographyEditor {
         break;
       case 'edit':
         this.startEdit({id: row.id, version: row.version, parts: structuredClone(row.parts), active: 0});
+        break;
+      case 'reduce-vertices':
+        if (reduceActivePart(this.draft, distanceMeters)) this.selectPart(this.draft.active);
         break;
       case 'break-link':
         this.breakSelectedPart();

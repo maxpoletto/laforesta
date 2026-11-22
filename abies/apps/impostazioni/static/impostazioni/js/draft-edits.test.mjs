@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { addSketchPoint, addSketchRun, cancelSketch, changeGeometry, undoEdit } from './draft-edits.js';
+import { addSketchPoint, addSketchRun, cancelSketch, changeGeometry, reduceActivePart, undoEdit } from './draft-edits.js';
 import { referenceVertices, traceBetween, traceInsertion, vertexKey } from './boundary-targets.js';
 
 const outline = {type: 'Polygon', coordinates: [[[16, 38], [17, 38], [17, 39], [16, 38]]]};
@@ -74,3 +74,23 @@ addSketchRun(traced, [b, c]);
 cancelSketch(traced);
 assert.equal(traced.vertices, undefined);
 assert.equal(undoEdit(traced), false);
+
+const metres = (lat1, lon1, lat2, lon2) => Math.hypot(lat2 - lat1, lon2 - lon1);
+const source = {type: 'LineString', coordinates: [[0, 0], [6, 0], [10, 0], [16, 0], [25, 0]],
+  fixes: [[1, 'start'], [2, ''], [3, '10 m'], null, [1, 'end']]};
+const reduction = {parts: [source], active: 0};
+assert.ok(reduceActivePart(reduction, metres));
+assert.equal(reduction.reduction.spacing, 5);
+assert.deepEqual(reduction.parts[0].coordinates, [[0, 0], [6, 0], [16, 0], [25, 0]]);
+assert.ok(reduceActivePart(reduction, metres));
+assert.equal(reduction.reduction.spacing, 10);
+assert.deepEqual(reduction.parts[0].coordinates, [[0, 0], [10, 0], [25, 0]]);
+assert.deepEqual(reduction.parts[0].fixes, [[1, 'start'], [3, '10 m'], [1, 'end']]);
+undoEdit(reduction);
+assert.equal(reduction.reduction.spacing, 5);
+assert.deepEqual(reduction.parts[0].coordinates, [[0, 0], [6, 0], [16, 0], [25, 0]]);
+changeGeometry(reduction, draft => { draft.parts[0].coordinates[1] = [8, 0]; });
+assert.equal(reduction.reduction, undefined);
+assert.equal(reduceActivePart({...reduction, kind: 'road'}, metres), false);
+assert.equal(reduceActivePart({...reduction, kind: 'parcel'}, metres), false);
+assert.equal(reduceActivePart({parts: [{type: 'Point', coordinates: [0, 0]}], active: 0}, metres), false);

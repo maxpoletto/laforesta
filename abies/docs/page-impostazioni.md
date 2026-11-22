@@ -75,6 +75,9 @@ both ends of one line closes a polygon. **Promuovi** turns the resulting line
 into a classified road immediately. Canceling the promotion returns to the
 drawing with its edits intact.
 
+While editing a drawing, **Riduci vertici** thins its selected line or polygon.
+Each press increases the spacing by 5 m. Undo restores the previous pass.
+
 **Nuovo** under **Disegni** starts a drawing in the selected compresa.
 Choose **Linea** or **Poligono** on the map, then click or tap the map to
 place vertices. Use **Termina** for a line, or return to the first vertex to
