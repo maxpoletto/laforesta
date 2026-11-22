@@ -33,6 +33,7 @@ import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
 import { wireHeightAutofill } from '../../base/js/equations.js';
 import { TreeDetail } from '../../base/js/tree-detail.js';
+import { buildMarkTreeColumnDefs } from '../../base/js/tree-table-columns.js';
 import {
   wireVMPreview, ID_D_CM, ID_H_M, ID_SPECIES, ID_LAT, ID_LON,
 } from '../../base/js/tree-form.js';
@@ -1453,7 +1454,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
   view.note.className = 'subsection-note';
   body.appendChild(view.note);
   const host = document.createElement('div');
-  host.className = 'subsection-host';
+  host.className = 'subsection-host tree-measurement-table';
   body.appendChild(host);
   const showActions = canModify() && !isClosed;
   const showParcel = itemIsRegionWide(itemId);
@@ -1607,38 +1608,6 @@ function formatMarkPopoverValue(name, value) {
     return value ? S.TABLE_LABELS.boolYes : S.TABLE_LABELS.boolNo;
   }
   return String(value);
-}
-
-function nullableMarkFormatter(formatter) {
-  return (value) => (
-    value == null || value === '' ? '-' : formatter(value)
-  );
-}
-
-const fmtNullableMarkDecimal2 = nullableMarkFormatter(fmtDecimal2);
-const fmtNullableMarkDecimal3 = nullableMarkFormatter(fmtDecimal3);
-
-function buildMarkTreeColumnDefs(columns, showParcel) {
-  const labels = S.MARKED_TREE_COLUMN_LABELS;
-  const hidden = new Set([VERSION]);
-  if (!showParcel) hidden.add(S.COL_PARCEL);
-  const defs = {};
-  for (const name of columns) {
-    if (name === ROW_ID) continue;
-    if (hidden.has(name)) { defs[name] = { label: name, hidden: true }; continue; }
-    if (name === S.COL_PARCEL) { defs[name] = { label: name, type: 'natural', searchMatch: 'exact' }; continue; }
-    if (name === S.COL_DATE) { defs[name] = { label: name, type: 'date', width: '100px' }; continue; }
-    if (name === S.COL_NUMBER) { defs[name] = { label: name, type: 'number', width: '60px', formatter: fmtInt }; continue; }
-    if (name === S.COL_D_CM) { defs[name] = { label: labels.diameter, type: 'number', width: '85px', formatter: fmtInt }; continue; }
-    if (name === S.COL_H_M) { defs[name] = { label: labels.height, type: 'number', width: '70px', formatter: fmtNullableMarkDecimal2 }; continue; }
-    if (name === S.COL_H_MEASURED) { defs[name] = { label: labels.heightMeasured, type: 'boolean', width: '95px' }; continue; }
-    if (name === S.COL_V_M3) { defs[name] = { label: labels.volume, type: 'number', width: '85px', formatter: fmtNullableMarkDecimal3 }; continue; }
-    if (name === S.COL_MASS_Q) { defs[name] = { label: labels.mass, type: 'number', width: '85px', formatter: fmtNullableMarkDecimal2 }; continue; }
-    if (name === S.COL_LAT || name === S.COL_LON) { defs[name] = { label: name, type: 'number', width: '90px', formatter: fmtCoord }; continue; }
-    if (name === S.COL_ACC_M) { defs[name] = { label: labels.accuracy, type: 'number', width: '75px', formatter: fmtAccuracyM }; continue; }
-    defs[name] = { label: name };
-  }
-  return defs;
 }
 
 function itemIsRegionWide(itemId) {

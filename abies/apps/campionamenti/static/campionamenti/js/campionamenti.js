@@ -18,7 +18,7 @@ import { columnSearchTerm, resolveColumnSearchTerm, searchTerms, TableWrapper } 
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
-  COL_COPPICE, LEGACY_FIELD_REGION_NAME, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
+  LEGACY_FIELD_REGION_NAME, FIELD_DEFAULT_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
   FIELD_DIAMETER_CLASS_MODE,
   FIELD_LAT, FIELD_LON,
   FIELD_NONCE, LEGACY_FIELD_PARCEL_NAME, FIELD_PRESSLER_COEFF, FIELD_ROW_IDS,
@@ -43,6 +43,7 @@ import { canModify } from '../../base/js/roles.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
 import { TreeDetail } from '../../base/js/tree-detail.js';
+import { SAMPLED_TREE_COLUMNS as TREES_COLS } from '../../base/js/tree-table-columns.js';
 import { cloneTemplate } from '../../base/js/templates.js';
 import { RilevamentiMap } from './rilevamenti-map.js';
 import { GriglieMap } from './griglie-map.js';
@@ -50,8 +51,7 @@ import { GridPlanner } from './grid-planner.js';
 import { mountUseLocationButton } from '../../base/js/latlng-input.js';
 import { wireVMPreview as wireVMPreviewShared } from '../../base/js/tree-form.js';
 import {
-  fmtAccuracyM, fmtDecimal1, fmtDecimal2, fmtCoord, fmtInt, fmtBool,
-  parseDecimal,
+  fmtDecimal2, fmtCoord, fmtInt, parseDecimal,
 } from '../../base/js/format.js';
 import {
   applyTableState, bindTableData, createPage, navigateWithParams, readTableState, tableParamKeys,
@@ -120,30 +120,6 @@ function areaInUse(areaId) {
   return samplesData.rows.some(r => r[c] === areaId);
 }
 
-const TREES_COLS = {
-  [S.COL_SAMPLE_AREA]: { hidden: true },
-  [S.COL_SAMPLE_DATE]: { label: S.LABEL_DATE, type: 'date', width: '90px' },
-  [S.COL_REGION]:    { label: S.COL_REGION, searchMatch: 'exact', width: '90px' },
-  [S.COL_PARCEL]:      { label: S.COL_PARCEL, type: 'natural', searchMatch: 'exact', width: '85px' },
-  [S.COL_AREA_NUM]:    { label: S.SAMPLED_TREE_COLUMN_LABELS.area, type: 'natural', searchMatch: 'exact', width: '70px' },
-  [S.COL_TREE_NUM]:    { label: S.SAMPLED_TREE_COLUMN_LABELS.number, type: 'number', width: '70px', formatter: fmtInt },
-  [S.COL_SPECIES]:     { label: S.COL_SPECIES, width: '120px' },
-  [S.COL_TYPE]:        { label: S.COL_TYPE, width: '70px' },
-  [COL_COPPICE]:       { hidden: true },
-  [S.COL_COPPICE_SHOOT]:     { label: S.SAMPLED_TREE_COLUMN_LABELS.shoot, type: 'number', width: '55px', formatter: fmtInt },
-  [S.COL_COPPICE_STD]:   { label: S.SAMPLED_TREE_COLUMN_LABELS.standard, type: 'boolean', width: '55px', formatter: fmtBool },
-  [S.COL_D_CM]:        { label: S.SAMPLED_TREE_COLUMN_LABELS.diameter, type: 'number', width: '65px', formatter: fmtInt },
-  [S.COL_H_M]:         { label: S.SAMPLED_TREE_COLUMN_LABELS.height, type: 'number', width: '60px', formatter: fmtDecimal2 },
-  [S.COL_L10_MM]:      { label: S.COL_L10_MM, type: 'number', width: '85px', formatter: fmtInt },
-  [S.COL_PRESSLER]:    { hidden: true },
-  [S.COL_V_M3]:        { label: S.SAMPLED_TREE_COLUMN_LABELS.volume, type: 'number', width: '65px', formatter: fmtDecimal2 },
-  [S.COL_MASS_Q]:      { label: S.SAMPLED_TREE_COLUMN_LABELS.mass, type: 'number', width: '70px', formatter: fmtDecimal1 },
-  [S.COL_PRESERVED]:         { label: S.COL_PRESERVED, type: 'boolean', width: '50px', formatter: fmtBool },
-  [S.COL_LAT]:         { label: S.COL_LAT, type: 'number', width: '85px', formatter: fmtCoord },
-  [S.COL_LON]:         { label: S.COL_LON, type: 'number', width: '85px', formatter: fmtCoord },
-  [S.COL_ACC_M]:       { label: S.SAMPLED_TREE_COLUMN_LABELS.accuracy, type: 'number', width: '75px', formatter: fmtAccuracyM },
-  [VERSION]: { label: VERSION, hidden: true },
-};
 const TREE_SEARCH_COLUMNS = Object.entries(TREES_COLS).map(([key, def]) => ({key, ...def}));
 const AREA_SEARCH_FIELDS = new Map([
   [S.COL_REGION, S.COL_REGION], [S.COL_PARCEL, S.COL_PARCEL], [S.COL_AREA_NUM, S.COL_NUMBER],

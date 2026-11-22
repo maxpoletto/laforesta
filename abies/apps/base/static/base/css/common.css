@@ -863,6 +863,10 @@ input:focus, select:focus, textarea:focus {
    When the total exceeds the container, the wrapper scrolls horizontally. */
 .sortable-table { min-width: var(--st-table-min-width, 0); }
 
+.tree-measurement-table .sortable-table-header:not(.col-actions) {
+  padding-inline: 4px;
+}
+
 .table-totals-row .sortable-table-cell {
   border-top: 2px solid var(--color-bosco-green);
   border-bottom: 0;

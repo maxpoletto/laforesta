@@ -296,6 +296,10 @@ The modal displays:
        Data / Particella / Numero / Specie / Diam (cm) / Alt (m) / Misura alt /
        Vol (m3) / Massa (q) / Lat / Lon / Acc (m) / Operatore
 
+   Shared columns have the same minimum widths as in Rilevamenti. They grow
+   proportionally to fill wide screens. Headers stay on one line, and the table
+   scrolls horizontally when the minimum widths exceed the space available.
+
    GPS accuracy is stored as integer meters. In the HTML table, an unavailable
    height, volume, mass, or GPS accuracy is shown as `-`; zero retains its
    numeric meaning and is never used as a missing-value sentinel. CSV exports

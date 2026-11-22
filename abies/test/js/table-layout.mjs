@@ -2,10 +2,12 @@
 import { TableWrapper } from '../../apps/base/static/base/js/table.js';
 import * as S from '../../apps/base/static/base/js/strings.js';
 import { ROW_ID, VERSION } from '../../apps/base/static/base/js/constants.js';
+import { buildMarkTreeColumnDefs, SAMPLED_TREE_COLUMNS } from '../../apps/base/static/base/js/tree-table-columns.js';
 
 const query = new URLSearchParams(location.search);
 const view = query.get('view') || 'marks';
 const geometryOnly = query.get('check') === 'geometry';
+const treeTable = view === 'marks' || view === 'samples';
 const reader = query.get('role') === 'reader';
 const empty = query.get('empty') === '1';
 const styles = {
@@ -64,27 +66,34 @@ async function run() {
   }
   const host = document.createElement('div');
   host.className = view === 'marks' ? 'subsection-host' : view === 'plan' ? 'pdt-table-host' : '';
+  if (treeTable) host.classList.add('tree-measurement-table');
   scope.appendChild(host);
   if (view === 'samples') host.dataset.target = 'trees-table-host';
+  const measurements = [S.COL_D_CM, S.COL_H_M, S.COL_V_M3, S.COL_MASS_Q, S.COL_LAT, S.COL_LON, S.COL_ACC_M];
+  const treeColumns = view === 'marks'
+    ? [S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER, S.COL_SPECIES, S.COL_H_MEASURED, ...measurements, S.COL_OPERATOR]
+    : [S.COL_SAMPLE_DATE, S.COL_REGION, S.COL_PARCEL, S.COL_AREA_NUM, S.COL_TREE_NUM, S.COL_SPECIES,
+      S.COL_TYPE, S.COL_COPPICE_SHOOT, S.COL_COPPICE_STD, S.COL_L10_MM, S.COL_PRESERVED, ...measurements];
+  const values = {
+    [S.COL_SAMPLE_DATE]: '2026-11-13', [S.COL_DATE]: '2026-11-13', [S.COL_PARCEL]: '2a',
+    [S.COL_SPECIES]: 'Abete bianco', [S.COL_REGION]: 'Serra San Bruno', [S.COL_TYPE]: 'Ceduo',
+    [S.COL_OPERATOR]: 'Nome Cognome', [S.COL_LAT]: 38.63888, [S.COL_LON]: 16.32831,
+    [S.COL_MASS_Q]: 12.5, [S.COL_V_M3]: 1.44, [S.COL_H_MEASURED]: true, [S.COL_PRESERVED]: false,
+  };
   const digest = {
-    columns: [ROW_ID, VERSION, S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER, S.COL_SPECIES],
+    columns: [ROW_ID, VERSION, ...(treeTable ? treeColumns : [S.COL_DATE, S.COL_PARCEL, S.COL_NUMBER, S.COL_SPECIES])],
     rows: empty ? [] : Array.from({ length: 32 }, (_, index) => [
-      index + 1, 1, '2026-11-13', String(index % 3 + 1), index + 1, 'Abete bianco',
+      index + 1, 1, ...(treeTable ? treeColumns.map(column => values[column] ?? index + 1)
+        : ['2026-11-13', String(index % 3 + 1), index + 1, 'Abete bianco']),
     ]),
   };
-  if (view === 'samples') {
-    digest.columns.push(S.COL_D_CM, S.COL_MASS_Q);
-    for (const row of digest.rows) row.push(30, 12.5);
-  }
+  const columnDefs = view === 'marks' ? buildMarkTreeColumnDefs(digest.columns, true)
+    : view === 'samples' ? SAMPLED_TREE_COLUMNS
+    : { [VERSION]: { hidden: true }, [S.COL_DATE]: { type: 'date', width: '110px' },
+      [S.COL_PARCEL]: { type: 'natural', width: '100px' }, [S.COL_NUMBER]: { type: 'number', width: '100px' },
+      [S.COL_SPECIES]: { width: '180px' } };
   const table = new TableWrapper({
-    container: host, digest, canModify: !reader,
-    columnDefs: { [VERSION]: { hidden: true },
-      [S.COL_DATE]: { type: 'date', width: '110px' },
-      [S.COL_PARCEL]: { type: 'natural', width: '100px' },
-      [S.COL_NUMBER]: { type: 'number', width: '100px' },
-      [S.COL_SPECIES]: { width: '180px' },
-      [S.COL_D_CM]: { label: S.SAMPLED_TREE_COLUMN_LABELS.diameter, type: 'number', width: '65px' },
-      [S.COL_MASS_Q]: { label: S.SAMPLED_TREE_COLUMN_LABELS.mass, type: 'number', width: '70px' } },
+    container: host, digest, canModify: !reader, columnDefs,
     inlineToolbar: true,
     rowsPerPage: view === 'samples' ? 20 : undefined,
     actions: reader ? {} : { onAdd() {}, onEdit() {}, onDelete() {},
@@ -118,10 +127,20 @@ async function run() {
     near(rect(lastAction).right, rect(workspaceButton).right,
       'Table actions align with the workspace action above');
   }
-  if (view === 'samples') {
+  if (treeTable) {
+    const grid = host.querySelector('.sortable-table');
+    const wrapper = grid.closest('.sortable-table-wrapper');
+    const minimum = parseFloat(getComputedStyle(grid).getPropertyValue('--st-table-min-width'));
+    const expectedWidth = Math.max(minimum, wrapper.clientWidth);
+    near(rect(grid).width, expectedWidth, 'Table fills the wrapper when there is room');
     for (const header of host.querySelectorAll('.sortable-table-header:not(.col-actions)')) {
-      check(header.scrollWidth <= header.clientWidth + 1,
-        'Survey measurement labels fit within their existing column widths');
+      const label = columnDefs[header.dataset.column].label ?? header.dataset.column;
+      const baseWidth = parseFloat(columnDefs[header.dataset.column].width);
+      near(rect(header).width, baseWidth * expectedWidth / minimum, `${label} proportional width`);
+      const text = document.createRange();
+      text.selectNodeContents(header.firstChild);
+      check(text.getClientRects().length === 1 && header.scrollWidth <= header.clientWidth + 1,
+        `${label} and its sort indicator fit on one line`);
     }
   }
   const toggle = host.querySelector('.table-delete-toggle');
@@ -140,7 +159,8 @@ async function run() {
   if (view === 'marks' || view === 'plan') {
     const dataHeader = heading.querySelector('.sortable-table-header:not(.col-actions)');
     check(getComputedStyle(dataHeader).textAlign === 'center', 'Data-header centering is retained');
-    check(getComputedStyle(dataHeader).whiteSpace === 'normal', 'Data-header wrapping is retained');
+    check(getComputedStyle(dataHeader).whiteSpace === (view === 'plan' ? 'normal' : 'nowrap'),
+      'Data header uses the workspace wrapping rule');
   }
   const rowTrash = firstRow()?.querySelector('.action-delete');
   const headerShowsTrash = () => toggle.textContent === ''

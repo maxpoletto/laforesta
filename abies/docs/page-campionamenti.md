@@ -255,7 +255,9 @@ exports the whole survey.
 Display columns, in order: `Data`, `Compresa`, `Particella`, `Area`, `Albero`,
 `Specie`, `Tipo`, `Poll`, `Mat`, `Diam (cm)`, `Alt (m)`, `L10 (mm)`, `Vol (m3)`,
 `Massa (q)`, `PAI`, `Lat`, `Lon`, `Acc (m)`. Abbreviations have no trailing dots.
-Measurement headers can wrap at the units to retain compact column widths.
+Shared columns use the same minimum widths as in Martellate. Columns grow
+proportionally to fill wide screens. Headers stay on one line, and the table
+scrolls horizontally when the minimum widths exceed the space available.
 Pressler is not displayed. Missing legacy accuracy is shown as `-`.
 
 The first word of each label is an unambiguous selector, so users can type

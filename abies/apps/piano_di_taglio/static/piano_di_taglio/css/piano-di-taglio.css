@@ -95,10 +95,13 @@
    the vendor default. */
 .pdt-table-host .sortable-table-header:not(.col-actions),
 .pdt-item-card .subsection-host .sortable-table-header:not(.col-actions) {
-  white-space: normal;
   text-align: center;
   vertical-align: middle;
   line-height: 1.2;
+}
+.pdt-table-host .sortable-table-header:not(.col-actions),
+.pdt-item-card .subsection-host:not(.tree-measurement-table) .sortable-table-header:not(.col-actions) {
+  white-space: normal;
 }
 .pdt-table-host .sortable-table-header.numeric:not(.col-actions),
 .pdt-item-card .subsection-host .sortable-table-header.numeric:not(.col-actions) {
