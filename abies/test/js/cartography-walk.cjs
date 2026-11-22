@@ -576,6 +576,19 @@ async function walk(browser) {
   await parcelTrash.waitFor({state: 'attached'});
   assert.ok(await parcelTrash.isDisabled());
   assert.equal(await parcelTrash.getAttribute('title'), 'Questa particella è in uso');
+  const icons = await parcelTrash.evaluate(trash => {
+    const eye = trash.parentElement.querySelector('.cartography-eye');
+    return [eye, trash].map(button => {
+      const {display, paddingTop, paddingBottom, alignItems} = getComputedStyle(button);
+      const {width, height} = getComputedStyle(button, '::before');
+      return {display, paddingTop, paddingBottom, alignItems, width, height};
+    });
+  });
+  assert.deepEqual(icons[0], icons[1]);
+  assert.deepEqual(icons[1], {
+    display: 'grid', paddingTop: '0px', paddingBottom: '0px', alignItems: 'center',
+    width: '20px', height: '20px',
+  });
 
   await action('open-import').click();
   await modal.getByRole('button', {name: 'Da rilevamento', exact: true}).click();

@@ -181,18 +181,22 @@ details.cartography-section > .cartography-list-header {
   background: #e1eddf;
   color: var(--color-bosco-green-dark);
 }
-.cartography-icon { flex: 0 0 36px; width: 36px; min-height: 2.5rem; font-size: 1.125rem; }
+.cartography-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  min-height: 2.5rem;
+  padding: 0;
+  font-size: 20px;
+}
 .cartography-icon:hover:not(:disabled), .cartography-item:hover:not(:disabled) { background: #e8eee6; }
 .cartography-icon:disabled, .cartography-item:disabled { cursor: default; opacity: 0.5; }
 .cartography-icon[hidden] { display: none; }
-.cartography-eye {
-  display: grid;
-  place-items: center;
-}
 .cartography-eye::before {
   content: "";
-  width: 20px;
-  height: 20px;
+  width: 1em;
+  height: 1em;
   background: url("../img/show.webp") center / contain no-repeat;
 }
 .cartography-eye[aria-pressed="false"]::before {

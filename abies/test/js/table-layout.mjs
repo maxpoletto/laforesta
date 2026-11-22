@@ -143,6 +143,9 @@ async function run() {
     check(getComputedStyle(dataHeader).whiteSpace === 'normal', 'Data-header wrapping is retained');
   }
   const rowTrash = firstRow()?.querySelector('.action-delete');
+  const headerShowsTrash = () => toggle.textContent === ''
+    && /trash\.webp/.test(getComputedStyle(toggle, '::before').maskImage);
+  check(headerShowsTrash(), 'Header trash uses the shared image');
   if (rowTrash) near(centerX(toggle), centerX(rowTrash), 'Header trash aligns with row trash');
   toggle.click();
   await paint();
@@ -180,6 +183,7 @@ async function run() {
   }
   toggle.click();
   await paint();
+  check(headerShowsTrash(), 'Cancel restores the shared trash image');
   near(rect(heading).height, normal.headingHeight, 'Cancel restores the original header height');
   near(rect(grid).top, normal.tableTop, 'Cancel restores the original table position');
 }
