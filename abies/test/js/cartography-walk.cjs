@@ -46,6 +46,8 @@ async function walk(browser) {
   }
   const sidebar = loc('#cartography-sidebar');
   const sidebarToggle = loc('#cartography-map [title="Mostra/nascondi pannello"]');
+  assert.match(await sidebarToggle.evaluate(button => getComputedStyle(button, '::before').maskImage),
+    /menu\.webp/);
   assert.equal(await sidebar.locator('[data-action=save], [data-action=cancel], [data-action=finish]').count(), 0);
   assert.equal(await loc('#cartography-map [data-action=save] svg').count(), 1);
   assert.equal(await loc('#cartography-map [data-action=cancel] svg').count(), 1);
@@ -460,6 +462,8 @@ async function walk(browser) {
     return changed.filter(record => !record.target.closest('.cartography-terrain')).length;
   }), 0);
   const parcelTrash = loc('#cartography-parcels [data-action=remove-item]');
+  assert.match(await parcelTrash.evaluate(button => getComputedStyle(button, '::before').maskImage),
+    /trash\.webp/);
   await parcelTrash.click();
   assert.match(await modal.textContent(), /«2a»/);
   await modal.getByRole('button', {name: 'Annulla', exact: true}).click();

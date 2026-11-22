@@ -929,6 +929,24 @@ input:focus, select:focus, textarea:focus {
 
 .action-icon:hover { color: var(--color-bosco-green); }
 
+.action-edit:empty, .icon-pencil { --action-image: url('../img/icons/pencil.webp'); }
+.action-delete:empty { --action-image: url('../img/icons/trash.webp'); }
+.mc-ruler { --action-image: url('../img/icons/ruler.webp'); }
+.mc-pin { --action-image: url('../img/icons/pin.webp'); }
+.mc-menu, .hamburger { --action-image: url('../img/icons/menu.webp'); }
+
+:is(.action-edit:empty, .action-delete:empty, .icon-pencil, .mc-control-button, .hamburger)::before {
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  background-color: currentColor;
+  mask: var(--action-image) center / contain no-repeat;
+}
+
+.mc-control-button { font-size: 1.125rem; }
+
 /* ========================================================================== */
 /* End TableWrapper                                                           */
 /* ========================================================================== */

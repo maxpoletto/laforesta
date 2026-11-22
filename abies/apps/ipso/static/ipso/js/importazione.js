@@ -216,7 +216,7 @@ function inboxActions() {
     actions.extra = [{
       key: 'mode',
       title: S.ACTION_EDIT,
-      icon: '✎',
+      iconClass: 'icon-pencil',
       visible: row => !isImportedInboxRow(row) && row[inboxModeIndex] !== S.IPSO_MODE_POINTS_LABEL,
       onClick: id => showModeModal(id),
     }];

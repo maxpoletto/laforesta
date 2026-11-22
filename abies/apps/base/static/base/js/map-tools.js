@@ -20,10 +20,6 @@ const $ = id => document.getElementById(id);
 const KM_THRESHOLD_M = 1000;          // switch from meters to kilometers here
 const SIDEBAR_RESIZE_MS = 300;        // wait out the sidebar CSS transition
 
-const MEASURE_ICON = '📏';
-const LOCATION_ICON = '📍';
-const SIDEBAR_ICON = '☰';
-
 const MEASURE_POINT_STYLE = {
   radius: 4, fillColor: '#ff0000', color: '#fff', weight: 2, opacity: 1,
   fillOpacity: 0.8,
@@ -52,7 +48,7 @@ export function formatDistance(meters) {
  * button element so stateful tools can toggle its active class without a
  * (page-unique) id lookup — which matters when two maps share a page.
  */
-function iconButtonControl(icon, title, onClick) {
+function iconButtonControl(iconClass, title, onClick) {
   return L.Control.extend({
     options: { position: 'topleft' },
     onAdd() {
@@ -62,10 +58,9 @@ function iconButtonControl(icon, title, onClick) {
       // click/drag handling and the button doesn't toggle until the next map
       // interaction.  (The basemap switcher control does the same.)
       L.DomEvent.disableClickPropagation(container);
-      const btn = L.DomUtil.create('a', 'mc-control-button', container);
+      const btn = L.DomUtil.create('a', `mc-control-button ${iconClass}`, container);
       btn.href = '#';
       btn.title = title;
-      btn.textContent = icon;   // plain-text glyph, no markup
       L.DomEvent.on(container, 'click', (e) => {
         L.DomEvent.stopPropagation(e);
         L.DomEvent.preventDefault(e);
@@ -116,7 +111,7 @@ export function attachMeasure(leaflet) {
     }
   }
 
-  const control = new (iconButtonControl(MEASURE_ICON, S.MAP_MEASURE_TITLE, toggle))();
+  const control = new (iconButtonControl('mc-ruler', S.MAP_MEASURE_TITLE, toggle))();
   leaflet.addControl(control);
   const onMapClick = (e) => addPoint(e.latlng);
   leaflet.on('click', onMapClick);
@@ -192,7 +187,7 @@ export function attachLocation(leaflet) {
     refreshSemanticMarkers(marker, e.name);
   }
 
-  const control = new (iconButtonControl(LOCATION_ICON, S.MAP_LOCATION_TITLE, toggle))();
+  const control = new (iconButtonControl('mc-pin', S.MAP_LOCATION_TITLE, toggle))();
   leaflet.addControl(control);
   leaflet.on('locationfound', onFound);
   leaflet.on('locationerror', onError);
@@ -225,7 +220,7 @@ export function attachSidebarToggle(leaflet, { sidebarId = 'sidebar', mapId = 'm
     setTimeout(() => leaflet.invalidateSize({ pan: false }), SIDEBAR_RESIZE_MS);
   }
 
-  const control = new (iconButtonControl(SIDEBAR_ICON, S.MAP_SIDEBAR_TITLE, toggle))();
+  const control = new (iconButtonControl('mc-menu', S.MAP_SIDEBAR_TITLE, toggle))();
   leaflet.addControl(control);
 
   return {

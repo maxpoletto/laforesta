@@ -50,7 +50,7 @@ const DEFAULT_LABELS = {
   add: 'Add',
   empty: 'No results.',
   actionEdit: 'Edit',
-  actionEditIcon: '\u270E',
+  actionEditIcon: '',
   actionDelete: 'Delete',
   selectForDelete: 'Select items to delete',
   cancelSelection: 'Cancel selection',
@@ -773,7 +773,7 @@ function actionColumnWidth(count) {
   return `${width}px`;
 }
 
-function appendActionIcon(cell, className, title, icon, actionKey = null) {
+function appendActionIcon(cell, className, title, icon = '', actionKey = null) {
   const element = document.createElement('span');
   element.className = `action-icon ${className}`;
   element.title = String(title);
@@ -791,12 +791,13 @@ function renderRowActions(cell, actions, labels, row) {
   for (const action of extraActions(actions)) {
     if (!actionVisible(action.visible, row)) continue;
     appendActionIcon(
-      cell, 'action-extra', action.title, action.icon, action.key,
+      cell, action.iconClass ? `action-extra ${action.iconClass}` : 'action-extra',
+      action.title, action.icon, action.key,
     );
   }
   if (actions.onDelete && actionVisible(actions.deleteVisible, row)) {
     appendActionIcon(
-      cell, 'action-delete', labels.actionDelete, '\u{1F5D1}\u{FE0E}',
+      cell, 'action-delete', labels.actionDelete,
     );
   }
 }

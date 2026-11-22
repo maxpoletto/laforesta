@@ -74,6 +74,12 @@ The Cartografia visibility icons are local WebP versions of th studio’s
 [Hide](https://www.flaticon.com/free-icon/hide_2767146).
 The **Impostazioni → Generali** footer credits th studio under the
 [Flaticon license](https://www.flaticon.com/legal).
+The shared table and map controls also use local WebP versions of th studio’s
+[Delete](https://www.flaticon.com/free-icon/delete_2531710),
+[Pencil](https://www.flaticon.com/free-icon/pencil_7017762),
+[Ruler](https://www.flaticon.com/free-icon/ruler_6934427),
+[Location Pin](https://www.flaticon.com/free-icon/location-pin_7482007), and
+[Menu Bar](https://www.flaticon.com/free-icon/menu-bar_4663114).
 
 ## Initial installation
 

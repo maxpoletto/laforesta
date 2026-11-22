@@ -612,9 +612,9 @@ const { TableWrapper } = await import('./table.js');
     title: element.title,
     text: element.textContent,
   })), [
-    { className: 'action-icon action-edit', actionKey: null, title: 'Edit', text: '\u270E' },
+    { className: 'action-icon action-edit', actionKey: null, title: 'Edit', text: '' },
     { className: 'action-icon action-extra', actionKey: 'inspect', title: 'Inspect', text: '?' },
-    { className: 'action-icon action-delete', actionKey: null, title: 'Delete', text: '\u{1F5D1}\u{FE0E}' },
+    { className: 'action-icon action-delete', actionKey: null, title: 'Delete', text: '' },
   ], 'TableWrapper builds action icons as DOM nodes');
 
   const filteredActionCell = new MockElement('td');
