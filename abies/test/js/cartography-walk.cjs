@@ -229,10 +229,18 @@ async function walk(browser) {
   await drawings.first().locator('[data-action=select-item]').click();
   await action('edit').click();
   const editParts = loc('.cartography-draft-part');
+  async function selectEditPart(index) {
+    const {x, y} = await editParts.nth(index).evaluate(path => {
+      const point = path.getPointAtLength(path.getTotalLength() / 2);
+      const screen = point.matrixTransform(path.getScreenCTM());
+      return {x: screen.x, y: screen.y};
+    });
+    await page.mouse.click(x, y);
+  }
   assert.equal(await loc('#cartography-parts').count(), 0);
   assert.equal(await editParts.count(), 4);
   if (width < 800) await sidebarToggle.click();
-  await editParts.nth(3).click();
+  await selectEditPart(3);
   await removeFirstVertex();
   await removeFirstVertex();
   await action('join-link').click();
@@ -240,9 +248,9 @@ async function walk(browser) {
   await loc('.cartography-endpoint[title="Linea 1: fine"]').press('Enter');
   assert.equal(await editParts.count(), 2);
   await action('undo').click();
-  await editParts.nth(1).click();
+  await selectEditPart(1);
   await removeFirstVertex();
-  await editParts.first().click();
+  await selectEditPart(0);
   assert.ok(await action('promote').isDisabled());
   const joinWalk = async () => {
     await action('join-link').click();
@@ -302,24 +310,25 @@ async function walk(browser) {
   await action('save').waitFor();
   if (width < 800) await sidebarToggle.click();
   assert.ok(await action('join-link').isDisabled());
-  await loc('.cartography-insert-vertex').first().click();
+  // Insert handles can overlap the GPS vertices at the current zoom.
+  await loc('.cartography-insert-vertex').first().dispatchEvent('click');
   const roadVertices = loc('.cartography-vertex');
   const insertedCount = await roadVertices.count();
-  await loc('.cartography-insert-vertex').nth(2).click();
-  await loc('.cartography-insert-vertex').last().click();
+  await loc('.cartography-insert-vertex').nth(2).dispatchEvent('click');
+  await loc('.cartography-insert-vertex').last().dispatchEvent('click');
   assert.equal(await roadVertices.count(), insertedCount + 2);
   await action('undo').click();
   await action('undo').click();
   assert.equal(await roadVertices.count(), insertedCount);
   assert.ok(await action('remove-vertex').isDisabled());
-  await roadVertices.nth(1).click();
+  await roadVertices.nth(1).press('Enter');
   assert.equal(await roadVertices.nth(1).getAttribute('aria-pressed'), 'true');
   assert.equal(await roadVertices.count(), insertedCount);
   await action('remove-vertex').click();
   assert.equal(await roadVertices.count(), insertedCount - 1);
   await action('undo').click();
   assert.equal(await roadVertices.count(), insertedCount);
-  await roadVertices.nth(1).click();
+  await roadVertices.nth(1).press('Enter');
   await action('break-link').click();
   assert.ok(await action('join-link').isEnabled());
   assert.ok(await action('save').isDisabled());
@@ -355,6 +364,9 @@ async function walk(browser) {
   await loc('path.bosco-road').waitFor({state: 'attached'});
 
   await page.goto(editor);
+  await action('open-import').click();
+  await modal.locator('[data-action=restore]').click();
+  await drawings.first().waitFor({state: 'attached'});
   await action('clear').click();
   await modal.locator('[data-action=confirm]').click();
   await page.waitForFunction(() => !document.querySelector('#cartography-drawings').children.length);

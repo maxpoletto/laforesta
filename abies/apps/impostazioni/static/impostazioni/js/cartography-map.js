@@ -39,6 +39,8 @@ export class CartographyMap {
     this.handles = L.layerGroup().addTo(this.map);
     this.layers = new Map();
     this.preview = L.featureGroup().addTo(this.map);
+    // Editable parts have independent pointer targets above the base canvas.
+    this.editRenderer = L.svg();
     this.hiddenLayers = new Set();
     this.editedParcels = [];
     this.toolbar = L.control({position: 'topleft'});
@@ -120,7 +122,8 @@ export class CartographyMap {
   }
 
   fitRegion() {
-    const bounds = this.objects.getBounds().extend(this.parcels.parcelLayer.getBounds());
+    const bounds = this.objects.getBounds().extend(this.parcels.parcelLayer.getBounds())
+      .extend(this.preview.getBounds());
     if (bounds.isValid()) this.map.fitBounds(bounds, {padding: FIT_PADDING, maxZoom: 19});
   }
 
@@ -172,7 +175,9 @@ export class CartographyMap {
 
     draft.parts?.forEach((part, i) => {
       const style = i === draft.active ? selectedStyle : drawingStyle;
-      const layer = this.partLayer(part, {...style, className: 'cartography-draft-part'}).addTo(this.preview);
+      const layer = this.partLayer(part, {
+        ...style, renderer: this.editRenderer, className: 'cartography-draft-part',
+      }).addTo(this.preview);
       if (i === draft.active) this.activeLayer = layer;
       layer.on('click', e => {
         if (draft.tool) callbacks.place(e.latlng);
