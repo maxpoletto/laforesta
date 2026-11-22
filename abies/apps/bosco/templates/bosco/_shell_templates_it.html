@@ -5,28 +5,34 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
 
 <template id="tmpl-bosco-help">
   <div class="map-help" role="dialog" aria-modal="true" aria-labelledby="bosco-help-title">
-    <h2 id="bosco-help-title" tabindex="-1">Guida a Bosco</h2>
+    <h2 id="bosco-help-title" tabindex="-1">Guida all’utilizzo</h2>
     <p>Scegli una <strong>Compresa</strong> nel pannello laterale. In <strong>Caratteristiche</strong>
-      puoi visualizzare confini, dati forestali, prelievi, indici satellitari e rilievo ombreggiato.
-      Tocca una particella per aprirne i dettagli o un punto fuori dalle particelle per il
-      riepilogo della compresa.</p>
+      puoi visualizzare confini, dati forestali, prelievi, indici satellitari, e
+      rilievi di elevazione LiDAR (visualizzati come rilievi ombreggiati).
+      Clicca su una particella per aprirne i dettagli o su un punto fuori dalle
+      particelle per il riepilogo della compresa.</p>
     <p><strong>Evoluzione</strong> confronta un indice satellitare tra due date oppure il
       prelievo tra due anni. <strong>Media per particella</strong> riassume i valori
       dell’indice per ogni particella.</p>
-    <p>Usa <strong>Viabilità</strong> per mostrare o nascondere i diversi tipi di strada.
-      Le modalità <strong>Piante ad accrescimento indefinito</strong> e <strong>Osservazioni</strong>
-      mostrano sulla mappa i rilievi sul campo.</p>
-    <h3>Indici satellitari Sentinel-2</h3>
+    <p>Usa <strong>Viabilità</strong> per mostrare o nascondere i diversi tipi di percorsi forestali.</p>
+    <p>Le modalità <strong>Piante ad accrescimento indefinito</strong> e <strong>Osservazioni</strong>
+      mostrano sulla mappa i rilievi effettuati sul campo.</p>
+    <h3>Indici satellitari</h3>
+    <p>Questi indici sono calcolati utilizzando le diverse bande spettrali
+    rilevate dal satellite Copernicus Sentinel-2. B02 è la banda blu, B04 la
+    rossa, B08 l’infrarosso vicino e B11 l’infrarosso a onde corte.</p>
     <p><strong>NDVI</strong> misura il vigore della vegetazione. Valori più alti indicano in
       genere una vegetazione più fitta e verde.<br>
-      (B08 − B04) / (B08 + B04)</p>
+      NDVI = (B08 − B04) / (B08 + B04)</p>
     <p><strong>NDMI</strong> è sensibile al contenuto d’acqua delle chiome e aiuta a
       individuare aree di possibile stress idrico.<br>
-      (B08 − B11) / (B08 + B11)</p>
-    <p><strong>EVI</strong> misura il vigore della vegetazione usando anche la banda blu
-      per ridurre gli effetti atmosferici. Distingue meglio le variazioni nelle chiome dense.<br>
-      2,5 × (B08 − B04) / (B08 + 6 × B04 − 7,5 × B02 + 1)</p>
-    <p>B02 è la banda blu, B04 la rossa, B08 l’infrarosso vicino e B11 l’infrarosso a onde corte.</p>
+      NDMI = (B08 − B11) / (B08 + B11)</p>
+    <p><strong>EVI</strong> misura il vigore della vegetazione usando anche la
+    banda blu per ridurre gli effetti atmosferici. Distingue meglio le
+    variazioni nelle chiome dense. La vegetazione sana cade normalmente nel
+    range 0,2–0,8.<br>
+      EVI = 2,5 × (B08 − B04) / (B08 + 6 × B04 − 7,5 × B02 + 1)</p>
+    <p></p>
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
     </div>
@@ -37,7 +43,7 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
   <div class="bosco-page map-workspace">
     <div class="bosco-map-host map-workspace-host" id="bosco-map-host" data-target="map">
       <div class="map-help-control">
-        {% include "base/_partials/_map_help_button.html" with title="Guida a Bosco" only %}
+        {% include "base/_partials/_map_help_button.html" with title="Guida all’utilizzo" only %}
       </div>
     </div>
 

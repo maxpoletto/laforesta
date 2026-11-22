@@ -215,7 +215,7 @@ S (string constants) provided by the shell's render context.
       <div class="map-workspace cartography-layout">
         <div id="cartography-map" class="map-workspace-host">
           <div class="cartography-map-controls map-help-control" data-role="map-controls">
-            {% include "base/_partials/_map_help_button.html" with title="Guida alla cartografia" only %}
+            {% include "base/_partials/_map_help_button.html" with title="Guida all’utilizzo" only %}
             <div class="cartography-map-tools" data-role="map-tools" hidden>
               <div class="cartography-buttons" data-role="draw-tools">
                 <button class="btn cartography-map-icon" data-action="line" aria-label="Linea" title="Linea" disabled>
@@ -348,7 +348,7 @@ S (string constants) provided by the shell's render context.
 
 <template id="tmpl-cartography-help">
   <div class="map-help" role="dialog" aria-modal="true" aria-labelledby="cartography-help-title">
-    <h2 id="cartography-help-title" tabindex="-1">Guida alla cartografia</h2>
+    <h2 id="cartography-help-title" tabindex="-1">Guida all’utilizzo</h2>
     <p>Scegli una <strong>Compresa</strong> nel pannello laterale. Le icone a forma di occhio
       mostrano o nascondono gli elementi sulla mappa.</p>
     <p><strong>Particelle e strade.</strong> Seleziona un elemento nella lista o sulla mappa.
@@ -363,11 +363,11 @@ S (string constants) provided by the shell's render context.
     <ul class="cartography-help-tools" role="list" aria-label="Strumenti di disegno">
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#line"/></svg>
-        <span><strong>Linea.</strong> Tocca la mappa per aggiungere i vertici di una linea.</span>
+        <span><strong>Linea.</strong> Clicca sulla mappa per aggiungere i vertici di una linea.</span>
       </li>
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#polygon"/></svg>
-        <span><strong>Poligono.</strong> Traccia un contorno e tocca il primo vertice per chiuderlo.</span>
+        <span><strong>Poligono.</strong> Traccia un contorno e clicca il primo vertice per chiuderlo.</span>
       </li>
       <li>
         <span class="cartography-follow-icon" aria-hidden="true"></span>
@@ -386,8 +386,8 @@ S (string constants) provided by the shell's render context.
       </li>
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#split"/></svg>
-        <span><strong>Interrompi al vertice.</strong> Dividi una linea o apri un poligono
-          nel vertice selezionato.</span>
+        <span><strong>Separa al vertice.</strong> Dividi una linea o apri un poligono
+          sul vertice selezionato.</span>
       </li>
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#delete"/></svg>
@@ -396,11 +396,11 @@ S (string constants) provided by the shell's render context.
       </li>
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#undo"/></svg>
-        <span><strong>Annulla ultimo passo.</strong> Torna alla modifica precedente.</span>
+        <span><strong>Annulla l’ultimo passo.</strong> Torna alla modifica precedente (fino a 10 passi).</span>
       </li>
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#cancel"/></svg>
-        <span><strong>{{ S.CANCEL }}.</strong> Esci dalla modifica senza salvare.</span>
+        <span><strong>{{ S.CANCEL }}.</strong> Abbandona le modifiche attuali senza salvare.</span>
       </li>
       <li>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="{{ cartography_tools }}#check"/></svg>
@@ -408,8 +408,9 @@ S (string constants) provided by the shell's render context.
       </li>
     </ul>
     <p><strong>Promuovi.</strong> Una singola linea può diventare una strada. Uno o più
-      poligoni possono formare una nuova particella o essere aggiunti a una esistente.
-      La promozione rende il risultato visibile in Abies.</p>
+      poligoni possono formare una nuova particella o essere aggiunti a una particella esistente.
+      La promozione rende il risultato visibile in Abies. I dati satellitari e LiDAR, se disponibili per,
+      la zona interessata, diventano visibili nel giro di due minuti.</p>
     <div class="form-actions">
       <button type="button" class="btn" data-action="cancel">{{ S.DISMISS }}</button>
     </div>
