@@ -258,11 +258,11 @@ or joined to another line at an endpoint. Three map tools work with vertices.
   which becomes an endpoint of both pieces. On a polygon, it removes the
   selected vertex and leaves its neighbors as the two ends of an open line.
   Other rings remain visible as separate lines.
-- **Unisci estremi** (link) displays the endpoints of every line in the edit.
-  Selecting two endpoints joins their lines or closes one line into a polygon.
-  The tool is available when there are two lines to join or one line with
-  at least three distinct vertices to close. In **Punti**, the tool joins
-  separate lines into a single line for the road.
+- **Unisci estremi** (link) displays standalone points and line endpoints.
+  Two points form a line, and a point can extend a line at either end.
+  Selecting two endpoints joins their lines or closes one line into a polygon
+  if it has at least three distinct vertices. In **Punti**, a road remains
+  a line after joining its pieces.
 
 Saving a drawing or road after removing all its points asks for confirmation
 that the whole feature should be deleted. A road that remains on the map

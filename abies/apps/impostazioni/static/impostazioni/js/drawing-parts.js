@@ -1,7 +1,8 @@
 const samePosition = (a, b) => a[0] === b[0] && a[1] === b[1];
 
 export function isEndpoint(part, index) {
-  return part?.type === 'LineString' && (index === 0 || index === part.coordinates.length - 1);
+  return part?.type === 'Point' ? index === 0
+    : part?.type === 'LineString' && (index === 0 || index === part.coordinates.length - 1);
 }
 
 function canCloseLine(part) {
@@ -11,8 +12,8 @@ function canCloseLine(part) {
 }
 
 export function canJoinEndpoints(parts, {close = true} = {}) {
-  const lines = parts.filter(part => part.type === 'LineString');
-  return lines.length > 1 || (close && lines.length === 1 && canCloseLine(lines[0]));
+  const open = parts.filter(part => isEndpoint(part, 0));
+  return open.length > 1 || (close && open[0]?.type === 'LineString' && canCloseLine(open[0]));
 }
 
 export function joinEndpoints(parts, a, b, {close = true} = {}) {
@@ -28,24 +29,28 @@ export function joinEndpoints(parts, a, b, {close = true} = {}) {
   // Keep both recording directions when an end meets a start. If one
   // segment must be reversed, preserve the direction of the earlier part.
   let [first, next] = a.part === start ? [a, b] : [b, a];
-  if (!first.index) [first, next] = [next, first];
+  const firstIsLine = parts[first.part].type === 'LineString';
+  if ((firstIsLine && !first.index) || (!firstIsLine && next.index)) [first, next] = [next, first];
   const orient = (endpoint, reverse) => {
     const part = parts[endpoint.part];
-    const fixes = part.fixes ?? part.coordinates.map(() => null);
-    return reverse ? {coordinates: part.coordinates.toReversed(), fixes: fixes.toReversed()}
-      : {coordinates: part.coordinates, fixes};
+    const [coordinates] = rings(part);
+    const fixes = part.fixes ?? coordinates.map(() => null);
+    return reverse ? {coordinates: coordinates.toReversed(), fixes: fixes.toReversed()}
+      : {coordinates, fixes};
   };
   const left = orient(first, !first.index), right = orient(next, !!next.index);
   const coordinates = left.coordinates.concat(right.coordinates);
   const fixes = left.fixes.concat(right.fixes);
   if (samePosition(left.coordinates.at(-1), right.coordinates[0])) {
     const i = left.coordinates.length;
-    fixes[i - 1] ??= fixes[i];
+    if (parts[next.part].type === 'Point' && fixes[i]?.[1]) fixes[i - 1] = fixes[i];
+    else fixes[i - 1] ??= fixes[i];
     coordinates.splice(i, 1);
     fixes.splice(i, 1);
   }
   parts.splice(end, 1);
-  parts.splice(start, 1, {type: 'LineString', coordinates, fixes});
+  parts.splice(start, 1, coordinates.length === 1 ? {type: 'Point', coordinates: coordinates[0], fixes}
+    : {type: 'LineString', coordinates, fixes});
   return start;
 }
 

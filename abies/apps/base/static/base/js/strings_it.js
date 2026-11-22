@@ -752,8 +752,9 @@ export const CARTOGRAPHY_CANCEL_POINTS = 'Abbandonare le modifiche ai punti dell
 export const CARTOGRAPHY_INSERT_VERTEX = 'Inserisci vertice';
 export const CARTOGRAPHY_SELECT_VERTEX = 'Seleziona vertice';
 export const CARTOGRAPHY_REMOVE_VERTEX = 'Rimuovi vertice';
-export const CARTOGRAPHY_JOIN_FIRST = 'Seleziona un estremo della linea.';
-export const CARTOGRAPHY_JOIN_SECOND = 'Seleziona il secondo estremo da unire.';
+export const CARTOGRAPHY_JOIN_FIRST = 'Seleziona un punto o un estremo di una linea.';
+export const CARTOGRAPHY_JOIN_SECOND = 'Seleziona il secondo punto o estremo da unire.';
+export const CARTOGRAPHY_JOIN_POINT = i => `Punto ${i + 1}`;
 export const CARTOGRAPHY_JOIN_ENDPOINT = (i, start) => `Linea ${i + 1}: ${start ? 'inizio' : 'fine'}`;
 export const CARTOGRAPHY_JOIN_NEEDS_VERTICES = 'Servono almeno tre vertici distinti per chiudere un poligono.';
 export const CARTOGRAPHY_JOIN_ROAD = 'Per unire i tratti della strada, seleziona gli estremi di due linee diverse.';

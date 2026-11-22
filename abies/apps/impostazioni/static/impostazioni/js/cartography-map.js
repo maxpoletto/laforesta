@@ -3,7 +3,7 @@ import { parcelIdentity } from '../../base/js/geo.js';
 import { fmtDecimal } from '../../base/js/format.js';
 import * as S from '../../base/js/strings.js';
 
-import { handPart, rings } from './drawing-parts.js';
+import { handPart, isEndpoint, rings } from './drawing-parts.js';
 
 const drawingStyle = { color: '#ad4c00', weight: 4 };
 const roadStyle = { color: '#244c86', weight: 4 };
@@ -226,11 +226,12 @@ export class CartographyMap {
   drawEndpoints(draft, select) {
     const visible = this.map.getBounds().pad(0.1);
     draft.parts.forEach((part, i) => {
-      if (part.type !== 'LineString') return;
-      for (const index of [0, part.coordinates.length - 1]) {
-        const [lon, lat] = part.coordinates[index];
+      if (!isEndpoint(part, 0)) return;
+      const [coordinates] = rings(part);
+      for (const index of new Set([0, coordinates.length - 1])) {
+        const [lon, lat] = coordinates[index];
         if (!visible.contains([lat, lon])) continue;
-        const title = S.CARTOGRAPHY_JOIN_ENDPOINT(i, index === 0);
+        const title = part.type === 'Point' ? S.CARTOGRAPHY_JOIN_POINT(i) : S.CARTOGRAPHY_JOIN_ENDPOINT(i, index === 0);
         const selected = draft.join.first?.part === i && draft.join.first.index === index;
         const icon = L.divIcon({
           className: selected ? 'cartography-endpoint cartography-active-vertex' : 'cartography-endpoint',

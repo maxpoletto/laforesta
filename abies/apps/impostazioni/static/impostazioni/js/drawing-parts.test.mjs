@@ -30,11 +30,25 @@ joinEndpoints(closed, {part: 0, index: 2}, {part: 0, index: 0});
 assert.deepEqual(closed, [closeLine(track)]);
 assert.equal(canJoinEndpoints([]), false);
 assert.equal(canJoinEndpoints([...closed, point]), false);
-assert.equal(canJoinEndpoints([forward, point]), false);
+assert.equal(canJoinEndpoints([forward, point]), true);
 assert.equal(canJoinEndpoints([line([[16, 38], [17, 38], [16, 38]])]), false);
 assert.equal(canJoinEndpoints([track]), true);
 assert.equal(canJoinEndpoints([track], {close: false}), false);
 assert.equal(canJoinEndpoints([forward, point, reverse], {close: false}), true);
+
+const gate = {type: 'Point', coordinates: [16.2, 38], fixes: [[1, 'Cancello']]};
+const singles = [point, gate];
+joinEndpoints(singles, {part: 1, index: 0}, {part: 0, index: 0});
+assert.deepEqual(singles, [line([point.coordinates, gate.coordinates], [null, gate.fixes[0]])]);
+const prepend = [reverse, gate];
+joinEndpoints(prepend, {part: 0, index: 0}, {part: 1, index: 0});
+assert.deepEqual(prepend, [line([gate.coordinates, ...reverse.coordinates], [gate.fixes[0], ...reverse.fixes])]);
+const append = [gate, forward];
+joinEndpoints(append, {part: 0, index: 0}, {part: 1, index: 1});
+assert.deepEqual(append, [line([...forward.coordinates, gate.coordinates], [...forward.fixes, gate.fixes[0]])]);
+const coincident = [forward, {...gate, coordinates: forward.coordinates[1]}];
+joinEndpoints(coincident, {part: 0, index: 1}, {part: 1, index: 0});
+assert.deepEqual(coincident, [line(forward.coordinates, [forward.fixes[0], gate.fixes[0]])]);
 
 const polygon = closeLine(track);
 polygon.coordinates.push([[16.01, 38.02], [16.02, 38.02], [16.01, 38.03], [16.01, 38.02]]);

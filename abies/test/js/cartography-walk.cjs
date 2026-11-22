@@ -231,6 +231,11 @@ async function walk(browser) {
   await editParts.nth(3).click();
   await removeFirstVertex();
   await removeFirstVertex();
+  await action('join-link').click();
+  await loc('.cartography-endpoint[title="Punto 2"]').press('Enter');
+  await loc('.cartography-endpoint[title="Linea 1: fine"]').press('Enter');
+  assert.equal(await editParts.count(), 2);
+  await action('undo').click();
   await editParts.nth(1).click();
   await removeFirstVertex();
   await editParts.first().click();
