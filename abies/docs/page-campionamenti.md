@@ -262,9 +262,9 @@ The first word of each label is an unambiguous selector, so users can type
 `area:72`, `albero:17`, `diam:>30`, `alt:>15`, `vol:>1` or `massa:>10` without
 quoting column names. Values containing spaces still need quotes, for example
 `compresa:"Serra San Bruno"`. The selectors follow the localized display labels.
-Only display metadata changes: digest keys, stored records and the canonical
-CSV headers retain their existing names. Older filters using key names such as
-`"n. area":72` continue to work, including their map/manual-entry context.
+The table, map selection and manual-entry form use the same label selectors.
+An exact visible label takes precedence over an unambiguous prefix. For an
+older filter such as `"n. area":72`, the current selector is `area:72`.
 
 Pollone value is blank (not 0) for high forest (fustaia) rows.
 

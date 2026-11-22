@@ -864,8 +864,8 @@ export function columnSearchTerm(column, value) {
  * `searchFormatter(value, row, col, index)`.
  *
  * Terms of the form `column:criterion` search a single visible column.
- * An exact key/label match wins; otherwise `column` must be a unique
- * case-insensitive key/label substring.  Quote selectors that contain spaces,
+ * An exact displayed label wins; otherwise `column` must uniquely match
+ * the start of a displayed label, case-insensitively. Quote selectors with spaces,
  * e.g. `"Anno previsto":2027`.  Literal criteria search that column's
  * displayed/search text. Columns with `searchMatch: 'exact'` compare whole raw
  * identifier values (case-insensitive); plain text search remains unchanged.
@@ -897,31 +897,26 @@ export function searchTerms(text) {
 }
 
 export function matchesSearch(row, terms, columns = null) {
-  const parsed = parseSearchTerms(Array.isArray(terms) ? terms : searchTerms(terms));
-
-  if (parsed.plain.length) {
-    const text = rowSearchText(row, columns);
-    if (!parsed.plain.every(t => text.includes(t))) return false;
-  }
-  for (const term of parsed.column) {
-    if (!matchesColumnSearch(row, columns, term)) return false;
+  let text;
+  for (const raw of Array.isArray(terms) ? terms : searchTerms(terms)) {
+    const term = String(raw ?? '').trim().toLowerCase();
+    if (!term) continue;
+    const clause = resolveColumnSearchTerm(term, columns);
+    if (clause) {
+      if (!matchesColumnSearch(row, clause)) return false;
+    } else {
+      text ??= rowSearchText(row, columns);
+      if (!text.includes(term)) return false;
+    }
   }
   return true;
 }
 
-function parseSearchTerms(terms) {
-  const parsed = { plain: [], column: [] };
-  for (const raw of terms) {
-    const term = String(raw ?? '').trim().toLowerCase();
-    if (!term) continue;
-    const i = term.indexOf(':');
-    if (i > 0 && i < term.length - 1) {
-      parsed.column.push({ selector: term.slice(0, i), criterion: term.slice(i + 1) });
-    } else {
-      parsed.plain.push(term);
-    }
-  }
-  return parsed;
+/** Resolve a token from searchTerms to the column a visible filter selects. */
+export function resolveColumnSearchTerm(term, columns) {
+  const i = term.indexOf(':');
+  if (i <= 0 || i === term.length - 1) return null;
+  return { match: findColumnMatch(columns ?? [], term.slice(0, i)), criterion: term.slice(i + 1) };
 }
 
 function rowSearchText(row, columns) {
@@ -935,12 +930,9 @@ function cellSearchText(value, row, col, index) {
   return extra ? `${display} ${extra}` : display;
 }
 
-function matchesColumnSearch(row, columns, term) {
-  if (!columns) return false;
-  const match = findColumnMatch(columns, term.selector);
+function matchesColumnSearch(row, { match, criterion }) {
   if (!match) return false;
   const { col, index } = match;
-  const criterion = term.criterion;
   const comparison = criterion.match(/^([<>])(.+)$/);
   if (comparison) {
     if (col.type !== 'number') return false;
@@ -961,12 +953,11 @@ function findColumnMatch(columns, selector) {
   const partial = [];
   for (const [index, col] of columns.entries()) {
     if (!col || col.hidden || col.key === '_actions') continue;
-    const key = String(col.key ?? '').toLowerCase();
-    const label = String(col.label ?? '').toLowerCase();
+    const label = String(col.label ?? '').trim().toLowerCase();
     const match = { col, index };
-    if (key === selector || label === selector) {
+    if (label === selector) {
       exact.push(match);
-    } else if (key.includes(selector) || label.includes(selector)) {
+    } else if (label.startsWith(selector)) {
       partial.push(match);
     }
   }

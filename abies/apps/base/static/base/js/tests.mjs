@@ -135,9 +135,25 @@ const exactSpeciesCols = [
 check(matchesSearch([120, 0], ['abete:>100'], exactSpeciesCols),
       'exact column match wins over ambiguous substring matches');
 check(!matchesSearch([120, 0], ['ross:>100'], exactSpeciesCols),
-      'unique partial column selector still applies to its matched column');
+      'a substring in the middle of a label is not a selector');
+check(!matchesSearch([120, 150], ['ross:>100'], exactSpeciesCols),
+      'a unique substring cannot accidentally select a visible column');
 check(!matchesSearch([120, 150], ['abet:>100'], exactSpeciesCols),
       'ambiguous partial column selector rejects');
+
+const translatedColumns = [
+  { key: 'Länge (m)', label: 'Kennzahl', type: 'number' },
+  { key: 'length_m', label: 'Länge (m)', type: 'number' },
+  { key: 'private', label: 'Länge intern', type: 'number', hidden: true },
+];
+check(matchesSearch([0, 12, 0], searchTerms('"LÄNGE (M)":>10'), translatedColumns),
+      'exact labels win a collision with another column’s key');
+check(matchesSearch([0, 12, 0], searchTerms('LÄN:>10'), translatedColumns),
+      'a localized prefix is case insensitive and hidden columns are excluded');
+check(!matchesSearch([0, 12, 0], searchTerms('length_m:>10'), translatedColumns),
+      'internal keys do not select columns');
+check(!matchesSearch([0, 12, 20], searchTerms('"Länge intern":>10'), translatedColumns),
+      'hidden labels do not select columns');
 
 const speciesSearchCols = [
   {

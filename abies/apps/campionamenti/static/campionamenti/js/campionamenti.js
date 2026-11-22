@@ -14,7 +14,7 @@
 
 import { confirmDeleteSelection } from '../../base/js/table-delete.js';
 import * as cache from '../../base/js/cache.js';
-import { columnSearchTerm, searchTerms, TableWrapper } from '../../base/js/table.js';
+import { columnSearchTerm, resolveColumnSearchTerm, searchTerms, TableWrapper } from '../../base/js/table.js';
 import { show as showModal, showError, dismiss as dismissModal, onDismiss } from '../../base/js/modals.js';
 import * as S from '../../base/js/strings.js';
 import {
@@ -144,6 +144,10 @@ const TREES_COLS = {
   [S.COL_ACC_M]:       { label: S.SAMPLED_TREE_COLUMN_LABELS.accuracy, type: 'number', width: '75px', formatter: fmtAccuracyM },
   [VERSION]: { label: VERSION, hidden: true },
 };
+const TREE_SEARCH_COLUMNS = Object.entries(TREES_COLS).map(([key, def]) => ({key, ...def}));
+const AREA_SEARCH_FIELDS = new Map([
+  [S.COL_REGION, S.COL_REGION], [S.COL_PARCEL, S.COL_PARCEL], [S.COL_AREA_NUM, S.COL_NUMBER],
+]);
 
 // --- Page state -------------------------------------------------------------
 const sections = {
@@ -760,31 +764,38 @@ function areaSearch(areaId, surveyId = activeSurveyId) {
   return areaRowSearch(area, columns);
 }
 
-function areaRowSearch(area, columns, {useKeys = false} = {}) {
-  return [S.COL_REGION, S.COL_PARCEL, S.COL_AREA_NUM].map(column => columnSearchTerm(
-    useKeys ? column : TREES_COLS[column].label,
-    area[columns.indexOf(column === S.COL_AREA_NUM ? S.COL_NUMBER : column)],
-  )).join(' ');
+function areaRowSearch(area, columns) {
+  return [...AREA_SEARCH_FIELDS].map(([key, source]) =>
+    columnSearchTerm(TREES_COLS[key].label, area[columns.indexOf(source)]),
+  ).join(' ');
+}
+
+function filteredAreaId(surveyId, text, searchColumns = TREE_SEARCH_COLUMNS) {
+  const gridId = surveyGridId(surveyId);
+  if (gridId == null || !sampleAreasData) return null;
+  const values = new Map();
+  for (const term of searchTerms(text)) {
+    const clause = resolveColumnSearchTerm(term, searchColumns);
+    if (!clause) continue;
+    if (!clause.match) return null;
+    const source = AREA_SEARCH_FIELDS.get(clause.match.col.key);
+    if (!source) continue;
+    if (values.has(source) && values.get(source) !== clause.criterion) return null;
+    values.set(source, clause.criterion);
+  }
+  if (values.size !== AREA_SEARCH_FIELDS.size) return null;
+  const columns = sampleAreasData.columns;
+  const grid = columns.indexOf(S.COL_GRID);
+  const criteria = [...values].map(([source, value]) => [columns.indexOf(source), value]);
+  const area = sampleAreasData.rows.find(row => row[grid] === gridId && criteria.every(
+    ([index, value]) => String(row[index] ?? '').trim().toLowerCase() === value,
+  ));
+  return area?.[columns.indexOf(ROW_ID)] ?? null;
 }
 
 function syncAreaSelection() {
   const text = table?.getSearchText() ?? pendingTreeState?.searchText ?? '';
-  const terms = new Set(searchTerms(text));
-  activeAreaId = null;
-  const gridId = surveyGridId(activeSurveyId);
-  if (gridId != null) {
-    const columns = sampleAreasData.columns;
-    for (const row of sampleAreasData.rows) {
-      if (row[columns.indexOf(S.COL_GRID)] !== gridId) continue;
-      const id = row[columns.indexOf(ROW_ID)];
-      // Existing links can use digest-key selectors; new links use table labels.
-      const filters = [areaRowSearch(row, columns), areaRowSearch(row, columns, {useKeys: true})];
-      if (filters.some(filter => filter && searchTerms(filter).every(term => terms.has(term)))) {
-        activeAreaId = id;
-        break;
-      }
-    }
-  }
+  activeAreaId = filteredAreaId(activeSurveyId, text, table?.searchColumns);
   sections.r.map?.setActiveAreaId(activeAreaId);
 }
 
@@ -921,8 +932,7 @@ function applyParams(params) {
   }
   if (targetSurvey == null) { showAlberiEmpty(); return; }
   const areaFilter = areaSearch(p.a, targetSurvey);
-  const terms = new Set(searchTerms(p.t.searchText));
-  if (areaFilter && !searchTerms(areaFilter).every(term => terms.has(term))) {
+  if (areaFilter && filteredAreaId(targetSurvey, p.t.searchText) !== p.a) {
     p.t.searchText = [areaFilter, p.t.searchText].filter(Boolean).join(' ');
   }
   if (targetSurvey !== activeSurveyId) {

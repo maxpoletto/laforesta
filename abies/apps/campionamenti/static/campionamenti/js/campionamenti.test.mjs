@@ -773,10 +773,24 @@ eq(contentEl.querySelector('.table-search').value,'compresa:Serra particella:01b
    'legacy area links become explicit visible filters');
 campionamenti.onQueryChange({s:'1',tf:'compresa:Serra particella:01b "n. area":7'});
 await flushAsyncWork();
+eq(globalThis.__treeDetailInstances.at(-1).rows.map(row=>row[0]),[],
+   'a digest key cannot filter a renamed column');
+eq(globalThis.__rilevamentiMapInstances.at(-1).activeAreaId,null,
+   'a digest key does not select a sample area for manual entry');
+
+campionamenti.onQueryChange({s:'1',tf:'COMP:Serra PART:01b AR:7'});
+await flushAsyncWork();
 eq(globalThis.__treeDetailInstances.at(-1).rows.map(row=>row[0]),[301],
-   'existing URLs using digest-key selectors continue to filter the same records');
+   'visible label prefixes filter the tree rows');
 eq(globalThis.__rilevamentiMapInstances.at(-1).activeAreaId,50,
-   'existing key-based selectors retain the selected area for manual entry');
+   'the same prefixes select a map area for manual entry');
+
+campionamenti.onQueryChange({s:'1',tf:'comp:Serra part:01b a:7'});
+await flushAsyncWork();
+eq(globalThis.__treeDetailInstances.at(-1).rows.map(row=>row[0]),[],
+   'an ambiguous visible prefix does not select any trees');
+eq(globalThis.__rilevamentiMapInstances.at(-1).activeAreaId,null,
+   'an ambiguous prefix clears the area context');
 
 
 
