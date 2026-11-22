@@ -41,13 +41,13 @@ export function changeGeometry(draft, change) {
   return true;
 }
 
-export function canReduceActivePart(draft) {
+export function hasActiveDrawingPath(draft) {
   return !!draft && !draft.kind && !draft.tool && !draft.returnSelection
     && ['LineString', 'Polygon'].includes(draft.parts[draft.active]?.type);
 }
 
 export function reduceActivePart(draft, distanceMeters) {
-  if (!canReduceActivePart(draft)) return false;
+  if (!hasActiveDrawingPath(draft)) return false;
   const source = draft.reduction?.source ?? draft.parts[draft.active];
   const spacing = (draft.reduction?.spacing ?? 0) + REDUCTION_STEP_M;
   changeGeometry(draft, current => {

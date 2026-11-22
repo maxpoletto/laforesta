@@ -77,6 +77,9 @@ drawing with its edits intact.
 
 While editing a drawing, **Riduci vertici** thins its selected line or polygon.
 Each press increases the spacing by 5 m. Undo restores the previous pass.
+With just a line or polygon selected, the trash button removes that part.
+With a vertex selected, the trash button acts on the vertex. Part removal
+can be undone, and saving an empty drawing asks for confirmation.
 
 **Nuovo** under **Disegni** starts a drawing in the selected compresa.
 Choose **Linea** or **Poligono** on the map, then click or tap the map to

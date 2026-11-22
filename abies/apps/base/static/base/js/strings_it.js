@@ -764,6 +764,8 @@ export const CARTOGRAPHY_FOLLOW_FROM = 'Segui il confine da questo vertice';
 export const CARTOGRAPHY_FOLLOW_TARGET = 'Scegli un altro vertice sullo stesso contorno.';
 export const CARTOGRAPHY_FOLLOW_UNAVAILABLE = 'Il percorso verso questo vertice non è utilizzabile. Scegline un altro.';
 export const CARTOGRAPHY_REMOVE_VERTEX = 'Rimuovi vertice';
+export const CARTOGRAPHY_REMOVE_LINE = 'Elimina linea';
+export const CARTOGRAPHY_REMOVE_POLYGON = 'Elimina poligono';
 export const CARTOGRAPHY_REDUCE_VERTICES = spacing => `Riduci vertici (${spacing} m)`;
 export const CARTOGRAPHY_REDUCTION_SPACING = spacing => `Distanza minima tra i vertici: ${spacing} m.`;
 export const CARTOGRAPHY_JOIN_FIRST = 'Seleziona un punto o un estremo di una linea.';

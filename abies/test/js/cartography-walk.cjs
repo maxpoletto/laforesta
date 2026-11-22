@@ -29,9 +29,11 @@ async function walk(browser) {
   const loc = selector => page.locator(selector);
   const action = name => loc(`#settings-cartografia [data-action="${name}"]`);
   const vertices = loc('.cartography-vertex');
+  const trash = action('remove-vertex');
   async function removeFirstVertex() {
     await vertices.first().press('Enter');
-    await action('remove-vertex').click();
+    assert.equal(await trash.getAttribute('aria-label'), 'Rimuovi vertice');
+    await trash.click();
   }
   const editor = url + '/impostazioni?scheda=cartografia';
   await page.goto(url + '/impostazioni');
@@ -253,6 +255,11 @@ async function walk(browser) {
   assert.equal(await editParts.count(), 4);
   if (width < 800) await sidebarToggle.click();
   await selectEditPart(3);
+  assert.equal(await trash.getAttribute('title'), 'Elimina linea');
+  await trash.click();
+  assert.equal(await editParts.count(), 3);
+  await action('undo').click();
+  assert.equal(await editParts.count(), 4);
   await removeFirstVertex();
   await removeFirstVertex();
   await action('join-link').click();
@@ -451,6 +458,27 @@ async function walk(browser) {
   await startVertex.press('Enter');
   await modal.getByLabel('Nome').fill('Confine');
   await modal.locator('[type=submit]').click();
+  if (width < 800) await sidebarToggle.click();
+  await action('edit').click();
+  if (width < 800) await sidebarToggle.click();
+  assert.equal(await trash.getAttribute('title'), 'Elimina poligono');
+  await removeFirstVertex();
+  assert.equal(await vertices.count(), 3);
+  await vertices.first().press('Enter');
+  assert.ok(await trash.isDisabled());
+  assert.equal(await trash.getAttribute('aria-label'), 'Rimuovi vertice');
+  await action('undo').click();
+  assert.equal(await vertices.count(), 4);
+  await trash.click();
+  assert.equal(await editParts.count(), 0);
+  assert.ok(await trash.isDisabled());
+  await action('save').click();
+  assert.match(await modal.textContent(), /Confine/);
+  await modal.getByRole('button', {name: 'Annulla', exact: true}).click();
+  await action('undo').click();
+  assert.equal(await editParts.count(), 1);
+  await action('save').click();
+  await action('save').waitFor({state: 'hidden'});
   if (width < 800) await sidebarToggle.click();
   await action('promote').click();
   assert.match(await modal.locator('[name=eclass_id] option:checked').textContent(), /A —/);

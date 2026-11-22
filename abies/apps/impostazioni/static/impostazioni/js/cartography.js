@@ -14,7 +14,7 @@ import { showRegionForm } from './region-form.js';
 import { CartographyMap } from './cartography-map.js';
 import { wireDrawingImportTabs } from './cartography-import.js';
 import {
-  addSketchPoint, addSketchRun, cancelSketch, canReduceActivePart, changeGeometry,
+  addSketchPoint, addSketchRun, cancelSketch, changeGeometry, hasActiveDrawingPath,
   reduceActivePart, REDUCTION_STEP_M, undoEdit,
 } from './draft-edits.js';
 import { boundaryTargetMode, traceBetween, traceInsertion, vertexKey } from './boundary-targets.js';
@@ -281,15 +281,21 @@ export class CartographyEditor {
     const canRemove = selectedVertex && (draft.kind === 'parcel' && activePart?.type === 'Polygon'
       ? !!boundaryVertexRemoval(draft, selectedVertex.ring, selectedVertex.index)
       : canRemoveVertex(activePart, selectedVertex.ring, selectedVertex.index));
+    const drawingPath = hasActiveDrawingPath(draft);
+    const canRemovePart = !selectedVertex && !draft?.join && drawingPath;
     const remove = b['remove-vertex'];
     const editingVertices = draft && !draft.tool && !draft.returnSelection;
     const reduce = b['reduce-vertices'];
     reduce.hidden = !editingVertices || !drawingDraft;
-    reduce.disabled = !!this.busy || !canReduceActivePart(draft);
+    reduce.disabled = !!this.busy || !drawingPath;
     reduce.title = S.CARTOGRAPHY_REDUCE_VERTICES(fmtInt((draft?.reduction?.spacing ?? 0) + REDUCTION_STEP_M));
     remove.hidden = !editingVertices;
-    remove.disabled = !!this.busy || !canRemove;
-    remove.title = selectedVertex && !canRemove ? S.CARTOGRAPHY_VERTEX_REQUIRED : S.CARTOGRAPHY_REMOVE_VERTEX;
+    remove.disabled = !!this.busy || !(canRemove || canRemovePart);
+    const removeLabel = canRemovePart
+      ? (activePart.type === 'Polygon' ? S.CARTOGRAPHY_REMOVE_POLYGON : S.CARTOGRAPHY_REMOVE_LINE)
+      : S.CARTOGRAPHY_REMOVE_VERTEX;
+    remove.title = selectedVertex && !canRemove ? S.CARTOGRAPHY_VERTEX_REQUIRED : removeLabel;
+    remove.setAttribute('aria-label', removeLabel);
     b['break-link'].hidden = b['join-link'].hidden = remove.hidden;
     b['break-link'].disabled = !!this.busy || !selectedVertex
       || !canBreakPart(activePart, selectedVertex.ring, selectedVertex.index);
@@ -529,8 +535,12 @@ export class CartographyEditor {
     }, snapped ? {ring, index} : null);
   }
 
-  removeSelectedVertex() {
+  removeSelection() {
     const d = this.draft;
+    if (!d.vertex) {
+      if (!d.join && hasActiveDrawingPath(d)) this.changeParts(removeActivePart);
+      return;
+    }
     const {ring, index} = d.vertex;
     const part = d.parts[d.active];
     if (d.kind === 'parcel' && part.type === 'Polygon') {
@@ -829,7 +839,7 @@ export class CartographyEditor {
         this.refreshEdit();
         break;
       case 'remove-vertex':
-        this.removeSelectedVertex();
+        this.removeSelection();
         break;
       case 'undo': {
         const d = this.draft;

@@ -273,6 +273,10 @@ or joined to another line at an endpoint.
   neighbors. A polygon ring must keep at least three vertices. A line can lose
   an endpoint, and removing one end of a single segment leaves a point.
   Removing that point removes the part from the edit.
+- In **Disegni → Modifica**, selecting a line or polygon alone changes the
+  trash button to **Elimina linea** or **Elimina poligono**. Removing the part
+  is one undoable action. A selected vertex that the shape needs leaves the
+  trash button disabled.
 - **Interrompi al vertice** (broken link) splits a line at an interior vertex,
   which becomes an endpoint of both pieces. On a polygon, it removes the
   selected vertex and leaves its neighbors as the two ends of an open line.
