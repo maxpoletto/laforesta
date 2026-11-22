@@ -439,7 +439,7 @@ async function walk(browser) {
       && response.request().method() === 'POST' && response.status() === 202),
     action('refresh-terrain').click(),
   ]);
-  await page.getByText('Aggiornamento in elaborazione.', {exact: true}).waitFor();
+  await page.getByText('Aggiornamento in attesa.', {exact: true}).waitFor();
   assert.ok(await action('refresh-terrain').isDisabled());
   const terrainUrl = `/api/impostazioni/cartography/${await loc('#cartography-region').inputValue()}/terrain/`;
   const failure = 'Impossibile scaricare le immagini da Copernicus (HTTP 503).';

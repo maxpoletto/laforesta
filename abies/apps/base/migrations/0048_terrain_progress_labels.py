@@ -1,0 +1,31 @@
+from django.db import migrations, models
+from django.db.models import F
+
+
+def mark_audit_stale(apps, schema_editor):
+    alias = schema_editor.connection.alias
+    statuses = apps.get_model('base', 'DigestStatus').objects.using(alias)
+    updated = statuses.filter(name='audit').update(stale=True, dirty_seq=F('dirty_seq') + 1)
+    if not updated and apps.get_model('base', 'HistoricalTerrainRefresh').objects.using(alias).exists():
+        statuses.create(name='audit', stale=True, dirty_seq=1)
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('base', '0047_terrain_queue_label'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='historicalterrainrefresh',
+            name='state',
+            field=models.CharField(choices=[('queued', 'In attesa'), ('running', 'In elaborazione'), ('current', 'Completato'), ('credentials', 'In attesa di credenziali'), ('failed', 'Non riuscito'), ('empty', 'Nessuna immagine')], default='queued', max_length=12),
+        ),
+        migrations.AlterField(
+            model_name='terrainrefresh',
+            name='state',
+            field=models.CharField(choices=[('queued', 'In attesa'), ('running', 'In elaborazione'), ('current', 'Completato'), ('credentials', 'In attesa di credenziali'), ('failed', 'Non riuscito'), ('empty', 'Nessuna immagine')], default='queued', max_length=12),
+        ),
+        migrations.RunPython(mark_audit_stale, migrations.RunPython.noop),
+    ]

@@ -38,11 +38,13 @@ def test_writer_can_queue_only_published_parcels(client, reader_user, writer_use
     outline.save(update_fields=['published'])
     queued = client.post(url, {}, content_type='application/json')
     assert queued.status_code == 202
-    assert queued.json() == {'available': True, 'state': 'queued', 'message': 'Aggiornamento in elaborazione.'}
+    assert queued.json() == {'available': True, 'state': 'queued', 'message': 'Aggiornamento in attesa.'}
     assert client.get(url.removesuffix('terrain/')).json()['terrain'] == queued.json()
     assert client.post(url, {}, content_type='application/json').status_code == 202
     assert terrain_queue.claim().region_id == parcel.region_id
-    assert client.post(url, {}, content_type='application/json').json()['state'] == 'running'
+    assert client.post(url, {}, content_type='application/json').json() == {
+        'available': True, 'state': 'running', 'message': 'Aggiornamento in elaborazione.',
+    }
     assert TerrainRefresh.objects.count() == 1
     assert TerrainRefresh.history.count() == 1
 
@@ -274,7 +276,7 @@ def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels,
     assert [event[S.COL_USER] for event in events] == [writer_user.get_full_name() or writer_user.username] * 4
     assert all(region.name in event[S.COL_NEW_VALUE] for event in events)
     assert S.TERRAIN_STATE_FAILED in events[0][S.COL_NEW_VALUE]
-    assert 'Stato: In elaborazione' in events[1][S.COL_NEW_VALUE]
+    assert 'Stato: In attesa' in events[1][S.COL_NEW_VALUE]
     assert S.TERRAIN_STATE_CURRENT in events[2][S.COL_NEW_VALUE]
 
     outline.geometry = polygon(16.001)

@@ -25,15 +25,15 @@ SATELLITE_CREDENTIALS_STALE = 'Le credenziali sono state modificate. Controlla i
 TERRAIN_REFRESH = 'Aggiorna dati dei terreni'
 TERRAIN_REFRESH_AUDIT = 'Aggiornamento dati dei terreni'
 TERRAIN_REFRESH_NO_PARCELS = 'La compresa deve avere almeno una particella con confini pubblicati.'
-TERRAIN_STATE_QUEUED = 'In elaborazione'
-TERRAIN_STATE_RUNNING = 'In corso'
+TERRAIN_STATE_QUEUED = 'In attesa'
+TERRAIN_STATE_RUNNING = 'In elaborazione'
 TERRAIN_STATE_CURRENT = 'Completato'
 TERRAIN_STATE_WAITING = 'In attesa di credenziali'
 TERRAIN_STATE_FAILED = 'Non riuscito'
 TERRAIN_STATE_EMPTY = 'Nessuna immagine'
 TERRAIN_REFRESH_MESSAGES = {
-    'queued': 'Aggiornamento in elaborazione.',
-    'running': 'Aggiornamento in corso.',
+    'queued': 'Aggiornamento in attesa.',
+    'running': 'Aggiornamento in elaborazione.',
     'current': 'Dati dei terreni aggiornati.',
     'credentials': 'Servono credenziali Copernicus valide.',
     'failed': 'Aggiornamento non riuscito. Puoi riprovare.',
