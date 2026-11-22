@@ -15,7 +15,8 @@ from config import strings as S
 def job_status(region_id, job=None):
     if job is None:
         job = TerrainRefresh.objects.filter(pk=region_id).first()
-    state = job.state if job else ''
+    available = has_parcels(region_id)
+    state = job.state if job and available else ''
     message = S.TERRAIN_REFRESH_MESSAGES.get(state, '')
     if state in (TerrainRefresh.State.FAILED, TerrainRefresh.State.WAITING) and job.failure:
         message = S.TERRAIN_REFRESH_FAILURES.get(job.failure.get('kind'), message)
@@ -25,7 +26,7 @@ def job_status(region_id, job=None):
         elif status:
             message = S.TERRAIN_REFRESH_HTTP_STATUS.format(message=message.rstrip('.'), status=status)
     return {
-        'available': has_parcels(region_id),
+        'available': available,
         'state': state,
         'message': message,
     }

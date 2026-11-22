@@ -434,11 +434,6 @@ async function walk(browser) {
   assert.equal((await selectedParcel.textContent()).trim(), '2a');
   assert.equal(await drawings.count(), 0);
   assert.equal(await bulkButtons.count(), 1);
-  await Promise.all([
-    page.waitForResponse(response => response.url().endsWith('/terrain/')
-      && response.request().method() === 'POST' && response.status() === 202),
-    action('refresh-terrain').click(),
-  ]);
   await page.getByText('Aggiornamento in attesa.', {exact: true}).waitFor();
   assert.ok(await action('refresh-terrain').isDisabled());
   const terrainUrl = `/api/impostazioni/cartography/${await loc('#cartography-region').inputValue()}/terrain/`;

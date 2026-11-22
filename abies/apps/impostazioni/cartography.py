@@ -17,6 +17,7 @@ from apps.base.responses import parse_json_body, success_response, validation_er
 from apps.impostazioni.drawing_geometry import checked_parts, feature_geometry, walk_parts
 from apps.base.map_import_v1 import parcel_key
 from apps.bosco.parcel_metadata import parse_parcel_metadata, render_parcel_metadata_form
+from apps.bosco.terrain_queue import enqueue
 from apps.impostazioni.cartography_import import file_parts, survey_parts, surveys_with_positions
 from apps.impostazioni.parcel_boundaries import (
     boundary_workspace, parcel_outlines, parcel_usage, parcel_used, save_boundaries, validate_intersections,
@@ -309,6 +310,8 @@ def change(request, region_id, action):
                 extra = create_drawing(region_id, name, parts)
             else:
                 extra = edit_workspace(region_id, action, body)
+            if action in ('parcel', 'parcel-boundaries', 'remove-parcel', 'road', 'road-points', 'remove-road'):
+                enqueue(region_id)
             if action in ('parcel-properties', 'remove-parcel'):
                 invalidates = invalidate_map_labels()
             elif action in ('parcel', 'parcel-boundaries'):

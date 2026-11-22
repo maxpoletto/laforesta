@@ -49,6 +49,7 @@ publishes its imagery.
 | Trigger | Work |
 | --- | --- |
 | Hourly check | The worker checks SQLite for new maps and published changes that need a refresh. A check with no pending changes makes no Copernicus requests. |
+| Cartografia geometry changes | Promoting, reshaping or deleting a parcel or road queues the affected compresa as part of the same save. |
 | **Aggiorna dati dei terreni** | The button at the bottom of the Cartografia sidebar immediately queues a refresh of the selected compresa. It also retries work already due for that compresa. |
 | March and August | The worker checks for new seasonal imagery overnight on or after 1 March and 1 August. |
 

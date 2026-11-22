@@ -592,6 +592,7 @@ def test_promote_first_parcel_then_add_a_piece(client, writer_user, regions, ecl
     data = {'id': first, 'version': 1, 'name': '2a', 'eclass_id': eclasses[0].pk}
     assert write(client, region, 'parcel', **data, area_ha='abc').status_code == 400
     assert write(client, region, 'parcel', **data).status_code == 200
+    assert workspace(client, region)['terrain']['state'] == 'queued'
     parcel = Parcel.objects.get(region=region)
     assert parcel.name == '2a' and parcel.area_ha is None
     assert build_parcel_record(parcel)
@@ -690,7 +691,7 @@ def test_rename_parcel_keeps_records_and_requires_confirmation(client, writer_us
 
 
 def test_shared_boundary_moves_both_parcels_and_preserves_pieces(client, writer_user, parcels):
-    from apps.base.models import MapFeature
+    from apps.base.models import MapFeature, TerrainRefresh
 
     west, east = parcels[:2]
     client.force_login(writer_user)
@@ -708,11 +709,14 @@ def test_shared_boundary_moves_both_parcels_and_preserves_pieces(client, writer_
               'point': [17.1, 38.5], 'operation': 'move'}]
     body = {'id': west.pk, 'review': snapshot['review'], 'edits': edits}
     invalid = {**body, 'edits': [{**edits[0], 'point': [18.2, 38.5]}]}
+    TerrainRefresh.objects.create(region=west.region, state=TerrainRefresh.State.CURRENT)
     assert write(client, west.region, 'parcel-boundaries', **invalid).status_code == 400
+    assert workspace(client, west.region)['terrain']['state'] == 'current'
     left.refresh_from_db()
     right.refresh_from_db()
     assert left.version == right.version == 1
     assert write(client, west.region, 'parcel-boundaries', **body).status_code == 200
+    assert workspace(client, west.region)['terrain']['state'] == 'queued'
     left.refresh_from_db()
     right.refresh_from_db()
     for outline in (left, right):
