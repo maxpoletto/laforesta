@@ -126,6 +126,15 @@ def _dxf_planar(fields):
         raise ValueError(S.CARTOGRAPHY_DXF_UNSUPPORTED)
 
 
+def _dxf_skip_attributes(entities):
+    for kind, _ in entities:
+        if kind == 'SEQEND':
+            return
+        if kind != 'ATTRIB':
+            break
+    raise ValueError
+
+
 def _dxf_path(points, closed):
     if len(points) < 2:
         raise ValueError
@@ -148,6 +157,11 @@ def _dxf_parts(text, epsg):
     parts, positions = [], []
     entities = _dxf_entities(text)
     for kind, fields in entities:
+        # Cadastral sheets use blocks for symbols and survey reference marks.
+        if kind == 'INSERT' and fields.get(8, [''])[0].upper() in ('SIMBOLI', 'FIDUCIALI'):
+            if int(fields.get(66, [0])[0]) == 1:
+                _dxf_skip_attributes(entities)
+            continue
         if kind in ('TEXT', 'MTEXT', 'DIMENSION') or fields.get(67) == ['1']:
             continue
         _dxf_planar(fields)

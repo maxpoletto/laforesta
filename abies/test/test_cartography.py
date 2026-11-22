@@ -79,6 +79,30 @@ def test_dxf_import_requires_crs_and_projects_coordinates(client, writer_user, r
     ]
 
 
+def test_dxf_import_skips_cadastral_symbols_but_rejects_other_blocks(client, writer_user, regions):
+    from apps.base.models import MapDrawing
+
+    client.force_login(writer_user)
+    region = regions[0]
+    dxf = ('0\nSECTION\n2\nENTITIES\n'
+           '0\nINSERT\n8\nFIDUCIALI\n2\n20\n10\n16.5\n20\n38.5\n'
+           '0\nPOLYLINE\n8\nPARTICELLE\n66\n1\n70\n1\n'
+           '0\nVERTEX\n10\n16\n20\n38\n'
+           '0\nVERTEX\n10\n17\n20\n38\n'
+           '0\nVERTEX\n10\n17\n20\n39\n0\nSEQEND\n'
+           '0\nINSERT\n8\nsimboli\n2\n14\n66\n1\n10\n17\n20\n38.5\n'
+           '0\nATTRIB\n2\nNUMERO\n1\n11\n0\nSEQEND\n'
+           '0\nENDSEC\n0\nEOF\n')
+    rejected = import_file(client, region, 'dxf', dxf.replace('FIDUCIALI', 'PARTICELLE'), epsg='4326')
+    assert rejected.status_code == 400
+    assert not MapDrawing.objects.exists()
+    response = import_file(client, region, 'dxf', dxf, epsg='4326')
+    assert response.status_code == 200, response.content
+    assert MapDrawing.objects.get(pk=response.json()['drawing_id']).parts == [
+        {'type': 'Polygon', 'coordinates': [[[16, 38], [17, 38], [17, 39], [16, 38]]]},
+    ]
+
+
 @pytest.mark.parametrize(('fmt', 'text'), [
     ('geojson', '{"type":"Point","coordinates":[25,390]}'),
     ('geojson', '{"type":"MultiPoint","coordinates":[[20,39],[21,"39"]]}'),

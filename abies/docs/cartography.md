@@ -206,8 +206,9 @@ There are three tabs.
 - **Da file** opens a file picker for GeoJSON, GPX or georeferenced DXF.
   Waypoints appear as points, each track segment appears as a separate line,
   and the rings of a polygon stay together. ASCII DXF supports points, lines,
-  and straight polylines. The EPSG field identifies the source coordinates
-  before Abies puts the geometry on the map.
+  and straight polylines. Cadastral symbol blocks on `SIMBOLI` and `FIDUCIALI`
+  are skipped, like text annotations. The EPSG field identifies the source
+  coordinates before Abies puts the geometry on the map.
 - **Da Ipso** opens on new uploads for this compresa. Previously imported walks
   are available under **Già importati**. Each walk appears once, with its name,
   date and operator. Importing it adds one named drawing to **Disegni**. An
