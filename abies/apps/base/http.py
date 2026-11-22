@@ -32,6 +32,11 @@ def _content_etag(file, stat):
     return etag
 
 
+def file_content_etag(path: str | Path) -> str:
+    with open(path, 'rb') as file:
+        return _content_etag(file, os.fstat(file.fileno()))
+
+
 def conditional_file_response(
         request,
         path: str | Path,

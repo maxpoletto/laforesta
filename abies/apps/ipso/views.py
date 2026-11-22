@@ -28,7 +28,7 @@ from django.db.models import Count, Max, Q
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_datetime
-from django.utils.cache import patch_vary_headers
+from django.utils.cache import get_conditional_response, patch_vary_headers
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
@@ -39,7 +39,7 @@ from apps.base.idempotency import (
 )
 from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
-    conditional_file_response,
+    conditional_file_response, file_content_etag,
 )
 from apps.base.digests import mark_stale
 from apps.base.map_data import map_response
@@ -193,12 +193,29 @@ ASSET_FILES = {
     'sw.js',
     'upload-flow.js',
     'upload.js',
-    'version.js',
     'img/brand-logo.gif',
     'img/icon-192.png',
     'img/icon-512.png',
     'img/icon-512-maskable.png',
 }
+
+SHARED_SHELL_FILES = (
+    'vendor/leaflet/leaflet.css',
+    'base/css/map-basemaps.css',
+    'vendor/leaflet/leaflet.js',
+    'base/js/map-common.js',
+    'base/js/map-palette.js',
+    'base/js/palette-core.js',
+    'base/js/geo.js',
+    'base/js/geodesy.js',
+    'vendor/geographiclib/geographiclib-geodesic.min.js',
+    'base/js/strings.js',
+    'base/js/strings_it.js',
+    'base/js/format.js',
+    'base/img/basemap-osm.png',
+    'base/img/basemap-topo.png',
+    'base/img/basemap-sat.png',
+)
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _SESSION_ID_RE = re.compile(
@@ -222,6 +239,8 @@ def index(request: HttpRequest) -> HttpResponse:
 def asset(request: HttpRequest, asset_path: str) -> HttpResponse:
     if asset_path in {IPSO_REFERENCE_JSON, IPSO_TERRENI_GEOJSON, IPSO_UPLOAD_CONFIG_JS}:
         raise Http404
+    if asset_path == 'version.js':
+        return _version_response(request)
     return _asset_response(request, asset_path)
 
 
@@ -233,7 +252,7 @@ def _asset_response(request: HttpRequest, asset_path: str) -> HttpResponse:
     if content_type is None:
         raise Http404
     return conditional_file_response(
-        request, path, content_type=content_type, cache_control=CACHE_NO_CACHE,
+        request, path, content_type=content_type, cache_control=CACHE_NO_CACHE, use_etag=True,
     )
 
 
@@ -242,6 +261,38 @@ def _static_path(asset_path: str) -> Path:
     if not found:
         raise Http404
     return Path(found)
+
+
+def _shared_shell_path(name: str) -> str | Path | None:
+    # Hosted static files come from collectstatic, with minified JS in production.
+    if not settings.DEBUG and settings.STATIC_ROOT:
+        collected = Path(settings.STATIC_ROOT) / name
+        if collected.is_file():
+            return collected
+    return finders.find(name)
+
+
+def _version_response(request: HttpRequest) -> HttpResponse:
+    paths = {f'./{name}': finders.find(f'ipso/pwa/{name}') for name in sorted(ASSET_FILES)}
+    paths.update((f'/static/{name}', _shared_shell_path(name)) for name in SHARED_SHELL_FILES)
+    shell = ['./', './version.js', *(url for url in paths if url != './sw.js')]
+    metadata = (f'const APP_VERSION = {json.dumps(settings.ABIES_VERSION)};\n'
+                f'const IPSO_SHELL = {json.dumps(shell)};\n')
+    build = hashlib.sha256(metadata.encode())
+    # Include the worker itself. The shared HTTP ETag cache keeps revalidation
+    # cheap and detects changed assets even across same-second local edits.
+    for path in paths.values():
+        try:
+            etag = file_content_etag(path) if path else '-'
+        except FileNotFoundError:
+            etag = '-'
+        build.update(etag.encode())
+
+    body = f'{metadata}const APP_BUILD = {json.dumps(build.hexdigest())};\n'.encode()
+    etag = f'"{hashlib.sha256(body).hexdigest()}"'
+    response = HttpResponse(body, content_type=ASSET_CONTENT_TYPES['.js'], headers={'ETag': etag})
+    apply_cache_control(response, CACHE_NO_CACHE)
+    return get_conditional_response(request, etag=etag, response=response)
 
 
 @require_GET

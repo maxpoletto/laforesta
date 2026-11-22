@@ -5,6 +5,7 @@ import hashlib
 import importlib
 import io
 import json
+import os
 import shutil
 import sqlite3
 import threading
@@ -184,6 +185,7 @@ def test_index_is_public_and_uses_relative_assets(db):
     assert 'src="modes.js"' in body
     assert 'src="strings_it.js"' in body
     assert 'src="strings.js"' not in body
+    assert 'src="version.js"' in body
     assert 'src="/static/vendor/leaflet/leaflet.js"' in body
     assert 'src="map.js"' in body
     assert 'src="app.js"' in body
@@ -197,20 +199,79 @@ def test_service_worker_served_from_ipso_scope(db):
     assert resp['Content-Type'].startswith('text/javascript')
     body = _body(resp)
     assert b'ipso service worker' in body
-    assert b'/static/base/js/map-common.js' in body
-    assert b'/static/base/css/map-basemaps.css' in body
-    assert b"'./strings_it.js'" in body
-    assert b"'./strings.js'" not in body
-    assert b"'/static/base/js/strings.js'" in body
-    assert b"'/static/base/js/strings_it.js'" in body
-    assert b'upload-config.js' not in body
-    assert b'./reference.json' not in body
-    assert b'./terreni.geojson' not in body
+    assert b"importScripts('./version.js')" in body
+    assert b'const CACHE = CACHE_PREFIX + APP_BUILD' in body
+    assert b'IPSO_SHELL.map(' in body
     assert b'url.origin !== self.location.origin' in body
     assert b"new Request(url, { cache: 'no-cache' })" in body
     assert b"req.cache === 'no-store'" in body
     assert b"cacheControl.includes('no-store')" in body
     assert b'n.startsWith(CACHE_PREFIX) && n !== CACHE' in body
+
+
+def _version_constants(response):
+    assert response.status_code == 200
+    assert response['Content-Type'].startswith('text/javascript')
+    return {name: json.loads(value) for name, value in (
+        line.removeprefix('const ').removesuffix(';').split(' = ', 1)
+        for line in response.content.decode().splitlines() if line.startswith('const ')
+    )}
+
+
+def test_ipso_version_uses_abies_version_and_precaches_the_public_shell(db, settings):
+    settings.ABIES_VERSION = '2.0.0'
+    client = Client()
+    response = client.get('/ipso/version.js')
+    constants = _version_constants(response)
+
+    assert constants['APP_VERSION'] == '2.0.0'
+    assert 'no-cache' in response['Cache-Control']
+    shell = set(constants['IPSO_SHELL'])
+    assert {'./', './index.html', './version.js', './strings_it.js',
+            '/static/base/js/map-common.js', '/static/base/css/map-basemaps.css',
+            '/static/base/js/strings.js', '/static/base/js/strings_it.js'} <= shell
+    assert {'./sw.js', './strings.js', './upload-config.js', './reference.json',
+            './map.geojson', './terreni.geojson'}.isdisjoint(shell)
+    assert not ipso_views.finders.find('ipso/pwa/version.js')
+    cached = client.get('/ipso/version.js', HTTP_IF_NONE_MATCH=response['ETag'])
+    assert cached.status_code == 304
+    assert cached['ETag'] == response['ETag']
+
+    settings.ABIES_VERSION = '2.0.1'
+    newer = _version_constants(client.get('/ipso/version.js', HTTP_IF_NONE_MATCH=response['ETag']))
+    assert newer['APP_VERSION'] == '2.0.1'
+    assert newer['APP_BUILD'] != constants['APP_BUILD']
+
+
+@pytest.mark.parametrize('asset', ['ipso/pwa/app.js', 'base/js/geo.js'])
+def test_ipso_build_changes_with_shell_bytes_at_the_same_release(db, settings, monkeypatch, tmp_path, asset):
+    settings.ABIES_VERSION = '2.0.0'
+    filename = tmp_path / asset
+    filename.parent.mkdir(parents=True)
+    filename.write_text('/* original */')
+    if asset.startswith('ipso/'):
+        find = ipso_views.finders.find
+
+        def find_asset(path, *args, **kwargs):
+            return str(filename) if path == asset else find(path, *args, **kwargs)
+
+        monkeypatch.setattr(ipso_views.finders, 'find', find_asset)
+    else:
+        settings.DEBUG = False
+        settings.STATIC_ROOT = tmp_path
+
+    client = Client()
+    before = client.get('/ipso/version.js')
+    stat = filename.stat()
+    filename.write_text('/* modified */')
+    os.utime(filename, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    after = client.get('/ipso/version.js', HTTP_IF_NONE_MATCH=before['ETag'])
+
+    original = _version_constants(before)
+    modified = _version_constants(after)
+    assert original['APP_VERSION'] == modified['APP_VERSION'] == '2.0.0'
+    assert original['APP_BUILD'] != modified['APP_BUILD']
+    assert before['ETag'] != after['ETag']
 
 
 def test_ipso_registers_service_worker_without_http_cache(db):

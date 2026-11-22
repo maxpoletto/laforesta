@@ -163,8 +163,7 @@ async function boot() {
   await window.AbiesGeoReady;
 
   setMode(IpsoModes.MARTELLATE);
-  document.getElementById('footer-version').textContent =
-    'v' + APP_VERSION;
+  document.getElementById('footer-version').textContent = APP_VERSION;
   wireAppUpdateButton();
   document.getElementById('mode-title').textContent = S.MODE_TITLE;
   document.getElementById('history-title').textContent = S.HISTORY_TITLE;

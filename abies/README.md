@@ -367,7 +367,8 @@ Adjust names and ports as needed.
    ```
 
    The deployed ref/current-tree description is passed to the container as
-   `ABIES_VERSION` and shown to admins at the bottom of Impostazioni.
+   `ABIES_VERSION`. Impostazioni and Ipso show the same version string. For
+   example, the release tag `abies-2.0.0` displays as `2.0.0` in both apps.
 
    The Makefile targets call `bin/deploy`, which builds the image, writes a
    pre-deploy compressed backup to the backup mount, runs migrations, runs

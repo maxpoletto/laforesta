@@ -65,6 +65,17 @@ def test_debug_defaults_false(monkeypatch):
         load_settings(monkeypatch, DJANGO_SECRET_KEY='prod-secret')
 
 
+@pytest.mark.parametrize(('description', 'version'), [
+    ('abies-2.0.0', '2.0.0'),
+    ('abies-2.0.0-3-gabc123-dirty', '2.0.0-3-gabc123-dirty'),
+    ('abc123', 'abc123'),
+])
+def test_abies_version_uses_release_number_from_git_description(monkeypatch, description, version):
+    settings = load_settings(monkeypatch, DJANGO_DEBUG='1', ABIES_VERSION=description)
+
+    assert settings.ABIES_VERSION == version
+
+
 @pytest.mark.parametrize('missing', [
     'ABIES_APP_NAME', 'ABIES_BRAND_NAME', 'ABIES_SITE_TITLE',
 ])

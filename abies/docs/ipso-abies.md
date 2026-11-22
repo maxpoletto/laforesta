@@ -76,9 +76,15 @@ validated reference bundle and parcel features in its IndexedDB `meta` store.
 This avoids putting bearer-protected responses in a shared HTTP cache while
 still supporting an offline cold start.
 
-Shell updates are versioned by `APP_VERSION` in `version.js`. The page registers
-the service worker with `updateViaCache: 'none'` and asks it to check for
-updates on boot and whenever the installed app returns to the foreground. A
+Django generates `/ipso/version.js` from the shared Abies release version.
+The Ipso footer shows the same version as Impostazioni. The script supplies the
+offline asset list and a fingerprint of its contents, including the service
+worker and shared map assets. The fingerprint names the service-worker cache,
+so changes to those assets can ship under the same release number. The upload
+protocol and IndexedDB schema have their own compatibility versions.
+
+The page registers the service worker with `updateViaCache: 'none'` and asks
+it to check for updates on boot and whenever the app returns to the foreground. A
 newly installed worker remains in `waiting` until either the app is fully closed
 or the operator presses the footer `Aggiorna app` button, which is shown only
 when a waiting worker exists. Pressing the button sends the worker an explicit

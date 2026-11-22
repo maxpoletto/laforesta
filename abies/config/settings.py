@@ -24,7 +24,7 @@ def _git_describe_version():
 
 ABIES_VERSION = (
     os.environ.get('ABIES_VERSION', '').strip() or _git_describe_version()
-)
+).removeprefix('abies-')
 
 # Data lives outside the Django project tree in production (Docker mount).
 # In dev, it sits at BASE_DIR / 'data'.

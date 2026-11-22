@@ -6,62 +6,15 @@
 // version N unless they deliberately request the new version.
 'use strict';
 
-// APP_VERSION lives in version.js, shared with the page.
+// Django supplies the release number and the fingerprint of the offline shell.
 importScripts('./version.js');
 const CACHE_PREFIX = 'ipso-';
-const CACHE = CACHE_PREFIX + 'v' + APP_VERSION;
-
-const SHELL = [
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './style.css',
-  '/static/vendor/leaflet/leaflet.css',
-  '/static/base/css/map-basemaps.css',
-  '/static/vendor/leaflet/leaflet.js',
-  '/static/base/js/map-common.js',
-  '/static/base/js/map-palette.js',
-  '/static/base/js/palette-core.js',
-  '/static/base/js/geo.js',
-  '/static/base/js/geodesy.js',
-  '/static/vendor/geographiclib/geographiclib-geodesic.min.js',
-  '/static/base/js/strings.js',
-  '/static/base/js/strings_it.js',
-  '/static/base/js/format.js',
-  '/static/base/img/basemap-osm.png',
-  '/static/base/img/basemap-topo.png',
-  '/static/base/img/basemap-sat.png',
-  './version.js',
-  './constants.js',
-  './app.js',
-  './csv.js',
-  './ipso.js',
-  './session.js',
-  './strings_it.js',
-  './modes.js',
-  './format.js',
-  './palette.js',
-  './download.js',
-  './point-recorder.js',
-  './gps.js',
-  './numpad.js',
-  './store.js',
-  './geo.js',
-  './parcel-locator.js',
-  './photo.js',
-  './map.js',
-  './upload.js',
-  './upload-flow.js',
-  './img/brand-logo.gif',
-  './img/icon-192.png',
-  './img/icon-512.png',
-  './img/icon-512-maskable.png',
-];
+const CACHE = CACHE_PREFIX + APP_BUILD;
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE).then((c) => c.addAll(
-      SHELL.map((url) => new Request(url, { cache: 'no-cache' }))
+      IPSO_SHELL.map((url) => new Request(url, { cache: 'no-cache' }))
     ))
   );
   // Deliberately do NOT call self.skipWaiting() here — see header note.
