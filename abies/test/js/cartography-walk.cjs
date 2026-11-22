@@ -34,7 +34,24 @@ async function walk(browser) {
     await action('remove-vertex').click();
   }
   const editor = url + '/impostazioni?scheda=cartografia';
-  await page.goto(editor);
+  await page.goto(url + '/impostazioni');
+  const footer = loc('#settings-generali footer');
+  await footer.waitFor();
+  await page.waitForFunction(() => {
+    const content = document.querySelector('#content');
+    const footer = content.querySelector('#settings-generali footer');
+    const padding = parseFloat(getComputedStyle(content).paddingBottom);
+    return footer && Math.abs(footer.getBoundingClientRect().bottom - (innerHeight - padding)) < 1;
+  });
+  const credits = footer.locator('a[href*="flaticon.com"]');
+  assert.equal(await credits.getAttribute('href'), 'https://www.flaticon.com/authors/th-studio');
+  assert.equal(await credits.textContent(), 'th studio');
+  assert.match(await footer.textContent(), /INGV TINITALY 1.1/);
+  assert.match(await footer.textContent(), /Contains modified Copernicus Sentinel data since 2015/);
+  assert.equal(await footer.locator('a[href^="https://doi.org/10.1038/"]').getAttribute('href'),
+    'https://doi.org/10.1038/s41597-026-06765-8');
+  await page.getByRole('link', {name: 'Cartografia', exact: true}).click();
+  await footer.waitFor({state: 'hidden'});
   const modal = loc('#modal-container');
   async function checkNameField() {
     const field = modal.getByLabel('Nome', {exact: true});
@@ -56,11 +73,6 @@ async function walk(browser) {
     [section.tagName, section.querySelector('label, summary, h2, [data-action=refresh-terrain]').textContent.trim()])),
     [['SECTION', 'Compresa'], ['SECTION', 'Particelle'], ['SECTION', 'Strade'], ['DETAILS', 'Disegni'],
       ['DIV', 'Aggiorna dati dei terreni']]);
-  const credits = loc('#settings-generali footer a[href*="flaticon.com"]');
-  assert.equal(await credits.getAttribute('href'), 'https://www.flaticon.com/authors/th-studio');
-  assert.equal(await credits.textContent(), 'th studio');
-  assert.match(await loc('#settings-generali footer').textContent(), /INGV TINITALY 1.1/);
-  assert.match(await loc('#settings-generali footer').textContent(), /Copernicus Sentinel-2/);
   assert.equal(await loc('#settings-cartografia a[href*="flaticon.com"]').count(), 0);
   await drawingSummary.click();
   assert.ok(await action('open-import').isHidden());
