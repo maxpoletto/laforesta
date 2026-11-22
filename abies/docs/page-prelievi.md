@@ -28,8 +28,7 @@ standard dark-green 4px rule:
    `data:2019-06 compresa:Fabrizia particella:14b` into the search box,
    further restricting the charts, calendar, and table to that period and
    parcel while preserving unrelated search terms such as `squadra:zaffino`.
-   The calendar replaces previous date, compresa, and parcel selectors,
-   including unambiguous abbreviations, using the table’s displayed labels.
+   The calendar replaces previous date, compresa, and parcel selectors using the table’s displayed labels.
 3. **Interventi** — harvest-operations in a sortable-table, as in UI Design
    Patterns > Tabular Data. The table controls carry `[Esporta] [Importa CSV]
    [+ Nuovo prelievo]` at the right, in that order. Readers see only Esporta.

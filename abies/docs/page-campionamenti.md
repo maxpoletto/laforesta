@@ -263,8 +263,7 @@ The first word of each label is an unambiguous selector, so users can type
 quoting column names. Values containing spaces still need quotes, for example
 `compresa:"Serra San Bruno"`. The selectors follow the localized display labels.
 The table, map selection and manual-entry form use the same label selectors.
-An exact visible label takes precedence over an unambiguous prefix. For an
-older filter such as `"n. area":72`, the current selector is `area:72`.
+An exact visible label takes precedence over an unambiguous prefix.
 
 Pollone value is blank (not 0) for high forest (fustaia) rows.
 
