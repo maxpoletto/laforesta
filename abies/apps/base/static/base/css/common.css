@@ -236,6 +236,7 @@ body {
 .modal-error { white-space: pre-line; }
 .modal [data-field="message"] { white-space: pre-line; }
 .form-error { margin-top: 10px; }
+.map-help p, .map-help h3 { margin-top: 0.65rem; }
 
 /* Shared confirmation and CSV-import feedback.  These classes are emitted by
  * shell templates and shared partials, so they live with common styles rather
@@ -934,9 +935,10 @@ input:focus, select:focus, textarea:focus {
 .mc-ruler { --action-image: url('../img/icons/ruler.webp'); }
 .mc-pin { --action-image: url('../img/icons/pin.webp'); }
 .mc-menu, .hamburger { --action-image: url('../img/icons/menu.webp'); }
+.map-help-button { --action-image: url('../img/icons/help.webp'); }
 
 :is(.action-edit:empty, .action-delete:empty, .table-delete-toggle:empty,
-    .icon-pencil, .mc-control-button, .hamburger)::before {
+    .icon-pencil, .mc-control-button, .hamburger, .map-help-button)::before {
   content: '';
   display: inline-block;
   width: 1em;
@@ -947,6 +949,18 @@ input:focus, select:focus, textarea:focus {
 }
 
 .mc-control-button { font-size: 1.125rem; }
+
+.btn.map-help-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  background: white;
+  font-size: 21px;
+}
 
 /* ========================================================================== */
 /* End TableWrapper                                                           */
@@ -1096,6 +1110,12 @@ input:focus, select:focus, textarea:focus {
   min-width: 0;
   height: 100%;
   background: #eef1ec;
+}
+
+.map-workspace-host > .map-help-control {
+  position: absolute;
+  top: 10px;
+  left: 10px;
 }
 
 .map-workspace-canvas {

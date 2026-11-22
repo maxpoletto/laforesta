@@ -15,7 +15,7 @@
  */
 import MapCommon from './map-common.js';
 import { parcelLabel } from './geo.js';
-import { attachMeasure, attachLocation, attachSidebarToggle } from './map-tools.js';
+import { attachMeasure, attachLocation, attachSidebarToggle, attachTopLeftControl } from './map-tools.js';
 import { refreshSemanticMarkers, semanticMarkerStyle } from './map-palette.js';
 
 export const MARKER_RADIUS = 7;
@@ -68,7 +68,7 @@ export class ParcelMap {
    * @param {string} [opts.className] — CSS class for the map div.
    * @param {object} opts.geojson — sorted parcel FeatureCollection.
    * @param {string} [opts.basemap]
-   * @param {{measure?:boolean, location?:boolean, sidebar?:boolean|object}} [opts.tools]
+   * @param {{measure?:boolean, location?:boolean, sidebar?:boolean|object, topLeft?:HTMLElement}} [opts.tools]
    *   — opt-in tools, off by default.  `sidebar` may be `true` or an
    *   `{sidebarId, mapId}` object passed through to `attachSidebarToggle`.
    * @param {{center:[number,number], zoom:number}} [opts.initialView] — open at
@@ -105,6 +105,7 @@ export class ParcelMap {
       this._toolHandles.push(attachSidebarToggle(
         this.leaflet, tools.sidebar === true ? undefined : tools.sidebar));
     }
+    if (tools.topLeft) this._toolHandles.push(attachTopLeftControl(this.leaflet, tools.topLeft));
 
     // Empty-space click → onMapClick(latlng, null).  Markers and parcel
     // polygons stop propagation, so this only fires off every feature.

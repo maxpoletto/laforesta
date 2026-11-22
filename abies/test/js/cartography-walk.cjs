@@ -36,6 +36,15 @@ async function walk(browser) {
     await trash.click();
   }
   const editor = url + '/impostazioni?scheda=cartografia';
+  const modal = loc('#modal-container');
+  const boscoHelp = page.getByRole('button', {name: 'Guida a Bosco', exact: true});
+  const boscoDialog = modal.getByRole('dialog', {name: 'Guida a Bosco'});
+  await page.goto(url + '/bosco');
+  await boscoHelp.click();
+  await boscoDialog.waitFor();
+  await boscoDialog.getByRole('button', {name: 'Chiudi', exact: true}).click();
+  await boscoDialog.waitFor({state: 'hidden'});
+
   await page.goto(url + '/impostazioni');
   const footer = loc('#settings-generali footer');
   await footer.waitFor();
@@ -56,7 +65,6 @@ async function walk(browser) {
     'https://doi.org/10.1038/s41597-026-06765-8');
   await page.getByRole('link', {name: 'Cartografia', exact: true}).click();
   await footer.waitFor({state: 'hidden'});
-  const modal = loc('#modal-container');
   async function checkNameField() {
     const field = modal.getByLabel('Nome', {exact: true});
     assert.equal(await field.getAttribute('type'), 'text');
@@ -71,6 +79,8 @@ async function walk(browser) {
   const helpDialog = modal.getByRole('dialog', {name: 'Guida alla cartografia'});
   await help.click();
   await helpDialog.waitFor();
+  const helpIconMask = await help.evaluate(button => getComputedStyle(button, '::before').maskImage);
+  assert.match(helpIconMask, /help\.webp/);
   const toolHints = helpDialog.getByRole('listitem');
   assert.equal(await toolHints.count(), 10);
   assert.equal(await toolHints.locator('[aria-hidden="true"]').count(), 10);
@@ -383,6 +393,20 @@ async function walk(browser) {
   await page.goto(url + '/bosco');
   const filter = page.getByRole('checkbox', {name: 'Pista di prova'});
   await filter.waitFor();
+  const boscoUrl = page.url();
+  assert.equal(await boscoHelp.evaluate(button => getComputedStyle(button, '::before').maskImage), helpIconMask);
+  const boscoHelpBox = await boscoHelp.boundingBox();
+  const boscoMenuBox = await loc('#bosco-map-host .mc-menu').locator('..').boundingBox();
+  assert.equal(boscoHelpBox.y - boscoMenuBox.y - boscoMenuBox.height, 10);
+  await boscoHelp.press('Enter');
+  await boscoDialog.waitFor();
+  for (const index of ['NDVI', 'NDMI', 'EVI']) {
+    assert.ok(await boscoDialog.getByText(index, {exact: true}).isVisible());
+  }
+  await page.keyboard.press('Escape');
+  await boscoDialog.waitFor({state: 'hidden'});
+  assert.ok(await boscoHelp.evaluate(button => button === document.activeElement));
+  assert.equal(page.url(), boscoUrl);
   assert.ok(await filter.isChecked());
   assert.equal(await loc('path.bosco-road').count(), 1);
   await filter.uncheck();

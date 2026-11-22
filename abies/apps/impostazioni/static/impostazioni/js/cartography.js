@@ -7,7 +7,7 @@ import { fmtInt } from '../../base/js/format.js';
 import * as modals from '../../base/js/modals.js';
 import { navigateWithParams } from '../../base/js/page-sync.js';
 import { cloneTemplate } from '../../base/js/templates.js';
-import { showConfirmModal, wireCancelButtons } from '../../base/js/ui-widgets.js';
+import { showConfirmModal, showHelpModal, wireCancelButtons } from '../../base/js/ui-widgets.js';
 import * as S from '../../base/js/strings.js';
 import { mapTypeName, mapTypeToken } from '../../base/js/map-common.js';
 import { showRegionForm } from './region-form.js';
@@ -768,15 +768,9 @@ export class CartographyEditor {
     const target = button.closest('[data-kind]')?.dataset;
     const row = this.selected;
     switch (action) {
-      case 'open-help': {
-        const help = cloneTemplate('tmpl-cartography-help');
-        const heading = help.querySelector('h2');
-        wireCancelButtons(help, modals.dismiss);
-        modals.show(help);
-        modals.onDismiss(() => button.focus({preventScroll: true}));
-        heading.focus({preventScroll: true});
+      case 'open-help':
+        showHelpModal('tmpl-cartography-help', button);
         break;
-      }
       case 'refresh-terrain':
         this.refreshTerrainStatus(this.generation, true);
         break;

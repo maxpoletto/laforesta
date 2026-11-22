@@ -5,7 +5,7 @@
  */
 
 import * as S from './strings.js';
-import { show as showModal, dismiss as dismissModal } from './modals.js';
+import { show as showModal, dismiss as dismissModal, onDismiss } from './modals.js';
 import { cloneTemplate } from './templates.js';
 
 // ---------------------------------------------------------------------------
@@ -141,8 +141,17 @@ export function wireActions(root, handlers) {
 }
 
 // ---------------------------------------------------------------------------
-// Confirm / cascade-delete modals (backed by <template> in shell)
+// Help / confirm / cascade-delete modals (backed by <template> in shell)
 // ---------------------------------------------------------------------------
+
+export function showHelpModal(templateId, trigger) {
+  const content = cloneTemplate(templateId);
+  const heading = content.querySelector('h2');
+  wireCancelButtons(content, dismissModal);
+  showModal(content);
+  onDismiss(() => trigger.focus({preventScroll: true}));
+  heading.focus({preventScroll: true});
+}
 
 const CONFIRM_INTENT_CLASSES = {
   delete: 'btn-delete',

@@ -71,6 +71,17 @@ function iconButtonControl(iconClass, title, onClick) {
   });
 }
 
+/** Move a template control below the standard map tools and restore it on teardown. */
+export function attachTopLeftControl(leaflet, element) {
+  const host = element.parentElement;
+  const control = L.control({ position: 'topleft' });
+  L.DomEvent.disableClickPropagation(element);
+  control.onAdd = () => element;
+  control.onRemove = () => host.append(element);
+  control.addTo(leaflet);
+  return { destroy() { control.remove(); } };
+}
+
 /** Distance-measuring tool: tap points, see the running total. */
 export function attachMeasure(leaflet) {
   let active = false;

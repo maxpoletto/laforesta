@@ -46,7 +46,7 @@ import {
 } from '../../base/js/modals.js';
 import { canModify } from '../../base/js/roles.js';
 import {
-  showConfirmModal, wireCancelButtons, wireCollapsibleToggle,
+  showConfirmModal, showHelpModal, wireCancelButtons, wireCollapsibleToggle,
 } from '../../base/js/ui-widgets.js';
 import {
   BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_OBSERVATIONS,
@@ -365,6 +365,8 @@ function mountPage(el, params) {
     canEdit: canModify(), onRefresh: () => cache.load(FUTURE_ID),
   });
   mapHost = el.querySelector('[data-target="map"]');
+  const helpButton = mapHost.querySelector('[data-action="open-help"]');
+  helpButton.addEventListener('click', () => showHelpModal('tmpl-bosco-help', helpButton));
   regionSelect = el.querySelector('[data-role="region-select"]');
   modeGroup = el.querySelector('[data-role="mode-group"]');
   characteristicSelect = el.querySelector('[data-role="characteristic-select"]');
@@ -872,7 +874,6 @@ function populateEvolutionSelect(select, values, selectedValue) {
 function renderMap(state) {
   destroyMap();
   if (!mapHost) return;
-  mapHost.replaceChildren();
 
   const region = regionById.get(state.regionId);
   if (!region || !parcelsGeo) {
@@ -898,6 +899,7 @@ function renderMap(state) {
       measure: true,
       location: true,
       sidebar: { sidebarId: 'bosco-sidebar', mapId: 'bosco-map-host' },
+      topLeft: mapHost.querySelector('.map-help-control'),
     },
     initialView: state.center ? { center: state.center, zoom: state.zoom } : null,
     onViewChange: onMapViewChange,

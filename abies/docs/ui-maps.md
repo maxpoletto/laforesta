@@ -19,9 +19,9 @@ view-persistence mechanisms, and how the layers fit together.
    `BASEMAPS`. Nothing else: no measure, location, markers, or geometry.
 
 2. **`base/js/map-tools.js` — opt-in tools.**  `attachMeasure(leaflet)`,
-   `attachLocation(leaflet)`, and `attachSidebarToggle(leaflet, { sidebarId,
-   mapId })`, each adding its control + handlers and returning a `{ destroy() }`
-   teardown handle. A tool that captures map clicks also exposes
+   `attachLocation(leaflet)`, `attachSidebarToggle(leaflet, { sidebarId,
+   mapId })`, and `attachTopLeftControl(leaflet, element)` each add a control
+   and return a `{ destroy() }` teardown handle. A tool that captures map clicks also exposes
    `capturesClicks()` (the measure tool subscribes to the map's `click` to drop
    points); a host that *also* listens for clicks (ParcelMap) suppresses its own
    click handling while any tool reports `capturesClicks()`. Plus the pure,
@@ -33,8 +33,10 @@ view-persistence mechanisms, and how the layers fit together.
    `parcelTooltipContent` hover tooltips), frames the map (fit-to-parcels or a restored `initialView`)
    and reports view changes, exposes the unified click callback
    `onMapClick(latlng, feature|null)`, and opts into tools via `tools: { measure,
-   location, sidebar }` (all off by default). It also provides a sample-area
-   marker layer with active-highlight for the maps that need it. It also
+   location, sidebar, topLeft }` (all off by default). `topLeft` takes an
+   existing element such as a help control, places it below the other tools,
+   and restores it to its host when the map is destroyed. ParcelMap provides
+   a sample-area marker layer with active-highlight for the maps that need it. It also
    updates registered semantic marker layers when the basemap changes. Owns
    `PARCEL_STYLE` and `FIT_PADDING`.
 

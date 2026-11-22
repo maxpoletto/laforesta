@@ -214,7 +214,6 @@ details.cartography-section > .cartography-list-header {
 .cartography-empty { font-size: 0.9rem; color: #555; padding: 4px 0; }
 
 .cartography-map-controls { display: grid; justify-items: start; gap: 10px; }
-.map-workspace-host > .cartography-map-controls { position: absolute; top: 10px; left: 10px; }
 .cartography-map-tools,
 .cartography-map-tools [data-role="draw-tools"] {
   display: flex;
@@ -247,10 +246,8 @@ details.cartography-section > .cartography-list-header {
 }
 .cartography-follow-icon { --cartography-tool-image: url('../img/follow-boundary.webp'); }
 .cartography-reduce-icon { --cartography-tool-image: url('../img/reduce-vertices.webp'); }
-.cartography-help-icon { --cartography-tool-image: url('../img/help.webp'); }
 .cartography-follow-icon::before,
-.cartography-reduce-icon::before,
-.cartography-help-icon::before {
+.cartography-reduce-icon::before {
   content: '';
   width: 21px;
   height: 21px;
@@ -260,7 +257,6 @@ details.cartography-section > .cartography-list-header {
 .cartography-map-tools [data-action="cancel"] { margin-top: 4px; }
 .cartography-map-tools[hidden],
 .cartography-map-tools .cartography-map-icon[hidden] { display: none; }
-.cartography-help p { margin-top: 0.65rem; }
 .cartography-help-tools {
   display: grid;
   gap: 0.4rem;

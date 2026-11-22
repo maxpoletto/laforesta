@@ -21,13 +21,17 @@ function fixLabel(fix) {
 export class CartographyMap {
   constructor(container, parcels, regionName, onSelect, basemap, onPlace, controls, initialView) {
     const features = parcels.features.filter(f => parcelIdentity(f).regionName === regionName);
+    this.editTools = controls.querySelector('[data-role=map-tools]');
     this.parcels = new ParcelMap({
       container, geojson: {type: 'FeatureCollection', features}, basemap, initialView,
       onMapClick: (ll, feature) => {
         if (!onPlace(ll)) onSelect(feature ? 'parcel' : null, feature && parcelIdentity(feature).parcelName);
       },
       className: 'map-workspace-canvas',
-      tools: {measure: true, location: true, sidebar: {sidebarId: 'cartography-sidebar', mapId: 'cartography-map'}},
+      tools: {
+        measure: true, location: true, topLeft: controls,
+        sidebar: {sidebarId: 'cartography-sidebar', mapId: 'cartography-map'},
+      },
     });
     this.parcelLayers = new Map();
     this.parcels.parcelLayer.eachLayer(layer => {
@@ -46,16 +50,6 @@ export class CartographyMap {
     this.editRenderer = L.svg();
     this.hiddenLayers = new Set();
     this.editedParcels = [];
-    this.toolbar = L.control({position: 'topleft'});
-    this.toolbar.onAdd = () => {
-      L.DomEvent.disableClickPropagation(controls);
-      return controls;
-    };
-    this.toolbar.onRemove = () => {
-      controls.querySelector('[data-role=map-tools]').hidden = true;
-      container.append(controls);
-    };
-    this.toolbar.addTo(this.map);
   }
 
   isVisible(kind, id) {
@@ -478,7 +472,7 @@ export class CartographyMap {
 
   destroy() {
     this.stopEdit();
-    this.toolbar.remove();
+    this.editTools.hidden = true;
     this.parcels.destroy();
   }
 }

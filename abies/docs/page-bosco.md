@@ -33,6 +33,10 @@ hosts (top to bottom):
    - Osservazioni
 3. Per-mode controls (see below).
 
+The question mark below the sidebar toggle opens **Guida a Bosco**, with an
+overview of the map modes and explanations of NDVI, NDMI and EVI. **Chiudi**
+and Escape close the guide and return to the map.
+
 The **Viabilità** controls appear for a compresa with published roads.
 Each checkbox controls one configured road type across the Bosco modes. Hidden
 type IDs are stored in the `ns` query parameter, so reloading the page keeps
