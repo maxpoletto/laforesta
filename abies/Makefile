@@ -288,7 +288,14 @@ docker-prune:
 
 # --- Tests ------------------------------------------------------------------
 
-test: test-js
+test:
+	@$(LOCAL_ENV) $(PYTHON) -c 'import pytest, pytest_cov, pytest_django, django; from geographiclib.geodesic import Geodesic' || { \
+		printf '%s\n' 'Install the locked development dependencies for the Python interpreter used by make.' \
+			'  $(PYTHON) -m pip install --require-hashes -r requirements-dev.txt' \
+			'See README.md for setting up a fresh Python 3.14 virtual environment.' >&2; \
+		exit 1; \
+	}
+	$(MAKE) test-js
 	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) -m pytest --cov --cov-report=term-missing -q
 
 test-print-js-coverage:

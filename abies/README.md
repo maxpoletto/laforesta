@@ -67,12 +67,13 @@ For a fresh instance with an optional parcel map, follow [INSTALL.md](INSTALL.md
 
 ## Local Development
 
-Use Python 3.13 or newer. The production image currently uses Python 3.14.
+Use Python 3.14, matching production and CI. Create a local virtual environment
+and install the development lock for both running Abies and testing it.
 
 ```sh
-python3 -m venv ~/venv/abies
-. ~/venv/abies/bin/activate
-pip install -r requirements.txt
+python3.14 -m venv .venv
+. .venv/bin/activate
+python -m pip install --require-hashes -r requirements-dev.txt
 ```
 
 Create a canonical data bundle in `data/canonical` and branding assets in
@@ -174,10 +175,10 @@ DJANGO_SUPERUSER_EMAIL
 DJANGO_SUPERUSER_PASSWORD
 ```
 
-Run tests with:
+Run tests with the same interpreter used to install the development lock.
 
 ```sh
-make test
+make test PYTHON=.venv/bin/python
 ```
 
 To test Microsoft Entra OAuth, also set these in `compose/.env.local`:
