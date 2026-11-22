@@ -357,6 +357,7 @@ globalThis.window = {
 const S = await import(staticModule('base/js/strings.js'));
 const PrelieviCharts = await import(staticModule('prelievi/js/charts.js'));
 const PrelieviCalendar = await import(staticModule('prelievi/js/calendar.js'));
+const { STATIC_COLS } = await import(staticModule('base/js/prelievi-columns.js'));
 const speciesDigest = {
   columns: [ROW_ID, S.COL_NAME],
   rows: [[1, 'Abete'], [2, 'Abete Rosso'], [3, 'Castagno']],
@@ -472,9 +473,10 @@ eq(unorderedCalendar.regions[0].parcels.map(parcel => parcel.parcel),
    ['1', '2a', '2b', '3', '9', '10a', '10b', '11'],
    'buildHarvestCalendar sorts parcel rows in natural parcel order');
 eq(PrelieviCalendar.calendarSearchText(
-  'squadra:zaffino data:2018-01 compresa:Serra particella:1',
+  'squadra:"Squadra Zaffino" dat:2018-01 COMP:Serra part:1',
   { period: '2019', region: 'Fabrizia', parcel: '14b' },
-), 'squadra:zaffino data:2019 compresa:Fabrizia particella:14b',
+  Object.entries(STATIC_COLS).map(([key, def]) => ({key, ...def})),
+), 'squadra:"Squadra Zaffino" data:2019 compresa:Fabrizia particella:14b',
    'calendarSearchText replaces prior calendar filters and preserves other terms');
 
 let prelieviDigest = digest;
@@ -497,6 +499,24 @@ globalThis.fetch = async (url) => {
 const cache = await import(staticModule('base/js/cache.js'));
 const prelievi = await import(staticModule('prelievi/js/prelievi.js'));
 const { prelieviUrlForScope } = await import(staticModule('bosco/js/bosco-production.js'));
+{
+  const parcelDef = STATIC_COLS[S.COL_PARCEL];
+  const original = parcelDef.label;
+  parcelDef.label = 'Forst Parzelle';
+  try {
+    const columns = Object.entries(STATIC_COLS).map(([key, def]) => ({key, ...def}));
+    const { matchesSearch } = await import(staticModule('base/js/table.js'));
+    const scope = {parcel: '14b'};
+    const filter = PrelieviCalendar.calendarSearchText('forst:1', scope, columns);
+    eq(filter, '"forst parzelle":14b', 'calendar uses the target table’s translated label');
+    const destination = new URL(prelieviUrlForScope({entry: scope}), 'https://example.test');
+    eq(destination.searchParams.get('f'), filter, 'Bosco and calendar generate the same translated selector');
+    const row = columns.map(column => column.key === S.COL_PARCEL ? '14b' : '');
+    check(matchesSearch(row, filter, columns), 'the translated generated selector round-trips');
+  } finally {
+    parcelDef.label = original;
+  }
+}
 const router = await import(staticModule('base/js/router.js'));
 let routerMount;
 router.addRoute('prelievi', {

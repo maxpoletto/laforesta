@@ -10,6 +10,7 @@ import { fmtInt, fmtDecimal1, fmtDecimal1BlankZero, fmtDecimal2 }
   from './format.js';
 import * as S from './strings.js';
 import { COL_PARCEL_ID, COL_REGION_ID, ROW_ID, VERSION } from './constants.js';
+import { columnSearchTerm } from './table.js';
 
 export const CLASS_BOSCO_LINK = 'col-link-bosco';
 
@@ -30,6 +31,13 @@ export const STATIC_COLS = {
   [S.COL_WORKSITE]:    { label: S.COL_WORKSITE, hidden: true },
   [VERSION]:           { label: VERSION, hidden: true },
 };
+
+export const HARVEST_SCOPE_COLUMNS = { period: S.COL_DATE, region: S.COL_REGION, parcel: S.COL_PARCEL };
+
+export function harvestScopeSearchTerms(scope) {
+  return Object.entries(HARVEST_SCOPE_COLUMNS)
+    .map(([field, key]) => columnSearchTerm(STATIC_COLS[key].label, scope[field])).filter(Boolean);
+}
 
 /** Numeric harvest columns that receive totals in the table footer. */
 export function harvestTotalColumns(columns) {

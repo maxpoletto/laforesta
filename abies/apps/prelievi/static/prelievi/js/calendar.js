@@ -5,7 +5,8 @@
 import * as S from '../../base/js/strings.js';
 import { monthBucket, yearBucket } from '../../base/js/charts.js';
 import { compareNaturalLabels, compareParcelNames } from '../../base/js/natural-sort.js';
-import { columnSearchTerm } from '../../base/js/table.js';
+import { resolveColumnSearchTerm, searchTerms } from '../../base/js/table.js';
+import { HARVEST_SCOPE_COLUMNS, harvestScopeSearchTerms } from '../../base/js/prelievi-columns.js';
 
 export function buildHarvestCalendar(rows, colMap, byMonth = false) {
   const dateIdx = colMap[S.COL_DATE];
@@ -42,39 +43,13 @@ export function buildHarvestCalendar(rows, colMap, byMonth = false) {
   return { periods: sortedPeriods, regions };
 }
 
-export function calendarSearchText(current, { period, region, parcel }) {
-  const base = displaySearchTerms(current).filter(term => !isCalendarFilterTerm(term));
-  return [
-    ...base,
-    columnSearchTerm(S.COL_DATE, period),
-    columnSearchTerm(S.COL_REGION, region),
-    columnSearchTerm(S.COL_PARCEL, parcel),
-  ].filter(Boolean).join(' ');
-}
-
-function displaySearchTerms(text) {
-  const terms = [];
-  let current = '';
-  let inQuote = false;
-  for (const char of String(text ?? '')) {
-    if (char === '"') {
-      inQuote = !inQuote;
-      current += char;
-    } else if (/\s/.test(char) && !inQuote) {
-      if (current) { terms.push(current); current = ''; }
-    } else {
-      current += char;
-    }
-  }
-  if (current) terms.push(current);
-  return terms;
-}
-
-function isCalendarFilterTerm(term) {
-  const clean = String(term || '').trim().toLowerCase();
-  return clean.startsWith(`${S.COL_DATE.toLowerCase()}:`)
-    || clean.startsWith(`${S.COL_REGION.toLowerCase()}:`)
-    || clean.startsWith(`${S.COL_PARCEL.toLowerCase()}:`);
+export function calendarSearchText(current, scope, columns) {
+  const scopeKeys = Object.values(HARVEST_SCOPE_COLUMNS);
+  const base = searchTerms(current, { keepDisplay: true }).filter(term => {
+    const clause = resolveColumnSearchTerm(searchTerms(term)[0] ?? '', columns);
+    return !scopeKeys.includes(clause?.match?.col.key);
+  });
+  return [...base, ...harvestScopeSearchTerms(scope)].join(' ');
 }
 
 function cleanLabel(value) {

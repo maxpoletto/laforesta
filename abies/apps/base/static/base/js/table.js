@@ -876,23 +876,24 @@ export function columnSearchTerm(column, value) {
  * Without `columns`, plain terms fall back to raw stringified row values, and
  * column terms cannot match.
  */
-export function searchTerms(text) {
+export function searchTerms(text, { keepDisplay = false } = {}) {
   const terms = [];
   let current = '';
   let inQuote = false;
   for (const char of String(text ?? '')) {
     if (char === '"') {
       inQuote = !inQuote;
+      if (keepDisplay) current += char;
     } else if (/\s/.test(char) && !inQuote) {
       if (current) {
-        terms.push(current.toLowerCase());
+        terms.push(keepDisplay ? current : current.toLowerCase());
         current = '';
       }
     } else {
       current += char;
     }
   }
-  if (current) terms.push(current.toLowerCase());
+  if (current) terms.push(keepDisplay ? current : current.toLowerCase());
   return terms;
 }
 

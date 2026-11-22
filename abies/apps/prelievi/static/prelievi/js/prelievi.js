@@ -638,7 +638,7 @@ function calendarBody(calendar) {
 function onCalendarClick(e) {
   const cell = e.target.closest('.prelievi-calendar-cell.active');
   if (!cell || !table) return;
-  table.setSearchText(calendarSearchText(table.getSearchText(), cell.dataset));
+  table.setSearchText(calendarSearchText(table.getSearchText(), cell.dataset, table.searchColumns));
   syncURL();
   _updateCharts();
 }
