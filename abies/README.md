@@ -181,6 +181,10 @@ Run tests with the same interpreter used to install the development lock.
 make test PYTHON=.venv/bin/python
 ```
 
+The four default skips are two Cartografia browser tests, each run at desktop
+and phone widths. They require Playwright and Chromium and are enabled by
+setting `ABIES_PLAYWRIGHT_MODULE`. [Browser test instructions](docs/page-impostazioni.md#testing-the-road-workflow)
+
 To test Microsoft Entra OAuth, also set these in `compose/.env.local`:
 ```sh
 MS_OAUTH_TENANT
