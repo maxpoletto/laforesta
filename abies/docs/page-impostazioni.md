@@ -14,6 +14,7 @@ Readers enter Generali directly. An unavailable or unknown tab returns to
 the default URL. Switching tabs adds a history entry and preserves open
 sections and form input while Impostazioni remains mounted. Sections start
 collapsed on entry. **Credenziali API satellitare** and **Utenti** are admin-only.
+The **Generali** footer shows the software version to every signed-in user.
 
 The plan used for projected production and the cutting calendar is selected
 directly in [Bosco > Caratteristiche](page-bosco.md#mode-panels).

@@ -98,7 +98,7 @@ S (string constants) provided by the shell's render context.
       </section>
     {% endif %}
     <footer class="settings-footer text-muted">
-      {% if user.role == ROLE_ADMIN and ABIES_VERSION %}
+      {% if ABIES_VERSION %}
         <p>Versione software: <code>{{ ABIES_VERSION }}</code></p>
       {% endif %}
       <p>Icone di <a href="https://www.flaticon.com/authors/th-studio">th studio</a> da Flaticon.com.

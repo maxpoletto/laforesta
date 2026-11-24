@@ -73,24 +73,16 @@ def test_equation_toolbar_button_intents(writer_client):
                            (f'{operation}-volume', 'di volume')]
 
 
+@pytest.mark.parametrize('role', [Role.ADMIN, Role.WRITER, Role.READER])
 @override_settings(ABIES_VERSION='abies-test-version')
-def test_settings_page_shows_version_to_admin(admin_client):
-    resp = admin_client.get('/impostazioni')
+def test_settings_page_shows_version_to_every_role(db, client, role):
+    client.force_login(User.objects.create_user(username='settings', role=role))
+    resp = client.get('/impostazioni')
 
     assert resp.status_code == 200
     html = resp.content.decode()
     assert 'Versione software' in html
     assert 'abies-test-version' in html
-
-
-@override_settings(ABIES_VERSION='abies-test-version')
-def test_settings_page_hides_version_from_non_admin(writer_client):
-    resp = writer_client.get('/impostazioni')
-
-    assert resp.status_code == 200
-    html = resp.content.decode()
-    assert 'Versione software' not in html
-    assert 'abies-test-version' not in html
 
 
 @pytest.mark.parametrize(('role', 'login_method', 'sections'), [
