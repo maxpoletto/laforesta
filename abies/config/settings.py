@@ -126,7 +126,7 @@ elif DEBUG:
 else:
     raise RuntimeError('DJANGO_ALLOWED_HOSTS must be set when DEBUG=0')
 
-# Comma-separated origins for CSRF (e.g. 'https://laforesta.it').
+# Comma-separated origins for CSRF (e.g. 'https://abies.example.org').
 _csrf = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
 
@@ -163,7 +163,7 @@ USE_X_FORWARDED_HOST = True
 # requires a Referer header on tile requests (see osm.wiki/Blocked) — under
 # 'same-origin' the browser sends nothing and OSM returns 403.  The modern
 # default 'strict-origin-when-cross-origin' sends only the origin
-# (e.g. 'https://abies.laforesta.it/') on cross-origin requests, which is
+# (e.g. 'https://abies.example.org/') on cross-origin requests, which is
 # enough to satisfy OSM without leaking the full URL or query string.
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 

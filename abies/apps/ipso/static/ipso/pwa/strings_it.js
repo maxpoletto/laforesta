@@ -191,7 +191,7 @@ const S = {
     'GPS non consentito: abilita la posizione per registrare gli alberi.',
   GPS_PERMISSION_BANNER:
     'Permesso GPS non concesso. Ipso richiede le coordinate: abilita la ' +
-    'posizione per ipso.laforesta.it nelle impostazioni del browser.',
+    'posizione per questo sito nelle impostazioni del browser.',
   BACKUP_SAVED: (n) => `Backup CSV salvato (${n} alberi).`,
   BACKUP_SAVED_OBSERVATIONS: (n) => `Backup CSV salvato (${n} osservazioni).`,
   CSV_HEADER_SAMPLE_AREA: 'Area saggio',

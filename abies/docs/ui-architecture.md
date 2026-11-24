@@ -14,7 +14,8 @@ The shell (`apps/base/templates/base/shell_it.html`) contains:
   (via `{% include %}` of per-app `_shell_templates_it.html` files).
 
 The shell is rendered once per page load and served with `Cache-Control:
-no-store`. Every five minutes the open tab checks `/api/version/`, which also
+no-store`. The HTML includes account-specific controls and a freshly masked
+CSRF token. Every five minutes the open tab checks `/api/version/`, which also
 uses `no-store`. If the served version differs from the version in the shell,
 **Aggiorna pagina** offers to reload the current URL with the same login
 session. The update prompt waits for the next check if another modal is open.

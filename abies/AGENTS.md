@@ -7,7 +7,6 @@ Goals: monitor forest health; plan and assess harvests over multi-year periods;
 enable timber traceability; support day-to-day forestry operations such as
 timber cruising and harvest recording.
 
-The initial customers are staff at a 40-person lumber company in Calabria.
 Simplicity and speed are key requirements.
 
 # Priorities
@@ -298,9 +297,8 @@ Django's default namespacing convention. Templates follow the same pattern
 
 # Deployment
 
-Prod: `https://abies.laforesta.it/`; dev: `https://abies-dev.laforesta.it/`
-(same VM, separate data). Apache reverse-proxies to gunicorn. Host provisioning
-via `../../system/ansible/foresta.yml`.
+Apache reverse-proxies to gunicorn. See the [hosted deployment guide](docs/deployment.md)
+for provisioning and the [La Foresta notes](docs/laforesta.md) for that installation.
 
 Deploy from laptop via Makefile wrappers around `bin/deploy <dev|prod>
 [git-ref]` over a docker context. Sequence: build → pre-deploy backup → prod

@@ -1,12 +1,11 @@
 # Hosted deployment
 
 The hosted stacks use separate Compose files, environment files, and loopback
-ports. The examples below use hostnames for Soc. Agr. La Foresta S.r.l, an
-Italian lumber firm.
+ports. Replace the example hostnames with the names for your installation.
 
-- Remote dev runs at `abies-dev.laforesta.it` with `compose/dev.yml`,
+- The remote dev example uses `abies-dev.example.org` with `compose/dev.yml`,
   `compose/.env.dev`, and host port `127.0.0.1:8001`.
-- Production runs at `abies.laforesta.it` with `compose/prod.yml`,
+- The production example uses `abies.example.org` with `compose/prod.yml`,
   `compose/.env.prod`, and host port `127.0.0.1:8000`.
 
 Remote dev is intended for pre-production checks on the same shape of
@@ -91,11 +90,12 @@ Adjust names and ports as needed.
    Django upload limits; 30 MiB is the current Abies/Ipso deployment default.
 
    Serve `/static/` with `Cache-Control: no-cache` so browsers revalidate the
-   fixed URLs after deployment. For La Foresta this header is set by the
-   Abies vhost template in `system/ansible/templates/apache2-sites/`.
-   When switching from the old `immutable` policy, apply the Apache change
-   before asking users to clear cached images and files once and reload Abies.
-   Cookies and site data stay in place, including Ipso's locally saved records.
+   fixed URLs after deployment. In the `<Directory>` for collected static
+   files, set `Header set Cache-Control "no-cache"` with `mod_headers`.
+   If the instance previously served these URLs as `immutable`, apply the
+   Apache change before asking users to clear cached images and files once
+   and reload Abies. Cookies and site data stay in place, including Ipso's
+   locally saved records.
 
    Ipso upload rate limiting needs a real client address, not the Docker bridge
    or loopback proxy address. Apache should discard any client-supplied
@@ -146,7 +146,7 @@ Adjust names and ports as needed.
    The deployment scripts use a Docker context named `vm-abies` by default:
 
    ```sh
-   docker context create vm-abies --docker host=ssh://<user>@<host>
+   docker context create vm-abies --docker host=ssh://operator@abies.example.org
    ```
 
    Set `ABIES_DOCKER_CONTEXT` if you use a different context name.
@@ -180,9 +180,8 @@ Adjust names and ports as needed.
    pre-deploy compressed backup to the backup mount, runs migrations, runs
    `manage.py check --deploy --fail-level WARNING` for prod, creates the first
    admin if configured, rebuilds the collected static directory from the
-   deployed release, minifies collected JavaScript
-   for prod, and starts the Compose stack. Open the instance URL and sign in
-   with the admin account.
+   deployed release, minifies collected JavaScript for prod, and starts the
+   Compose stack. Open the instance URL and sign in with the admin account.
 
    Routine deploys preserve the database and existing superuser passwords.
    `DEPLOY_ARGS=--reset-user` removes the existing superusers before
@@ -211,10 +210,11 @@ Adjust names and ports as needed.
      ownership, apply migrations, import the catalog and map, stage converted
      mark uploads, and regenerate digests. [Canonical bundle format](bootstrap.md)
 
-   `CANONICAL_DIR` overrides the local bundle path. The rsync targets default
-   to `REMOTE=maxp@abies.laforesta.it`. Override `REMOTE_USER`,
-   `REMOTE_HOST`, or `REMOTE` if needed. Use `make sync-canonical-dev` or
-   `make sync-canonical-prod` for a transfer alone.
+   `CANONICAL_DIR` overrides the local bundle path. Pass the SSH login to
+   the Make targets that transfer data, for example
+   `make sync-canonical-prod REMOTE=operator@abies.example.org`. You can
+   also set `REMOTE_USER` and `REMOTE_HOST` separately. Use
+   `make sync-canonical-dev` or `make sync-canonical-prod` for a transfer alone.
 
    The Compose `terrain` service prepares hillshade and print-map context
    from the published parcel map. Set up Copernicus credentials to add
@@ -223,19 +223,18 @@ Adjust names and ports as needed.
 9. Configure backups.
 
    `bin/deploy` creates a compressed pre-deploy backup before migrations. For
-   nightly backups and OneDrive mirroring, install a host-level systemd timer
-   that runs `docker exec abies-prod bin/backup --instance prod` at 23:00
-   and optionally follows it with `rclone sync`. See
-   [the backup guide](backups.md) for the exact service/timer example,
-   retention policy, and restore notes.
+   nightly backups, install a host-level systemd timer that runs
+   `docker exec abies-prod bin/backup --instance prod`. An optional off-host
+   mirror can follow a successful backup. See [the backup guide](backups.md)
+   for scheduling, retention, and restore instructions.
 
 10. Enroll Ipso devices if operators will use the app.
 
     Open the appropriate URL on each trusted field device.
 
     ```text
-    https://abies.laforesta.it/ipso/#secret=<ABIES_IPSO_SECRET>
-    https://abies-dev.laforesta.it/ipso/#secret=<DEV_ABIES_IPSO_SECRET>
+    https://abies.example.org/ipso/#secret=<ABIES_IPSO_SECRET>
+    https://abies-dev.example.org/ipso/#secret=<DEV_ABIES_IPSO_SECRET>
     ```
 
     The fragment is stored locally by the PWA and removed from the address

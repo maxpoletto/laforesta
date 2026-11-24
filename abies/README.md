@@ -51,6 +51,7 @@ For a fresh instance with an optional parcel map, follow [INSTALL.md](INSTALL.md
 
 - [docs/deployment.md](docs/deployment.md) covers hosted provisioning and
   the first deployment.
+- [docs/laforesta.md](docs/laforesta.md) covers the La Foresta installation.
 - [docs/bootstrap.md](docs/bootstrap.md): canonical CSV bundle and bootstrap
   contract.
 - [docs/backups.md](docs/backups.md): SQLite/Ipso backup, retention, scheduling,
@@ -162,7 +163,7 @@ compresa, pass its name in `MAP_CONTEXT_ARGS`.
 
 ```sh
 make map-context
-make map-context MAP_CONTEXT_ARGS='--region Capistrano --force'
+make map-context MAP_CONTEXT_ARGS='--region Valverde --force'
 ```
 
 Each compresa uses its parcel bounding box plus a 500 m buffer. The builder

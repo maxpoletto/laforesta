@@ -1,8 +1,7 @@
 """Abies URL configuration.
 
-The app is served at the root of its own subdomain (abies.laforesta.it /
-abies-dev.laforesta.it). No URL prefix is needed -- the subdomain itself
-scopes the deployment.
+Each instance is served at the root of its own subdomain, such as
+abies.example.org or abies-dev.example.org.
 """
 
 from django.contrib import admin

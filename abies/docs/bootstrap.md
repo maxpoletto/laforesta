@@ -148,10 +148,10 @@ sample grid and parcel.
 `sampled-trees.csv` is grouped by `Rilevamento`. Tree numbers are unique inside
 a survey. Required measurement columns include `D_cm`, `H_m`, `L10_mm`, and
 `Pressler`; optional `H_measured` records whether height was measured in the
-field. The La Foresta converter emits `H_measured=false` for Sabatino calculated
-heights and `H_measured=true` for Luca measured heights. `Pressler` is stored on
-`tree_sample.pressler_coeff` and used for Bosco's percentage volume-increment
-chart. Species names must match the canonical species table.
+field. Set it to `false` for a calculated height and `true` for a measured one.
+`Pressler` is stored on `tree_sample.pressler_coeff` and used for Bosco's
+percentage volume-increment chart. Species names must match the canonical
+species table.
 
 `harvest_plan_items.csv` is grouped by `Piano`. A blank parcel means the row is
 region-wide. Region-wide rows use `X` as their display parcel in the UI.
@@ -162,10 +162,9 @@ and `H_m`; optional headers include `Anno di nascita stimato`, `H_measured`,
 `Acc_m`, `Operatore`, and `Note`. `D_cm` is required per row. Blank `Data`
 means an unknown historical date and is stored as `1970-01-01`; blank `H_m`
 is allowed only when `H_measured` is blank/false. Blank or missing
-`H_measured` defaults to false; the La Foresta converter emits false for
-current PAI data. Bootstrap creates both the backing tree and its PAI
-observation row, and validates parcel, species, number, diameter, coordinates,
-and any supplied date/height values.
+`H_measured` defaults to false. Bootstrap creates both the backing tree and
+its PAI observation row. It validates the parcel, species, number, diameter,
+coordinates, and any supplied date or height.
 
 `harvests.csv` records completed harvest rows. A blank parcel means the row is
 region-wide. Dynamic `Specie:<name>` and `Trattore:<name>` columns use canonical

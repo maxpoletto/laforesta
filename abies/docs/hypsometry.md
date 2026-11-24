@@ -28,18 +28,10 @@ or importing a new mark. Calculated heights satisfy the requirement while
 keeping `h_measured=false`. Stored marks can represent an unknown height with
 NULL height, volume and mass, rather than a zero measurement.
 
-Historically the parameters were computed from samples taken while creating a
-harvest plan (pdg-2026) and stored in a "regressions" CSV file like this:
-```
-compresa,genere,funzione,a,b,r2,n
-Capistrano,Abete,ln,7.0306,-4.2563,0.6312,48
-```
-(n is the number of samples used to determine a and b; r2 is the coefficient of
-determination.)
-
-But there is no reason for samples or regression parameters to be tied to a
-harvest plan. As more samples are collected, Abies should be able to recompute
-better parameters from more data, independently of any plan.
+Abies fits height equations from eligible sample records independently of
+harvest plans. As more measurements become available, those records can be
+included in a new fit. The sample count is stored as `n` and the coefficient
+of determination as `r2`.
 
 ## Ownership and lifecycle
 
@@ -107,10 +99,8 @@ leaves h blank for manual entry.
 
 ## Regression computation
 
-- The fit reuses pdg-2026's logarithmic regression (`LogarithmicRegression` in
-  `pdg-2026/pdg/computation.py`): a least-squares fit of h on ln(D) yielding
-  `a`, `b`, plus `r2` and the sample count `n`. The small numeric core is ported
-  into Abies; numpy is added to Abies's dependencies for it.
+- The logarithmic regression uses NumPy to fit h on ln(D) by least squares.
+  It yields `a`, `b`, `r2`, and the sample count `n`.
 - Inputs are the `(d_cm, h_m)` pairs of eligible `tree_sample` rows. Eligible
   rows have `h_measured = true`; **coppice tree rows are excluded** because
   hypsometry serves high-forest marking only; and rows with non-positive or
@@ -191,7 +181,7 @@ Readable height CSV (N/r² may be blank for manually supplied equations):
 
 ```csv
 compresa,genere,funzione,a,b,n,r2
-Capistrano,Abete bianco,ln,7.0306,-4.2563,48,0.6312
+Valverde,Abete bianco,ln,7.1,-4.2,40,0.65
 ```
 
 Volume CSV uses species names and either coefficients or an explicit proxy:

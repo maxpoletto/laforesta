@@ -38,7 +38,7 @@ the selected survey or its trees.
 Section is built around a map.
 
 **Top row** — a "Griglia" pulldown that selects the active grid by name (e.g.,
-`Aree di saggio PDG 2026`). Immediately to the right of the pulldown writers see
+`Aree di saggio Valverde`). Immediately to the right of the pulldown writers see
 pencil and garbage icons for editing (see "Modifica griglia modal") and deleting
 the active grid (if any surveys reference it, clicking "garbage" generates an
 error modal telling the user to first delete them).
@@ -59,7 +59,7 @@ clarifies the distinction.
 Map interactions:
 
 - **Hover** on a sample area: a small tooltip shows just the region, parcel,
-  and `numero` of the area di campionamento (e.g., `Serra 2a / adc 17`). Kept
+  and `numero` of the area di campionamento (e.g., `Pianalto 2a / adc 17`). Kept
   terse to avoid noise during navigation.
 - **Click** on an existing sample area: opens a popover with the full per-area
   fields (parcel, numero, lat, lng, quota, raggio, note). Writers also see
@@ -180,7 +180,7 @@ Its heading explains what the markers represent:
 
 Clicking a sample area **replaces** the table's text filter with its complete
 region/parcel/area identity, for example
-`compresa:Serra particella:9 area:72`. Names with spaces are quoted.
+`compresa:Pianalto particella:9 area:72`. Names with spaces are quoted.
 Qualified region, parcel and area terms match whole identifiers, so area `7`
 does not select `72` or an equally numbered area in another region. There is
 no additional hidden area filter. The input, table, summary and data/report
@@ -263,7 +263,7 @@ Pressler is not displayed. Missing legacy accuracy is shown as `-`.
 The first word of each label is an unambiguous selector, so users can type
 `area:72`, `albero:17`, `diam:>30`, `alt:>15`, `vol:>1` or `massa:>10` without
 quoting column names. Values containing spaces still need quotes, for example
-`compresa:"Serra San Bruno"`. The selectors follow the localized display labels.
+`compresa:"Bosco Alto"`. The selectors follow the localized display labels.
 The table, map selection and manual-entry form use the same label selectors.
 An exact visible label takes precedence over an unambiguous prefix.
 

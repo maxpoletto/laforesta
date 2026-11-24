@@ -18,11 +18,9 @@ Two specific goals:
 
 # Datasets
 
-* DSM FIRST 1x1 Calabria: https://data.europa.eu/data/datasets/m_amte-299fn3-1c04aa0a-5c79-466c-a266-b15428703449
-
-* DSM LAST 1x1 Calabria: https://data.europa.eu/data/datasets/m_amte-299fn3-aa01d612-8741-4340-e7ef-4b7a8d5a07ec
-
-* DTM 1x1 Calabria: https://data.europa.eu/data/datasets/m_amte-299fn3-2cc40856-4a7e-4c84-e96b-02c2d54b674e
+The canopy estimate needs a first-return digital surface model and a bare-earth
+digital terrain model covering the same forest. Align their grids and check
+that their elevations use the same vertical reference before subtracting them.
 
 # Steps
 
@@ -41,10 +39,10 @@ Here is a breakdown of possible initial steps:
    3. a plant-height layer that displays tree height (presumably as (DSM FIRST -
       DTM)).
 
-3. Built a model to estimate forest volume:
+3. Build a model to estimate forest volume:
 
-   1. For each sample area in a survey (in this case, specifically, the Sabatino
-      survey), compute the aggregate wood volume of measured trees.
+   1. For each sample area in a survey with measured trees, compute their
+      aggregate wood volume.
    2. Compute the canopy volume as the aggregate volume of 1x1xh rectangular
       parallelepipeds whose heigh is obtained from LiDAR data (DSM FIRST - DTM).
    3. Train a linear model to predict wood volume based on canopy volume.

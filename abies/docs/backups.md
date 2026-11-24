@@ -110,8 +110,8 @@ The scheduler should run the backup command inside the running container:
 docker exec abies-<instance> bin/backup --instance <instance>
 ```
 
-For production, run it nightly at about 23:00. If the host also mirrors backups
-off-site, mirror the already-thinned backup directory after `bin/backup`
+For production, run it nightly. If the host also mirrors backups off-site,
+mirror the already-thinned backup directory after `bin/backup`
 returns successfully:
 
 ```sh
@@ -140,7 +140,7 @@ remote configuration as `RCLONE_CONFIG_<REMOTE>_<OPTION>`, where `<REMOTE>` is
 the uppercased remote name. For a mirror destination such as:
 
 ```text
-onedrive:abies-prod/backups
+onedrive:forestry/backups
 ```
 
 the remote name is `onedrive`, so the variables are:

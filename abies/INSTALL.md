@@ -42,7 +42,7 @@ that supports SQLite WAL.
      Supply a GeoJSON FeatureCollection of WGS84 Polygons or MultiPolygons
      with coordinates in longitude, latitude order. Put the region name in
      `properties.layer` and the parcel label in `properties.name`, for example
-     `"Capistrano"` and `"Capistrano-01b"`. Several features may belong to
+     `"Valverde"` and `"Valverde-01b"`. Several features may belong to
      the same parcel. Bosco lists a region once you import its parcel records
      from the CSV files below. Abies matches each boundary to its record by
      region and parcel name.

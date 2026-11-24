@@ -47,7 +47,7 @@ parcels opens on its roads.
 ### Hover and click on the map
 
 - **Hover** on a parcel: a small unobtrusive label shows the region and parcel
-  name (e.g., `Capistrano 11`, `Serra 2a`) and below it, the parcel type
+  name (e.g., `Valverde 11`, `Pianalto 2a`) and below it, the parcel type
   (Fustaia or Ceduo) and area (e.g., "Fustaia 24,3 ha", "Ceduo 7,9 ha").
   Uses the same mechanism as Campionamenti maps. Characteristics add their
   displayed value; the cutting calendar lists all planned harvest years.
@@ -203,7 +203,7 @@ parcels opens on its roads.
 
   PDFs contain vector lines and selectable text, and can be included directly
   in LaTeX via `graphicx`, for example
-  `\includegraphics[width=\linewidth]{calendario_taglio_Capistrano_2026-2040.pdf}`.
+  `\includegraphics[width=\linewidth]{calendario_taglio_Valverde_2026-2040.pdf}`.
   Use `trim`/`clip` if the document needs tighter margins. Geometry and labels
   share one layout between preview and PDF; see [map architecture](ui-maps.md).
 
@@ -446,7 +446,7 @@ Cross-mode summary:
 ### Cross-page links out of Bosco (per-parcel overlay)
 
 - *Produzione storica* → "Apri in Prelievi" opens `/prelievi?f=...` with
-  URL-encoded column filters such as `compresa:Capistrano particella:1`.
+  URL-encoded column filters such as `compresa:Valverde particella:1`.
   A region overlay supplies only the region term; names containing spaces are
   quoted. The filters appear in the Prelievi text box, where they can be edited
   or cleared with "Azzera filtri".

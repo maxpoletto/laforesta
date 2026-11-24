@@ -156,8 +156,8 @@ filter updates incur no palette work. Do not use it for categorical colors
 ## Parcel polygons
 
 Source: the SQLite map exposed at `/api/geo/map.geojson`. Each linked feature carries
-`properties.layer = "<Compresa>"` (e.g. `"Capistrano"`) and
-`properties.name = "<Compresa>-<particella>"` (e.g. `"Capistrano-10a"`).
+`properties.layer = "<Compresa>"` (e.g. `"Valverde"`) and
+`properties.name = "<Compresa>-<particella>"` (e.g. `"Valverde-10a"`).
 The server derives these labels and `properties.coppice` from the linked parcel
 on read. Separate pieces of one parcel remain separate features. After fetching, sort with
 `sortFeaturesByArea(geojson)` (`geo.js`) so smaller polygons render — and
@@ -286,9 +286,9 @@ the drawing to WGS84 longitude/latitude through Rasterio and PROJ.
 Web Mercator applies spherical Mercator formulas to geodetic longitude and
 latitude using the WGS84 semi-major axis, 6378137 m. Local east–west scale is
 exact at the equator. Local north–south scale is about 0.7% larger there. Both
-scales grow with distance from the equator. Around Calabria, projected lengths
-are about 1.28 times the corresponding ground lengths. Around Inverness,
-Scotland, the factor is about 1.86. Alignment between layers depends on their
+scales grow with distance from the equator. In Calabria, Italy, at about 39° N, projected lengths
+are about 1.28 times the corresponding ground lengths. Near Inverness,
+Scotland, around 57° N, the factor is about 1.86. Alignment between layers depends on their
 source datum, the boundary survey, imagery and GPS accuracy.
 [PROJ's Web Mercator definition](https://proj.org/en/stable/operations/projections/webmerc.html)
 
@@ -322,15 +322,15 @@ one with the nearest center.
 
 Coordinate entry and display use five decimal places. Many record inputs,
 including manual forms and Ipso tree and observation uploads, also round
-before storage via `coord_float()`. Around Calabria, the rounding steps are
+before storage via `coord_float()`. At about 39° N, the rounding steps are
 about 1.11 m north/south and 0.87 m east/west. Rounding error is at most half
 a step on each axis. Imported parcel vertices and Ipso walk coordinates
 retain their supplied precision. Measurement calculations use the available
 coordinates directly, before any formatting for display.
 
 Regression fixtures in `test/fixtures/wgs84-geodesy.json` come from the
-GeographicLib Python implementation. Tests cover equatorial, Calabrian and
-Scottish distances (for different latitude examples), coincidence, antipodes,
+GeographicLib Python implementation. Tests cover equatorial, mid-latitude and
+high-latitude distances, coincidence, antipodes,
 polar and date-line cases, ring winding, holes, MultiPolygons,
 classic-script/module parity, the map ruler, and sample-radius
 inclusion/exclusion. The DXF import test includes UTM eastings and northings
@@ -566,7 +566,7 @@ python -m pytest test/test_map_context.py --cov-branch \
 These tests cover build reuse, atomic publication failures, malformed/partial
 OSM results, water islands and split polygons, elevation windows/CRS/nodata,
 contour interpolation, stale geometry, ETags, optional-layer failures, clipped
-labels, multipart rendering and SVG/PDF parity. Scottish fixtures test
+labels, multipart rendering and SVG/PDF parity. High-latitude fixtures test
 both axes of the physical print scale, vector alignment and the merge of
 elevation windows across a tile seam. The suites use local synthetic data
 and mock remote responses. Printed output also depends on the quality of the

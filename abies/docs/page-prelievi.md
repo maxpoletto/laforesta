@@ -24,8 +24,8 @@ standard dark-green 4px rule:
    checkbox switches the x-axis to harvest months (`YYYY-MM`). A dark-green
    cell marks every parcel/period combination with at least one harvest row in
    the currently filtered dataset. Clicking a populated cell writes a column
-   filter such as `data:2019 compresa:Fabrizia particella:14b` or
-   `data:2019-06 compresa:Fabrizia particella:14b` into the search box,
+   filter such as `data:2019 compresa:Pianalto particella:14b` or
+   `data:2019-06 compresa:Pianalto particella:14b` into the search box,
    further restricting the charts, calendar, and table to that period and
    parcel while preserving unrelated search terms such as `squadra:zaffino`.
    The calendar replaces previous date, compresa, and parcel selectors using the table’s displayed labels.
@@ -43,9 +43,9 @@ The full dataset is served as a single compressed JSON digest. All filtering (by
 year and search box) is client-side and affects the charts, calendar, and table.
 
 Bosco's "Apri in Prelievi" link sets the normal `f` search parameter, for
-example `compresa:Capistrano particella:1`. These terms appear in the filter
+example `compresa:Valverde particella:1`. These terms appear in the filter
 text box and can be edited or removed. Region names containing spaces are
-quoted, for example `compresa:"Serra San Bruno"`.
+quoted, for example `compresa:"Bosco Alto"`.
 
 "Azzera filtri" clears the search text, restores the full year range, and
 removes any region/parcel ID restrictions (`c`/`pa`) from both the active

@@ -18,7 +18,7 @@
 # The docker context name defaults to vm-abies; override with the
 # ABIES_DOCKER_CONTEXT env var. Create the context once with:
 #
-#   docker context create vm-abies --docker host=ssh://maxp@abies.laforesta.it
+#   docker context create vm-abies --docker host=ssh://operator@abies.example.org
 #
 # Ref-based deploys fetch tags from github; override the remote name with
 # ABIES_GIT_REMOTE.

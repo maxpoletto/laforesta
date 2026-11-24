@@ -32,7 +32,7 @@ Production deployments set one secret:
 A new device is provisioned by opening:
 
 ```text
-https://abies.laforesta.it/ipso/#secret=<ABIES_IPSO_SECRET>
+https://abies.example.org/ipso/#secret=<ABIES_IPSO_SECRET>
 ```
 
 The fragment is not sent to the server as part of the initial page request. The
