@@ -82,7 +82,7 @@ help:
 	@echo "  make upgrade-dependencies            Upgrade Python locks within approved ranges"
 	@echo "  make audit-dependencies              Audit locked Python dependencies"
 	@echo ""
-	@echo "  Printable-map context (manual)"
+	@echo "  Printable-map context (legacy)"
 	@echo "  make map-context                     Build roads, water and elevation contours"
 	@echo "  make sync-map-context-dev / sync-map-context-prod"
 	@echo "                                       Copy the generated MAP_CONTEXT_DIR"
@@ -200,6 +200,7 @@ test-js:
 	node apps/bosco/static/bosco/js/bosco-production.test.mjs
 	node apps/bosco/static/bosco/js/bosco-characteristics.test.mjs
 	node apps/bosco/static/bosco/js/bosco-detail.test.mjs
+	node apps/bosco/static/bosco/js/bosco-position.test.mjs
 	node apps/bosco/static/bosco/js/bosco-pai.test.mjs
 	node apps/bosco/static/bosco/js/bosco-observations.test.mjs
 	node apps/bosco/static/bosco/js/observation-pdf.test.mjs
@@ -360,7 +361,7 @@ reset-schema: clean
 docker-prune:
 	docker --context "$(ABIES_DOCKER_CONTEXT)" image prune
 
-# Printable-map context (manual)
+# Printable-map context (legacy)
 
 map-context:
 	$(MANAGE) build_map_context $(if $(MAP_CONTEXT_GEOJSON),--geojson "$(MAP_CONTEXT_GEOJSON)") --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)

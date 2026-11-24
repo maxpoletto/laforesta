@@ -131,46 +131,13 @@ Compose stack runs the worker as the `terrain` service. Compatible rasters under
 `data/satellite/<map_key>/` are available for reuse during the first refresh.
 [Satellite refresh and publication](docs/satellite-refresh.md)
 
-For offline diagnostics, `make satellite SATELLITE_DIR=data/satellite-build`
-builds a standalone copy using the credentials from `.env.satellite`. The
-legacy sync targets copy those standalone rasters while preserving directories
-published by the live worker.
-
 The terrain worker also builds the roads, water and contours for Bosco's
 printable maps. It refreshes them after published parcel boundaries change.
 **Aggiorna dati dei terreni** in Cartografia can queue a refresh immediately.
 Print-map context uses public OpenStreetMap and Copernicus GLO-30 data and
 requires no Copernicus credentials. Bosco offers the parcel-only map while
-matching context is unavailable.
-
-For a standalone build or custom data sources, use the manual target.
-
-```sh
-make map-context
-make map-context MAP_CONTEXT_ARGS='--region Capistrano --force'
-```
-
-Each compresa uses its parcel bounding box plus a 500 m buffer. The builder
-extracts contours every 20 m, clips and simplifies vectors, then atomically
-publishes `data/map-context/<map_key>/context.json.gz`. Matching builds are
-reused; `--force` refreshes them. A failed refresh preserves the last complete
-snapshot. Copernicus is a DSM including vegetation, rather than bare terrain.
-Use `--dem path/to/wgs84-elevation.tif` for a local elevation source and
-`--osm-file response.json` for an existing Overpass JSON response.
-
-`MAP_CONTEXT_DIR`, `MAP_CONTEXT_GEOJSON` and `MAP_CONTEXT_ARGS` configure the
-manual targets. `ABIES_MAP_CONTEXT_DIR` configures the worker's output and
-Bosco's serving path. A standalone build can be copied to a hosted instance
-with these targets.
-
-```sh
-make sync-map-context-dev
-make sync-map-context-prod
-```
-
-These targets use the standard dev/prod data directory. The worker reuses a
-compatible snapshot for the current parcel geometry. The legacy `sync-data`
-target copies canonical inputs and standalone satellite rasters.
+matching context is unavailable. `ABIES_MAP_CONTEXT_DIR` configures the
+worker's output and Bosco's serving path.
 
 To make the process completely non-interactive (e.g., during edit-debug cycles),
 set these in `compose/.env.local`:
@@ -215,6 +182,44 @@ If another checkout or application owns port 8000, use
 `make stop-local` uses `ps` and `lsof` to stop local Django servers and terrain
 workers owned by you in this checkout, including standalone processes and
 servers started on custom ports.
+
+### Manual updates to map data
+
+The terrain worker handles routine refreshes. These commands are for
+standalone builds, diagnostics and custom data sources.
+
+`make satellite SATELLITE_DIR=data/satellite-build` builds a standalone
+copy using the credentials from `.env.satellite`. The legacy
+`sync-satellite-dev` and `sync-satellite-prod` targets copy standalone rasters
+from `SATELLITE_DIR` to a hosted instance and preserve worker-published
+satellite revisions. The legacy `sync-data` target also copies canonical inputs.
+
+`make map-context` builds print-map context separately. To rebuild just one
+compresa, pass its name in `MAP_CONTEXT_ARGS`.
+
+```sh
+make map-context
+make map-context MAP_CONTEXT_ARGS='--region Capistrano --force'
+```
+
+Each compresa uses its parcel bounding box plus a 500 m buffer. The builder
+extracts contours every 20 m, clips and simplifies vectors, then atomically
+publishes `data/map-context/<map_key>/context.json.gz`. It reuses matching
+builds and keeps the last complete snapshot on failure. Use `--force` to
+refresh a matching build, `--dem path/to/wgs84-elevation.tif` for a local
+elevation source, and `--osm-file response.json` for a saved Overpass response.
+The default Copernicus elevation source includes vegetation.
+
+`MAP_CONTEXT_DIR`, `MAP_CONTEXT_GEOJSON` and `MAP_CONTEXT_ARGS` configure the
+manual targets. To copy a standalone build to the standard dev or prod data
+directory, use the target for that instance.
+
+```sh
+make sync-map-context-dev
+make sync-map-context-prod
+```
+
+The worker reuses a compatible snapshot for the current parcel geometry.
 
 ## Remote Dev And Production
 
