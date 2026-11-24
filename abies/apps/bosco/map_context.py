@@ -17,8 +17,8 @@ from shapely.ops import polygonize_full, unary_union
 
 from apps.base.map_keys import initial_map_key
 from .map_context_data import (
-    CONTEXT_FILE, SCHEMA_VERSION, MapContextError, publish_context, read_context,
-    region_directory, region_geometry,
+    SCHEMA_VERSION, MapContextError, context_is_current, context_matches, context_path,
+    publish_context, published_region_geometry, read_context, region_geometry,
 )
 
 OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
@@ -205,17 +205,30 @@ def contour_features(data, transform, bounds, interval):
 
 def build_region(geojson, region, output_dir, *, region_key=None, buffer_m=500, interval=20,
                  osm_file=None, dem=None, force=False, endpoint=OVERPASS_URL):
-    fingerprint, parcel_bounds = region_geometry(geojson, region)
+    return _build_context(region, output_dir, region_geometry(geojson, region),
+                          region_key=region_key or initial_map_key(region), buffer_m=buffer_m,
+                          interval=interval, osm_file=osm_file, dem=dem, force=force, endpoint=endpoint)
+
+
+def ensure_context(region, output_dir):
+    """Keep an existing compatible snapshot, including one built by hand."""
+    snapshot = published_region_geometry(region)
+    if not context_is_current(region, output_dir, snapshot=snapshot):
+        _build_context(region.name, output_dir, snapshot, region_key=region.map_key, force=True)
+
+
+def _build_context(region, output_dir, snapshot, *, region_key, buffer_m=500, interval=20,
+                   osm_file=None, dem=None, force=False, endpoint=OVERPASS_URL):
+    fingerprint, parcel_bounds = snapshot
     bounds = buffered_bounds(parcel_bounds, buffer_m)
-    key = str(region_key or initial_map_key(region))
-    target = region_directory(output_dir, key) / CONTEXT_FILE
+    key = str(region_key)
+    target = context_path(output_dir, key)
     parameters = {'geometry_hash': fingerprint, 'buffer_m': buffer_m, 'contour_interval_m': interval,
                   'dem_source': str(dem) if dem else 'copernicus-glo-30',
                   'osm_source': str(osm_file) if osm_file else endpoint}
     if target.is_file() and not force:
         previous = read_context(target)
-        if (previous.get('schema_version') == SCHEMA_VERSION and previous.get('region_key') == key
-                and previous.get('build') == parameters):
+        if context_matches(previous, key, fingerprint) and previous.get('build') == parameters:
             return previous, False
     osm = json.loads(Path(osm_file).read_text()) if osm_file else fetch_osm(bounds, endpoint)
     if not isinstance(osm.get('elements'), list) or osm.get('remark'):

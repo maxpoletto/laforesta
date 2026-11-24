@@ -451,6 +451,7 @@ def test_rename_preserves_parcels_and_built_map_data(client, writer_user, parcel
     fingerprint, _ = region_geometry(map_geojson(), region.name)
     publish_context(settings.MAP_CONTEXT_DIR / str(key) / CONTEXT_FILE, {
         'schema_version': SCHEMA_VERSION, 'region_key': str(key), 'build': {'geometry_hash': fingerprint},
+        'available': True, 'features': [],
     })
     response = client.post(f'{ROOT}regions/{region.pk}/save/', {'version': 1, 'name': 'Nuova costa'},
                            content_type='application/json')

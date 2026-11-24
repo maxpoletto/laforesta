@@ -36,7 +36,6 @@ from apps.base.http import (
     CACHE_NO_CACHE, CACHE_NO_STORE, apply_cache_control,
     conditional_file_response, not_modified_response,
 )
-from apps.base.map_data import map_geojson
 from apps.base.models import (
     MapFeature, Observation, ObservationCategory, ObservationPhoto, Parcel,
     Region, Sample, SatelliteRevision, Species, TerrainRefresh, Tree, TreeSample,
@@ -85,8 +84,7 @@ SATELLITE_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 @login_required
 def map_context_data(request, region_id):
     from apps.bosco.map_context_data import (
-        CONTEXT_FILE, SCHEMA_VERSION, MapContextError, read_context,
-        region_directory, region_geometry,
+        MapContextError, context_matches, context_path, published_region_geometry, read_context_stream,
     )
     region = get_object_or_404(Region, pk=region_id)
     def unavailable(*, stale=False):
@@ -94,19 +92,19 @@ def map_context_data(request, region_id):
         apply_cache_control(response, CACHE_NO_CACHE)
         return response
 
+    def validate(stream):
+        payload = read_context_stream(stream)
+        fingerprint, _ = published_region_geometry(region)
+        if not context_matches(payload, region.map_key, fingerprint):
+            raise MapContextError('Stale print map context')
+
     try:
-        path = region_directory(settings.MAP_CONTEXT_DIR, str(region.map_key)) / CONTEXT_FILE
-        if not path.is_file():
-            return unavailable()
-        payload = read_context(path)
-        fingerprint, _ = region_geometry(map_geojson(), region.name)
-        if (payload.get('schema_version') != SCHEMA_VERSION
-                or payload.get('region_key') != str(region.map_key)
-                or payload.get('build', {}).get('geometry_hash') != fingerprint):
-            return unavailable(stale=True)
+        path = context_path(settings.MAP_CONTEXT_DIR, region.map_key)
         return conditional_file_response(request, path, content_type='application/geo+json',
                                          content_encoding='gzip', cache_control=CACHE_NO_CACHE,
-                                         use_etag=True)
+                                         use_etag=True, validate=validate)
+    except FileNotFoundError:
+        return unavailable()
     except (MapContextError, OSError, ValueError, KeyError):
         return unavailable(stale=True)
 

@@ -224,7 +224,8 @@ The destination's encrypted Copernicus credentials survive the database
 replacement. The mirror strips the source credential row before installing
 the database and restores the destination pair after migrations. A restore
 to the same installation uses its existing Django key. The terrain worker
-rebuilds any referenced satellite revisions whose files are missing.
+rebuilds missing satellite revisions and any missing or outdated print-map
+context.
 
 The default `prod -> dev` flow is:
 

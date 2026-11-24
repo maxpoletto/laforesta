@@ -45,9 +45,14 @@ def conditional_file_response(
         cache_control: str,
         content_encoding: str | None = None,
         use_etag: bool = False,
+        validate=None,
 ) -> FileResponse | HttpResponse:
+    """Validate and serve the same open file, even across atomic replacement."""
     file = open(path, 'rb')
     try:
+        if validate is not None:
+            validate(file)
+            file.seek(0)
         stat = os.fstat(file.fileno())
         etag = _content_etag(file, stat) if use_etag else None
         response = not_modified_response(

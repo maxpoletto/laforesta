@@ -1,9 +1,8 @@
-# Satellite data refresh
+# Terrain data refresh
 
-The running Abies instance refreshes Sentinel-2 imagery and parcel
-statistics for Bosco. Writers can trigger an update in Cartografia with
-**Aggiorna dati dei terreni**. The name also accommodates future elevation
-and LiDAR sources.
+The terrain worker prepares Sentinel-2 imagery and parcel statistics, INGV
+hillshade, and printable-map context for Bosco. Writers can trigger a refresh
+in Cartografia with **Aggiorna dati dei terreni**.
 
 ## Credentials
 
@@ -48,7 +47,7 @@ publishes its imagery.
 
 | Trigger | Work |
 | --- | --- |
-| Hourly check | The worker checks SQLite for new maps and published changes that need a refresh. A check with no pending changes makes no Copernicus requests. |
+| Hourly check | The worker checks for new maps, published changes, and missing terrain files. Regions with an existing terrain job also get a first check of their printable-map context after upgrading. |
 | Cartografia geometry changes | Promoting, reshaping or deleting a parcel or road queues the affected compresa as part of the same save. |
 | **Aggiorna dati dei terreni** | The button at the bottom of the Cartografia sidebar immediately queues a refresh of the selected compresa. It also retries work already due for that compresa. |
 | March and August | The worker checks for new seasonal imagery overnight on or after 1 March and 1 August. |
@@ -133,7 +132,6 @@ to Web Mercator for Bosco. Missing elevation cells are transparent.
 [INGV TINITALY 1.1 and license](https://tinitaly.pi.ingv.it/) ·
 [INGV WCS](https://tinitaly.pi.ingv.it/wcs_service.html)
 
-**Aggiorna dati dei terreni** checks both the hillshade and satellite imagery.
 The hourly check queues eligible comprese that lack a hillshade, including
 those waiting for Copernicus credentials. INGV requests need no credentials.
 The worker reuses an image when its extent still covers the map. A failed
@@ -142,6 +140,21 @@ update preserves the previous image and the worker retries as usual.
 Each compresa's `data/satellite/<region_uuid>/hillshade.png` is replaced
 atomically. The PNG stores its own map bounds, so Bosco can read the image
 and its placement together even during a refresh.
+
+## Printable-map context
+
+The same job checks the print context against the published parcel geometry
+and builds a snapshot if it is missing or outdated. A road-only or parcel
+metadata change can reuse the snapshot when the parcel shapes are unchanged.
+Matching snapshots from standalone builds can also be reused. The worker
+uses Overpass and public Copernicus GLO-30 elevation data, including while
+the satellite downloader waits for credentials.
+
+The worker replaces `MAP_CONTEXT_DIR/<map_key>/context.json.gz` only after
+building the complete snapshot. It keeps the previous file on failure and
+retries through the terrain queue. Bosco validates the snapshot against the
+current parcel geometry before serving it and offers the plain parcel map
+when matching context is unavailable. [Print context builder](ui-maps.md#local-vector-context)
 
 ## Publishing terrain data
 

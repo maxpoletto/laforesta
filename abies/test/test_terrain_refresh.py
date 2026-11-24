@@ -12,7 +12,8 @@ from shapely.geometry import box, mapping
 
 from apps.base import digests
 from apps.base.models import MapFeature, SatelliteRevision, SatelliteSeason, TerrainRefresh
-from apps.bosco import satellite, satellite_grid, satellite_refresh, terrain_queue
+from apps.bosco import map_context, satellite, satellite_grid, satellite_refresh, terrain_queue
+from apps.bosco.map_context_data import CONTEXT_FILE
 from config import strings as S
 
 
@@ -21,6 +22,25 @@ pytestmark = pytest.mark.django_db
 
 def polygon(x=16):
     return {'type': 'Polygon', 'coordinates': [[[x, 38], [16.004, 38], [16.004, 38.004], [x, 38.004], [x, 38]]]}
+
+
+@pytest.fixture
+def print_map_sources(monkeypatch):
+    requests = []
+
+    def fetch_osm(bounds, endpoint):
+        requests.append(bounds)
+        west, south, east, north = bounds
+        return {'elements': [{'type': 'way', 'id': 1, 'tags': {'highway': 'track'},
+                              'geometry': [{'lon': west, 'lat': south}, {'lon': east, 'lat': north}]}]}
+
+    def elevation_grid(bounds, dem):
+        data = np.tile(np.arange(5) * 20, (5, 1))
+        return data, rasterio.transform.from_bounds(*bounds, 5, 5)
+
+    monkeypatch.setattr(map_context, 'fetch_osm', fetch_osm)
+    monkeypatch.setattr(map_context, 'elevation_grid', elevation_grid)
+    return requests
 
 
 def test_writer_can_queue_only_published_parcels(client, reader_user, writer_user, parcels):
@@ -49,7 +69,7 @@ def test_writer_can_queue_only_published_parcels(client, reader_user, writer_use
     assert TerrainRefresh.history.count() == 1
 
 
-def test_nightly_schedule_checks_missed_windows_and_detects_map_edits(parcels, settings):
+def test_nightly_schedule_checks_missed_windows_and_detects_map_edits(parcels, settings, print_map_sources):
     from apps.bosco.hillshade import output_path
 
     settings.TIME_ZONE = 'UTC'
@@ -58,9 +78,11 @@ def test_nightly_schedule_checks_missed_windows_and_detects_map_edits(parcels, s
     image.parent.mkdir(parents=True)
     image.touch()
     region_id = parcels[0].region_id
+    map_context.ensure_context(parcels[0].region, settings.MAP_CONTEXT_DIR)
+    source = terrain_queue.map_signatures()[region_id]
     now = datetime(2026, 8, 2, 12, tzinfo=tz.utc)
     TerrainRefresh.objects.create(region_id=region_id, state='current',
-                                 source=terrain_queue.map_signatures()[region_id],
+                                 source=source,
                                  searched_through=date(2026, 1, 1))
     terrain_queue.schedule(now)
     assert terrain_queue.claim() is None
@@ -114,7 +136,8 @@ def test_catalog_http_error_keeps_the_response_status(monkeypatch):
     assert (error.value.kind, error.value.status) == ('catalog', 503)
 
 
-def test_worker_publishes_hillshade_without_copernicus(client, reader_user, writer_user, parcels, monkeypatch):
+def test_worker_publishes_hillshade_without_copernicus(
+        client, reader_user, writer_user, parcels, monkeypatch, print_map_sources):
     from io import BytesIO
 
     from PIL import Image
@@ -192,6 +215,77 @@ def test_worker_publishes_hillshade_without_copernicus(client, reader_user, writ
     assert b''.join(client.get(url).streaming_content) != first_image
 
 
+def test_worker_rebuilds_print_context_after_a_parcel_edit_without_credentials(
+        client, writer_user, parcels, settings, monkeypatch, print_map_sources):
+    from apps.bosco.hillshade import output_path
+
+    parcel = parcels[0]
+    region = parcel.region
+    outline = MapFeature.objects.create(parcel=parcel, geometry=polygon())
+    terrain_url = f'/api/impostazioni/cartography/{region.pk}/terrain/'
+    context_url = f'/api/bosco/map-context/{region.pk}/'
+    target = settings.MAP_CONTEXT_DIR / str(region.map_key) / CONTEXT_FILE
+    monkeypatch.setattr('apps.bosco.hillshade.refresh', lambda *args: None)
+    monkeypatch.setattr(satellite_refresh, 'load_credentials', lambda: None)
+    client.force_login(writer_user)
+
+    # Upgrade an already-processed instance, including one waiting for a key.
+    image = output_path(region.map_key)
+    image.parent.mkdir(parents=True)
+    image.touch()
+    TerrainRefresh.objects.create(region=region, state='credentials',
+                                 source=terrain_queue.map_signatures()[region.pk])
+    call_command('run_terrain_worker', once=True)
+    response = client.get(context_url)
+    first = b''.join(response.streaming_content)
+    context = json.loads(gzip.decompress(first))
+    assert {feature['properties']['layer'] for feature in context['features']} == {'roads', 'contours'}
+    assert client.get(terrain_url).json()['state'] == 'credentials'
+
+    # A manual refresh with unchanged parcels can reuse the existing context.
+    assert client.post(terrain_url, {}, content_type='application/json').status_code == 202
+    call_command('run_terrain_worker', once=True)
+    assert len(print_map_sources) == 1
+    assert client.get(context_url, HTTP_IF_NONE_MATCH=response['ETag']).status_code == 304
+
+    outline.geometry = polygon(15.999)
+    outline.version += 1
+    outline.save(update_fields=['geometry', 'version'])
+    assert client.get(context_url).json() == {'available': False, 'stale': True}
+
+    def unavailable(*args, **kwargs):
+        raise map_context.MapContextError('Overpass timed out')
+
+    with monkeypatch.context() as outage:
+        outage.setattr(map_context, 'fetch_osm', unavailable)
+        call_command('run_terrain_worker', once=True)
+        assert client.get(terrain_url).json() == {
+            'available': True, 'state': 'failed', 'message': S.TERRAIN_REFRESH_FAILURES['map_context'],
+        }
+        assert target.read_bytes() == first
+        call_command('run_terrain_worker', once=True)
+        assert TerrainRefresh.objects.get().state == 'failed'
+
+    TerrainRefresh.objects.update(retry_at=timezone.now() - timedelta(seconds=1))
+    call_command('run_terrain_worker', once=True)
+    response = client.get(context_url)
+    context = json.loads(gzip.decompress(b''.join(response.streaming_content)))
+    assert context['parcel_bbox'] == [15.999, 38, 16.004, 38.004]
+    assert len(print_map_sources) == 2
+    assert client.get(terrain_url).json()['state'] == 'credentials'
+
+    target.unlink()
+    call_command('run_terrain_worker', once=True)
+    assert client.get(context_url).status_code == 200
+    assert len(print_map_sources) == 3
+
+    # A production mirror can leave stale local files alongside current job state.
+    target.write_bytes(first)
+    call_command('run_terrain_worker', once=True)
+    assert client.get(context_url)['Content-Encoding'] == 'gzip'
+    assert len(print_map_sources) == 4
+
+
 def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
     old = satellite_grid.Grid((16, 38, 16.004, 38.004), 4, 4)
     new = old.expand((15.998, 37.998, 16.006, 38.006))
@@ -217,7 +311,8 @@ def test_expansion_downloads_only_uncovered_windows(tmp_path, monkeypatch):
         assert raster.read(1, window=new.window(old)).tolist() == [[123] * 4] * 4
 
 
-def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels, monkeypatch, settings):
+def test_worker_publishes_and_bosco_pins_revisions(
+        client, writer_user, parcels, monkeypatch, settings, print_map_sources):
     monkeypatch.setattr('apps.bosco.hillshade.refresh', lambda *args: None)
     parcel = parcels[0]
     region = parcel.region
@@ -296,7 +391,7 @@ def test_worker_publishes_and_bosco_pins_revisions(client, writer_user, parcels,
     assert json.loads(b''.join(client.get(base + 'manifest/').streaming_content))['revision'] == latest['revision']
 
 
-def test_existing_imagery_is_reused_without_cloud_credentials(parcels, settings, monkeypatch):
+def test_existing_imagery_is_reused_without_cloud_credentials(parcels, settings, monkeypatch, print_map_sources):
     monkeypatch.setattr('apps.bosco.hillshade.refresh', lambda *args: None)
     parcel = parcels[0]
     MapFeature.objects.create(parcel=parcel, geometry=polygon())

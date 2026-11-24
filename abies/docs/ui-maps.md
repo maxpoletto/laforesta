@@ -501,8 +501,9 @@ Metric adapters supply text without changing the geometry or PDF renderer.
 
 ### Local vector context
 
-`build_map_context` reads the published parcel geometry by default, or a GeoJSON
-file passed with `--geojson`. It expands each compresa's bounding box by 500 m
+The terrain worker builds print context from published parcel geometry.
+The standalone `build_map_context` command also accepts a GeoJSON file
+passed with `--geojson`. The builder expands each compresa's bounding box by 500 m
 at the edge midpoints using the WGS84 ellipsoid. It queries Overpass for roads,
 tracks, waterways and water multipolygons, including member geometries.
 Shapely joins water boundary segments into closed outlines, preserves islands
@@ -521,11 +522,14 @@ elevation zero and assume its heights are in meters.
 
 Each `MAP_CONTEXT_DIR/<map_key>/context.json.gz` is a complete, atomically
 published snapshot with source/build metadata and a parcel geometry hash.
-An unchanged build is reused; an explicit `--force` refreshes it. Errors leave
-the last complete snapshot untouched. `--dem` and `--osm-file` accept local
-WGS84 raster and Overpass inputs. The API checks schema, region identity and
-current parcel geometry before serving a snapshot with ETag/gzip. Unavailable
-or stale data is reported without making any external request on the server.
+The worker reuses a snapshot if its parcel geometry matches, and rebuilds
+it after geometry edits or when the file is missing. Errors leave the last
+complete snapshot untouched and go through the terrain retry schedule. The
+standalone command accepts `--force` to refresh, plus `--dem` and `--osm-file`
+for local inputs. The API checks schema, region identity and current parcel
+geometry on the same file it streams with ETag/gzip. Unavailable or stale
+data is reported directly from local state.
+[Terrain worker and print context](satellite-refresh.md#printable-map-context)
 
 `bosco-print-context.js` loads the local dataset through the shared conditional
 cache, provides consistent styles, and supplies projected vector paths and
@@ -538,7 +542,7 @@ Paths are clipped to `layout.mapBox`, excluding the heading, footer and callout
 columns. Water fills use even/odd winding in both SVG and PDF. Index elevation
 labels avoid the parcel labels and page edges; parcel borders/labels draw last.
 
-Initialization, refresh and sync commands are documented in the README.
+Standalone build and transfer commands are documented in the README.
 Printed attribution follows [OSM](https://www.openstreetmap.org/copyright) and
 the [Copernicus GLO-30 license](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/DEM/resources/license/License-COPDEM-30.pdf).
 

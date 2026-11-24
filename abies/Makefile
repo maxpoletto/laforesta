@@ -82,7 +82,7 @@ help:
 	@echo "  make upgrade-dependencies            Upgrade Python locks within approved ranges"
 	@echo "  make audit-dependencies              Audit locked Python dependencies"
 	@echo ""
-	@echo "  Printable-map context"
+	@echo "  Printable-map context (manual)"
 	@echo "  make map-context                     Build roads, water and elevation contours"
 	@echo "  make sync-map-context-dev / sync-map-context-prod"
 	@echo "                                       Copy the generated MAP_CONTEXT_DIR"
@@ -360,7 +360,7 @@ reset-schema: clean
 docker-prune:
 	docker --context "$(ABIES_DOCKER_CONTEXT)" image prune
 
-# Printable-map context
+# Printable-map context (manual)
 
 map-context:
 	$(MANAGE) build_map_context $(if $(MAP_CONTEXT_GEOJSON),--geojson "$(MAP_CONTEXT_GEOJSON)") --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)

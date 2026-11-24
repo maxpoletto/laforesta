@@ -4,7 +4,12 @@ import hashlib
 import json
 import os
 import tempfile
+import zlib
 from pathlib import Path
+
+from django.db.models import Q
+
+from apps.base.models import MapFeature
 
 SCHEMA_VERSION = 1
 CONTEXT_FILE = 'context.json.gz'
@@ -20,11 +25,21 @@ def region_names(geojson):
 
 
 def region_geometry(geojson, region):
-    features = [f for f in geojson.get('features', [])
-                if (f.get('properties') or {}).get('layer') == region]
-    if not features:
+    geometries = [f['geometry'] for f in geojson.get('features', [])
+                  if (f.get('properties') or {}).get('layer') == region]
+    return geometry_snapshot(geometries, region)
+
+
+def published_region_geometry(region):
+    parcels = MapFeature.objects.filter(published=True, road_type__isnull=True).filter(
+        Q(parcel__region_id=region.pk) | Q(parcel__isnull=True, members__properties__layer=region.name),
+    )
+    return geometry_snapshot(list(parcels.values_list('geometry', flat=True)), region.name)
+
+
+def geometry_snapshot(geometries, region):
+    if not geometries:
         raise MapContextError(f'No parcel geometry for {region}')
-    geometries = [f['geometry'] for f in features]
     encoded = sorted(json.dumps(g, sort_keys=True, separators=(',', ':')) for g in geometries)
     fingerprint = hashlib.sha256('\n'.join(encoded).encode()).hexdigest()
     points = []
@@ -51,12 +66,41 @@ def region_directory(root, region):
     return path
 
 
+def context_path(root, map_key):
+    return region_directory(root, str(map_key)) / CONTEXT_FILE
+
+
 def read_context(path):
-    with gzip.open(path, 'rt', encoding='utf-8') as stream:
-        payload = json.load(stream)
+    with open(path, 'rb') as stream:
+        return read_context_stream(stream)
+
+
+def read_context_stream(stream):
+    try:
+        with gzip.GzipFile(fileobj=stream) as compressed:
+            payload = json.load(compressed)
+    except (EOFError, OSError, ValueError, zlib.error) as exc:
+        raise MapContextError('Invalid map context snapshot') from exc
     if not isinstance(payload, dict):
         raise MapContextError('Invalid map context snapshot')
     return payload
+
+
+def context_matches(payload, region_key, fingerprint):
+    build = payload.get('build')
+    return (payload.get('available') is True and isinstance(payload.get('features'), list)
+            and payload.get('schema_version') == SCHEMA_VERSION
+            and payload.get('region_key') == str(region_key)
+            and isinstance(build, dict) and build.get('geometry_hash') == fingerprint)
+
+
+def context_is_current(region, output_dir, *, snapshot=None):
+    try:
+        payload = read_context(context_path(output_dir, region.map_key))
+        fingerprint, _ = snapshot if snapshot is not None else published_region_geometry(region)
+    except (MapContextError, OSError, ValueError, KeyError):
+        return False
+    return context_matches(payload, region.map_key, fingerprint)
 
 
 def publish_context(path, payload):

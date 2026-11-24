@@ -12,7 +12,7 @@ from apps.bosco import satellite_refresh, terrain_queue
 
 
 class Command(BaseCommand):
-    help = 'Process terrain refreshes queued in Cartografia and by the satellite schedule.'
+    help = 'Process satellite, hillshade and print context refreshes queued in Cartografia or by the schedule.'
 
     def add_arguments(self, parser):
         parser.add_argument('--once', action='store_true', help='Check the schedule and process one queued job.')

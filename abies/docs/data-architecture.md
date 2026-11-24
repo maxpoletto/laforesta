@@ -8,10 +8,10 @@ and revalidate by content ETag. The terrain worker refreshes satellite
 rasters and summaries from the published database map. SQLite tracks the
 current revision, and the corresponding immutable files live under
 `SATELLITE_DIR`. [Satellite refresh](satellite-refresh.md)
-Printable-map vectors are initialized separately with `build_map_context` and
-stored as atomic gzip GeoJSON snapshots under `MAP_CONTEXT_DIR`. Their read
-endpoint checks the parcel-geometry fingerprint and never fetches external
-data. They use the shared client conditional cache but are not database digests.
+The terrain worker also builds printable-map vectors. It stores them as
+atomic gzip GeoJSON snapshots under `MAP_CONTEXT_DIR`. The read endpoint
+checks the parcel-geometry fingerprint and never fetches external data.
+The browser revalidates the snapshot through the shared conditional cache.
 
 To reduce latency, tabular digests are served as compressed precomputed JSON.
 The mapping of relational tables to JSON files is specified in the detailed

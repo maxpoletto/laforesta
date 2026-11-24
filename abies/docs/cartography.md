@@ -333,8 +333,10 @@ its endpoint.
   eastern edge extends beyond it, Abies downloads one strip. An expansion can
   require up to four rectangles. The north and south strips span the new width.
   The west and east strips cover the remaining height, so each corner is fetched
-  once. Abies regenerates affected contours across the joins from the assembled
-  terrain.
+  once.
+- The terrain worker also refreshes print-map context when published parcel
+  geometry changes. The current print context covers the parcel bounding box
+  plus a margin and uses Copernicus GLO-30 contours.
 
 The worker checks published changes and newly imported maps hourly.
 **Aggiorna dati dei terreni** at the bottom of the sidebar queues an immediate

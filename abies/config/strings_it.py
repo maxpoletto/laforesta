@@ -49,6 +49,7 @@ TERRAIN_REFRESH_FAILURES = {
     'storage': 'Impossibile leggere o scrivere i file delle immagini sul server.',
     'processing': 'Impossibile elaborare le immagini satellitari.',
     'hillshade': 'Impossibile aggiornare il rilievo ombreggiato da INGV TINITALY.',
+    'map_context': 'Impossibile aggiornare strade, acque e curve di livello delle mappe stampabili.',
 }
 TERRAIN_REFRESH_QUOTA = 'Copernicus ha raggiunto il limite di richieste. Riprova più tardi.'
 TERRAIN_REFRESH_HTTP_STATUS = '{message} (HTTP {status}).'

@@ -119,8 +119,9 @@ it also fetches the parcel map so migrations can import it. The sync keeps local
 Copernicus credentials and writes the previous runtime state to
 `data/.pre-sync-*`. Copied sessions are cleared. The snapshot contains real
 production records and photos, so keep it on an access-controlled machine.
-Generated terrain and print-map data are managed separately. Start the app
-again with `make run-local` and sign in with an account from the snapshot.
+The terrain worker prepares generated terrain and print-map data locally.
+Start the app again with `make run-local` and sign in with an account from
+the snapshot.
 
 For Bosco satellite layers, save the Copernicus credentials in **Impostazioni
 → Generali → Credenziali API satellitare** after following the
@@ -135,9 +136,14 @@ builds a standalone copy using the credentials from `.env.satellite`. The
 legacy sync targets copy those standalone rasters while preserving directories
 published by the live worker.
 
-Printable-map context is optional and initialized separately from satellite
-imagery. It requires no API account: roads and water come from OpenStreetMap,
-and contours come from public Copernicus GLO-30 surface-model COGs.
+The terrain worker also builds the roads, water and contours for Bosco's
+printable maps. It refreshes them after published parcel boundaries change.
+**Aggiorna dati dei terreni** in Cartografia can queue a refresh immediately.
+Print-map context uses public OpenStreetMap and Copernicus GLO-30 data and
+requires no Copernicus credentials. Bosco offers the parcel-only map while
+matching context is unavailable.
+
+For a standalone build or custom data sources, use the manual target.
 
 ```sh
 make map-context
@@ -153,19 +159,18 @@ Use `--dem path/to/wgs84-elevation.tif` for a local elevation source and
 `--osm-file response.json` for an existing Overpass JSON response.
 
 `MAP_CONTEXT_DIR`, `MAP_CONTEXT_GEOJSON` and `MAP_CONTEXT_ARGS` configure the
-Makefile. `ABIES_MAP_CONTEXT_DIR` configures the application's serving path.
-Publish generated files separately from deploying code:
+manual targets. `ABIES_MAP_CONTEXT_DIR` configures the worker's output and
+Bosco's serving path. A standalone build can be copied to a hosted instance
+with these targets.
 
 ```sh
 make sync-map-context-dev
 make sync-map-context-prod
 ```
 
-These targets use the standard dev/prod data directory. The legacy
-`sync-data` target copies canonical inputs and standalone satellite rasters.
-The browser loads the local snapshot when opening the print modal. Printing
-and scale changes make no requests to OSM or Copernicus. If data is missing or
-outdated for the parcel geometry, the modal offers the plain parcel map.
+These targets use the standard dev/prod data directory. The worker reuses a
+compatible snapshot for the current parcel geometry. The legacy `sync-data`
+target copies canonical inputs and standalone satellite rasters.
 
 To make the process completely non-interactive (e.g., during edit-debug cycles),
 set these in `compose/.env.local`:

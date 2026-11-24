@@ -1,4 +1,4 @@
-"""Build and atomically publish a compresa's complete satellite revision."""
+"""Refresh a compresa's terrain products and publish complete satellite revisions."""
 import json
 import logging
 import os
@@ -24,7 +24,8 @@ from shapely.ops import unary_union
 from apps.base.digests import mark_stale
 from apps.base.geodesy import planar_polygon
 from apps.base.models import SatelliteRevision, SatelliteSeason, TerrainRefresh
-from apps.bosco import hillshade, satellite, satellite_grid as rasters, terrain_queue as queue
+from apps.bosco import hillshade, map_context, satellite, satellite_grid as rasters, terrain_queue as queue
+from apps.bosco.map_context_data import MapContextError
 from apps.bosco.satellite_credentials import load_credentials
 from apps.bosco.satellite_data import parcel_snapshot_key
 
@@ -254,15 +255,20 @@ def build(job, inputs, requested_at, progress):
 
 def refresh(job, now, progress=lambda: None):
     inputs = None
-    terrain_failed = False
+    terrain_failure = None
     try:
         inputs = map_inputs(job.region_id)
         if inputs.bounds:
             try:
                 hillshade.refresh(job.region.map_key, inputs.bounds)
             except (hillshade.HillshadeError, OSError, ValueError, rasterio.errors.RasterioError) as exc:
-                terrain_failed = True
+                terrain_failure = 'hillshade'
                 logger.warning('Hillshade refresh failed for compresa %s: %s', job.region_id, exc)
+            try:
+                map_context.ensure_context(job.region, settings.MAP_CONTEXT_DIR)
+            except (MapContextError, OSError, ValueError, LookupError, TypeError, AttributeError, ShapelyError) as exc:
+                terrain_failure = terrain_failure or 'map_context'
+                logger.warning('Print map context refresh failed for compresa %s: %s', job.region_id, exc)
         state, result = build(job, inputs, now, progress)
     except CredentialsNeeded:
         state, result = State.WAITING, {}
@@ -280,9 +286,9 @@ def refresh(job, now, progress=lambda: None):
         if inputs is None:
             inputs = MapInputs(queue.map_signatures(job.region_id).get(job.region_id), [], None)
         state, result = State.FAILED, {'failure': failure}
-    if terrain_failed and state != State.FAILED:
+    if terrain_failure and state != State.FAILED:
         state = State.FAILED
-        result['failure'] = {'kind': 'hillshade'}
+        result['failure'] = {'kind': terrain_failure}
     elif inputs.bounds and state == State.EMPTY:
         state = State.CURRENT
     finish(job, inputs, state, timezone.now(), **result)

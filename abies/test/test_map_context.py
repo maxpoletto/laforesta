@@ -170,6 +170,39 @@ def test_context_reader_access_conditional_get_and_stale_geometry(client, reader
     assert client.get(reverse('bosco-map-context', args=[999999])).status_code == 404
 
 
+@pytest.mark.django_db
+def test_context_request_streams_the_snapshot_it_validated(client, reader_user, regions, settings, monkeypatch):
+    from django.urls import reverse
+
+    from apps.base.models import MapFeature
+    from apps.bosco import map_context_data as storage
+
+    region = regions[0]
+    feature = {'properties': {'layer': region.name}, 'geometry': polygon()}
+    MapFeature.objects.create(members={'properties': feature['properties']}, geometry=feature['geometry'])
+    fingerprint, _ = region_geometry({'features': [feature]}, region.name)
+    target = settings.MAP_CONTEXT_DIR / str(region.map_key) / CONTEXT_FILE
+    snapshot = {'schema_version': 1, 'region_key': str(region.map_key), 'available': True,
+                'build': {'geometry_hash': fingerprint}, 'features': []}
+    replacement = {**snapshot, 'build': {'geometry_hash': 'wrong-geometry'}}
+    publish_context(target, snapshot)
+    read_stream = storage.read_context_stream
+
+    def replace_after_read(stream):
+        result = read_stream(stream)
+        publish_context(target, replacement)
+        return result
+
+    url = reverse('bosco-map-context', args=[region.pk])
+    client.force_login(reader_user)
+    with monkeypatch.context() as race:
+        race.setattr(storage, 'read_context_stream', replace_after_read)
+        response = client.get(url)
+        assert response.status_code == 200
+        assert json.loads(gzip.decompress(b''.join(response.streaming_content))) == snapshot
+    assert client.get(url).json() == {'available': False, 'stale': True}
+
+
 def test_command_builds_selected_regions_and_keeps_reusable_output(db, geojson, tmp_path, monkeypatch):
     from django.core.management import call_command, CommandError
     from apps.base.models import Region

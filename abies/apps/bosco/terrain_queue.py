@@ -12,6 +12,7 @@ from django.utils import timezone
 from apps.base.digests import mark_stale
 from apps.base.models import MapFeature, Region, TerrainRefresh
 from apps.bosco.hillshade import output_path as hillshade_path
+from apps.bosco.map_context_data import context_is_current
 
 
 State = TerrainRefresh.State
@@ -98,13 +99,15 @@ def schedule(now):
             continue
         changed = job.source != source
         missing_hillshade = job.state != State.FAILED and not hillshade_path(job.region.map_key).is_file()
-        if job.state == State.WAITING and not changed and not missing_hillshade:
+        stale_context = (not changed and job.state != State.FAILED
+                         and not context_is_current(job.region, settings.MAP_CONTEXT_DIR))
+        if job.state == State.WAITING and not (changed or missing_hillshade or stale_context):
             continue
         missing_revision = job.revision_id and not all(
             (revision_dir(job.region.map_key, job.revision_id) / name).is_file()
             for name in ('manifest.json', 'parcel-mask.tif', 'timeseries.json')
         )
-        if (changed or missing_hillshade or missing_revision or
+        if (changed or missing_hillshade or stale_context or missing_revision or
                 (job.state == State.FAILED and job.retry_at and job.retry_at <= now) or
                 (job.state != State.FAILED and due_season and
                  (job.searched_through is None or job.searched_through < due_season))):

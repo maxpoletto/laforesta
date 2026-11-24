@@ -632,9 +632,9 @@ mode-switch.
   `roads`, `water` or `contours`; roads/water have `kind`, contours `elevation`
   in meters. The build metadata records the parcel-geometry hash, buffer,
   contour interval and input sources. Missing data returns `available: false`;
-  incompatible schema or changed parcel geometry adds `stale: true`. There
-  is no database digest or lazy external regeneration. See the
-  [initialization commands](../README.md#local-development).
+  incompatible schema or changed parcel geometry adds `stale: true`. Bosco
+  offers the plain parcel map while waiting for the terrain worker to publish
+  matching context. [Print context refresh](satellite-refresh.md#printable-map-context)
 
 - **`/api/geo/map.geojson`** serves versioned parcel boundaries from SQLite,
   including the current forest type of each linked parcel. The map revalidates
