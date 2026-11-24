@@ -99,7 +99,7 @@ To deliberately rebuild from the canonical bundle, run `make stop-local` and
 invoke `make reset-local` directly. It replaces the local SQLite database and
 Ipso inbox, loads the catalog and optional map from `data/canonical`, stages
 converted mark uploads, regenerates digests, and creates the admin. Run
-`make help` for the full target list.
+`make help` for the main targets.
 
 Local files live under the checkout's gitignored `data/` directory.
 `data/db.sqlite3` is the database, `data/canonical/` contains the bootstrap
@@ -110,10 +110,10 @@ Local environment settings come from `compose/.env.local` and collected
 static files go to `staticfiles/`.
 
 To test with current production records, run `make stop-local`, then
-`make sync-prod-to-local`. It uses the configured
+`make mirror-prod-to-local`. It uses the configured
 `ABIES_DOCKER_CONTEXT` to take a live snapshot of the production SQLite
 database, observation photos and Ipso inbox. The command asks before replacing
-local data (`SYNC_ARGS=--yes` confirms in a script). It applies local migrations
+local data (`MIRROR_ARGS=--yes` confirms in a script). It applies local migrations
 and regenerates digests before replacing local state. On older deployments,
 it also fetches the parcel map so migrations can import it. The sync keeps local
 Copernicus credentials and writes the previous runtime state to

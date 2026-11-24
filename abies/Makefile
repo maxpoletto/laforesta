@@ -25,6 +25,7 @@ ABIES_DOCKER_CONTEXT ?= vm-abies
 ref ?=
 REF ?= $(ref)
 DEPLOY_ARGS ?=
+MIRROR_ARGS ?=
 SYNC_ARGS ?=
 
 LOCAL_ENV = set -a; [ ! -f "$(LOCAL_ENV_FILE)" ] || . "$(LOCAL_ENV_FILE)"; set +a;
@@ -39,128 +40,64 @@ SATELLITE_MANAGE = $(LOCAL_ENV) $(SATELLITE_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHO
 # unsuffixed <name>.html symlinks are materialized at install time.
 
 .PHONY: help \
-        check migrate load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates sync-branding \
-        local reset-local run-local stop-local deploy-local serve sync-prod-to-local \
-        satellite satellite-dates satellite-fetch satellite-precompute terrain-worker \
-        map-context sync-map-context sync-map-context-dev sync-map-context-prod \
-        collectstatic minify \
-        deploy-dev deploy-prod deploy-instance \
-        sync-canonical sync-canonical-dev sync-canonical-prod sync-satellite sync-satellite-dev sync-satellite-prod sync-data sync-data-dev sync-data-prod \
-        bootstrap-dev bootstrap-prod bootstrap-instance backup-dev backup-prod backup-instance mirror-prod-to-dev mirror-instance docker-prune \
+        local run-local stop-local deploy-local reset-local mirror-prod-to-local sync-prod-to-local \
+        serve terrain-worker check migrate load-canonical-data bootstrap geo stage-marks-uploads digest admin link-templates \
         test test-js test-print-js-coverage \
-        clean reset-schema update-vendor check-vendor lock-dependencies upgrade-dependencies audit-dependencies
+        deploy-dev deploy-prod deploy-instance backup-dev backup-prod backup-instance \
+        mirror-prod-to-dev mirror-instance bootstrap-dev bootstrap-prod bootstrap-instance \
+        sync-canonical-dev sync-canonical-prod sync-canonical \
+        sync-branding collectstatic minify update-vendor check-vendor \
+        lock-dependencies upgrade-dependencies audit-dependencies clean reset-schema docker-prune \
+        map-context sync-map-context-dev sync-map-context-prod sync-map-context \
+        satellite satellite-dates satellite-fetch satellite-precompute \
+        sync-satellite-dev sync-satellite-prod sync-satellite sync-data-dev sync-data-prod sync-data
 
 help:
-	@echo "Local development:"
-	@echo "  make local                       migrate the local DB and link templates"
-	@echo "  make reset-local                 replace the local DB and inbox with canonical data"
-	@echo "  make sync-prod-to-local          restore a fresh production snapshot locally"
-	@echo "  make run-local [LOCAL_PORT=8000] run Django and the terrain worker in the foreground"
-	@echo "  make stop-local                  stop Django and terrain processes from this checkout"
-	@echo "  make deploy-local                prepare local setup, then run both processes"
-	@echo "  make serve                       run Django dev server in the background"
-	@echo "  make test                        run JS tests and pytest"
-	@echo "  make test-print-js-coverage      report print renderer/modal JS coverage"
-	@echo "  make lock-dependencies           regenerate Python locks on Python 3.14"
-	@echo "  make upgrade-dependencies        upgrade Python locks within approved ranges"
-	@echo "  make audit-dependencies          audit locked Python dependencies"
-	@echo "  make update-vendor check-vendor  copy/check locked browser assets"
-	@echo "  make sync-branding                copy data/branding assets into static files"
-	@echo "  make geo [MAP_GEOJSON=path]       import an initial parcel map into SQLite"
-	@echo "  make satellite                    build satellite dates, rasters, and summaries"
-	@echo "  make satellite-precompute         rebuild satellite manifest/timeseries only"
-	@echo "  make terrain-worker               run the local Cartografia refresh worker"
-	@echo "  make map-context                  build printable-map roads, water and DSM contours"
-	@echo "  make collectstatic minify        collect static files, then minify collected JS"
+	@echo "Local development"
+	@echo "  make local                           Apply local migrations and link templates"
+	@echo "  make run-local [LOCAL_PORT=8000]     Run Django and the terrain worker"
+	@echo "  make stop-local                      Stop this checkout's local processes"
+	@echo "  make deploy-local                    Prepare local setup and start both processes"
+	@echo "  make reset-local                     Replace local database and inbox from CANONICAL_DIR"
+	@echo "  make mirror-prod-to-local            Replace stopped local state from production (MIRROR_ARGS=--yes)"
+	@echo "  make geo [MAP_GEOJSON=path]          Import an initial parcel map"
+	@echo "  make test                            Run JavaScript tests and pytest"
+	@echo "  make test-print-js-coverage          Report JavaScript print coverage"
 	@echo ""
-	@echo "Remote deployment:"
-	@echo "  make deploy-dev [REF=<ref>]      deploy current tree or ref to abies-dev"
-	@echo "  make deploy-prod REF=<ref>       deploy clean tagged/ref build to production"
-	@echo "  make sync-canonical-dev         rsync CANONICAL_DIR to dev data/canonical"
-	@echo "  make sync-canonical-prod        rsync CANONICAL_DIR to prod data/canonical"
-	@echo "  make sync-satellite-dev         rsync generated SATELLITE_DIR to dev"
-	@echo "  make sync-satellite-prod        rsync generated SATELLITE_DIR to prod"
-	@echo "  make sync-map-context-dev       rsync generated MAP_CONTEXT_DIR to dev"
-	@echo "  make sync-map-context-prod      rsync generated MAP_CONTEXT_DIR to prod"
-	@echo "  make sync-data-dev              rsync canonical + satellite data to dev"
-	@echo "  make sync-data-prod             rsync canonical + satellite data to prod"
-	@echo "  make bootstrap-dev              sync canonical data, then bootstrap dev DB"
-	@echo "  make bootstrap-prod             sync canonical data, then bootstrap prod DB"
-	@echo "  make backup-dev                  create and prune a dev backup"
-	@echo "  make backup-prod                 create and prune a prod backup"
-	@echo "  make mirror-prod-to-dev          copy prod runtime state into dev (use MIRROR_ARGS=--yes)"
+	@echo "Hosted instances"
+	@echo "  make deploy-dev [REF=<ref>]          Deploy the current tree or a ref to abies-dev"
+	@echo "  make deploy-prod REF=<ref>           Deploy a ref from a clean checkout to abies-prod"
+	@echo "  make backup-dev / backup-prod        Create and prune an instance backup"
+	@echo "  make mirror-prod-to-dev              Replace dev state from production (MIRROR_ARGS=--yes)"
+	@echo "  make bootstrap-dev / bootstrap-prod"
+	@echo "                                       Copy canonical data and initialize the database"
+	@echo "  make sync-canonical-dev / sync-canonical-prod"
+	@echo "                                       Copy CANONICAL_DIR to the instance"
 	@echo ""
-	@echo "Useful variables: LOCAL_ENV_FILE=$(LOCAL_ENV_FILE), SATELLITE_ENV_FILE=$(SATELLITE_ENV_FILE), CANONICAL_DIR=$(CANONICAL_DIR), SATELLITE_DIR=$(SATELLITE_DIR), SATELLITE_GEOJSON=$(SATELLITE_GEOJSON), BRANDING_DIR=$(BRANDING_DIR), REMOTE=$(REMOTE), ABIES_DOCKER_CONTEXT=$(ABIES_DOCKER_CONTEXT), DEPLOY_ARGS=--reset-user"
+	@echo "Other operations"
+	@echo "  make sync-branding                   Copy assets from BRANDING_DIR"
+	@echo "  make collectstatic minify            Collect static files and minify collected JavaScript"
+	@echo "  make update-vendor / check-vendor    Copy or verify locked browser assets"
+	@echo "  make lock-dependencies               Regenerate Python locks on Python 3.14"
+	@echo "  make upgrade-dependencies            Upgrade Python locks within approved ranges"
+	@echo "  make audit-dependencies              Audit locked Python dependencies"
+	@echo ""
+	@echo "  Printable-map context"
+	@echo "  make map-context                     Build roads, water and elevation contours"
+	@echo "  make sync-map-context-dev / sync-map-context-prod"
+	@echo "                                       Copy the generated MAP_CONTEXT_DIR"
+	@echo ""
+	@echo "  Standalone satellite data (legacy)"
+	@echo "  make satellite                       Build dates, rasters and summaries using SATELLITE_ENV_FILE"
+	@echo "  make satellite-precompute            Rebuild the manifest and parcel statistics"
+	@echo "  make sync-satellite-dev / sync-satellite-prod"
+	@echo "                                       Copy standalone rasters from SATELLITE_DIR"
+	@echo "  make sync-data-dev / sync-data-prod"
+	@echo "                                       Copy canonical data and standalone satellite rasters"
 
-# --- Local database and data build -----------------------------------------
-
-check:
-	$(MANAGE) check
-
-migrate:
-	mkdir -p data
-	$(MANAGE) makemigrations
-	$(MANAGE) migrate
-
-load-canonical-data:
-	mkdir -p data
-	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) PYTHON="$(PYTHON)" bin/load-canonical-data $(CANONICAL_DIR)
-
-bootstrap:
-	$(MANAGE) bootstrap $(CANONICAL_DIR)
-
-geo:
-	$(MANAGE) build_geo "$(MAP_GEOJSON)"
-
-satellite:
-	$(SATELLITE_MANAGE) build_satellite all $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
-
-satellite-dates:
-	$(SATELLITE_MANAGE) build_satellite dates $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
-
-satellite-fetch:
-	$(SATELLITE_MANAGE) build_satellite fetch $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
-
-satellite-precompute:
-	$(SATELLITE_MANAGE) build_satellite precompute $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
-
-map-context:
-	$(MANAGE) build_map_context $(if $(MAP_CONTEXT_GEOJSON),--geojson "$(MAP_CONTEXT_GEOJSON)") --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)
-
-stage-marks-uploads:
-	$(MANAGE) stage_marks_uploads $(CANONICAL_DIR)/marks
-
-digest:
-	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"
-
-# Creates the initial superuser (role='admin'). Non-interactive when
-# DJANGO_SUPERUSER_USERNAME/EMAIL/PASSWORD are all set; otherwise prompts.
-admin:
-	@$(MANAGE) shell --no-imports -c "from apps.base.models import User; exit(0 if User.objects.filter(is_superuser=True).exists() else 1)" \
-		&& echo "Admin user already exists, skipping." \
-		|| ( if [ -n "$$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$$DJANGO_SUPERUSER_PASSWORD" ]; then \
-		         $(MANAGE) createsuperuser --noinput; \
-		     else \
-		         $(MANAGE) createsuperuser; \
-		     fi && \
-		     $(MANAGE) shell --no-imports -c "from apps.base.models import User; u = User.objects.get(is_superuser=True); u.role = 'admin'; u.save(update_fields=['role'])" )
-
-link-templates:
-	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
+# --- Local development -----------------------------------------------------
 
 local: migrate link-templates
-
-# Run this target directly when replacing the local runtime data is intended.
-reset-local: export ABIES_LEGACY_GEO_DIR =
-reset-local: sync-branding link-templates
-	@test -d "$(CANONICAL_DIR)" || { echo "error: CANONICAL_DIR='$(CANONICAL_DIR)' does not exist" >&2; exit 1; }
-	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
-	rm -rf data/ipso-inbox
-	$(MAKE) load-canonical-data
-	$(MAKE) admin
-
-sync-prod-to-local: link-templates
-	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" $(PYTHON) bin/sync-prod-to-local.py $(SYNC_ARGS)
 
 run-local:
 	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) $(PYTHON) bin/run-local.py "$(LOCAL_PORT)"
@@ -171,122 +108,24 @@ stop-local:
 deploy-local: sync-branding local
 	$(MAKE) run-local
 
-serve:
-	$(MANAGE) runserver > /dev/null 2>&1 &
-
-terrain-worker:
-	$(MANAGE) run_terrain_worker
-
-# --- Static assets ----------------------------------------------------------
-
-sync-branding:
-	ABIES_BRANDING_DIR="$(BRANDING_DIR)" bin/sync-branding
-
-collectstatic: sync-branding
-	$(MANAGE) collectstatic --noinput
-
-# Minifies collected static files only. It never rewrites app source files.
-minify:
-	bin/minify-static $(STATIC_ROOT)
-
-# --- Remote deployment ------------------------------------------------------
-
-deploy-dev:
-	$(MAKE) deploy-instance INSTANCE=dev
-
-deploy-prod:
-	@test -n "$(REF)" || { echo "usage: make deploy-prod REF=<tag-or-sha> [DEPLOY_ARGS=--reset-user]" >&2; exit 1; }
-	$(MAKE) deploy-instance INSTANCE=prod
-
-deploy-instance:
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make deploy-instance INSTANCE=<dev|prod>" >&2; exit 1; }
-	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/deploy $(INSTANCE) $(REF) $(DEPLOY_ARGS)
-
-sync-canonical-dev:
-	$(MAKE) sync-canonical INSTANCE=dev
-
-sync-canonical-prod:
-	$(MAKE) sync-canonical INSTANCE=prod
-
-sync-canonical:
+# Run this target directly when replacing the local runtime data is intended.
+reset-local: export ABIES_LEGACY_GEO_DIR =
+reset-local: sync-branding link-templates
 	@test -d "$(CANONICAL_DIR)" || { echo "error: CANONICAL_DIR='$(CANONICAL_DIR)' does not exist" >&2; exit 1; }
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-canonical INSTANCE=<dev|prod>" >&2; exit 1; }
-	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/canonical"
-	rsync -rlt --delete --rsync-path="sudo rsync" "$(CANONICAL_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/canonical/"
-	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/canonical"
-	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/canonical"
+	rm -f data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm
+	rm -rf data/ipso-inbox
+	$(MAKE) load-canonical-data
+	$(MAKE) admin
 
-sync-satellite-dev:
-	$(MAKE) sync-satellite INSTANCE=dev
+mirror-prod-to-local: link-templates
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" $(PYTHON) bin/sync-prod-to-local.py $(or $(MIRROR_ARGS),$(SYNC_ARGS))
 
-sync-satellite-prod:
-	$(MAKE) sync-satellite INSTANCE=prod
+sync-prod-to-local: mirror-prod-to-local
 
-sync-satellite:
-	@test -d "$(SATELLITE_DIR)" || { echo "error: SATELLITE_DIR='$(SATELLITE_DIR)' does not exist" >&2; exit 1; }
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-satellite INSTANCE=<dev|prod>" >&2; exit 1; }
-	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/satellite"
-	rsync -rlt --delete --exclude='.worker.lock' --exclude='revisions/' --rsync-path="sudo rsync" "$(SATELLITE_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/satellite/"
-	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/satellite"
-	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/satellite"
+geo:
+	$(MANAGE) build_geo "$(MAP_GEOJSON)"
 
-sync-map-context-dev:
-	$(MAKE) sync-map-context INSTANCE=dev
-
-sync-map-context-prod:
-	$(MAKE) sync-map-context INSTANCE=prod
-
-sync-map-context:
-	@test -d "$(MAP_CONTEXT_DIR)" || { echo "error: MAP_CONTEXT_DIR='$(MAP_CONTEXT_DIR)' does not exist" >&2; exit 1; }
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-map-context INSTANCE=<dev|prod>" >&2; exit 1; }
-	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/map-context"
-	rsync -rlt --delete --rsync-path="sudo rsync" "$(MAP_CONTEXT_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/map-context/"
-	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/map-context"
-	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/map-context"
-
-sync-data-dev:
-	$(MAKE) sync-data INSTANCE=dev
-
-sync-data-prod:
-	$(MAKE) sync-data INSTANCE=prod
-
-sync-data:
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-data INSTANCE=<dev|prod>" >&2; exit 1; }
-	$(MAKE) sync-canonical INSTANCE=$(INSTANCE)
-	$(MAKE) sync-satellite INSTANCE=$(INSTANCE)
-
-bootstrap-dev:
-	$(MAKE) bootstrap-instance INSTANCE=dev
-
-bootstrap-prod:
-	$(MAKE) bootstrap-instance INSTANCE=prod
-
-bootstrap-instance: sync-canonical
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make bootstrap-instance INSTANCE=<dev|prod>" >&2; exit 1; }
-	./bin/bootstrap-data $(INSTANCE)
-
-backup-dev:
-	$(MAKE) backup-instance INSTANCE=dev
-
-backup-prod:
-	$(MAKE) backup-instance INSTANCE=prod
-
-backup-instance:
-	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make backup-instance INSTANCE=<dev|prod>" >&2; exit 1; }
-	docker --context "$(ABIES_DOCKER_CONTEXT)" exec "abies-$(INSTANCE)" bin/backup --instance "$(INSTANCE)"
-
-mirror-prod-to-dev:
-	$(MAKE) mirror-instance SOURCE=prod TARGET=dev
-
-mirror-instance:
-	@test "$(SOURCE)" = "dev" -o "$(SOURCE)" = "prod" || { echo "usage: make mirror-instance SOURCE=<dev|prod> TARGET=<dev|prod> [MIRROR_ARGS=--yes]" >&2; exit 1; }
-	@test "$(TARGET)" = "dev" -o "$(TARGET)" = "prod" || { echo "usage: make mirror-instance SOURCE=<dev|prod> TARGET=<dev|prod> [MIRROR_ARGS=--yes]" >&2; exit 1; }
-	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/mirror-instance-state "$(SOURCE)" "$(TARGET)" $(MIRROR_ARGS)
-
-docker-prune:
-	docker --context "$(ABIES_DOCKER_CONTEXT)" image prune
-
-# --- Tests ------------------------------------------------------------------
+# Tests
 
 test:
 	@$(LOCAL_ENV) $(PYTHON) -c 'import pytest, pytest_cov, pytest_django, django; from geographiclib.geodesic import Geodesic' || { \
@@ -377,17 +216,116 @@ test-js:
 	node apps/campionamenti/static/campionamenti/js/campionamenti.test.mjs
 	node apps/piano_di_taglio/static/piano_di_taglio/js/piano-di-taglio.test.mjs
 
-# --- Maintenance ------------------------------------------------------------
+# Local setup and process helpers
 
-clean:
-	rm -rf data/ staticfiles/
-	find apps -type l -delete
+serve:
+	$(MANAGE) runserver > /dev/null 2>&1 &
 
-# Dev-only: drop the auto-generated 0001_initial.py so the next `make migrate`
-# regenerates it from the current model state. Once real data ships, stop using
-# this target; model changes must then be incremental migrations.
-reset-schema: clean
-	find apps/*/migrations -name '0001_initial.py' -delete
+terrain-worker:
+	$(MANAGE) run_terrain_worker
+
+check:
+	$(MANAGE) check
+
+migrate:
+	mkdir -p data
+	$(MANAGE) makemigrations
+	$(MANAGE) migrate
+
+load-canonical-data:
+	mkdir -p data
+	$(LOCAL_ENV) env $(LOCAL_DJANGO_ENV) PYTHON="$(PYTHON)" bin/load-canonical-data $(CANONICAL_DIR)
+
+bootstrap:
+	$(MANAGE) bootstrap $(CANONICAL_DIR)
+
+stage-marks-uploads:
+	$(MANAGE) stage_marks_uploads $(CANONICAL_DIR)/marks
+
+digest:
+	$(MANAGE) shell --no-imports -c "from apps.base.digests import generate_all; generate_all()"
+
+# Creates the initial superuser (role='admin'). Non-interactive when
+# DJANGO_SUPERUSER_USERNAME/EMAIL/PASSWORD are all set; otherwise prompts.
+admin:
+	@$(MANAGE) shell --no-imports -c "from apps.base.models import User; exit(0 if User.objects.filter(is_superuser=True).exists() else 1)" \
+		&& echo "Admin user already exists, skipping." \
+		|| ( if [ -n "$$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$$DJANGO_SUPERUSER_PASSWORD" ]; then \
+		         $(MANAGE) createsuperuser --noinput; \
+		     else \
+		         $(MANAGE) createsuperuser; \
+		     fi && \
+		     $(MANAGE) shell --no-imports -c "from apps.base.models import User; u = User.objects.get(is_superuser=True); u.role = 'admin'; u.save(update_fields=['role'])" )
+
+link-templates:
+	$(PYTHON) bin/link-templates.py $(LANGUAGE_SUFFIX)
+
+# --- Hosted instances ------------------------------------------------------
+
+deploy-dev:
+	$(MAKE) deploy-instance INSTANCE=dev
+
+deploy-prod:
+	@test -n "$(REF)" || { echo "usage: make deploy-prod REF=<tag-or-sha> [DEPLOY_ARGS=--reset-user]" >&2; exit 1; }
+	$(MAKE) deploy-instance INSTANCE=prod
+
+deploy-instance:
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make deploy-instance INSTANCE=<dev|prod>" >&2; exit 1; }
+	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/deploy $(INSTANCE) $(REF) $(DEPLOY_ARGS)
+
+backup-dev:
+	$(MAKE) backup-instance INSTANCE=dev
+
+backup-prod:
+	$(MAKE) backup-instance INSTANCE=prod
+
+backup-instance:
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make backup-instance INSTANCE=<dev|prod>" >&2; exit 1; }
+	docker --context "$(ABIES_DOCKER_CONTEXT)" exec "abies-$(INSTANCE)" bin/backup --instance "$(INSTANCE)"
+
+mirror-prod-to-dev:
+	$(MAKE) mirror-instance SOURCE=prod TARGET=dev
+
+mirror-instance:
+	@test "$(SOURCE)" = "dev" -o "$(SOURCE)" = "prod" || { echo "usage: make mirror-instance SOURCE=<dev|prod> TARGET=<dev|prod> [MIRROR_ARGS=--yes]" >&2; exit 1; }
+	@test "$(TARGET)" = "dev" -o "$(TARGET)" = "prod" || { echo "usage: make mirror-instance SOURCE=<dev|prod> TARGET=<dev|prod> [MIRROR_ARGS=--yes]" >&2; exit 1; }
+	ABIES_DOCKER_CONTEXT="$(ABIES_DOCKER_CONTEXT)" ./bin/mirror-instance-state "$(SOURCE)" "$(TARGET)" $(MIRROR_ARGS)
+
+bootstrap-dev:
+	$(MAKE) bootstrap-instance INSTANCE=dev
+
+bootstrap-prod:
+	$(MAKE) bootstrap-instance INSTANCE=prod
+
+bootstrap-instance: sync-canonical
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make bootstrap-instance INSTANCE=<dev|prod>" >&2; exit 1; }
+	./bin/bootstrap-data $(INSTANCE)
+
+sync-canonical-dev:
+	$(MAKE) sync-canonical INSTANCE=dev
+
+sync-canonical-prod:
+	$(MAKE) sync-canonical INSTANCE=prod
+
+sync-canonical:
+	@test -d "$(CANONICAL_DIR)" || { echo "error: CANONICAL_DIR='$(CANONICAL_DIR)' does not exist" >&2; exit 1; }
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-canonical INSTANCE=<dev|prod>" >&2; exit 1; }
+	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/canonical"
+	rsync -rlt --delete --rsync-path="sudo rsync" "$(CANONICAL_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/canonical/"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/canonical"
+	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/canonical"
+
+# --- Other operations ------------------------------------------------------
+
+sync-branding:
+	ABIES_BRANDING_DIR="$(BRANDING_DIR)" bin/sync-branding
+
+collectstatic: sync-branding
+	$(MANAGE) collectstatic --noinput
+
+# Minifies collected static files only. It never rewrites app source files.
+minify:
+	bin/minify-static $(STATIC_ROOT)
 
 update-vendor:
 	npm ci --ignore-scripts --prefix vendor
@@ -408,3 +346,74 @@ upgrade-dependencies:
 
 audit-dependencies:
 	$(PYTHON) -m pip_audit --strict --disable-pip --require-hashes -r requirements-dev.txt
+
+clean:
+	rm -rf data/ staticfiles/
+	find apps -type l -delete
+
+# Dev-only: drop the auto-generated 0001_initial.py so the next `make migrate`
+# regenerates it from the current model state. Once real data ships, stop using
+# this target; model changes must then be incremental migrations.
+reset-schema: clean
+	find apps/*/migrations -name '0001_initial.py' -delete
+
+docker-prune:
+	docker --context "$(ABIES_DOCKER_CONTEXT)" image prune
+
+# Printable-map context
+
+map-context:
+	$(MANAGE) build_map_context $(if $(MAP_CONTEXT_GEOJSON),--geojson "$(MAP_CONTEXT_GEOJSON)") --output-dir "$(MAP_CONTEXT_DIR)" $(MAP_CONTEXT_ARGS)
+
+sync-map-context-dev:
+	$(MAKE) sync-map-context INSTANCE=dev
+
+sync-map-context-prod:
+	$(MAKE) sync-map-context INSTANCE=prod
+
+sync-map-context:
+	@test -d "$(MAP_CONTEXT_DIR)" || { echo "error: MAP_CONTEXT_DIR='$(MAP_CONTEXT_DIR)' does not exist" >&2; exit 1; }
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-map-context INSTANCE=<dev|prod>" >&2; exit 1; }
+	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/map-context"
+	rsync -rlt --delete --rsync-path="sudo rsync" "$(MAP_CONTEXT_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/map-context/"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/map-context"
+	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/map-context"
+
+# Standalone satellite data (legacy)
+
+satellite:
+	$(SATELLITE_MANAGE) build_satellite all $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
+
+satellite-dates:
+	$(SATELLITE_MANAGE) build_satellite dates $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
+
+satellite-fetch:
+	$(SATELLITE_MANAGE) build_satellite fetch $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
+
+satellite-precompute:
+	$(SATELLITE_MANAGE) build_satellite precompute $(if $(SATELLITE_GEOJSON),--geojson "$(SATELLITE_GEOJSON)") --output-dir "$(SATELLITE_DIR)"
+
+sync-satellite-dev:
+	$(MAKE) sync-satellite INSTANCE=dev
+
+sync-satellite-prod:
+	$(MAKE) sync-satellite INSTANCE=prod
+
+sync-satellite:
+	@test -d "$(SATELLITE_DIR)" || { echo "error: SATELLITE_DIR='$(SATELLITE_DIR)' does not exist" >&2; exit 1; }
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-satellite INSTANCE=<dev|prod>" >&2; exit 1; }
+	ssh "$(REMOTE)" "sudo mkdir -p /var/lib/abies-$(INSTANCE)/data/satellite"
+	rsync -rlt --delete --exclude='.worker.lock' --exclude='revisions/' --rsync-path="sudo rsync" "$(SATELLITE_DIR)/" "$(REMOTE):/var/lib/abies-$(INSTANCE)/data/satellite/"
+	ssh "$(REMOTE)" "sudo chown -R $(REMOTE_ABIES_USER):$(REMOTE_ABIES_GROUP) /var/lib/abies-$(INSTANCE)/data/satellite"
+	ssh "$(REMOTE)" "sudo chmod -R u=rwX,g=rX,o= /var/lib/abies-$(INSTANCE)/data/satellite"
+
+sync-data-dev:
+	$(MAKE) sync-data INSTANCE=dev
+
+sync-data-prod:
+	$(MAKE) sync-data INSTANCE=prod
+
+sync-data:
+	@test "$(INSTANCE)" = "dev" -o "$(INSTANCE)" = "prod" || { echo "usage: make sync-data INSTANCE=<dev|prod>" >&2; exit 1; }
+	$(MAKE) sync-canonical INSTANCE=$(INSTANCE)
+	$(MAKE) sync-satellite INSTANCE=$(INSTANCE)
