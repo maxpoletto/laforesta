@@ -150,6 +150,7 @@ test-js:
 	node apps/base/static/base/js/equations.test.mjs
 	node apps/controllo/static/controllo/js/columns.test.mjs
 	node apps/base/static/base/js/api.test.mjs
+	node apps/base/static/base/js/app-update.test.mjs
 	node apps/impostazioni/static/impostazioni/js/species-types.test.mjs
 	node apps/impostazioni/static/impostazioni/js/entity-form.test.mjs
 	node apps/impostazioni/static/impostazioni/js/species-equations.test.mjs

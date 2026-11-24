@@ -7,6 +7,7 @@
 
 import * as router from './router.js';
 import * as cache from './cache.js';
+import { startVersionCheck } from './app-update.js';
 import * as bosco from '../../bosco/js/bosco.js';
 import * as squadre from '../../squadre/js/squadre.js';
 import * as prelievi from '../../prelievi/js/prelievi.js';
@@ -33,3 +34,4 @@ router.addRoute('impostazioni', impostazioni);
 // Boot.
 router.init();
 cache.startRefresh();
+startVersionCheck();

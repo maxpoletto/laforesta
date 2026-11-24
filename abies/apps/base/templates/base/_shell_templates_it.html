@@ -3,6 +3,13 @@ Shared <template> elements cloned by JS — labels, dialogs, and tree dendrometr
 Rendered once inside the shell; never displayed directly.
 {% endcomment %}
 
+<template id="tmpl-app-update">
+  <p>{{ S.APP_UPDATE_AVAILABLE }}</p>
+  <div class="form-actions">
+    <button type="button" class="btn" data-action="reload">{{ S.APP_RELOAD_PAGE }}</button>
+  </div>
+</template>
+
 <template id="tmpl-confirm-modal">
   <p data-field="message"></p>
   <div class="form-actions">

@@ -1,16 +1,18 @@
 """Base views — login, logout, shell, geo file serving."""
 
 from axes.decorators import axes_dispatch
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.utils.http import (
     url_has_allowed_host_and_scheme,
 )
 from django.views import View
-from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.base.digests import serve_digest
 from apps.base.landing import user_landing_page
@@ -19,7 +21,7 @@ from apps.base.models import LoginMethod
 from apps.base.oauth import microsoft_oauth_app
 from apps.ipso.models import IpsoUpload, IpsoUploadState
 from config import strings as S
-from config.constants import FIELD_SPECIES
+from config.constants import FIELD_SPECIES, VERSION
 
 @login_required
 def home_view(request: HttpRequest) -> HttpResponse:
@@ -27,6 +29,7 @@ def home_view(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+@never_cache
 def shell_view(request: HttpRequest) -> HttpResponse:
     """The long-lived SPA shell.  All post-login navigation happens here."""
     if request.path.startswith('/campionamenti'):
@@ -40,6 +43,13 @@ def shell_view(request: HttpRequest) -> HttpResponse:
             state=IpsoUploadState.RECEIVED,
         ).count(),
     })
+
+
+@never_cache
+@login_required
+@require_GET
+def app_version_view(request: HttpRequest) -> JsonResponse:
+    return JsonResponse({VERSION: settings.ABIES_VERSION})
 
 
 @method_decorator(axes_dispatch, name='dispatch')

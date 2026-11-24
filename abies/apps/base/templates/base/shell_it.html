@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="{% static 'vendor/sortable-table/sortable-table.css' %}">
   <link rel="stylesheet" href="{% static 'base/css/common.css' %}">
 </head>
-<body class="abies-instance-{{ ABIES_INSTANCE|slugify }}" data-role="{{ user.role }}" data-login-method="{{ user.login_method }}" data-csrf="{{ csrf_token }}">
+<body class="abies-instance-{{ ABIES_INSTANCE|slugify }}" data-role="{{ user.role }}" data-login-method="{{ user.login_method }}" data-csrf="{{ csrf_token }}"
+      data-app-version="{{ ABIES_VERSION }}" data-app-version-url="{% url 'app-version' %}">
 
   <header id="header">
     <div class="header-left">

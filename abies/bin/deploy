@@ -162,7 +162,8 @@ else:
 "
 
 echo "==> collectstatic"
-dc_run abies python manage.py collectstatic --noinput
+# The archived release files can be older than the previous deploy's output.
+dc_run abies python manage.py collectstatic --clear --noinput
 
 if [[ "$instance" == "prod" ]]; then
   echo "==> minify static JS"

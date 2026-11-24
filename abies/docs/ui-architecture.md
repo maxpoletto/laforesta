@@ -13,7 +13,11 @@ The shell (`apps/base/templates/base/shell_it.html`) contains:
 - HTML `<template>` elements for each domain page's scaffold and modals
   (via `{% include %}` of per-app `_shell_templates_it.html` files).
 
-The shell is rendered once and never reloads during normal use.
+The shell is rendered once per page load and served with `Cache-Control:
+no-store`. Every five minutes the open tab checks `/api/version/`, which also
+uses `no-store`. If the served version differs from the version in the shell,
+**Aggiorna pagina** offers to reload the current URL with the same login
+session. The update prompt waits for the next check if another modal is open.
 `<template>` content is inert (not rendered, no CSS, no scripts) until
 JS clones it via `cloneTemplate(id)` (`base/js/templates.js`).
 

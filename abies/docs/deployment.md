@@ -90,6 +90,13 @@ Adjust names and ports as needed.
    header for secure-cookie behavior. Use a request-body cap aligned with the
    Django upload limits; 30 MiB is the current Abies/Ipso deployment default.
 
+   Serve `/static/` with `Cache-Control: no-cache` so browsers revalidate the
+   fixed URLs after deployment. For La Foresta this header is set by the
+   Abies vhost template in `system/ansible/templates/apache2-sites/`.
+   When switching from the old `immutable` policy, apply the Apache change
+   before asking users to clear cached images and files once and reload Abies.
+   Cookies and site data stay in place, including Ipso's locally saved records.
+
    Ipso upload rate limiting needs a real client address, not the Docker bridge
    or loopback proxy address. Apache should discard any client-supplied
    forwarding headers before proxying, then add its own `X-Forwarded-For`.
@@ -172,7 +179,8 @@ Adjust names and ports as needed.
    The Makefile targets call `bin/deploy`, which builds the image, writes a
    pre-deploy compressed backup to the backup mount, runs migrations, runs
    `manage.py check --deploy --fail-level WARNING` for prod, creates the first
-   admin if configured, collects static files, minifies collected JavaScript
+   admin if configured, rebuilds the collected static directory from the
+   deployed release, minifies collected JavaScript
    for prod, and starts the Compose stack. Open the instance URL and sign in
    with the admin account.
 

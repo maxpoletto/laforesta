@@ -7,6 +7,7 @@ from apps.base import views
 urlpatterns = [
     path('login/', views.LoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('api/version/', views.app_version_view, name='app-version'),
     path('api/species/data/', views.species_data, name='species-data'),
     path('api/geo/<str:filename>', views.geo_view, name='geo'),
     # The shell catches all domain paths for client-side routing.
