@@ -131,7 +131,7 @@ test:
 	@$(LOCAL_ENV) $(PYTHON) -c 'import pytest, pytest_cov, pytest_django, django; from geographiclib.geodesic import Geodesic' || { \
 		printf '%s\n' 'Install the locked development dependencies for the Python interpreter used by make.' \
 			'  $(PYTHON) -m pip install --require-hashes -r requirements-dev.txt' \
-			'See README.md for setting up a fresh Python 3.14 virtual environment.' >&2; \
+			'See INSTALL.md for setting up a fresh Python 3.14 virtual environment.' >&2; \
 		exit 1; \
 	}
 	$(MAKE) test-js

@@ -14,6 +14,9 @@ that supports SQLite WAL.
    cp compose/.env.local.example compose/.env.local
    ```
 
+   For local development and tests, use `requirements-dev.txt` in the
+   install command above.
+
 2. Set the site and brand names in `compose/.env.local`. Place `logo.png`,
    `favicon.gif` and `ipso-logo.gif` in `data/branding/`. Set
    `ABIES_IPSO_SECRET` if operators will use the Ipso app.
@@ -26,6 +29,10 @@ that supports SQLite WAL.
    make local
    make admin
    ```
+
+   For non-interactive admin creation, set `DJANGO_SUPERUSER_USERNAME`,
+   `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD` in
+   `compose/.env.local`.
 
 4. Choose the initial data.
 
@@ -46,17 +53,14 @@ that supports SQLite WAL.
      Run `make load-canonical-data` to import them together. File formats and
      optional records are described in the [bootstrap guide](docs/bootstrap.md).
 
-5. Run `make run-local`, open `http://127.0.0.1:8000/` and sign in. To inspect
-   the installed map, open `/api/geo/map.geojson` while signed in.
+5. Run `make run-local` to start Django and the terrain worker. Open
+   `http://127.0.0.1:8000/` and sign in. To inspect the installed map, open
+   `/api/geo/map.geojson` while signed in.
 
 ## Hosted instance
 
-Follow the [host provisioning and deployment instructions](README.md#remote-dev-and-production)
-for TLS, Apache, Docker, branding, per-instance secrets and backup mounts.
-Once the instance is provisioned, import forestry records with
-`make bootstrap-dev` or `make bootstrap-prod`. To import just the map, run
-`python manage.py build_geo /app/data/canonical/map.geojson` inside the
-instance container. Configure [scheduled backups](docs/backups.md).
+The [hosted deployment guide](docs/deployment.md) covers host provisioning,
+the first deploy and admin account, initial data, and scheduled backups.
 
 ## Satellite imagery
 
@@ -78,9 +82,6 @@ credentials, set a unique, random `DJANGO_SECRET_KEY` in `compose/.env.local`
 before starting Abies. After rotating that key, enter the Copernicus pair
 again in **Generali**.
 
-The hosted Compose stack starts the terrain worker. Locally, `make run-local`
-starts the worker and the Django development server in the same terminal.
-The worker checks for published parcel outlines and starts the historical
-backfill. **Aggiorna dati dei terreni**
-in **Impostazioni → Cartografia** queues the selected compresa immediately.
+After the first sign-in and credential setup, the terrain worker checks
+published parcel outlines and starts the historical backfill.
 [Satellite refresh and historical coverage](docs/satellite-refresh.md)
