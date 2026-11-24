@@ -1,10 +1,59 @@
 # Map architecture
 
-All abies maps are built from three layers, Leaflet at the bottom. Visual
-rules (chrome layout, basemap appearance, parcel style) live in
+Interactive maps in Abies share the Leaflet infrastructure described below.
+Visual rules (chrome layout, basemap appearance, parcel style) live in
 [`ui-design-patterns.md`](ui-design-patterns.md) under *Maps*; this doc covers
 the **code** structure — including the parcel data source, the hover-tooltip and
 view-persistence mechanisms, and how the layers fit together.
+
+## Map dependencies
+
+### Browser libraries
+
+- **Leaflet** renders interactive basemaps and overlays and handles map
+  controls and events.
+- **GeographicLib Geodesic** computes distances, areas and bearings on the
+  WGS84 ellipsoid. Abies and Ipso share its browser implementation. The
+  server uses the Python version for distances and geographic offsets.
+  [GeographicLib algorithms and API](https://geographiclib.sourceforge.io/JavaScript/doc/)
+
+Abies serves both browser libraries from its own static assets.
+`make check-vendor` verifies those files against the packages installed
+from the npm lock. Ipso precaches both libraries and the shared geodesy
+module for offline use. [Dependency locks and update process](dependencies.md)
+
+### Server libraries
+
+- **Shapely** exposes the **GEOS** planar geometry engine to Python. Abies
+  uses it to check parcel boundaries, combine shapes, assemble water
+  polygons and clip and simplify print vectors.
+- **Rasterio** uses **GDAL** for raster operations such as reading,
+  merging, reprojecting and turning parcel outlines into masks. It uses
+  **Affine** to relate pixel positions to map coordinates. GDAL uses
+  **PROJ** for coordinate transformations, including the DXF importer's
+  conversion to WGS84.
+  [Rasterio documentation](https://rasterio.readthedocs.io/en/stable/)
+- **NumPy** supplies the raster arrays for vegetation indices and hillshade
+  calculations. **Pillow** encodes the hillshade as a transparent PNG.
+- **ContourPy** traces lines of equal elevation from the elevation grid.
+  [ContourPy API](https://contourpy.readthedocs.io/en/v1.4.0/api/contourpy/contour_generator.html)
+- **Requests** makes HTTP calls for OSM vectors, Sentinel-2 imagery and
+  TINITALY elevation.
+
+### Map and terrain sources
+
+- **OpenStreetMap, OpenTopoMap and Esri World Imagery** provide the
+  interactive basemap tiles. **Overpass** is an API for querying
+  OpenStreetMap features by location and tags. The print-map builder uses
+  it to fetch the geometry of roads and waterways.
+  [Overpass API manual](https://dev.overpass-api.de/overpass-doc/en/)
+- **Copernicus Data Space** supplies Sentinel-2 imagery for Bosco's satellite
+  layers. **Copernicus GLO-30** supplies elevation for print contours in
+  cloud-optimized GeoTIFFs (COGs). Its surface heights include vegetation
+  and buildings. [Copernicus GLO-30 COGs](https://copernicus-dem-30m.s3.amazonaws.com/readme.html)
+- **INGV TINITALY** provides a 10 m bare-earth elevation model through a
+  Web Coverage Service (WCS). The terrain worker uses it for Bosco's
+  hillshade. [Terrain refresh and INGV hillshade](satellite-refresh.md#ingv-hillshade)
 
 ## Layers
 
@@ -210,35 +259,51 @@ distances localize with the active locale's decimal separator.
 
 ## Coordinates, rendering and measurements
 
-Source GeoJSON coordinates are WGS84 longitude/latitude, in that order.
-Leaflet APIs use latitude/longitude. `build_geo` preserves the supplied geometry;
-it enriches properties without transforming the source datum. A source from a
-different CRS must be correctly transformed to WGS84 before import.
+GPX and Ipso's browser geolocation supply WGS84 latitude and longitude in
+decimal degrees. GPX calls the attributes `lat` and `lon`. The browser
+provides `latitude` and `longitude`. `build_geo` stores parcel geometry as
+supplied, so GeoJSON in another CRS must be transformed to WGS84 before import.
+For DXF, the operator supplies the source EPSG code and the importer transforms
+the drawing to WGS84 longitude/latitude through Rasterio and PROJ.
 
-Bosco and the other interactive maps use Leaflet's EPSG:3857 Web/Pseudo-Mercator
-projection, matching their basemaps. Its spherical projection radius is the
-WGS84 semi-major axis, 6378137 m, as prescribed by EPSG:3857. This makes the
-east/west projection scale exact at the WGS84 equator. A mean Earth radius
-would define different projected coordinates, rather than improve EPSG:3857.
-Printable maps instead use the local WGS84 metric plane described below, with
-Y reversed for page coordinates, so the requested print scale refers to ground
-meters. Neither projection changes the geographic coordinates of boundaries,
-trees, observations or GPS fixes. Absolute alignment depends on the source
-datum, boundary survey, imagery and GPS accuracy. Web Mercator's approximately
-28% scale enlargement around Calabria affects projected lengths, not coordinate placement.
-See [PROJ's Web Mercator definition](https://proj.org/en/stable/operations/projections/webmerc.html).
+1. **Stored in SQLite.** Parcel boundaries and road lines are stored as JSON
+   in `MapFeature.geometry`, one shape per feature row. Each vertex starts
+   with longitude, then latitude, in WGS84 decimal degrees. Point records
+   such as trees, observations and sample areas store these coordinates in
+   separate floating-point `lat` and `lon` columns.
+2. **Served to clients.** The parcel and road endpoints assemble GeoJSON
+   FeatureCollections from published rows on request. They keep each shape's
+   coordinate values and longitude-first order, and add properties such as
+   the parcel name or road type. Tabular digests carry point coordinates as
+   separate numeric values.
+3. **Rendered in the browser.** Leaflet reads GeoJSON in longitude-first
+   order and uses latitude-first `LatLng` values in its API. Abies and Ipso
+   use Leaflet's default EPSG:3857 (Web Mercator) to project those coordinates
+   and position shapes and markers on screen. OpenStreetMap, OpenTopoMap
+   and Esri imagery use the same projection. Click events expose geographic
+   `LatLng` values again.
 
-All application point-to-point distances, the map ruler, and parcel polygon
-areas use the **WGS84 ellipsoid**, through GeographicLib's Karney algorithms:
-semi-major axis `a = 6378137 m`, flattening `f = 1 / 298.257223563`.
+Web Mercator applies spherical Mercator formulas to geodetic longitude and
+latitude using the WGS84 semi-major axis, 6378137 m. Local east–west scale is
+exact at the equator. Local north–south scale is about 0.7% larger there. Both
+scales grow with distance from the equator. Around Calabria, projected lengths
+are about 1.28 times the corresponding ground lengths. Around Inverness,
+Scotland, the factor is about 1.86. Alignment between layers depends on their
+source datum, the boundary survey, imagery and GPS accuracy.
+[PROJ's Web Mercator definition](https://proj.org/en/stable/operations/projections/webmerc.html)
+
+The map ruler, parcel polygon areas and sample-area distance checks use
+geographic coordinates directly on the **WGS84 ellipsoid**. GeographicLib's
+Karney algorithms use semi-major axis `a = 6378137 m` and flattening
+`f = 1 / 298.257223563`.
 `base/js/geodesy.js` is the shared core for Abies ES modules and Ipso classic
-scripts; it obtains the constants from GeographicLib's WGS84 instance. The
-locked GeographicLib browser asset and its license are vendored locally and
-the numerical asset/core are included in Ipso's offline precache.
-There is no application Haversine fallback or separately tuned mobile radius.
-The Web Mercator rendering radius is part of the display CRS definition.
+scripts. It obtains the constants from GeographicLib's WGS84 instance.
+The shared geodesy code has no spherical fallback. Ipso's built-in Leaflet
+scale bar uses Leaflet's spherical distance. Cartography's interactive
+snapping tolerance is in screen pixels.
 
 `geo.distanceMeters()` returns the shortest ellipsoidal surface distance.
+The ruler adds the distances between successive clicked locations.
 Polygon areas follow geodesic edges, ignore ring winding, subtract holes,
 and sum MultiPolygon components. They are horizontal reference-ellipsoid
 measurements, not terrain slope lengths/areas. Cadastral areas and stored
@@ -248,26 +313,31 @@ when loading parcel data, replacing any supplied cached area value. Bosco
 sums component areas per parcel for geometric-area displays and per-hectare
 values. The database's separately supplied parcel area is the cadastral-area
 source, rather than a cache of this geometric calculation.
-Sample-radius inference and nearest-area selection use the same metric on
-desktop and mobile. An explicit sample-area ID takes precedence over coordinate
-inference.
-See [GeographicLib's algorithms and API](https://geographiclib.sourceforge.io/JavaScript/doc/).
 
-Coordinate entry/display retain five decimal places. Around Calabria, the
-rounding steps are about 1.11 m north/south and 0.87 m east/west; rounding
-error is at most half a step on each axis. Stored/imported coordinates and
-parcel vertices retain their supplied precision. Measurement calculations use
-those numbers directly, without first rounding them for display.
+When Ipso prepares an upload for a tree from a structured survey, it keeps
+the recorded sample-area ID even if the GPS fix falls outside the plot.
+If the tree has no recorded sample-area ID, Ipso looks for plots in the
+tree's parcel and compresa whose radius contains the GPS fix and assigns the
+one with the nearest center.
+
+Coordinate entry and display use five decimal places. Many record inputs,
+including manual forms and Ipso tree and observation uploads, also round
+before storage via `coord_float()`. Around Calabria, the rounding steps are
+about 1.11 m north/south and 0.87 m east/west. Rounding error is at most half
+a step on each axis. Imported parcel vertices and Ipso walk coordinates
+retain their supplied precision. Measurement calculations use the available
+coordinates directly, before any formatting for display.
 
 Regression fixtures in `test/fixtures/wgs84-geodesy.json` come from the
-independent GeographicLib Python implementation. Tests cover equatorial and
-Calabrian distances, coincidence, antipodes, polar and date-line cases, ring
-winding, holes, MultiPolygons, classic-script/module parity, the map ruler,
-and sample-radius inclusion/exclusion. Vendor checks ensure the served library
-matches the lock; Ipso precache checks cover offline availability.
-The fixture generator `test/fixtures/generate_wgs84.py` records direct/inverse
-and area references and independently minimizes geodesic segment distances;
-it can be rerun with the locked Python dependencies.
+GeographicLib Python implementation. Tests cover equatorial, Calabrian and
+Scottish distances (for different latitude examples), coincidence, antipodes,
+polar and date-line cases, ring winding, holes, MultiPolygons,
+classic-script/module parity, the map ruler, and sample-radius
+inclusion/exclusion. The DXF import test includes UTM eastings and northings
+from Scotland and checks longitude/latitude order.
+The fixture generator `test/fixtures/generate_wgs84.py` records
+direct/inverse and area references and independently minimizes geodesic segment
+distances; it can be rerun with the locked Python dependencies.
 
 ### Local metric planes and sampling grids
 
@@ -287,7 +357,8 @@ nearest-geodesic-segment solver.
 
 Automatic sampling-grid construction places a cell-centered square lattice in
 a plane centered on the selected parcels, then converts its points back to
-WGS84 and clips their centers to the parcel geometry. Axes follow true
+WGS84 and checks their centers against the parcel geometry. This containment
+check treats rings as straight-edged in longitude/latitude. Axes follow true
 north/east at the origin. Grid spacing is expressed in meters and requires no
 UTM-zone choice. The target-count search reuses one projection
 and projected extent for all spacing trials. Tests verify 500 m neighbor
@@ -297,14 +368,14 @@ projection round trips, and the target-count contract.
 ### Satellite raster sizing
 
 Server calculations use GeographicLib Python's `Geodesic.WGS84` through
-`apps.base.geodesy`, with the same ellipsoid as the browser. Satellite
-grids derive their nominal 10 m dimensions from ellipsoidal distances along
-the bounding-box midlines. The rasters remain in WGS84 geographic coordinates.
-Every date and band must use this canonical pixel grid. Downloads validate
-retained dates against it, and precomputation verifies dimensions, CRS and
-transform before publishing a mask or manifest. Rebuild into a fresh output
-directory when changing source geometry or raster-grid calculations; see the
-[satellite build commands](../README.md#local-development).
+`apps.base.geodesy`, with the same ellipsoid as the browser. New satellite
+grids derive their nominal 10 m dimensions from ellipsoidal distances between
+the endpoints of the bounding-box midlines. The rasters remain in WGS84
+geographic coordinates, so the ground width of a pixel varies with latitude.
+Every date and band in a published revision uses the same grid.
+Precomputation verifies dimensions, CRS and transform before publishing a mask
+or manifest. When coverage grows, the worker extends the existing pixel grid
+while preserving alignment. See [satellite refresh and publication](satellite-refresh.md).
 
 Geometry labels accept region properties in precedence order `layer`,
 `compresa`, `Compresa`, and parcel properties `name`, `particella`, `Particella`.
@@ -318,12 +389,17 @@ are preserved. Python `parcel_key()` follows the same alias policy.
 `bosco/js/characteristic-print.js` creates a standalone vector layout from
 parcel geometries and text labels at a requested `scaleDenominator` (default
 10000). It projects WGS84 geometry into a local azimuthal-equidistant plane
-centered on the supplied geographic bounds, using `geo.localProjection()`.
+centered on the printed parcels' geographic bounding box, using
+`geo.localProjection()`.
 Axes are true north/east at that origin. The tight axis-aligned bounding
 rectangle stays north-up; parcel geometry is not rotated to reduce the extent.
-This local projection avoids Web Mercator's scale enlargement around Calabria;
-it is intended for local forestry extents, not constant-scale global mapping.
-Page coordinates use `72 / 0.0254 / scaleDenominator` points per ground meter.
+The projection preserves distances from the center. Distances between other
+points can differ slightly from their geodesic lengths even within a forestry
+extent. The layout flips northing to make page Y increase downward and uses
+`72 / 0.0254 / scaleDenominator` points per meter in the local plane.
+Bounds use the minimum and maximum longitude directly and assume the parcels
+do not straddle the antimeridian. The print layout rejects latitudes at or
+beyond 85°.
 The smallest suitable A4–A0 sheet and its orientation are chosen without
 changing that factor, accounting for headers, margins and any callout columns.
 `PDFDocument` accepts a `size` in points; other operational PDFs retain A4.
@@ -379,9 +455,9 @@ The complete layout has no global optimality guarantee and may fail to find a
 feasible arrangement even when one exists.
 
 `bosco-metric-print.js` prepares the content and availability of printable
-metrics. It supports all fields in Caratteristiche and Produzione: average age,
-forest type, average altitude, average slope, historical harvests, forecast
-harvests and the cutting calendar. Satellite fields have no print action.
+maps. The print actions cover parcel boundaries, average age, forest type,
+average altitude, average slope, historical harvests, forecast harvests and
+the cutting calendar. Satellite and LiDAR layers have no print action.
 Altitude is the mean of both altitude bounds, in whole meters; a missing bound
 produces a missing value. Slope uses the stored parcel percentage, rounded to
 a whole percent.
@@ -425,16 +501,23 @@ Metric adapters supply text without changing the geometry or PDF renderer.
 
 ### Local vector context
 
-`build_map_context` reads each compresa's parcel bounding box and adds a 500 m
-WGS84 buffer. It queries OSM roads/tracks, waterways and water multipolygons,
-including member geometries. Shapely assembles complete outer/inner rings,
-preserves islands, clips and simplifies vectors. Incomplete Overpass results
-and incomplete water rings fail the build. It reads the required public
-Copernicus GLO-30 COG windows with rasterio (WGS84, one arc-second cells), then
-uses ContourPy to interpolate 20 m isolines at pixel centers. Nodata cells
-never generate connecting contour segments. These are DSM surface heights,
-including canopy; they are not a terrain survey. The vertical reference
-remains the input elevation model's orthometric reference.
+`build_map_context` reads the published parcel geometry by default, or a GeoJSON
+file passed with `--geojson`. It expands each compresa's bounding box by 500 m
+at the edge midpoints using the WGS84 ellipsoid. It queries Overpass for roads,
+tracks, waterways and water multipolygons, including member geometries.
+Shapely joins water boundary segments into closed outlines, preserves islands
+as holes, and clips and simplifies vectors within the buffered extent.
+The build stops if Overpass reports a partial result, for example after a
+timeout, or if water boundary segments cannot be joined into closed outlines.
+Rasterio reads the required public Copernicus GLO-30 COG windows. The source
+longitude spacing varies with latitude. Rasterio merges the windows onto a WGS84
+grid with one arc-second spacing on both axes. The builder requires coverage
+across the output grid, including usable elevation in every cell. ContourPy
+interpolates 20 m isolines by default, using heights at pixel centers. In
+the Copernicus contours, `120 m` means 120 meters above EGM2008, a model
+of mean sea level. With `--dem`, contour labels use the supplied raster's
+elevation zero and assume its heights are in meters.
+[Copernicus DEM Product Handbook, §1.2.1](https://dataspace.copernicus.eu/sites/default/files/media/files/2024-06/geo1988-copernicusdem-spe-002_producthandbook_i5.0.pdf)
 
 Each `MAP_CONTEXT_DIR/<map_key>/context.json.gz` is a complete, atomically
 published snapshot with source/build metadata and a parcel geometry hash.
@@ -455,10 +538,7 @@ Paths are clipped to `layout.mapBox`, excluding the heading, footer and callout
 columns. Water fills use even/odd winding in both SVG and PDF. Index elevation
 labels avoid the parcel labels and page edges; parcel borders/labels draw last.
 
-Initialization, refresh and sync commands are documented in the README. Source
-formats and algorithms: [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL),
-[Copernicus COGs](https://copernicus-dem-30m.s3.amazonaws.com/readme.html),
-[ContourPy](https://contourpy.readthedocs.io/en/v1.4.0/api/contourpy/contour_generator.html).
+Initialization, refresh and sync commands are documented in the README.
 Printed attribution follows [OSM](https://www.openstreetmap.org/copyright) and
 the [Copernicus GLO-30 license](https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/DEM/resources/license/License-COPDEM-30.pdf).
 
@@ -482,7 +562,8 @@ python -m pytest test/test_map_context.py --cov-branch \
 These tests cover build reuse, atomic publication failures, malformed/partial
 OSM results, water islands and split polygons, elevation windows/CRS/nodata,
 contour interpolation, stale geometry, ETags, optional-layer failures, clipped
-labels, multipart rendering and SVG/PDF parity. They use local synthetic data
-and mock remote responses. Real-data checks on all three comprese complement
-them; executable-path coverage does not establish the quality of every OSM
-feature or DSM cell.
+labels, multipart rendering and SVG/PDF parity. Scottish fixtures test
+both axes of the physical print scale, vector alignment and the merge of
+elevation windows across a tile seam. The suites use local synthetic data
+and mock remote responses. Printed output also depends on the quality of the
+source geometry, OSM and elevation data, and on printing at actual size.
