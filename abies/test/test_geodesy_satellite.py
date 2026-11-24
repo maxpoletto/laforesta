@@ -9,9 +9,13 @@ from apps.bosco import satellite
 from test.test_build_satellite import _feature, _write_complete_date, _write_geojson
 
 
-def test_satellite_dimensions_use_wgs84_ground_distances():
-    # Independent GeographicLib WGS84 inverse reference at the bbox midlines.
-    assert satellite.pixel_dims([16.3, 38.5, 16.36, 38.545]) == (523, 500)
+@pytest.mark.parametrize(('bounds', 'dimensions'), [
+    ([16.3, 38.5, 16.36, 38.545], (523, 500)),
+    ([-4.32, 57.48, -4.26, 57.525], (360, 501)),
+], ids=['Calabria', 'Scotland'])
+def test_satellite_dimensions_use_wgs84_ground_distances(bounds, dimensions):
+    # GeographicLib WGS84 inverse references at the bbox midlines.
+    assert satellite.pixel_dims(bounds) == dimensions
 
 
 def test_precompute_rejects_noncanonical_raster_grid(tmp_path):

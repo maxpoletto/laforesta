@@ -58,10 +58,29 @@ assert.equal(multi.labels.length, 1, 'one label per parcel, including multipart 
 const referenceItems = [{ name: '1 (F)', geometry: polygon(16.3, 38.5, .06, .045), lines: ['37 a'] }];
 const reference = M.buildPrintMapLayout({ items: referenceItems, scaleDenominator: 25000 });
 const ring = reference.parcels[0].geometry.coordinates[0];
-const printedEdgeCm = Math.hypot(ring[3][0] - ring[0][0], ring[3][1] - ring[0][1]) / 72 * 2.54;
-assert.ok(Math.abs(printedEdgeCm - 4995.28740227767 / 25000 * 100) < .00001,
+const printedCm = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) / 72 * 2.54;
+assert.ok(Math.abs(printedCm(ring[0], ring[3]) - 4995.28740227767 / 25000 * 100) < .00001,
   'physical print scale uses WGS84 ground meters, without Mercator enlargement');
 assert.equal(reference.paper, 'A3');
+// Near Inverness. WGS84 edge lengths come from wgs84-geodesy.json.
+const scottishGeometry = polygon(-4.32, 57.48, .06, .045);
+const scottishLayout = M.buildPrintMapLayout({
+  items: [{ name: '1', geometry: scottishGeometry, lines: ['37 a'] }],
+  scaleDenominator: 25000,
+  contextFeatures: [{ type: 'Feature', properties: { layer: 'roads', kind: 'track' },
+    geometry: { type: 'LineString', coordinates: scottishGeometry.coordinates[0].slice(0, 2) } }],
+});
+const [southwest, southeast, northeast] = scottishLayout.parcels[0].geometry.coordinates[0];
+assert.ok(Math.abs(printedCm(southwest, southeast) - 3599.256962906635 / 25000 * 100) < .00001,
+  'the Scottish east–west edge prints at the requested ground scale');
+assert.ok(Math.abs(printedCm(southeast, northeast) - 5011.597890924953 / 25000 * 100) < .00001,
+  'the Scottish north–south edge prints at the requested ground scale');
+assert.ok(southeast[0] > southwest[0] && northeast[1] < southeast[1], 'east is right and north is up');
+assert.equal(scottishLayout.paper, 'A4');
+assert.equal(scottishLayout.landscape, false);
+assert.deepEqual(scottishLayout.context.shapes[0].rings[0], [southwest, southeast],
+  'context shares the parcel projection, scale and page offsets');
+
 for (const [denominator, paper] of [[50000, 'A4'], [25000, 'A3'], [18000, 'A2'], [10000, 'A1'], [6500, 'A0']]) {
   const fixed = M.buildPrintMapLayout({ items: referenceItems, scaleDenominator: denominator });
   assert.equal(fixed.paper, paper, `smallest suitable paper at 1:${denominator}`);

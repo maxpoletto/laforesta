@@ -369,3 +369,37 @@ def test_public_cog_reads_use_requested_window_and_preserve_heights(tmp_path, mo
     assert transform.c == pytest.approx(16.001)
     assert transform.f == pytest.approx(38.01)
     assert M.contour_features(data, transform, [16.001, 38.001, 16.01, 38.01], 20) == []
+
+
+def test_scottish_cog_windows_join_across_a_western_tile_seam(tmp_path, monkeypatch):
+    arcsec = 1 / 3600
+    seam = -4 - .75 * arcsec
+    top = 57 + 41.5 * arcsec
+    heights = np.repeat((180 + 10 * np.arange(24))[:, None], 16, axis=1)
+    tiles = {}
+    for longitude, left, offset in [('W005', seam - 24 * arcsec, 0), ('W004', seam, 5)]:
+        path = tmp_path / f'{longitude}.tif'
+        # GLO-30 uses 1.5″ longitude cells at this latitude and 1″ latitude cells.
+        with rasterio.open(path, 'w', driver='GTiff', width=16, height=24, count=1,
+                           dtype='float32', crs='EPSG:4326',
+                           transform=from_origin(left, top, 1.5 * arcsec, arcsec)) as dataset:
+            dataset.write((heights + offset).astype('float32'), 1)
+        name = f'Copernicus_DSM_COG_10_N57_00_{longitude}_00_DEM'
+        tiles[f'{M.COPERNICUS_URL}/{name}/{name}.tif'] = path
+
+    open_raster = rasterio.open
+    monkeypatch.setattr(M.rasterio, 'open', lambda url: open_raster(tiles[url]))
+    bounds = [seam - 9 * arcsec, top - 20 * arcsec, seam + 12 * arcsec, top - 4 * arcsec]
+    data, transform = M.elevation_grid(bounds)
+    assert data.shape == (16, 21)
+    assert (transform.a, transform.e) == pytest.approx((arcsec, -arcsec))
+    assert np.all(data[:, :9] == heights[4:20, :1])
+    assert np.all(data[:, 9:] == heights[4:20, :1] + 5)
+
+    contour, = [feature for feature in M.contour_features(data, transform, bounds, 20)
+                if feature['properties']['elevation'] == 300]
+    points = contour['geometry']['coordinates']
+    west_end, east_end = sorted((points[0], points[-1]))
+    # Context coordinates are rounded to six decimal places.
+    assert west_end == pytest.approx([bounds[0] + .5 * arcsec, top - 12.5 * arcsec], abs=5e-7)
+    assert east_end == pytest.approx([bounds[2] - .5 * arcsec, top - 12 * arcsec], abs=5e-7)

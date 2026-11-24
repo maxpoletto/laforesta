@@ -44,9 +44,12 @@ const map = {
 };
 attachMeasure(map);
 controlClick({});
-mapClick({ latlng: { lat: 0, lng: 0 } });
-mapClick({ latlng: { lat: 0, lng: 1 } });
-eq(measuredLabels[0].includes('111,32 km'), true, 'ruler measures the WGS84 equatorial degree');
+// GeographicLib references in wgs84-geodesy.json give 3599.26 m and 5011.60 m.
+mapClick({ latlng: { lat: 57.48, lng: -4.32 } });
+mapClick({ latlng: { lat: 57.48, lng: -4.26 } });
+mapClick({ latlng: { lat: 57.525, lng: -4.26 } });
+eq(measuredLabels[0].includes('3,60 km'), true, 'ruler measures the east–west leg in Scotland');
+eq(measuredLabels[1].includes('8,61 km'), true, 'ruler sums the legs instead of measuring the diagonal');
 
 if (failures.length) {
   for (const f of failures) console.error(`FAIL ${f}`);

@@ -79,6 +79,21 @@ def test_dxf_import_requires_crs_and_projects_coordinates(client, writer_user, r
     ]
 
 
+def test_dxf_import_utm_keeps_scottish_positions_in_longitude_latitude_order(client, writer_user, regions):
+    from apps.base.models import MapDrawing
+
+    client.force_login(writer_user)
+    # WGS84 / UTM zone 30N eastings and northings in meters near Inverness.
+    dxf = ('0\nSECTION\n2\nENTITIES\n0\nLINE\n10\n420850.968965\n20\n6371588.166734\n'
+           '11\n424541.323632\n21\n6376528.941389\n0\nENDSEC\n0\nEOF\n')
+    response = import_file(client, regions[0], 'dxf', dxf, epsg='32630')
+    assert response.status_code == 200, response.content
+    part, = MapDrawing.objects.get(pk=response.json()['drawing_id']).parts
+    assert part['type'] == 'LineString'
+    assert part['coordinates'][0] == pytest.approx([-4.32, 57.48], abs=1e-8)
+    assert part['coordinates'][1] == pytest.approx([-4.26, 57.525], abs=1e-8)
+
+
 def test_dxf_import_skips_cadastral_symbols_but_rejects_other_blocks(client, writer_user, regions):
     from apps.base.models import MapDrawing
 
