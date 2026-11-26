@@ -1364,6 +1364,7 @@ async function finish() {
   second[digest.columns.indexOf(S.COL_SPECIES)] = 'Faggio';
   second[digest.columns.indexOf(S.COL_D_CM)] = 40;
   second[digest.columns.indexOf(S.COL_V_M3)] = 2.4;
+  second[digest.columns.indexOf(S.COL_MASS_Q)] = 15.4;
   second[digest.columns.indexOf(S.COL_LAT)] = 38.2;
   second[digest.columns.indexOf(S.COL_LON)] = 16.3;
   digest.rows.push(second);
@@ -1374,6 +1375,10 @@ async function finish() {
   marks.resolve(digest);
   await flushSeveral();
 
+  const totals = contentEl.querySelector('.subsection-totals');
+  const unfilteredTotals = 'Valori totali: Numero alberi 2 · Volume 3,60 m³'
+    + ' · Massa 24 q · Area basimetrica 0,20 m²';
+  eq(totals.textContent, unfilteredTotals, 'mark header shows the four intervention totals');
   eq(latestTreeMarkers().length, 2, 'unfiltered mark map shows both trees');
   eq(chartInstances.length, 3, 'summary renders the three dendrometry charts');
   eq(chartInstances[0].data.datasets.map(dataset => dataset.label),
@@ -1407,6 +1412,9 @@ async function finish() {
 
   eq(tableInstances.at(-1).data.map(row => row[0]), [1102],
      'Filtra restricts the mark table');
+  eq(totals.textContent, 'Valori filtrati: Numero alberi 1 · Volume 2,40 m³'
+    + ' · Massa 15 q · Area basimetrica 0,13 m²',
+  'Filtra updates the values and the common summary label');
   eq(latestTreeMarkers().map(marker => marker.latlng), [[38.2, 16.3]],
      'Filtra restricts the mark map');
   eq(chartInstances[0].data.datasets.map(dataset => dataset.label), ['Faggio'],
@@ -1421,6 +1429,18 @@ async function finish() {
   eq(dendrometryExportCalls, 2, 'filtered dendrometry export is requested');
   eq(exportedDendrometryRowIds, [1102],
      'dendrometry export submits only rows in the active filter');
+
+  search.value = 'Specie inesistente';
+  search.dispatchEvent({ type: 'input' });
+  await new Promise(resolve => setTimeout(resolve, 550));
+  eq(totals.textContent, 'Valori filtrati: Numero alberi 0 · Volume 0,00 m³'
+    + ' · Massa 0 q · Area basimetrica 0,00 m²',
+  'a filter with no matches shows zero for every mark total');
+
+  search.value = '';
+  search.dispatchEvent({ type: 'input' });
+  await new Promise(resolve => setTimeout(resolve, 550));
+  eq(totals.textContent, unfilteredTotals, 'clearing Filtra restores the intervention totals');
   await finish();
 }
 
@@ -1447,6 +1467,7 @@ async function finish() {
     row[c(S.COL_V_M3)] = volume;
     if (volume == null) {
       row[c(S.COL_H_M)] = null;
+      row[c(S.COL_MASS_Q)] = null;
       row[c(S.COL_LAT)] = null;
       row[c(S.COL_LON)] = null;
     }
@@ -1462,6 +1483,8 @@ async function finish() {
   const select = control.querySelector('select');
   const info = contentEl.querySelectorAll('.dendrometry-chart-info');
   const exportButton = contentEl.querySelector('[data-action="export-dendrometry"]');
+  const totals = contentEl.querySelector('.subsection-totals');
+  const allParcelTotals = totals.textContent;
   eq(control.hidden, false, 'multi-parcel marking shows the summary selector');
   eq(select.children.map(option => option.textContent), ['Tutte', '2', '2a', '10'],
      'summary parcels are distinct and in natural order');
@@ -1485,6 +1508,7 @@ async function finish() {
      'parcel selection updates the chart species');
   eq(latestTreeMarkers().length, 3, 'summary selection leaves the marked-tree map scope intact');
   eq(tableInstances.at(-1).data.length, 4, 'summary selection leaves the marked-tree table scope intact');
+  eq(totals.textContent, allParcelTotals, 'the mark header follows the table across all parcels');
 
   exportButton.click();
   await flushSeveral();
@@ -1501,6 +1525,9 @@ async function finish() {
      'table search retains the parcels involved in the full marking');
   eq(contentEl.querySelector('[data-target="dendrometry-chart-grid"]').hidden, true,
      'a selected parcel with no filtered trees shows an empty summary');
+  eq(totals.textContent, 'Valori filtrati: Numero alberi 1 · Volume 0,00 m³'
+    + ' · Massa 0 q · Area basimetrica 0,13 m²',
+  'a mark without volume or mass still counts toward the number and basal area');
   eq(exportButton.disabled, false, 'export remains available for the complete search result');
   exportButton.click();
   await flushSeveral();
@@ -1649,8 +1676,10 @@ async function finish() {
   const metadata = contentEl.querySelector('[data-target="metadata"]');
   const markedIndex = metadata.children.findIndex(child => child.textContent === S.COL_VOLUME_MARKED);
   eq(metadata.children[markedIndex + 1].textContent, '36,00 m³', 'parent marked total updates in place');
-  check(contentEl.querySelector('.subsection-totals').textContent.includes('36,00 m³'),
-    'the full marking total updates separately from filtered rows');
+  eq(contentEl.querySelector('.subsection-totals').textContent,
+    'Valori filtrati: Numero alberi 30 · Volume 36,00 m³'
+    + ' · Massa 255 q · Area basimetrica 2,12 m²',
+    'mark deletion updates all filtered totals across table pages');
   await finish(); document.body.dataset.role = previousRole;
 }
 

@@ -668,7 +668,6 @@ export const SECTION_HARVESTS      = 'Prelievi';
 export const SECTION_MARK          = 'Martellate';
 export const SECTION_DENDROMETRIC_SUMMARY = 'Riassunto dendrometrico';
 export const LABEL_VOLUME_TOTAL    = 'Volume totale';
-export const LABEL_MASS_TOTAL      = 'Massa totale';
 export const COL_WORKSITE          = 'Cantiere';
 
 // Marks (tree-mark CRUD + CSV import in the per-item modal).
@@ -687,7 +686,10 @@ export const ERR_SPECIES_REQUIRED = 'Specie obbligatoria.';
 export const ERR_OPERATOR_REQUIRED = 'Operatore obbligatorio.';
 export const MARK_NULL_VOLUME_NOTE =
   'volume e massa non calcolati per alcune specie rare';
+export const MARK_TOTAL_VALUES = 'Valori totali';
+export const MARK_FILTERED_VALUES = 'Valori filtrati';
 export const DENDROMETRY_VOLUME = 'Volume';
+export const DENDROMETRY_MASS = 'Massa';
 export const DENDROMETRY_BASAL_AREA = 'Area basimetrica';
 export const TREE_DENDROMETRY_EMPTY = 'Nessun dato dendrometrico nel filtro corrente.';
 

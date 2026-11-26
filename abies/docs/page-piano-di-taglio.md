@@ -277,8 +277,9 @@ The modal displays:
      original opening and closing events remain in the transition history;
      later closure creates another closing event.
 
-2. **A foldable section "Martellate" (fustaia only).** The top shows total
-   `volume_marked_m3` and mass. The table controls carry `[Esporta]
+2. **A foldable section "Martellate" (fustaia only).** The top shows
+   **Numero alberi**, **Volume**, **Massa**, and **Area basimetrica**.
+   The table controls carry `[Esporta]
    [Importa CSV] [+ Nuovo albero]`, right-aligned in that order. The new-tree
    action opens the manual "Nuovo albero martellato" modal (see below).
 
@@ -315,9 +316,11 @@ The modal displays:
    The standard **Filtra** input is the scope control for the whole marks
    display, as on Prelievi: after its 500 ms debounce, the same displayed-cell
    search semantics (including column selectors and numeric comparisons)
-   restrict the table rows, map points, dendrometric charts, species legend, and the
-   dendrometric export. The volume/mass total above the table remains the item
-   total rather than a filtered subtotal.
+   restrict the table rows, totals above the table, map points, dendrometric
+   charts, species legend, and dendrometric export. The totals cover all rows
+   retained by **Filtra**, across table pages. The summary starts with
+   **Valori totali** when the filter is empty and **Valori filtrati** when a
+   search is active.
 
    Below the table is the marked-tree map. It is 840 px tall (twice the former
    420 px height) and retains the shared `TreePointsMap` basemaps, tools,
@@ -340,8 +343,8 @@ The modal displays:
    trees in more than one parcel, the summary shows a **Particelle:** pulldown.
    It defaults to **Tutte**, followed by the parcels in natural order (for
    example `2`, `2a`, `10`). Choosing a parcel restricts the three charts,
-   species legend and summary totals to that parcel. It does not change the
-   table or map: those continue to show the trees that match **Filtra**.
+   species legend and chart totals to that parcel. The table, its totals, and
+   the map continue to show the trees that match **Filtra** across all parcels.
 
    The pulldown lists every parcel with marks in this intervention, even if
    the current table filter hides all of a parcel's trees. For example, if
@@ -414,10 +417,10 @@ The modal displays:
    page still exists after the change. Sections stay open or closed as the
    user left them, and the map keeps its current position and zoom.
 
-   The metadata pane and the volume/mass totals above the table are updated
-   too. Those totals always describe all marks in the intervention; the charts
-   and their summary totals describe the trees selected by Filtra and
-   Particelle. After a deletion, the server response contains both the removed
+   The metadata pane and the totals above the table are updated too. The pane
+   reports the intervention's marked volume, and the totals above the table
+   follow **Filtra**. The charts and their totals follow both **Filtra** and
+   **Particelle**. After a deletion, the server response contains both the removed
    mark IDs and the updated intervention record, so the browser can update the
    display without another request for either dataset.
 

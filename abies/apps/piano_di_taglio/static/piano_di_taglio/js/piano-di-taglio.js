@@ -31,6 +31,8 @@ import { cloneTemplate } from '../../base/js/templates.js';
 import { recordIsCoppice } from '../../base/js/coppice.js';
 import { downloadBlob, downloadFromURL } from '../../base/js/csv-export.js';
 import { speciesNamesFromDigest } from '../../base/js/charts.js';
+import { basalAreaM2 } from '../../base/js/dendrometry.js';
+import { toNumber } from '../../base/js/digests.js';
 import { wireHeightAutofill } from '../../base/js/equations.js';
 import { TreeDetail } from '../../base/js/tree-detail.js';
 import { buildMarkTreeColumnDefs } from '../../base/js/tree-table-columns.js';
@@ -1478,7 +1480,7 @@ async function appendItemMarkTreesSection(card, itemId, state) {
     sort: { column: S.COL_DATE, ascending: false },
     csvFilename: `${S.CSV_MARKS_PREFIX}${itemId}.csv`,
     labels: {...S.TABLE_LABELS, add: S.NEW_TREE_LABEL}, csvFormat: S.TABLE_CSV_FORMAT,
-    onSearch: () => updateItemMarkTreeDependents(itemId),
+    onSearch: () => updateItemMarkTreeDependents(view),
   });
   view.detail = new TreeDetail({
     container: body, digest: data, speciesNames, parcelSummary: true,
@@ -1497,12 +1499,8 @@ async function appendItemMarkTreesSection(card, itemId, state) {
 function refreshItemMarks(view, data, rows) {
   if (!markViewIsCurrent(view)) return;
   view.digest = data;
+  renderMarkTotals(view, rows);
   const volCol = data.columns.indexOf(S.COL_V_M3);
-  const massCol = data.columns.indexOf(S.COL_MASS_Q);
-  const total = col => data.rows.reduce((sum, row) =>
-    sum + (typeof row[col] === 'number' ? row[col] : 0), 0);
-  view.totals.textContent = `${S.LABEL_VOLUME_TOTAL}: ${fmtVolume(total(volCol))}`
-    + `  ·  ${S.LABEL_MASS_TOTAL}: ${fmtMass(total(massCol))}`;
   const hasNullVolume = data.rows.some(row => row[volCol] == null);
   view.note.textContent = hasNullVolume ? S.MARK_NULL_VOLUME_NOTE : '';
   view.note.hidden = !hasNullVolume;
@@ -1517,13 +1515,38 @@ function refreshItemMarks(view, data, rows) {
   }
 }
 
-function markTreeSearchTerms() {
-  return searchTerms(itemMarkView?.table?.getSearchText() || '');
+function renderMarkTotals(view, rows) {
+  const { columns } = view.digest;
+  const volumeCol = columns.indexOf(S.COL_V_M3);
+  const massCol = columns.indexOf(S.COL_MASS_Q);
+  const diameterCol = columns.indexOf(S.COL_D_CM);
+  let volume = 0;
+  let mass = 0;
+  let basalArea = 0;
+  for (const row of rows) {
+    volume += toNumber(row[volumeCol], 0);
+    mass += toNumber(row[massCol], 0);
+    basalArea += basalAreaM2(toNumber(row[diameterCol], 0));
+  }
+  const label = markTreeSearchTerms(view).length ? S.MARK_FILTERED_VALUES : S.MARK_TOTAL_VALUES;
+  const values = [
+    `${S.BOSCO_TREE_COUNT} ${fmtInt(rows.length)}`,
+    `${S.DENDROMETRY_VOLUME} ${fmtVolume(volume)}`,
+    `${S.DENDROMETRY_MASS} ${fmtMass(mass)}`,
+    `${S.DENDROMETRY_BASAL_AREA} ${S.BOSCO_BASAL_AREA_VALUE(fmtDecimal2(basalArea))}`,
+  ];
+  view.totals.textContent = `${label}: ${values.join(' · ')}`;
 }
 
-function updateItemMarkTreeDependents(itemId) {
-  if (!itemViewIsActive(itemId)) return;
-  itemMarkView?.detail?.setRows(itemMarkView.table?.getFilteredRows() || []);
+function markTreeSearchTerms(view = itemMarkView) {
+  return searchTerms(view?.table?.getSearchText() || '');
+}
+
+function updateItemMarkTreeDependents(view) {
+  if (!markViewIsCurrent(view) || !view.detail) return;
+  const rows = view.table.getFilteredRows();
+  renderMarkTotals(view, rows);
+  view.detail.setRows(rows);
 }
 
 async function downloadMarkDendrometry(itemId, data, rows) {
