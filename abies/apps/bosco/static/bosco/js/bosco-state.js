@@ -77,6 +77,7 @@ export function readBoscoParams(params, regionIds = []) {
 
   const detailRaw = String(paramValue(params, 'v') || '');
   const detailMode = ['1', '2'].includes(detailRaw) ? detailRaw : null;
+  const governance = paramValue(params, 'hg');
 
   return {
     regionId,
@@ -96,6 +97,11 @@ export function readBoscoParams(params, regionIds = []) {
     parcelId: intParam(params, 'pa'),
     openSections: parseSectionTokens(paramValue(params, 'vo')),
     detailSpeciesIds: parseOptionalIdList(paramValue(params, 'ds')),
+    productionReport: {
+      governance: ['coppice', 'highforest'].includes(governance) ? governance : '',
+      from: intParam(params, 'hy1'),
+      to: intParam(params, 'hy2'),
+    },
     paiParcelIds: parseOptionalIdList(paramValue(params, 'pp')),
     paiSpeciesIds: parseOptionalIdList(paramValue(params, 'ps')),
     hiddenRoadTypes: parseIdList(paramValue(params, 'ns')),
@@ -179,6 +185,14 @@ export function clearDetailParams(params) {
   params.delete('pa');
   params.delete('vo');
   params.delete('ds');
+  writeProductionReportParams(params);
+}
+
+export function writeProductionReportParams(params, { governance, from, to } = {}) {
+  for (const [key, value] of [['hg', governance], ['hy1', from], ['hy2', to]]) {
+    if (value) params.set(key, String(value));
+    else params.delete(key);
+  }
 }
 
 export function writeMapView(params, center, zoom) {

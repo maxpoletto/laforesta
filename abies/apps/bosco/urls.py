@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from apps.bosco import plan_source, views
+from apps.bosco import plan_source, production, views
 
 urlpatterns = [
     path('plan-source/data/', plan_source.data_view, name='bosco-plan-source-data'),
@@ -41,6 +41,8 @@ urlpatterns = [
     path('pai/delete/', views.pai_delete_view, name='bosco-pai-delete'),
     path('future-production/data/', views.future_production_data,
          name='bosco-future-production-data'),
+    path('historical-production/<int:region_id>/', production.region_production_view,
+         name='bosco-region-production'),
     path('parcel-dendrometry/data/', views.parcel_dendrometry_data,
          name='bosco-parcel-dendrometry-data'),
     path('parcel-dendrometry-points/data/', views.parcel_dendrometry_points_data,

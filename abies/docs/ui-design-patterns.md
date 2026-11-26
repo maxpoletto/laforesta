@@ -49,7 +49,8 @@ For tables, `TableWrapper` places these actions on the search/pagination row:
 export first, custom actions such as import next, and the built-in add action
 last. `labels.add` supplies the domain noun; the wrapper adds `+`. A page with
 external filters, such as Prelievi, can suppress the table's search input while
-retaining this action row. Non-table workspaces use the same order, such as a
+retaining this action row. Pagination stays centered when either side of the
+toolbar is empty. Non-table workspaces use the same order, such as a
 grid's summary row. Container creation (`+ Nuova griglia`, `+ Nuovo rilevamento`,
 `+ Nuovo piano`) stays beside the container selector, separate from actions on
 its content. Table controls have no left/right padding, aligning their outer

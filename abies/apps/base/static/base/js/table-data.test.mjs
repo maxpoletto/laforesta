@@ -49,6 +49,18 @@ for (const canModify of [true, false]) {
   workspace.destroy();
 }
 
+for (const [toolbar, emptySide] of [[{ search: false }, 'start'], [{ export: null }, 'end']]) {
+  const host = new Element();
+  const workspace = new TableWrapper({ container: host, digest, toolbar });
+  const controls = host.querySelector('.sortable-table-controls-combined');
+  const [start, pagination, end] = controls.children;
+  assert.equal(controls.children.length, 3, 'Both toolbar slots surround pagination');
+  assert.ok(start.classList.contains('sortable-table-controls-start'));
+  assert.ok(pagination.classList.contains('sortable-table-pagination'));
+  assert.ok(end.classList.contains('sortable-table-controls-end'));
+  assert.equal(controls.querySelector(`.sortable-table-controls-${emptySide}`).children.length, 0);
+  workspace.destroy();
+}
 
 for (const [rowsPerPage, expected] of [[undefined, 25], [20, 20]]) {
   const paginated = new TableWrapper({container:new Element(), digest, rowsPerPage});

@@ -521,11 +521,11 @@ const { TableWrapper } = await import('./table.js');
     },
   });
   const controls = container.children[0].children[0].children[0];
-  const actionGroup = controls.children[1];
+  const actionGroup = controls.querySelector('.sortable-table-controls-end');
   eq(
     controls.children.map(child => child.className),
-    ['sortable-table-pagination', 'table-toolbar-actions sortable-table-controls-end'],
-    'TableWrapper can render toolbar actions without search controls',
+    ['sortable-table-controls-start', 'sortable-table-pagination', 'table-toolbar-actions sortable-table-controls-end'],
+    'TableWrapper balances pagination when search is hidden',
   );
   eq(
     actionGroup.children.map(child => child.textContent),

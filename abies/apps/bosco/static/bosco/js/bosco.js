@@ -52,7 +52,7 @@ import {
   BOSCO_MODES, MODE_CHARACTERISTICS, MODE_EVOLUTION, MODE_OBSERVATIONS,
   MODE_PAI, clearDetailParams,
   clearMapView, harvestPerHaAllowed, mapTypeToken, parcelAverageAllowed, readBoscoParams,
-  writeMapView, writeOptionalIdList, writeSectionTokens,
+  writeMapView, writeOptionalIdList, writeProductionReportParams, writeSectionTokens,
 } from './bosco-state.js';
 import {
   CHARACTERISTIC_METRIC_IDS,
@@ -90,8 +90,9 @@ import {
 } from './bosco-pai.js';
 import {
   aggregateProduction, harvestYear, pickProductionYear, prelieviUrlForScope,
-  productionDeltaByParcel, productionYears,
+  parcelMatchesGovernance, productionDeltaByParcel, productionYears, regionalProductionChart,
 } from './bosco-production.js';
+import { wireProductionReport } from './bosco-production-report.js';
 import {
   E_HARVEST, Q_AGE, Q_ALTITUDE, Q_AVG_GRADE, Q_BOUNDARIES, Q_EVI, Q_NDMI, Q_NDVI,
 } from './bosco-metrics.js';
@@ -138,6 +139,10 @@ let roadFeatures = [];
 let roadOverlay = null;
 const TERRENI_ID = 'terreni';
 const TERRENI_GEOJSON_URL = '/api/geo/map.geojson';
+const BOSCO_DATA_IDS = [
+  PARCELS_ID, FUTURE_ID, SPECIES_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
+  PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID, ROADS_ID, TERRENI_ID,
+];
 
 const VALID_MODES = BOSCO_MODES;
 const VALID_MAP_TYPES = ['o', 't', 's'];
@@ -199,6 +204,7 @@ cache.register(TERRENI_ID, TERRENI_GEOJSON_URL);
 let root = null;
 let mapHost = null;
 let regionSelect = null;
+let regionSummaryButton = null;
 let modeGroup = null;
 let characteristicSelect = null;
 let cadastralToggle = null;
@@ -250,6 +256,10 @@ let productionLink = null;
 let productionPerHa = null;
 let productionMonthly = null;
 let productionChart = null;
+let productionReport = null;
+let productionReportDataId = null;
+let productionReportDispose = null;
+let productionReportError = false;
 let paiParcelsHost = null;
 let paiSpeciesHost = null;
 let observationControls = null;
@@ -314,13 +324,13 @@ const page = createPage({
     [OBSERVATIONS_ID, onObservationsUpdate],
     [PRELIEVI_ID, onPrelieviUpdate],
   ],
-  visibleIds: [
-    PARCELS_ID, FUTURE_ID, SPECIES_ID, DENDROMETRY_ID, DENDROMETRY_POINTS_ID,
-    PRESERVED_ID, OBSERVATIONS_ID, PRELIEVI_ID, ROADS_ID, TERRENI_ID,
-  ],
+  visibleIds: BOSCO_DATA_IDS,
 });
 
-export const mount = page.mount;
+export async function mount(params) {
+  await page.mount(params);
+  if (root) updateProductionVisibility();
+}
 export const unmount = page.unmount;
 export const onQueryChange = page.onQueryChange;
 
@@ -368,6 +378,7 @@ function mountPage(el, params) {
   const helpButton = mapHost.querySelector('[data-action="open-help"]');
   helpButton.addEventListener('click', () => showHelpModal('tmpl-bosco-help', helpButton));
   regionSelect = el.querySelector('[data-role="region-select"]');
+  regionSummaryButton = el.querySelector('[data-action="open-region-detail"]');
   modeGroup = el.querySelector('[data-role="mode-group"]');
   characteristicSelect = el.querySelector('[data-role="characteristic-select"]');
   cadastralToggle = el.querySelector('[data-role="cadastral-toggle"]');
@@ -417,6 +428,11 @@ function mountPage(el, params) {
   productionLink = el.querySelector('[data-target="production-link"]');
   productionPerHa = el.querySelector('[data-role="production-per-ha"]');
   productionMonthly = el.querySelector('[data-role="production-monthly"]');
+  productionReport = wireProductionReport(el.querySelector('[data-target="production-report"]'), filters => {
+    const params = new URLSearchParams(location.search);
+    writeProductionReportParams(params, filters);
+    navigateWithParams(PAGE_PATH, params, true);
+  });
   paiParcelsHost = el.querySelector('[data-target="pai-parcels"]');
   paiSpeciesHost = el.querySelector('[data-target="pai-species"]');
   observationControls = el.querySelector('[data-role="observation-controls"]');
@@ -440,6 +456,7 @@ function destroyPage() {
   el.replaceChildren();
   document.removeEventListener('keydown', onDetailKeyDown);
   root = mapHost = regionSelect = modeGroup = statusEl = null;
+  regionSummaryButton = null;
   characteristicSelect = cadastralToggle = perHaToggle = perHaRow = null;
   characteristicParcelAverageToggle = characteristicParcelAverageRow = null;
   evolutionSelect = date1Input = date2Input = parcelAverageToggle = null;
@@ -459,6 +476,10 @@ function destroyPage() {
   destroyDendrometryCharts();
   productionHost = productionCanvas = productionSummary = productionLink = null;
   productionPerHa = productionMonthly = null;
+  productionReportDispose?.();
+  productionReport?.hide();
+  productionReport = productionReportDataId = productionReportDispose = null;
+  productionReportError = false;
   destroyProductionChart();
   paiParcelsHost = paiSpeciesHost = observationControls = null;
   observationCategoriesHost = null;
@@ -600,6 +621,7 @@ function wireControls() {
     clearMapView(params);
     navigateWithParams(PAGE_PATH, params, true);
   });
+  regionSummaryButton?.addEventListener('click', openRegionDetail);
 
   modeGroup?.addEventListener('change', (e) => {
     if (e.target?.name !== 'bosco-mode') return;
@@ -737,6 +759,7 @@ function applyParams(params) {
   currentState = state;
 
   if (regionSelect && state.regionId != null) regionSelect.value = String(state.regionId);
+  if (regionSummaryButton) regionSummaryButton.disabled = state.regionId == null;
   const modeInput = modeGroup?.querySelector(`input[value="${state.mode}"]`);
   if (modeInput) modeInput.checked = true;
   updateModePanels(state.mode);
@@ -1859,6 +1882,8 @@ function selectedCharacteristicLabel() {
 function syncDetailOverlay(state) {
   if (!detailOverlay) return;
   const scope = detailScopeForState(state);
+  const showReport = productionReport && scope?.type === 'region' && state.openSections.includes('p');
+  syncProductionReport(showReport ? scope.regionId : null);
   if (!scope) {
     detailOverlay.hidden = true;
     updateDetailNavigation(null);
@@ -1876,10 +1901,37 @@ function syncDetailOverlay(state) {
   if (state.openSections.includes('p')) renderProduction();
 }
 
+function updateProductionVisibility() {
+  cache.setVisible(productionReportDataId ? [...BOSCO_DATA_IDS, productionReportDataId] : BOSCO_DATA_IDS);
+}
+
+function syncProductionReport(regionId) {
+  const dataId = regionId == null ? null : `historical_production_${regionId}`;
+  if (dataId === productionReportDataId) return;
+  productionReportDispose?.();
+  productionReportDispose = null;
+  productionReportDataId = dataId;
+  productionReportError = false;
+  productionReport?.hide();
+  updateProductionVisibility();
+  if (!dataId) return;
+  cache.register(dataId, `/api/bosco/historical-production/${regionId}/`);
+  productionReportDispose = cache.onUpdate(dataId, () => {
+    productionReportError = false;
+    renderProduction();
+  });
+  cache.load(dataId).catch(() => {
+    if (productionReportDataId !== dataId) return;
+    productionReportError = true;
+    renderProduction();
+  });
+}
+
 function detailScopeForState(state = currentState) {
-  if (!state?.detailMode || !map) return null;
+  if (!state?.detailMode) return null;
   const region = regionById.get(state.regionId);
   if (state.detailMode === '1') {
+    if (!map) return null;
     const entry = mapEntries.find(e => e.id === state.parcelId);
     if (!entry) return null;
     return {
@@ -1894,7 +1946,9 @@ function detailScopeForState(state = currentState) {
     };
   }
   if (state.detailMode === '2' && region) {
-    const entries = mapEntries;
+    const entries = map ? mapEntries : buildParcelEntries(parcelsData || { rows: [] })
+      .filter(entry => entry.regionId === region.id)
+      .map(entry => ({ ...entry, displayAreaHa: displayAreaHa(entry, state) }));
     return {
       type: 'region',
       title: region.name,
@@ -2199,42 +2253,49 @@ function destroyDendrometryCharts() {
 function renderProduction() {
   if (!productionHost || !productionSummary) return;
   const scope = detailScopeForState();
-  if (!scope || detailOverlay?.hidden) return;
+  if (!scope || detailOverlay?.hidden || !currentState.openSections.includes('p')) return;
   if (productionLink) productionLink.href = prelieviUrlForScope(scope);
-  if (!prelieviData) {
-    destroyProductionChart();
-    productionHost.hidden = true;
-    productionSummary.textContent = S.LOADING;
-    loadPrelievi().then(renderProduction).catch(() => {
-      if (productionSummary) productionSummary.textContent = S.BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE;
-    });
-    return;
-  }
-
   const perHa = productionPerHa?.checked !== false;
-  const result = aggregateProduction(prelieviData, {
-    region: scope.region,
-    parcel: scope.type === 'parcel' ? scope.entry.parcel : null,
-  }, {
-    areaHa: scope.areaHa,
-    perHa,
-    byMonth: productionMonthly?.checked === true,
-  });
+  const byMonth = productionMonthly?.checked === true;
+  const regionReport = scope.type === 'region' && productionReport;
+  let area = scope.areaHa || 0;
+  let result;
+  if (regionReport) {
+    const data = cache.get(productionReportDataId);
+    const selection = productionReport.render(data, currentState.productionReport, productionReportError && !data);
+    area = scope.entries.reduce((sum, entry) => parcelMatchesGovernance(selection.governance, entry.coppice)
+      ? sum + (entry.displayAreaHa || 0) : sum, 0);
+    result = regionalProductionChart(data?.rows || [], { ...selection, areaHa: area, perHa, byMonth });
+  } else {
+    if (!prelieviData) {
+      destroyProductionChart();
+      productionHost.hidden = true;
+      productionSummary.textContent = S.LOADING;
+      loadPrelievi().then(renderProduction).catch(() => {
+        if (productionSummary && detailScopeForState()?.parcelId === scope.parcelId) {
+          productionSummary.textContent = S.BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE;
+        }
+      });
+      return;
+    }
+    result = aggregateProduction(prelieviData, { region: scope.region, parcel: scope.entry?.parcel }, {
+      areaHa: area, perHa, byMonth,
+    });
+  }
 
   if (!result.labels.length) {
     destroyProductionChart();
     productionHost.hidden = true;
-    productionSummary.textContent = S.BOSCO_NO_HISTORICAL_HARVEST;
+    productionSummary.textContent = regionReport ? '' : S.BOSCO_NO_HISTORICAL_HARVEST;
     return;
   }
 
   productionHost.hidden = false;
   productionChart = renderStackedBar(productionCanvas, result.chartData, productionChart);
-  const area = scope.areaHa || 0;
   const total = perHa && area > 0
     ? S.BOSCO_QUINTALS_PER_HA_VALUE(fmtDecimal2(result.totalQuintals / area))
     : fmtMass(result.totalQuintals);
-  productionSummary.textContent = `${total} - ${S.BOSCO_INTERVENTIONS(fmtInt(result.rowCount))}`;
+  productionSummary.textContent = regionReport ? total : `${total} - ${S.BOSCO_INTERVENTIONS(fmtInt(result.rowCount))}`;
 }
 
 function destroyProductionChart() {
@@ -3197,11 +3258,10 @@ function openParcelDetail(entry, { resetSections = true, resetSpecies = true } =
 }
 
 function openRegionDetail() {
+  if (currentState?.regionId == null) return;
   const params = new URLSearchParams(location.search);
+  clearDetailParams(params);
   params.set('v', '2');
-  params.delete('pa');
-  params.delete('vo');
-  params.delete('ds');
   navigateWithParams(PAGE_PATH, params, true);
 }
 
@@ -3393,10 +3453,10 @@ function canonicalizeOptionalIdParam(params, key, selectedIds, allIds) {
 
 function canonicalizeDetailParams(params, state) {
   const scope = detailScopeForState(state);
+  const before = params.toString();
   if (!state.detailMode || !scope) {
-    if (!params.has('v') && !params.has('pa') && !params.has('vo') && !params.has('ds')) return false;
     clearDetailParams(params);
-    return true;
+    return params.toString() !== before;
   }
   let changed = false;
   if (params.get('v') !== state.detailMode) {
@@ -3422,7 +3482,8 @@ function canonicalizeDetailParams(params, state) {
   const hadDs = params.has('ds');
   writeOptionalIdList(params, 'ds', state.detailSpeciesIds);
   if (params.get('ds') !== beforeDs || params.has('ds') !== hadDs) changed = true;
-  return changed;
+  writeProductionReportParams(params, scope.type === 'region' ? state.productionReport : undefined);
+  return changed || params.toString() !== before;
 }
 
 function setFlagParam(params, key, enabled) {

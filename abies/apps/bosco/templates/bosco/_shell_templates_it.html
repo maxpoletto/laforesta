@@ -54,10 +54,8 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
           <div class="bosco-coords" id="coords"></div>
           <label for="bosco-region-select">Compresa</label>
           <select id="bosco-region-select" class="page-pulldown" data-role="region-select"></select>
-          <p class="bosco-hint">
-            Clicca su una particella per vederne i dettagli, o fuori dalle
-            particelle per il riepilogo della compresa.
-          </p>
+          <button type="button" class="btn bosco-region-summary" data-action="open-region-detail"
+                  disabled>{{ S.BOSCO_OPEN_REGION_SUMMARY }}</button>
         </section>
 
         <section class="bosco-sidebar-section">
@@ -272,6 +270,31 @@ Static Italian text lives here; JS wires controls and fills dynamic data.
         <section class="bosco-detail-section" data-detail-section="p">
           {% include "base/_partials/_collapsible_header.html" with section="bosco-detail-p" title="Produzione storica" %}
           <div class="collapsible-body" data-section="bosco-detail-p">
+            <div class="bosco-production-report" data-target="production-report" hidden>
+              <div class="bosco-detail-toolbar bosco-production-filters">
+                <label>{{ S.PARCELS|capfirst }}
+                  <select class="page-pulldown" data-role="production-governance">
+                    <option value="">{{ S.BOSCO_YIELD_ALL_PARCELS }}</option>
+                    <option value="coppice">{{ S.BOSCO_YIELD_COPPICE }}</option>
+                    <option value="highforest">{{ S.BOSCO_YIELD_HIGHFOREST }}</option>
+                  </select>
+                </label>
+                <label>{{ S.BOSCO_YIELD_FROM_YEAR }}
+                  <select class="page-pulldown" data-role="production-year-from"></select>
+                </label>
+                <label>{{ S.BOSCO_YIELD_TO_YEAR }}
+                  <select class="page-pulldown" data-role="production-year-to"></select>
+                </label>
+              </div>
+              <p class="subsection-totals" data-target="production-yield" role="status"></p>
+              <p class="bosco-detail-note" data-target="production-yield-context"></p>
+              <p class="bosco-detail-note" data-target="production-yield-missing" hidden></p>
+              <details class="bosco-production-breakdown" data-target="production-breakdown" hidden>
+                <summary>{{ S.BOSCO_YIELD_DETAIL }}</summary>
+                <div class="bosco-production-table" data-target="production-breakdown-table"></div>
+                <p class="bosco-detail-note">{{ S.BOSCO_YIELD_METHOD }}</p>
+              </details>
+            </div>
             <div class="bosco-detail-toolbar">
               <label class="bosco-check"><input type="checkbox" data-role="production-per-ha" checked> {{ S.LABEL_VALUES_PER_HA }}</label>
               <label class="bosco-check"><input type="checkbox" data-role="production-monthly"> Mesi</label>

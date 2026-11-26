@@ -382,6 +382,20 @@ export const BOSCO_HISTORICAL_PRODUCTION_UNAVAILABLE =
   'Produzione storica non disponibile.';
 export const BOSCO_NO_HISTORICAL_HARVEST = 'Nessun prelievo storico.';
 export const BOSCO_INTERVENTIONS = (n) => `${n} interventi`;
+export const BOSCO_YIELD_MEAN = value => `Prelievo medio negli anni di taglio: ${value} m³/ha`;
+export const BOSCO_YIELD_CONTEXT = (volume, area, parcels, years) =>
+  `${volume} · ${area} · Particelle: ${parcels} · Anni di taglio: ${years}`;
+export const BOSCO_YIELD_NO_HARVESTS = 'Nessun intervento ordinario iniziato nel periodo selezionato.';
+export const BOSCO_YIELD_NO_AREA = 'Superficie insufficiente per calcolare il prelievo per ettaro.';
+export const BOSCO_YIELD_MISSING_AREAS = n =>
+  `Righe escluse dal calcolo per mancanza della superficie: ${n}.`;
+export const BOSCO_YIELD_HARVEST_YEARS = 'Anni di prelievo';
+export const BOSCO_YIELD_AREA = 'Superficie usata (ha)';
+export const BOSCO_YIELD_AREA_SOURCE = 'Fonte superficie';
+export const BOSCO_YIELD_INTERVENTION = 'Superficie intervento';
+export const BOSCO_YIELD_CADASTRAL = 'Area catastale';
+export const BOSCO_YIELD_AREA_UNKNOWN = 'Non disponibile';
+export const CSV_BOSCO_YIELD = 'prelievo_per_ettaro.csv';
 export const BOSCO_LAT_LON_REQUIRED = 'Lat e Lon obbligatorie.';
 export const BOSCO_POSITION = 'Posizione';
 export const BOSCO_INSERT_PAI_TREE_HERE = 'Inserire un nuovo albero qui?';

@@ -22,7 +22,7 @@ const {
   MODE_OBSERVATIONS, clearDetailParams, clearMapView, formatCenter,
   mapTypeName, mapTypeToken,
   parseCenter, parseIdList, parseOptionalIdList, parseSectionTokens, readBoscoParams,
-  writeMapView, writeOptionalIdList, writeSectionTokens,
+  writeMapView, writeOptionalIdList, writeProductionReportParams, writeSectionTokens,
 } = await import(staticModule('bosco/js/bosco-state.js'));
 
 let failed = 0;
@@ -178,6 +178,9 @@ assertEqual(parseOptionalIdList(''), [], 'parseOptionalIdList: empty means none'
 assertEqual(parseOptionalIdList('3,4'), [3, 4], 'parseOptionalIdList: ids');
 
 const detailParams = new URLSearchParams('v=1&pa=2&vo=dm&ds=4,5');
+writeProductionReportParams(detailParams, { governance: 'coppice', from: 2024, to: 2025 });
+assertEqual(readBoscoParams(detailParams).productionReport, { governance: 'coppice', from: 2024, to: 2025 },
+            'production report filters round-trip in a shareable URL');
 clearDetailParams(detailParams);
 assertEqual(detailParams.toString(), '', 'clearDetailParams: removes overlay params');
 writeSectionTokens(detailParams, ['m', 'd', 'p']);

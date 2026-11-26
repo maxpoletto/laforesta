@@ -596,6 +596,8 @@ Accepts both legacy planning output and Abies export format. Stored columns:
 - `Anno` / `Anno previsto` → `year_planned`.
 - `Compresa`, `Particella` — as fustaia.
 - `Superficie intervento (ha)` → `intervention_area_ha`.
+  After cutting, the actual area can be saved in the same intervention field.
+  Bosco uses that area for the historical yield of linked coppice cuts.
 - `Turno (a)` → `harvest_detail.interval` (warns on inconsistent
   values across rows for the same parcel).
 - `Altre note` / `Note` → `harvest_plan_item.note`. **Disambiguation:**

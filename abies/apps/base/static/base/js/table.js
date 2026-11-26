@@ -404,8 +404,11 @@ export class TableWrapper {
       },
       onPageChange: () => this._applySelectedRow(),
     };
-    if (this._toolbarStartEl) tableOptions.controlsStart = this._toolbarStartEl;
-    if (this._toolbarEndEl) tableOptions.controlsEnd = this._toolbarEndEl;
+    if (this._toolbarStartEl || this._toolbarEndEl) {
+      // The shared toolbar centers pagination between two equal-width slots.
+      tableOptions.controlsStart = this._toolbarStartEl ?? document.createElement('div');
+      tableOptions.controlsEnd = this._toolbarEndEl ?? document.createElement('div');
+    }
 
     const SortableTable = withNaturalSort(window.SortableTable);
     this._table = new SortableTable(tableOptions);

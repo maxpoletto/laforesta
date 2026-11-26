@@ -4,6 +4,7 @@ import * as S from '../../base/js/strings.js';
 import { ROWS } from '../../base/js/constants.js';
 import { continuousTimeBuckets, monthBucket, yearBucket } from '../../base/js/charts.js';
 import { columnMap, toNumber } from '../../base/js/digests.js';
+import { compareParcelNames } from '../../base/js/natural-sort.js';
 import { harvestScopeSearchTerms } from '../../base/js/prelievi-columns.js';
 
 const TOTAL_COLOR = '#2f8f58';
@@ -106,26 +107,28 @@ function harvestMonth(value) {
 
 export function aggregateProduction(digest, scope, opts = {}) {
   const c = columnMap(digest);
-  const dateIdx = c[S.COL_DATE];
-  const qIdx = c[S.COL_QUINTALS];
-  const rows = productionRows(digest, scope);
+  return productionSeries(productionRows(digest, scope).map(row => ({
+    date: row[c[S.COL_DATE]], mass: row[c[S.COL_QUINTALS]],
+  })), opts);
+}
+
+function productionSeries(rows, opts) {
   const areaHa = toNumber(opts.areaHa, 0);
   const divisor = opts.perHa && areaHa > 0 ? areaHa : 1;
   const bucket = opts.byMonth ? harvestMonth : harvestYear;
   const byBucket = new Map();
   let total = 0;
 
-  for (const row of rows) {
-    const date = row[dateIdx];
+  for (const { date, mass } of rows) {
     const key = bucket(date);
     if (!key) continue;
-    const q = toNumber(row[qIdx], 0);
+    const q = toNumber(mass, 0);
     total += q;
     byBucket.set(key, (byBucket.get(key) || 0) + q / divisor);
   }
 
-  const labels = rows.length
-    ? (opts.byMonth ? productionMonthRange(digest, scope) : productionYearRange(digest, scope))
+  const labels = byBucket.size
+    ? continuousTimeBuckets(opts.bounds || [...byBucket.keys()], opts.byMonth)
     : [];
   return {
     rowCount: rows.length,
@@ -140,6 +143,84 @@ export function aggregateProduction(digest, scope, opts = {}) {
         backgroundColor: TOTAL_COLOR,
       }],
     },
+  };
+}
+
+export function parcelMatchesGovernance(governance, coppice) {
+  if (governance === 'coppice') return coppice;
+  if (governance === 'highforest') return !coppice;
+  return true;
+}
+
+export function regionalProductionYears(rows) {
+  return continuousTimeBuckets(rows.map(row => row.month)).map(Number);
+}
+
+function inYearRange(year, { from, to }) {
+  return (from == null || year >= from) && (to == null || year <= to);
+}
+
+export function regionalProductionChart(rows, opts) {
+  const { governance, from, to, byMonth } = opts;
+  const selection = rows.filter(row => parcelMatchesGovernance(governance, row.coppice)
+    && inYearRange(Number(yearBucket(row.month)), opts));
+  const bounds = from == null || to == null ? null : byMonth
+    ? [`${from}-01`, `${to}-12`]
+    : [from, to];
+  return productionSeries(selection.map(row => ({ date: row.month, mass: row.mass_q })), {
+    ...opts, bounds,
+  });
+}
+
+export function regionalYield(rows, opts = {}) {
+  const cuts = new Map();
+  for (const row of rows) {
+    if (!parcelMatchesGovernance(opts.governance, row.coppice)) continue;
+    const year = Number(yearBucket(row.month));
+    const key = row.worksite_id == null ? `${row.parcel_id}:year:${year}`
+      : `${row.parcel_id}:worksite:${row.worksite_id}`;
+    if (!cuts.has(key)) cuts.set(key, { row, year, lastYear: year, volumeM3: 0 });
+    const cut = cuts.get(key);
+    cut.year = Math.min(cut.year, year);
+    cut.lastYear = Math.max(cut.lastYear, year);
+    cut.volumeM3 += row.volume_m3;
+  }
+
+  // A linked cut belongs to its first harvest year, including the volume from
+  // later years. Apply the year filter after all its monthly rows are grouped.
+  const parcelYears = new Map();
+  for (const { row, year, lastYear, volumeM3 } of cuts.values()) {
+    if (!inYearRange(year, opts)) continue;
+    const key = `${row.parcel_id}:${year}`;
+    if (!parcelYears.has(key)) parcelYears.set(key, {
+      parcelId: row.parcel_id, parcel: row.parcel, coppice: row.coppice, year, lastYear,
+      parcelAreaHa: row.parcel_area_ha, interventionAreaHa: 0, fullParcel: false, volumeM3: 0,
+    });
+    const entry = parcelYears.get(key);
+    const area = row.coppice ? row.intervention_area_ha : null;
+    if (area > 0) entry.interventionAreaHa += area;
+    else entry.fullParcel = true;
+    entry.lastYear = Math.max(entry.lastYear, lastYear);
+    entry.volumeM3 += volumeM3;
+  }
+
+  const detail = [...parcelYears.values()].map(entry => {
+    const area = entry.fullParcel ? entry.parcelAreaHa : entry.interventionAreaHa;
+    const { parcelId, parcel, coppice, year, lastYear, volumeM3 } = entry;
+    return {
+      parcelId, parcel, coppice, year, lastYear, volumeM3: Number(volumeM3.toFixed(3)),
+      areaHa: area > 0 ? Number(area.toFixed(2)) : null,
+      areaSource: area > 0 ? (entry.fullParcel ? 'parcel' : 'intervention') : null,
+    };
+  }).sort((a, b) => a.year - b.year || compareParcelNames(a.parcel, b.parcel));
+  const measured = detail.filter(entry => entry.areaHa != null);
+  return {
+    rows: detail,
+    volumeM3: measured.reduce((sum, row) => sum + row.volumeM3, 0),
+    areaHa: measured.reduce((sum, row) => sum + row.areaHa, 0),
+    parcelCount: new Set(measured.map(row => row.parcelId)).size,
+    yearCount: new Set(measured.map(row => row.year)).size,
+    unknownAreaCount: detail.length - measured.length,
   };
 }
 

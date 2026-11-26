@@ -57,10 +57,8 @@ parcels opens on its roads.
 - In Caratteristiche and Evoluzione, **click** on empty map space (no parcel
   underneath) opens the **per-region page** for the currently selected region
   (the same layout as the per-parcel page, scoped one level up — see below).
-  This is the only entry point to the per-region view, so the gesture is
-  documented unobtrusively in the sidebar (small-print hint under the region
-  pulldown: "Clicca su una particella per vederne i dettagli, o fuori dalle
-  particelle per il riepilogo della compresa").
+  The **Riepilogo compresa** button below the region selector opens the same
+  view in every mode, including for comprese without published outlines.
 - In PAI mode, **click** on the map prompts writers to insert a new preserved
   tree at that coordinate; confirming opens the PAI add form with lat/lon
   prefilled, and with the parcel preselected when the click was inside one.
@@ -317,9 +315,9 @@ applied to every pixel in the parcel (behavior identical to "Boscoscopio").
 
 ## Per-parcel and per-region page
 
-Reached by clicking a parcel on the map (per-parcel) or by clicking
-empty map space outside any parcel (per-region; uses the currently
-selected region from the pulldown).  Rendered as a full-screen
+Reached by clicking a parcel on the map (per-parcel). **Riepilogo compresa**
+or a click outside the parcels opens the currently selected region.
+Rendered as a full-screen
 overlay above the map; dismissable with Escape, the back button, or
 a close button (x) at the top right.  The page is bookmarkable (the URL
 encodes the scope) so it can be shared directly.
@@ -380,12 +378,39 @@ following the standard Abies idiom:
 
    For every graph, displays the number of trees used to compute the data.
 
-3. **Produzione storica** (closed by default)
+3. **Produzione storica**
    - Units checkbox as above: if checked, production is per hectare, otherwise
      per parcel/region.
    - Stacked bar chart of monthly/yearly q.li harvested in this scope (parcel or
      region), otherwise identical to the chart in Prelievi (see page-prelievi.md
      > Produzione).
+
+   The compresa view adds **Prelievo medio negli anni di taglio**, in m³/ha.
+   **Tutte le particelle**, **Solo ceduo**, and **Solo fustaia** use each
+   parcel's current governo. The year selectors default to the full period.
+   Both the report and compresa chart use prelievi assigned to a parcel and
+   exclude Catastrofato and Fitosanitario, including those with a parcel.
+
+   The yield is the volume in the report divided by the hectares counted.
+   Several prelievi from one cantiere contribute one cut. A cantiere spanning
+   several years contributes its entire volume and area in the year of its
+   first recorded prelievo. Unlinked historical prelievi are grouped by parcel
+   and calendar year. A coppice cut uses the positive **Superficie intervento**
+   from its cantiere. Without a recorded intervention area, the parcel-year
+   uses the full cadastral area once, including when other cuts in that same
+   parcel-year have recorded areas. When every cut in the parcel-year has a
+   recorded area, their areas are summed. A parcel-year with no available area
+   appears in the details and contributes neither hectares nor volume to yield.
+
+   The summary shows the volume and area used and how many parcels and harvest
+   years they represent. **Dettaglio del calcolo** lists the harvest years,
+   parcel, governo, volume, area, and area source for each parcel-year.
+   The sortable table fills the workspace and shows 15 rows per page. Numeric
+   values are right-aligned, and an unavailable area displays as `-`.
+   **Esporta** downloads all rows in the current selection as CSV. The chart
+   keeps the actual dates of the prelievi and includes inactive years within
+   the selected period.
+   **Apri in Prelievi** opens the compresa's full harvest records.
 
 Sections render lazily on first expand.
 
@@ -417,12 +442,16 @@ Sections render lazily on first expand.
 - `vo=<tokens>` — open sections within the overlay.  Single-char
   tokens, order irrelevant.  Tokens: `m` = Metadati (Caratteristiche),
   `d` = Dendrometria, `p` = Produzione storica,
-  Absent → default (`m`).  Explicit empty (`?vo=`) → all closed.
+  Absent → all sections open. Explicit empty (`?vo=`) → all closed.
 - `ds=<id list>` — Dendrometria visible-species filter:
   comma-separated `species.id` values (e.g., `3,5,11`).  Absent →
   all species visible.
+- `hg=coppice|highforest` — governo filter in the compresa production report.
+  Absent → all parcels.
+- `hy1=YYYY`, `hy2=YYYY` — first and last year in the production report.
+  Absent bounds use the compresa's first and last year with ordinary prelievi.
 
-When the overlay is closed, all `v=`/`pa=`/`vo=`/`ds=`
+When the overlay is closed, all `v=`/`pa=`/`vo=`/`ds=`/`hg=`/`hy1=`/`hy2=`
 params are stripped from the URL — closing returns the user to a
 clean map state.  Reopening uses the documented defaults.
 
@@ -619,6 +648,14 @@ mode-switch.
 - **`prelievi.json`** — shared with Prelievi (already documented). Drives the
   per-parcel page's *Produzione storica* stacked bar chart, as in
   page-prelievi.md.
+- **`/api/bosco/historical-production/<region-id>/`** — live snapshot for
+  the compresa's *Produzione storica*, loaded when that section opens and
+  revalidated by ETag while visible. `rows` contains ordinary parcel-linked
+  prelievi grouped by `month` (YYYY-MM), `parcel_id`, and `worksite_id`.
+  Each row carries the parcel name and governo, cadastral and intervention
+  areas, and the summed `mass_q` and `volume_m3` for that month. The browser
+  filters the report and groups its monthly rows into cuts before applying
+  the selected report years.
 
 ### Map data
 
