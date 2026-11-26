@@ -1,8 +1,8 @@
 """Prelievi API views: data, form, save, delete, CSV import.
 
 New harvests carry a ``harvest_plan_item_id`` chosen from a Cantiere
-pulldown (items in state ``open`` or ``harvesting``); the parcel and the
-damaged/unhealthy/psr flags propagate from the linked plan item, and
+pulldown (items in state ``open`` or ``harvesting``); the parcel and
+required flags come from the linked plan item, and
 the item state auto-advances ``open -> harvesting`` on the first
 linked harvest insert.  Legacy CSV-imported rows without a plan item
 remain editable but their parcel is treated as authoritative.
@@ -12,7 +12,7 @@ from datetime import date as date_type
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Min, Q
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
@@ -33,6 +33,7 @@ from apps.base.digests import (
 )
 from apps.base.numparse import int_or_none, parse_decimal, positive_int_list
 from apps.base.species import selectable_species
+from apps.base.validation import InputValidationError
 from apps.piano_di_taglio.totals import lock_plan_items, refresh_actual_total
 from apps.piano_di_taglio.dependencies import harvest_dependencies
 from apps.base.responses import (
@@ -41,11 +42,12 @@ from apps.base.responses import (
     submitted_version, success_response, validation_error,
 )
 from apps.base.models import (
-    Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
-    Tractor, next_sequence_number, parcel_sort_key, render_flag_note,
+    Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Role, Species,
+    Tractor, next_sequence_number, parcel_sort_key,
 )
 from apps.prelievi import csv_harvests
 from apps.prelievi.harvest_validation import (
+    HARVEST_FLAG_LABELS, checked_harvest_flags, missing_worksite_flags,
     percentages_sum_to_0_or_100, percentages_sum_to_100, valid_harvest_mass,
 )
 from apps.prelievi.models import (
@@ -54,12 +56,12 @@ from apps.prelievi.models import (
 from config import strings as S
 from config.constants import (
     DATA_ID, FIELD_CREW_ID, FIELD_DATE, FIELD_FILE,
-    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MASS_Q, FIELD_NOTE, FIELD_PARCEL_ID,
+    FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MASS_Q, FIELD_NONCE, FIELD_NOTE, FIELD_PARCEL_ID,
     FIELD_PRODUCT_ID, FIELD_RECORD1, FIELD_RECORD2, FIELD_REGION_ID,
     FIELD_SORT_ORDER, FIELD_SPECIES_ID, FIELD_SPECIES_PCT_PREFIX,
     FIELD_TRACTOR_PCT_PREFIX, FIELD_VOLUME_M3, FIELD_ROW_IDS, HTML, MESSAGE,
     RECORD, ROW_ID, ROWS, STATUS,
-    VERSION,
+    VERSION, parse_bool,
 )
 
 
@@ -89,6 +91,7 @@ def form_view(request, op_id=None):
 # ---------------------------------------------------------------------------
 
 _OPEN_STATES = (HarvestPlanItemState.OPEN, HarvestPlanItemState.HARVESTING)
+_FLAG_EDIT_FIELDS = {ROW_ID, VERSION, FIELD_NONCE, *HARVEST_FLAG_LABELS}
 
 
 @login_required
@@ -99,15 +102,24 @@ def save_view(request):
 
     For new harvests, a Cantiere (``harvest_plan_item_id``) is required
     and must be in state ``open`` or ``harvesting``.  The chosen item
-    supplies the parcel and the three boolean flags.  Editing an
-    existing harvest preserves its current plan-item link (legacy rows
-    can have NULL) and re-syncs its flags to the linked item.
+    supplies the parcel and default flags. Admins can edit an existing
+    harvest's flags while retaining any flags required by its worksite.
     """
     body, error = parse_json_body(request)
     if error:
         return error
 
-    row_id, parsed, errors = _parse_body(body)
+    flag_fields = HARVEST_FLAG_LABELS.keys() & body.keys()
+    if flag_fields and request.user.role != Role.ADMIN:
+        return JsonResponse({MESSAGE: S.ERR_FORBIDDEN}, status=403)
+    flags = {field: parse_bool(body[field]) for field in flag_fields}
+    if flags:
+        if not body.get(ROW_ID) or None in flags.values():
+            return validation_error([S.ERR_JSON_FIELD_INVALID])
+        if body.keys() <= _FLAG_EDIT_FIELDS:
+            return _save_flags_only(request, body, flags)
+
+    row_id, parsed, errors = _parse_body(body, flags)
     if errors:
         return _validation_error(errors, row_id, request, body)
 
@@ -155,7 +167,7 @@ def save_view(request):
         previous_item_id = (Harvest.objects.filter(pk=row_id)
             .values_list(FIELD_HARVEST_PLAN_ITEM_ID, flat=True).first()) if row_id else None
         items = lock_plan_items([previous_item_id, parsed.get(FIELD_HARVEST_PLAN_ITEM_ID)])
-        _, parsed, errors = _parse_body(body, locked_items=items)
+        _, parsed, errors = _parse_body(body, flags, locked_items=items)
         if errors:
             return _validation_error(errors, row_id, request, body)
         parsed[FIELD_VOLUME_M3] = _compute_volume_m3(parsed[FIELD_MASS_Q], sp_pcts)
@@ -278,6 +290,7 @@ def csv_import_view(request):
 
     parsed, errors = csv_harvests.validate_rows(
         reader, static_cols, dyn, csv_harvests.db_indexes(),
+        allow_extra_flags=request.user.role == Role.ADMIN,
     )
     if errors:
         return csv_error_list(errors)
@@ -378,7 +391,6 @@ def _form_context(op_id=None, vals=None):
     """Build template context for the prelievi form."""
     op = None
     current_cantiere_label = ''
-    current_flag_note = ''
     sp_pcts = {}
     tr_pcts = {}
 
@@ -388,7 +400,6 @@ def _form_context(op_id=None, vals=None):
             'harvest_plan_item__parcel__region', 'harvest_plan_item__region',
             'harvest_plan_item__harvest_plan',
         ).get(id=op_id)
-        current_flag_note = render_flag_note(op.damaged, op.unhealthy, op.psr)
         if op.harvest_plan_item_id is not None:
             approval_date = (op.harvest_plan_item.transitions
                              .filter(open=True).aggregate(date=Min('date'))['date'])
@@ -434,7 +445,7 @@ def _form_context(op_id=None, vals=None):
         {
             'id': it.id,
             'label': _cantiere_label(it, it.approval_date),
-            'flag_note': render_flag_note(it.damaged, it.unhealthy, it.psr),
+            'flags': checked_harvest_flags(it),
             'region_id': _cantiere_region_id(it),
             'parcel_id': it.parcel_id,  # NULL for region-wide cantieri.
         }
@@ -447,7 +458,9 @@ def _form_context(op_id=None, vals=None):
     return {
         'op': op,
         'current_cantiere_label': current_cantiere_label,
-        'current_flag_note': current_flag_note,
+        'current_flags': checked_harvest_flags(op),
+        'required_flags': checked_harvest_flags(op.harvest_plan_item if op else None),
+        'flag_labels': HARVEST_FLAG_LABELS,
         'vals': v,
         'default_record1': default_record1,
         'cantieri': cantieri,
@@ -471,8 +484,10 @@ def _form_context(op_id=None, vals=None):
 
 
 def _render_form(op_id, request, vals=None):
+    context = _form_context(op_id, vals)
+    context['can_edit_flags'] = op_id is not None and request.user.role == Role.ADMIN
     return render_to_string(
-        'prelievi/_form.html', _form_context(op_id, vals), request=request,
+        'prelievi/_form.html', context, request=request,
     )
 
 
@@ -486,7 +501,7 @@ def _optional_int(body, field, label, errors):
     return value
 
 
-def _parse_body(body, *, locked_items=None):
+def _parse_body(body, flags, *, locked_items=None):
     """Extract and validate core fields from the POST body.
 
     Returns (row_id, parsed_dict, error_list).  For new harvests the
@@ -590,14 +605,11 @@ def _parse_body(body, *, locked_items=None):
                 else:
                     parsed[FIELD_PARCEL_ID] = parcel.id
                     parsed[FIELD_REGION_ID] = None
-        parsed['harvest_plan_item_id'] = item.id
-        parsed['damaged'] = item.damaged
-        parsed['unhealthy'] = item.unhealthy
-        parsed['psr'] = item.psr
-    elif row_id is not None:
-        # Edit of a legacy row whose Cantiere stays NULL: parcel and
-        # flags travel through on the existing row (handled in _update_op).
-        pass
+        parsed[FIELD_HARVEST_PLAN_ITEM_ID] = item.id
+        if item.id != current_item_id:
+            parsed.update({field: getattr(item, field) for field in HARVEST_FLAG_LABELS})
+
+    parsed.update(flags)
 
     if FIELD_RECORD2 in body:
         parsed[FIELD_RECORD2] = _optional_int(
@@ -662,24 +674,63 @@ def _check_update_conflict(row_id, body, request):
     )
 
 
+def _save_flags_only(request, body, flags):
+    # A classification correction must preserve the original masses, volumes
+    # and species, including legacy values the full form displays rounded.
+    row_id = int_or_none(body[ROW_ID])
+    if row_id is None:
+        return validation_error([S.ERR_ROW_ID_INVALID])
+    if conflict := _check_update_conflict(row_id, body, request):
+        return conflict
+
+    begin_nonce_write(request)
+    with transaction.atomic():
+        result = _update_op(row_id, flags, body, request)
+        if isinstance(result, JsonResponse):
+            return result
+        op, _ = result
+        dependencies = harvest_dependencies(())
+        mark_stale(*dependencies.data_ids)
+        return success_response(
+            request, body, data_id='prelievi', row_id=op.id,
+            patches=[row_patch('prelievi', op.id, build_harvest_record(op))],
+            invalidates=dependencies.invalidates('prelievi'),
+        )
+
+
 def _update_op(row_id, parsed, body, request):
     """Update an existing Harvest under row lock."""
     version = submitted_version(body)
     op = (Harvest.objects
           .select_for_update()
           .select_related('parcel__region', 'crew', 'product', 'harvest_plan_item')
-          .get(id=row_id))
+          .filter(id=row_id).first())
+    if op is None:
+        return JsonResponse({MESSAGE: S.ERR_NOT_FOUND}, status=404)
     if op.version != version:
         return conflict_response(
             data_id='prelievi', row_id=row_id, record=build_harvest_record(op),
             html=_render_form(row_id, request),
         )
-
     previous_item_id = op.harvest_plan_item_id
     for field, value in parsed.items():
         setattr(op, field, value)
+    missing = missing_worksite_flags(
+        op.harvest_plan_item, {field: getattr(op, field) for field in HARVEST_FLAG_LABELS},
+    )
+    if missing:
+        return validation_error([S.ERR_HARVEST_WORKSITE_FLAGS.format(
+            ', '.join(HARVEST_FLAG_LABELS[field] for field in missing),
+        )])
+
     op.version += 1
-    op.save()
+    try:
+        op.save()
+    except IntegrityError as exc:
+        # The old SQLite trigger rejects even valid additional harvest flags.
+        if str(exc) == 'harvest flags must match linked harvest_plan_item flags':
+            raise InputValidationError(S.ERR_HARVEST_FLAGS_DATABASE_UPGRADE) from exc
+        raise
     return op, previous_item_id
 
 
@@ -697,4 +748,6 @@ def _write_junctions(op, sp_pcts, tr_pcts):
 
 
 def _validation_error(errors, row_id, request, vals=None):
+    if vals and HARVEST_FLAG_LABELS.keys() & vals.keys():
+        return validation_error(errors)
     return validation_error(errors, html=_render_form(row_id, request, vals))

@@ -29,7 +29,7 @@ import {
   COL_PARCEL_ID, COL_REGION_ID, FIELD_DATE, FIELD_ERRORS, FIELD_FILE, HTML,
   FIELD_NONCE, FIELD_SPECIES, FIELD_SPECIES_PCT_PREFIX, MESSAGE,
   FIELD_ROW_IDS, FIELD_TRACTOR_PCT_PREFIX, PARCEL_WHOLE_REGION_MARK, ROW_ID,
-  STATUS, STATUS_CONFLICT,
+  STATUS, STATUS_CONFLICT, VERSION,
 } from '../../base/js/constants.js';
 import {
   CLASS_BOSCO_LINK, STATIC_COLS, buildPrelieviColumnDefs,
@@ -820,17 +820,28 @@ function validateForm(body) {
 }
 
 function wireForm(form) {
-  wireCantiereSelect(form);
+  const flagInputs = [...form.querySelectorAll('[data-harvest-flag]')];
+  const canEditFlags = form.hasAttribute('data-edit-harvest-flags');
+  wireCantiereSelect(form, flagInputs, canEditFlags);
   wire100Buttons(form);
   wireCancelButtons(form, dismissModal);
+  const originalBody = canEditFlags && JSON.stringify(Object.fromEntries(new FormData(form)));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const isSaveAndAdd = e.submitter?.dataset.action === 'save-and-add';
-    const body = Object.fromEntries(new FormData(form));
-
-    const err = validateForm(body);
-    if (err) { showFormError(form, err); return; }
+    const fields = Object.fromEntries(new FormData(form));
+    const flags = Object.fromEntries(flagInputs
+      .filter(input => !input.disabled)
+      .map(input => [input.dataset.harvestFlag, input.checked]));
+    const flagsOnly = Object.keys(flags).length > 0 && originalBody === JSON.stringify(fields);
+    const body = flagsOnly
+      ? { [ROW_ID]: fields[ROW_ID], [VERSION]: fields[VERSION], [FIELD_NONCE]: fields[FIELD_NONCE], ...flags }
+      : { ...fields, ...flags };
+    if (!flagsOnly) {
+      const err = validateForm(fields);
+      if (err) { showFormError(form, err); return; }
+    }
 
     let data, status;
     try {
@@ -880,12 +891,10 @@ export function filterParcelSelectForRegion(parcelSel, allParcelOpts, regionId) 
 }
 
 /** Wire Cantiere pulldown: toggle parcel group, filter parcels, show flags. */
-function wireCantiereSelect(form) {
+function wireCantiereSelect(form, flagInputs, canEditFlags) {
   const cantiereSel = form.querySelector('#id_cantiere');
   const parcelGroup = form.querySelector('#parcel-group');
   const parcelSel = form.querySelector('#id_parcel');
-  const flagsDisplay = form.querySelector('#cantiere-flags-display');
-  const flagsSpan = form.querySelector('#cantiere-flags');
   if (!cantiereSel) return;
 
   const allParcelOpts = parcelSel
@@ -896,10 +905,13 @@ function wireCantiereSelect(form) {
     const opt = cantiereSel.selectedOptions[0];
     const hasValue = opt && opt.value;
 
-    if (flagsDisplay && flagsSpan) {
-      const note = opt?.dataset.flagNote;
-      flagsSpan.textContent = note || '—';
-      flagsDisplay.hidden = !note;
+    const flags = (opt?.dataset.flags || '').split(' ');
+    const required = (opt?.dataset.requiredFlags || '').split(' ');
+    for (const input of flagInputs) {
+      const field = input.dataset.harvestFlag;
+      const inherited = required.includes(field);
+      input.checked = inherited || flags.includes(field);
+      input.disabled = !canEditFlags || inherited;
     }
 
     if (parcelGroup && parcelSel) {

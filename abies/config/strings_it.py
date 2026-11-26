@@ -1123,6 +1123,10 @@ STATE_CLOSED     = 'cantiere chiuso'
 FLAG_DAMAGED      = 'Catastrofato'
 FLAG_UNHEALTHY    = 'Fitosanitario'
 FLAG_PSR          = 'PSR'
+ERR_HARVEST_WORKSITE_FLAGS = 'Il prelievo deve mantenere le classificazioni del cantiere ({}).'
+ERR_HARVEST_FLAGS_DATABASE_UPGRADE = (
+    'Per salvare classificazioni aggiuntive, aggiorna il database di Abies.'
+)
 
 DIGEST_STATUS = 'stato digest'
 DIGEST_STATUSES = 'stati digest'

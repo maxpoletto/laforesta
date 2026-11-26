@@ -32,11 +32,9 @@ def _submitted_value(values, field):
 def plan_item_invariant_errors(item, values):
     """Keep linked harvests consistent and every existing mark in scope.
 
-    Harvest rows copy a plan item's target and three boolean flags, and DB
-    triggers enforce equality only when harvest rows themselves are written.
-    Therefore plan-item writes must reject changes to those fields once
-    harvests point at the item. Marked parcels may span a region, but must
-    remain inside the proposed target; safe widening/narrowing is allowed.
+    The worksite's target and required flags become fixed once harvests
+    point at it. Harvests can carry additional flags. Marked parcels may
+    span a region but must remain inside the proposed target.
     """
     proposed = {}
     for field in _CONSTRAINED_BY_HARVEST_FIELDS:

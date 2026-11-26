@@ -6,8 +6,10 @@ import json
 import re
 from datetime import date, timedelta
 from decimal import Decimal
+from importlib import import_module
 
 import pytest
+from django.db import IntegrityError, connection, transaction
 from django.test import Client
 
 from apps.base import csv_io
@@ -26,6 +28,13 @@ from config import strings as S
 def writer_client(writer_user):
     c = Client()
     c.force_login(writer_user)
+    return c
+
+
+@pytest.fixture
+def admin_client(admin_user):
+    c = Client()
+    c.force_login(admin_user)
     return c
 
 
@@ -170,14 +179,11 @@ class TestFormView:
         assert '2024-06-15' in html
         assert 'selected' in html
 
-    @pytest.mark.parametrize(('damaged', 'unhealthy', 'expected'), [
-        (False, False, ''),
-        (True, False, S.FLAG_DAMAGED),
-        (False, True, S.FLAG_UNHEALTHY),
-        (True, True, f'{S.FLAG_DAMAGED}, {S.FLAG_UNHEALTHY}'),
+    @pytest.mark.parametrize(('damaged', 'unhealthy'), [
+        (False, False), (True, False), (False, True), (True, True),
     ])
     def test_edit_form_shows_flags_without_linked_cantiere(
-        self, writer_client, harvest_fixtures, damaged, unhealthy, expected,
+        self, writer_client, admin_client, harvest_fixtures, damaged, unhealthy,
     ):
         f = harvest_fixtures
         legacy = Harvest.objects.create(
@@ -186,10 +192,17 @@ class TestFormView:
             damaged=damaged, unhealthy=unhealthy,
         )
 
-        resp = writer_client.get(f'/api/prelievi/form/{legacy.id}/')
+        for client, disabled in ((writer_client, True), (admin_client, False)):
+            resp = client.get(f'/api/prelievi/form/{legacy.id}/')
 
-        assert resp.status_code == 200
-        assert f'<option value="" data-flag-note="{expected}">' in resp.json()[HTML]
+            assert resp.status_code == 200
+            html = resp.json()[HTML]
+            for field, checked in (('damaged', damaged), ('unhealthy', unhealthy),
+                                   ('psr', False)):
+                control = re.search(rf'<input\b[^>]*data-harvest-flag="{field}"[^>]*>', html)
+                assert control
+                assert ('checked' in control[0]) == checked
+                assert ('disabled' in control[0]) == disabled
 
     def test_form_contains_species_and_tractors(self, writer_client, harvest_fixtures):
         resp = writer_client.get('/api/prelievi/form/')
@@ -404,6 +417,116 @@ class TestSaveView:
         assert float(sample_op.mass_q) == 60.0
         assert sample_op.version == 2
 
+    def test_admin_changes_individual_flags_and_writer_preserves_them(
+        self, admin_client, writer_client, sample_op, harvest_fixtures,
+    ):
+        f = harvest_fixtures
+        sample_op.mass_q = Decimal('37.25')
+        sample_op.volume_m3 = Decimal('4.123')
+        sample_op.save(update_fields=['mass_q', 'volume_m3'])
+        peer = Harvest.objects.create(
+            date='2024-06-15', parcel=sample_op.parcel, crew=sample_op.crew,
+            product=sample_op.product, mass_q=15, harvest_plan_item=f['open_item'],
+        )
+        edit = {ROW_ID: str(sample_op.pk), VERSION: str(sample_op.version)}
+        response = self._post(admin_client, dict(edit, unhealthy=True, psr=True))
+        assert response.status_code == 200, response.content
+        sample_op.refresh_from_db()
+        peer.refresh_from_db()
+        assert sample_op.unhealthy and sample_op.psr
+        assert not peer.unhealthy and not peer.psr
+        assert not sample_op.harvest_plan_item.unhealthy
+        assert sample_op.history.latest().unhealthy
+        assert sample_op.mass_q == Decimal('37.25')
+        assert sample_op.volume_m3 == Decimal('4.123')
+        assert HarvestSpecies.objects.get(harvest=sample_op).percent == 100
+
+        edit[VERSION] = str(sample_op.version)
+        response = self._post(writer_client, dict(edit, unhealthy=False))
+        assert response.status_code == 403
+
+        stale = self._post(admin_client, dict(edit, version='1', damaged=True))
+        assert stale.json()[STATUS] == STATUS_CONFLICT
+
+        response = self._post(writer_client, self._base_payload(f, **edit))
+        assert response.status_code == 200, response.content
+        sample_op.refresh_from_db()
+        assert sample_op.unhealthy and sample_op.psr
+        edit[VERSION] = str(sample_op.version)
+        response = self._post(admin_client, dict(edit, unhealthy=False, psr=False))
+        assert response.status_code == 200, response.content
+        sample_op.refresh_from_db()
+        assert not sample_op.unhealthy and not sample_op.psr
+
+    @pytest.mark.parametrize('flags_only', [True, False])
+    def test_admin_cannot_clear_inherited_worksite_flags(
+        self, admin_client, writer_client, harvest_fixtures, region_wide_open_item,
+        flags_only,
+    ):
+        f = harvest_fixtures
+        response = self._post(writer_client, self._base_payload(f, **{
+            FIELD_HARVEST_PLAN_ITEM_ID: str(region_wide_open_item.pk),
+            FIELD_PARCEL_ID: str(f['parcels'][0].pk),
+        }))
+        assert response.status_code == 200, response.content
+        harvest = Harvest.objects.get(pk=response.json()[ROW_ID])
+        form = admin_client.get(f'/api/prelievi/form/{harvest.pk}/').json()[HTML]
+        damaged = re.search(r'<input\b[^>]*data-harvest-flag="damaged"[^>]*>', form)[0]
+        assert 'checked' in damaged and 'disabled' in damaged
+        edit = {ROW_ID: str(harvest.pk), VERSION: str(harvest.version)}
+        if not flags_only:
+            edit = self._base_payload(f, **edit, **{
+                FIELD_HARVEST_PLAN_ITEM_ID: str(region_wide_open_item.pk),
+                FIELD_PARCEL_ID: str(f['parcels'][0].pk),
+            })
+
+        response = self._post(admin_client, dict(edit, damaged=False, unhealthy=True))
+        assert response.status_code == 400
+        assert S.ERR_HARVEST_WORKSITE_FLAGS.format(S.FLAG_DAMAGED) in response.json()[MESSAGE]
+        harvest.refresh_from_db()
+        assert harvest.damaged and not harvest.unhealthy
+
+        response = self._post(admin_client, dict(edit, unhealthy=True))
+        assert response.status_code == 200, response.content
+        harvest.refresh_from_db()
+        assert harvest.damaged and harvest.unhealthy
+        with pytest.raises(IntegrityError, match='flags of its linked worksite'), transaction.atomic():
+            Harvest.objects.filter(pk=harvest.pk).update(damaged=False)
+
+    def test_flag_save_on_old_schema_explains_required_migration(self, admin_client, sample_op):
+        previous = import_module('apps.prelievi.migrations.0003_harvest_consistency_triggers')
+        with connection.cursor() as cursor:
+            cursor.execute('DROP TRIGGER harvest_flags_consistency_update')
+            cursor.execute(previous.HARVEST_FLAGS_UPDATE)
+
+        response = self._post(admin_client, {
+            ROW_ID: sample_op.pk, VERSION: sample_op.version,
+            FIELD_NONCE: 'prelievi-flags-old-schema', 'unhealthy': True,
+        })
+
+        assert response.status_code == 400
+        assert response.json()[MESSAGE] == S.ERR_HARVEST_FLAGS_DATABASE_UPGRADE
+        stored = Harvest.objects.get(pk=sample_op.pk)
+        assert not stored.unhealthy
+        assert stored.version == sample_op.version
+
+    def test_admin_can_set_flags_and_other_fields_on_legacy_harvest(
+        self, admin_client, harvest_fixtures, sample_op,
+    ):
+        sample_op.harvest_plan_item = None
+        sample_op.save(update_fields=['harvest_plan_item'])
+        response = self._post(admin_client, self._base_payload(harvest_fixtures, **{
+            ROW_ID: str(sample_op.pk), VERSION: str(sample_op.version),
+            FIELD_HARVEST_PLAN_ITEM_ID: '', FIELD_NOTE: 'Revisione',
+            'damaged': True, 'unhealthy': True, 'psr': False,
+        }))
+
+        assert response.status_code == 200, response.content
+        sample_op.refresh_from_db()
+        assert sample_op.harvest_plan_item_id is None
+        assert sample_op.damaged and sample_op.unhealthy and not sample_op.psr
+        assert sample_op.note == 'Revisione'
+
     def test_update_legacy_region_harvest_attaches_parcel_scoped_cantiere(
         self, writer_client, harvest_fixtures,
     ):
@@ -502,7 +625,7 @@ class TestSaveView:
         assert old_item.volume_actual_m3 > 0
         new_item = HarvestPlanItem.objects.create(
             harvest_plan=f['harvest_plan'], parcel=f['parcels'][1],
-            year_planned=2024, state=HarvestPlanItemState.OPEN,
+            year_planned=2024, state=HarvestPlanItemState.OPEN, psr=True,
         )
 
         second = self._post(writer_client, self._base_payload(
@@ -514,6 +637,8 @@ class TestSaveView:
         ))
 
         assert second.status_code == 200, second.content
+        sample_op.refresh_from_db()
+        assert sample_op.psr
         old_item.refresh_from_db()
         new_item.refresh_from_db()
         assert old_item.volume_actual_m3 == Decimal('0.000')
@@ -967,12 +1092,11 @@ class TestCsvImportView:
         assert resp.status_code == 403
 
 
-# Import S for assertion comparisons
 from config.constants import (
     COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREW_ID, FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,
     FIELD_HARVEST_PLAN_ITEM_ID, FIELD_MANUFACTURER, FIELD_MASS_Q,
-    FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE, FIELD_PRODUCT_ID,
+    FIELD_MINOR, FIELD_MODEL, FIELD_NONCE, FIELD_NOTE, FIELD_PARCEL_ID, FIELD_PRODUCT_ID,
     FIELD_RECORD1, FIELD_RECORD2, FIELD_ROW_IDS,
     DELETES, HTML, MESSAGE, PATCHES, RECORD, ROWS, ROW_ID,
     STATUS, STATUS_CONFLICT, STATUS_VALIDATION_ERROR, VERSION,
@@ -1147,6 +1271,29 @@ class TestCsvRoundTrip:
         assert self._snapshot() == expected
         f['open_item'].refresh_from_db()
         assert f['open_item'].volume_actual_m3 == first.volume_m3
+
+    def test_admin_can_restore_additional_flags_on_a_region_wide_worksite(
+        self, admin_client, writer_client, harvest_fixtures, region_wide_open_item,
+    ):
+        f = harvest_fixtures
+        harvest = Harvest.objects.create(
+            date='2024-06-15', parcel=f['parcels'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=50, harvest_plan_item=region_wide_open_item,
+            damaged=True, unhealthy=True,
+        )
+        HarvestSpecies.objects.create(harvest=harvest, species=f['species'][0], percent=100)
+        exported = self._post(admin_client, self.EXPORT_URL, {FIELD_ROW_IDS: [harvest.pk]})
+        assert exported.status_code == 200
+        harvest.delete()
+
+        response = self._import(writer_client, exported.content)
+        assert response.status_code == 400
+        response = self._import(admin_client, exported.content)
+        assert response.status_code == 200, response.content
+        restored = Harvest.objects.get()
+        assert restored.harvest_plan_item == region_wide_open_item
+        assert restored.parcel == f['parcels'][0]
+        assert restored.damaged and restored.unhealthy
 
     @pytest.mark.parametrize('row_ids', ['bad', [0], [-1], [True], ['1']])
     def test_export_rejects_invalid_row_selection(

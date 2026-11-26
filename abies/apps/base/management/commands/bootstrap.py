@@ -378,7 +378,7 @@ class Command(BaseCommand):
         if self._missing_columns(report, missing):
             return report
         parsed, errors = csv_harvests.validate_rows(
-            reader, cols, dyn, csv_harvests.db_indexes())
+            reader, cols, dyn, csv_harvests.db_indexes(), allow_extra_flags=True)
         self._apply_validated(report, parsed, errors, csv_harvests.apply)
         return report
 

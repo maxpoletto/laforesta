@@ -70,8 +70,7 @@ class Harvest(TimestampedModel):
         help_text='Computed at write time: SUM(mass_q × pct/100 / species.density).',
     )
     # Boolean flags rendered as a comma-joined string in the Note column.
-    # When `harvest_plan_item` is set, the three flags must equal those
-    # on the linked item (enforced by SQLite trigger).
+    # SQLite requires every flag set on the linked item to be set here too.
     damaged = models.BooleanField(default=False)
     unhealthy = models.BooleanField(default=False)
     psr = models.BooleanField(default=False)

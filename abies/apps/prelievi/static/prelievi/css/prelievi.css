@@ -39,8 +39,21 @@
   grid-column: span 2;
 }
 
-#prelievi-form input,
+#prelievi-form input:not([type="checkbox"]),
 #prelievi-form select { width: 100%; }
+
+#prelievi-form .form-row.harvest-flags {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.harvest-flags label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.harvest-flags input { flex: none; margin: 0; }
 
 .form-pct-sections {
   display: flex;

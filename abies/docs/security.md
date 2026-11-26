@@ -6,6 +6,8 @@ Three roles: `admin`, `writer`, `reader`. Readers have read-only access.
 Writers can insert/edit/delete domain data. Admins can also manage users.
 Only admins can reopen a closed harvest-plan cantiere; normal opening and
 closing remain available to writers.
+Only admins can edit flags on an individual harvest. Any flags required by
+the linked cantiere remain set for every role.
 Password users can change their own password.
 
 Settings account edits require the current user version and a syntactically

@@ -65,7 +65,8 @@ backup keeps the three flags separate, retains every individual species
 and includes the materialized capture-time volume so later density edits do not
 rewrite history during restore. An optional `ID cantiere` column reconnects
 Abies-originated backups to their existing cutting-plan items; older external
-CSVs without that column retain the legacy unlinked-import behavior.
+CSVs without that column retain the legacy unlinked-import behavior. An
+administrator can restore linked harvests with additional flags via CSV.
 
 Table columns are:
 Data, Compresa, Particella, Squadra, VDP, Tipo, Q.li, Volume (m³), Note,
@@ -128,13 +129,16 @@ the same label, including for closed Cantieri. Required for new harvests.
   and required (filtered to the item's region). Server validates the
   match.
 
-Below row 2 (Cantiere pulldown), a read-only line shows the selected
-Cantiere's `damaged`/`unhealthy`/`psr` flags (auto-applied to the harvest
-on save; the schema trigger enforces consistency).
+Below the Cantiere pulldown, the Catastrofato, Fitosanitario and PSR
+checkboxes show the flags on the individual harvest. Writers see them
+disabled. Administrators can add or remove flags when editing a harvest.
+Any flags required by the Cantiere stay checked and disabled. A new harvest
+starts with the Cantiere's flags, and selecting a different Cantiere in the
+edit form starts from the new Cantiere's flags.
 
-Legacy imports (`harvest_plan_item_id IS NULL`) remain editable;
-the read-only line shows the flags saved on the harvest itself. Editing
-without selecting a Cantiere preserves the NULL link and the harvest's flags.
+Legacy imports with no linked Cantiere show their saved flags. Administrators
+can edit those flags without linking a Cantiere. Saving flags by themselves
+preserves the original mass, volume, species and tractor shares.
 
 Prot (record2) is not shown in the form; it is backend-only for legacy data.
 
@@ -203,6 +207,7 @@ Bottom-of-form button layout.
 | Write | Digests marked stale | Optimistic client patch |
 |---|---|---|
 | Harvest save (create or update) | `prelievi`, `audit`; + `harvest_plan_items`, `future_production` if linked to a plan item | `prelievi` and linked `harvest_plan_items` via `patches` |
+| Flags-only update | `prelievi`, `audit` | `prelievi` via `patches` |
 | Harvest delete | same as save | `prelievi` via `deletes`; `harvest_plan_items` via `patches` |
 | Species save (Impostazioni → Specie) | `prelievi`, `species`, Bosco species digests, every existing `sampled_trees_*` / `mark_trees_*`, `audit` | `species` row patched; all dependent full/dynamic caches evicted |
 | Tractor save (Impostazioni → Trattori) | `prelievi`, `audit` | — |

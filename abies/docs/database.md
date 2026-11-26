@@ -348,7 +348,7 @@ explicitly reuses the same `tree_id`.
   - Manual and calendar-import target edits must retain every linked mark in
     scope: a parcel item includes only that parcel; a region item includes all
     parcels in that region. Safe widening/narrowing does not move the marks.
-    Linked harvests separately prevent changes to the target and copied flags.
+    Linked harvests separately prevent changes to the target and worksite flags.
     These parent-edit checks live in shared application validation because
     child-row constraints alone do not guard edits to their parent.
   - `state` is an enum: `planned=0, marked=1, open=2, harvesting=3, closed=4`.
@@ -656,9 +656,10 @@ for coppice parcels there is no per-tree harvest record at all.
   - `record1`, `record2`: optional paper bill-of-goods IDs ("vdp"/"prot").
     `record2` is legacy, not displayed.
   - `damaged`, `unhealthy`, `psr`: boolean flags displayed as "Catastrofato",
-    "Fitosanitario", "PSR" in a "Note" column. If `harvest_plan_item_id`
-    is set, these must match the item's flags (enforced by triggers
-    `harvest_flags_consistency_{insert,update}`).
+    "Fitosanitario", "PSR" in a "Note" column. A linked harvest must include
+    every flag set on its plan item (enforced by triggers
+    `harvest_flags_consistency_{insert,update}`). Administrators can add or
+    remove flags specific to individual harvests.
     The CSV importer translates the Italian strings to booleans.
   - `note`: free-text annotation ("Altre note" column).
   - `import_fingerprint` is the content hash of the source CSV row, used
@@ -677,8 +678,8 @@ for coppice parcels there is no per-tree harvest record at all.
   | `harvest_region_xor_parcel_update` | BEFORE UPDATE OF `region_id, parcel_id` | same XOR invariant on update |
   | `harvest_parcel_consistency_insert` | BEFORE INSERT | if `harvest_plan_item_id` set: `parcel_id` matches item's parcel or item's region; or (region-wide) `region_id` matches item's `region_id` |
   | `harvest_parcel_consistency_update` | BEFORE UPDATE OF `parcel_id, region_id, harvest_plan_item_id` | same consistency check on update |
-  | `harvest_flags_consistency_insert` | BEFORE INSERT | `damaged`, `unhealthy`, `psr` match linked item's flags |
-  | `harvest_flags_consistency_update` | BEFORE UPDATE OF `damaged, unhealthy, psr, harvest_plan_item_id` | same flag consistency on update |
+  | `harvest_flags_consistency_insert` | BEFORE INSERT | includes all linked item's flags |
+  | `harvest_flags_consistency_update` | BEFORE UPDATE OF `damaged, unhealthy, psr, harvest_plan_item_id` | same required flags on update |
 
 - historicalharvest additionally stores `species_masses:json nullable`;
   this field belongs only to the history table, not to `harvest`.

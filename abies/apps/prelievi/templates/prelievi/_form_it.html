@@ -1,5 +1,5 @@
 <div class="form-card">
-  <form id="prelievi-form">
+  <form id="prelievi-form"{% if can_edit_flags %} data-edit-harvest-flags{% endif %}>
     <input type="hidden" name="row_id" value="{{ op.id|default_if_none:'' }}">
     <input type="hidden" name="version" value="{{ op.version|default:'1' }}">
 
@@ -26,18 +26,20 @@
               JS reveals the Particella pulldown in that case.
             {% endcomment %}
             <option value="{{ op.harvest_plan_item_id }}" selected
-                    data-flag-note="{{ current_flag_note }}"
+                    data-flags="{{ current_flags|join:' ' }}"
+                    data-required-flags="{{ required_flags|join:' ' }}"
                     data-region-id="{% if op.harvest_plan_item.parcel_id %}{{ op.harvest_plan_item.parcel.region_id }}{% else %}{{ op.harvest_plan_item.region_id }}{% endif %}"
                     data-parcel-id="{{ op.harvest_plan_item.parcel_id|default_if_none:'' }}">
               {{ current_cantiere_label }}
             </option>
           {% else %}
-            <option value="" data-flag-note="{{ current_flag_note }}">---</option>
+            <option value="" data-flags="{{ current_flags|join:' ' }}">---</option>
           {% endif %}
           {% for c in cantieri %}
             {% if not op or c.id != op.harvest_plan_item_id %}
             <option value="{{ c.id }}"
-                    data-flag-note="{{ c.flag_note }}"
+                    data-flags="{{ c.flags|join:' ' }}"
+                    data-required-flags="{{ c.flags|join:' ' }}"
                     data-region-id="{{ c.region_id }}"
                     data-parcel-id="{{ c.parcel_id|default_if_none:'' }}"
                     {% if vals.harvest_plan_item_id == c.id|stringformat:"d" %}selected{% endif %}>
@@ -68,8 +70,17 @@
       </div>
     </div>
 
-    <div class="form-readonly-flat" id="cantiere-flags-display">
-      <span><span class="label">Note cantiere:</span> <span id="cantiere-flags">—</span></span>
+    <div class="form-row harvest-flags" role="group" aria-label="{{ S.COL_NOTE }}">
+      {% for field, label in flag_labels.items %}
+      <div class="form-group">
+        <label>
+          <input type="checkbox" data-harvest-flag="{{ field }}"
+            {% if field in current_flags or field in required_flags %}checked{% endif %}
+            {% if not can_edit_flags or field in required_flags %}disabled{% endif %}>
+          {{ label }}
+        </label>
+      </div>
+      {% endfor %}
     </div>
 
     <div class="form-row">

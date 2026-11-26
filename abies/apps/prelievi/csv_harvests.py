@@ -33,6 +33,7 @@ from apps.prelievi.models import (
     Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
 )
 from apps.prelievi.harvest_validation import (
+    HARVEST_FLAG_LABELS, missing_worksite_flags,
     percentages_sum_to_0_or_100, percentages_sum_to_100,
 )
 from config import strings as S
@@ -229,7 +230,7 @@ def resolve_columns(fieldnames):
     return static_cols, dyn, missing
 
 
-def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
+def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes, *, allow_extra_flags=False):
     """Validate parsed CSV rows against ``idx``.  Pure: no DB writes.
 
     Returns ``(parsed_rows, errors)``.  Each parsed row is a dict ready for
@@ -341,24 +342,24 @@ def validate_rows(reader, static_cols, dyn, idx: HarvestIndexes):
                 continue
             if plan_item_id is not None:
                 plan_item = idx.plan_items[plan_item_id]
-                if (
-                    plan_item.parcel_id != (parcel.id if parcel else None)
-                    or plan_item.region_id != (region.id if region else None)
-                ):
+                if plan_item.parcel_id is not None:
+                    matches_scope = parcel is not None and plan_item.parcel_id == parcel.id
+                else:
+                    matches_scope = plan_item.region_id == (parcel.region_id if parcel else region.id)
+                if not matches_scope:
                     errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(
                         i, plan_item_id,
                     ))
                     continue
 
-        if plan_item is not None and (
-            damaged != plan_item.damaged
-            or unhealthy != plan_item.unhealthy
-            or psr != plan_item.psr
-        ):
-            errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(
-                i, plan_item.id,
-            ))
-            continue
+        if plan_item is not None:
+            flags = {'damaged': damaged, 'unhealthy': unhealthy, 'psr': psr}
+            if missing_worksite_flags(plan_item, flags) or (
+                not allow_extra_flags
+                and any(flags[field] != getattr(plan_item, field) for field in HARVEST_FLAG_LABELS)
+            ):
+                errors.append(S.ERR_CSV_HARVEST_PLAN_ITEM.format(i, plan_item.id))
+                continue
 
         note = (row.get(S.CSV_COL_EXTRA_NOTE) or '').strip()
 
