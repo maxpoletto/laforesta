@@ -133,7 +133,8 @@ Cantiere's `damaged`/`unhealthy`/`psr` flags (auto-applied to the harvest
 on save; the schema trigger enforces consistency).
 
 Legacy imports (`harvest_plan_item_id IS NULL`) remain editable;
-editing without touching Cantiere preserves the NULL link.
+the read-only line shows the flags saved on the harvest itself. Editing
+without selecting a Cantiere preserves the NULL link and the harvest's flags.
 
 Prot (record2) is not shown in the form; it is backend-only for legacy data.
 

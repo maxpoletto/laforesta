@@ -19,6 +19,7 @@ from apps.prelievi import csv_harvests
 from apps.prelievi.models import (
     Harvest, HarvestSpecies, HarvestTractor, harvest_volume_m3,
 )
+from config import strings as S
 
 
 @pytest.fixture
@@ -168,6 +169,27 @@ class TestFormView:
         html = resp.json()[HTML]
         assert '2024-06-15' in html
         assert 'selected' in html
+
+    @pytest.mark.parametrize(('damaged', 'unhealthy', 'expected'), [
+        (False, False, ''),
+        (True, False, S.FLAG_DAMAGED),
+        (False, True, S.FLAG_UNHEALTHY),
+        (True, True, f'{S.FLAG_DAMAGED}, {S.FLAG_UNHEALTHY}'),
+    ])
+    def test_edit_form_shows_flags_without_linked_cantiere(
+        self, writer_client, harvest_fixtures, damaged, unhealthy, expected,
+    ):
+        f = harvest_fixtures
+        legacy = Harvest.objects.create(
+            date='2019-11-06', region=f['regions'][0], crew=f['crews'][0],
+            product=f['products'][0], mass_q=10, record1=4133,
+            damaged=damaged, unhealthy=unhealthy,
+        )
+
+        resp = writer_client.get(f'/api/prelievi/form/{legacy.id}/')
+
+        assert resp.status_code == 200
+        assert f'<option value="" data-flag-note="{expected}">' in resp.json()[HTML]
 
     def test_form_contains_species_and_tractors(self, writer_client, harvest_fixtures):
         resp = writer_client.get('/api/prelievi/form/')
@@ -946,7 +968,6 @@ class TestCsvImportView:
 
 
 # Import S for assertion comparisons
-from config import strings as S  # noqa: E402
 from config.constants import (
     COLUMNS, DATA_ID, DIGEST_FUTURE_PRODUCTION, FIELD_ACTIVE, FIELD_COMMON_NAME,
     FIELD_CREW_ID, FIELD_DATE, FIELD_DENSITY, FIELD_ERRORS, FIELD_FILE,

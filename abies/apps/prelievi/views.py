@@ -42,7 +42,7 @@ from apps.base.responses import (
 )
 from apps.base.models import (
     Crew, HarvestPlanItem, HarvestPlanItemState, Parcel, Product, Species,
-    Tractor, next_sequence_number, parcel_sort_key,
+    Tractor, next_sequence_number, parcel_sort_key, render_flag_note,
 )
 from apps.prelievi import csv_harvests
 from apps.prelievi.harvest_validation import (
@@ -378,6 +378,7 @@ def _form_context(op_id=None, vals=None):
     """Build template context for the prelievi form."""
     op = None
     current_cantiere_label = ''
+    current_flag_note = ''
     sp_pcts = {}
     tr_pcts = {}
 
@@ -387,6 +388,7 @@ def _form_context(op_id=None, vals=None):
             'harvest_plan_item__parcel__region', 'harvest_plan_item__region',
             'harvest_plan_item__harvest_plan',
         ).get(id=op_id)
+        current_flag_note = render_flag_note(op.damaged, op.unhealthy, op.psr)
         if op.harvest_plan_item_id is not None:
             approval_date = (op.harvest_plan_item.transitions
                              .filter(open=True).aggregate(date=Min('date'))['date'])
@@ -432,9 +434,7 @@ def _form_context(op_id=None, vals=None):
         {
             'id': it.id,
             'label': _cantiere_label(it, it.approval_date),
-            'damaged': it.damaged,
-            'unhealthy': it.unhealthy,
-            'psr': it.psr,
+            'flag_note': render_flag_note(it.damaged, it.unhealthy, it.psr),
             'region_id': _cantiere_region_id(it),
             'parcel_id': it.parcel_id,  # NULL for region-wide cantieri.
         }
@@ -447,6 +447,7 @@ def _form_context(op_id=None, vals=None):
     return {
         'op': op,
         'current_cantiere_label': current_cantiere_label,
+        'current_flag_note': current_flag_note,
         'vals': v,
         'default_record1': default_record1,
         'cantieri': cantieri,

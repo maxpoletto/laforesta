@@ -863,14 +863,6 @@ function wireForm(form) {
   });
 }
 
-function renderFlagNote(opt) {
-  const parts = [];
-  if (opt.dataset.damaged === '1') parts.push(S.FLAG_DAMAGED);
-  if (opt.dataset.unhealthy === '1') parts.push(S.FLAG_UNHEALTHY);
-  if (opt.dataset.psr === '1') parts.push(S.FLAG_PSR);
-  return parts.join(', ');
-}
-
 export function filterParcelSelectForRegion(parcelSel, allParcelOpts, regionId) {
   const current = parcelSel.value;
   for (const o of allParcelOpts) o.remove();
@@ -905,7 +897,7 @@ function wireCantiereSelect(form) {
     const hasValue = opt && opt.value;
 
     if (flagsDisplay && flagsSpan) {
-      const note = hasValue ? renderFlagNote(opt) : '';
+      const note = opt?.dataset.flagNote;
       flagsSpan.textContent = note || '—';
       flagsDisplay.hidden = !note;
     }

@@ -606,13 +606,6 @@ export const STATE_OPEN       = 'cantiere aperto';
 export const STATE_HARVESTING = 'in prelievo';
 export const STATE_CLOSED     = 'cantiere chiuso';
 
-// Plan-item / harvest boolean flag labels.  At most two of the three
-// co-occur in practice; rendered as a comma-joined string in the
-// calendar's Note column.
-export const FLAG_DAMAGED     = 'Catastrofato';
-export const FLAG_UNHEALTHY   = 'Fitosanitario';
-export const FLAG_PSR         = 'PSR';
-
 // Type-of-intervention labels for the COL_TYPE column.
 export const TYPE_HIGHFOREST = 'Fustaia';
 export const TYPE_COPPICE    = 'Ceduo';

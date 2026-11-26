@@ -26,22 +26,18 @@
               JS reveals the Particella pulldown in that case.
             {% endcomment %}
             <option value="{{ op.harvest_plan_item_id }}" selected
-                    data-damaged="{{ op.harvest_plan_item.damaged|yesno:'1,0' }}"
-                    data-unhealthy="{{ op.harvest_plan_item.unhealthy|yesno:'1,0' }}"
-                    data-psr="{{ op.harvest_plan_item.psr|yesno:'1,0' }}"
+                    data-flag-note="{{ current_flag_note }}"
                     data-region-id="{% if op.harvest_plan_item.parcel_id %}{{ op.harvest_plan_item.parcel.region_id }}{% else %}{{ op.harvest_plan_item.region_id }}{% endif %}"
                     data-parcel-id="{{ op.harvest_plan_item.parcel_id|default_if_none:'' }}">
               {{ current_cantiere_label }}
             </option>
           {% else %}
-            <option value="">---</option>
+            <option value="" data-flag-note="{{ current_flag_note }}">---</option>
           {% endif %}
           {% for c in cantieri %}
             {% if not op or c.id != op.harvest_plan_item_id %}
             <option value="{{ c.id }}"
-                    data-damaged="{{ c.damaged|yesno:'1,0' }}"
-                    data-unhealthy="{{ c.unhealthy|yesno:'1,0' }}"
-                    data-psr="{{ c.psr|yesno:'1,0' }}"
+                    data-flag-note="{{ c.flag_note }}"
                     data-region-id="{{ c.region_id }}"
                     data-parcel-id="{{ c.parcel_id|default_if_none:'' }}"
                     {% if vals.harvest_plan_item_id == c.id|stringformat:"d" %}selected{% endif %}>
